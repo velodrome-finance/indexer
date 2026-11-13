@@ -1,22 +1,8 @@
 import dotenv from "dotenv";
-import { http, createPublicClient } from "viem";
-import type { Chain, PublicClient } from "viem";
-import {
-  base,
-  celo,
-  fraxtal,
-  ink,
-  lisk,
-  metalL2,
-  mode,
-  optimism,
-  soneium,
-  superseed,
-  swellchain,
-  unichain,
-} from "viem/chains";
+import type { PublicClient } from "viem";
 import { Web3 } from "web3";
 
+import { createPrimaryRpcClient } from "./Effects/RpcClient";
 import PriceConnectors from "./constants/price_connectors.json";
 import StablecoinsJson from "./constants/stablecoins.json";
 
@@ -266,12 +252,8 @@ export enum PriceOracleType {
 
 export { zeroAddress as ZERO_ADDRESS } from "viem";
 
-// Global rate limit for all RPC requests; used in rpcGateway effect
-export const GLOBAL_REQUESTS_PER_SECOND = 20000;
-
-export const RPC_GATEWAY_PREFIX = "rpcGateway";
-
-// RPC fallback for getTokenDetails effect
+// Stand-in returned by getTokenDetails for an address that is not an address.
+// Real tokens go through getTokenMetadata (src/Effects/TokenMetadata.ts).
 export const TOKEN_DETAILS_FALLBACK = { name: "", decimals: 18, symbol: "" };
 
 export const USDC_DETAILS_FALLBACK = {
@@ -281,115 +263,38 @@ export const USDC_DETAILS_FALLBACK = {
 };
 
 /**
- * Default/fallback public RPC URLs for each chain
- * Used as fallback when private RPC fails or doesn't have historical state
- */
-export const DefaultRPC = {
-  optimism: "https://mainnet.optimism.io",
-  base: "https://base-rpc.publicnode.com",
-  lisk: "https://lisk.drpc.org",
-  mode: "https://1rpc.io/mode",
-  celo: "https://celo.drpc.org",
-  soneium: "https://rpc.soneium.org",
-  unichain: "https://0xrpc.io/uni",
-  fraxtal: "https://fraxtal.drpc.org",
-  ink: "https://ink.drpc.org",
-  metal: "https://metall2.drpc.org",
-  swell: "https://rpc.ankr.com/swell",
-  superseed: "https://mainnet.superseed.xyz",
-} as const;
-
-/**
- * Shared HTTP transport options for all chain RPC clients (DRPC best practices).
- * Centralised so batch size and timeout are tuned in one place.
- * - batchSize 150: dRPC (our RPC provider) strongly recommends 100-200 per batch. There is no hard limit,
- *   but batch requests wait for the slowest call before returning — one slow call in a large batch can
- *   timeout the entire batch. Smaller batches improve reliability for token metadata and price fetches.
- * - timeout 120s: applied per HTTP request (per batch when batching is enabled), not per individual JSON-RPC call.
- * - retryCount 0: transport-level retries are disabled. All RPC retries are handled in one place
- *   by RpcGateway (runWithRpcRetry + RPC_APP_RETRY), with logging and error-type-aware backoff.
+ * HTTP transport options for ad-hoc viem clients in `scripts/`. The indexer's
+ * own clients are built in src/Effects/RpcClient.ts (lazy URL resolution,
+ * per-chain rate limits); endpoint selection lives in src/Effects/RpcConfig.ts.
+ * - batchSize 50: dRPC recommends batches well under 200; a slow call holds
+ *   the whole batch.
+ * - timeout 25s per HTTP request (per batch).
+ * - retryCount 0: retries are handled by runWithRpcRetry (src/Effects/RpcGateway.ts).
  */
 export const RPC_HTTP_OPTIONS = {
-  batch: { batchSize: 150 },
-  timeout: 120000, // Per HTTP request (per batch when batching). Prevents indefinite hangs on slow or unresponsive RPC providers.
+  batch: { batchSize: 50 },
+  timeout: 25_000,
   retryCount: 0,
 } as const;
 
 /**
- * Single retry config for all RPC operations. Used by RpcGateway (runWithRpcRetry).
- * Error-type-aware backoff: rate limit (429) vs network get different caps.
- * Delay is min(baseMs * 2^attempt, capMs) with baseMs 1000 for rate limit, 500 for network.
- *
- * `methodNotSupportedMaxRetries` caps retries for provider-side method outages
- * (e.g. `eth_call does not exist / is not available`). These errors are usually
- * deterministic (upstream node has the method disabled) so retrying the primary
- * more than a couple of times is wasted work and log noise; after this cap the
- * caller falls back to the default public RPC for the chain.
+ * Retry budget per endpoint for every RPC operation (runWithRpcRetry). Which
+ * error classes are retried at all is decided by RPC_ERROR_POLICY in
+ * src/Effects/Helpers.ts: transient classes (5xx, timeout, rate limit,
+ * network, pruned-node state errors, unknown) are retried; deterministic
+ * reverts and auth/quota/method errors are not. Delay before retry n is
+ * jittered in [c/2, c] with c = min(base * 2^n, maxDelayMs).
+ * Worst case per endpoint: 4 attempts x 25 s timeout + ~3.5 s backoff.
  */
 export const RPC_APP_RETRY = {
-  maxRetries: 7,
-  methodNotSupportedMaxRetries: 2,
-  rateLimit: { capMs: 10000 },
-  network: { capMs: 8000 },
+  maxAttempts: 4,
+  baseDelayMs: 500,
+  rateLimitBaseDelayMs: 1000,
+  maxDelayMs: 8000,
 } as const;
 
-const CHAIN_BY_ID: Record<number, Chain> = {
-  10: optimism,
-  8453: base,
-  1135: lisk,
-  34443: mode,
-  42220: celo,
-  1868: soneium,
-  130: unichain,
-  252: fraxtal,
-  57073: ink,
-  1750: metalL2,
-  1923: swellchain,
-  5330: superseed,
-};
-
-const DEFAULT_RPC_BY_ID: Record<number, string> = {
-  10: DefaultRPC.optimism,
-  8453: DefaultRPC.base,
-  1135: DefaultRPC.lisk,
-  34443: DefaultRPC.mode,
-  42220: DefaultRPC.celo,
-  1868: DefaultRPC.soneium,
-  130: DefaultRPC.unichain,
-  252: DefaultRPC.fraxtal,
-  57073: DefaultRPC.ink,
-  1750: DefaultRPC.metal,
-  1923: DefaultRPC.swell,
-  5330: DefaultRPC.superseed,
-};
-
-/**
- * Builds a viem PublicClient pinned to the public DefaultRPC for a chain.
- * Used by executeRpcWithFallback as a secondary client when the primary
- * provider exhausts retries on recoverable errors (historical state or
- * method-not-supported). Returns null if the chain has no default RPC.
- *
- * Clients are cached per chainId so the HTTP agent is reused across calls.
- *
- * @param chainId - Chain ID to build the fallback client for.
- * @returns A viem PublicClient configured for the default RPC, or null if unsupported.
- */
-const fallbackClientCache: Map<number, PublicClient> = new Map();
-export function createFallbackRpcClient(chainId: number): PublicClient | null {
-  const cached = fallbackClientCache.get(chainId);
-  if (cached) return cached;
-
-  const chain = CHAIN_BY_ID[chainId];
-  const url = DEFAULT_RPC_BY_ID[chainId];
-  if (!chain || !url) return null;
-
-  const client = createPublicClient({
-    chain: chain satisfies Chain as Chain,
-    transport: http(url, RPC_HTTP_OPTIONS),
-  });
-  fallbackClientCache.set(chainId, client);
-  return client;
-}
+/** @see createFallbackRpcClient in src/Effects/RpcClient.ts */
+export { createFallbackRpcClient } from "./Effects/RpcClient";
 
 export enum CrossChainPendingResolutionLogPrefix {
   Votes = "[processAllPendingVotesForRootPool]",
@@ -462,13 +367,7 @@ const OPTIMISM_CONSTANTS: chainConstants = {
     }
     return "0x9560e827aF36c94D2Ac33a39bCE1Fe78631088Db";
   },
-  eth_client: createPublicClient({
-    chain: optimism satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_OPTIMISM_RPC_URL || DefaultRPC.optimism,
-      RPC_HTTP_OPTIONS,
-    ),
-  }),
+  eth_client: createPrimaryRpcClient(10),
   lpHelperAddress: "0xF313D54f514A810387D77b7Cc20a98ADd5f891f7",
   stablecoins: buildStablecoinSet(
     StablecoinsJson.optimism,
@@ -515,13 +414,7 @@ const BASE_CONSTANTS: chainConstants = {
   },
   rewardToken: (blockNumber: number) =>
     "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
-  eth_client: createPublicClient({
-    chain: base satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_BASE_RPC_URL || DefaultRPC.base,
-      RPC_HTTP_OPTIONS,
-    ),
-  }),
+  eth_client: createPrimaryRpcClient(8453),
   lpHelperAddress: "0xd48bed8AFaF8A1d0909fe823F6b48a4A96f58224",
   stablecoins: buildStablecoinSet(
     StablecoinsJson.base,
@@ -562,13 +455,7 @@ const LISK_CONSTANTS: chainConstants = {
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: lisk satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_LISK_RPC_URL || DefaultRPC.lisk,
-      RPC_HTTP_OPTIONS,
-    ),
-  }),
+  eth_client: createPrimaryRpcClient(1135),
   lpHelperAddress: "0xa2e319aBE4bBEadeD6FcE67F7D0CDDc5d23F8a8A",
   stablecoins: buildStablecoinSet(
     StablecoinsJson.lisk,
@@ -611,13 +498,7 @@ const MODE_CONSTANTS: chainConstants = {
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: mode satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_MODE_RPC_URL || DefaultRPC.mode,
-      RPC_HTTP_OPTIONS,
-    ),
-  }),
+  eth_client: createPrimaryRpcClient(34443),
   lpHelperAddress: "0xD4738416444ce276289A884fDA4FDAc31f8eC694",
   stablecoins: buildStablecoinSet(
     StablecoinsJson.mode,
@@ -644,13 +525,7 @@ const CELO_CONSTANTS: chainConstants = {
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: celo satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_CELO_RPC_URL || DefaultRPC.celo,
-      RPC_HTTP_OPTIONS,
-    ),
-  }),
+  eth_client: createPrimaryRpcClient(42220),
   lpHelperAddress: "0xa916A76b052AcD3b0FF6Cc76b55602fba456a85C",
   stablecoins: buildStablecoinSet(
     StablecoinsJson.celo,
@@ -677,13 +552,7 @@ const SONEIUM_CONSTANTS: chainConstants = {
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: soneium satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_SONEIUM_RPC_URL || DefaultRPC.soneium,
-      RPC_HTTP_OPTIONS,
-    ),
-  }),
+  eth_client: createPrimaryRpcClient(1868),
   lpHelperAddress: "0x600089ab611E4Cc9942163e68870806Db66e2B08",
   stablecoins: buildStablecoinSet(
     StablecoinsJson.soneium,
@@ -710,13 +579,7 @@ const UNICHAIN_CONSTANTS: chainConstants = {
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: unichain satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_UNICHAIN_RPC_URL || DefaultRPC.unichain,
-      RPC_HTTP_OPTIONS,
-    ),
-  }),
+  eth_client: createPrimaryRpcClient(130),
   lpHelperAddress: "0x2DCD9B33F0721000Dc1F8f84B804d4CFA23d7713",
   stablecoins: buildStablecoinSet(
     StablecoinsJson.unichain,
@@ -761,13 +624,7 @@ const FRAXTAL_CONSTANTS: chainConstants = {
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: fraxtal satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_FRAXTAL_RPC_URL || DefaultRPC.fraxtal,
-      RPC_HTTP_OPTIONS,
-    ),
-  }),
+  eth_client: createPrimaryRpcClient(252),
   lpHelperAddress: "0x2F44BD0Aff1826aec123cE3eA9Ce44445b64BB34",
   stablecoins: buildStablecoinSet(
     StablecoinsJson.fraxtal,
@@ -794,13 +651,7 @@ const INK_CONSTANTS: chainConstants = {
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: ink satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_INK_RPC_URL || DefaultRPC.ink,
-      RPC_HTTP_OPTIONS,
-    ),
-  }),
+  eth_client: createPrimaryRpcClient(57073),
   lpHelperAddress: "0x2DCD9B33F0721000Dc1F8f84B804d4CFA23d7713",
   stablecoins: buildStablecoinSet(
     StablecoinsJson.ink,
@@ -827,13 +678,7 @@ const METAL_CONSTANTS: chainConstants = {
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: metalL2 satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_METAL_RPC_URL || DefaultRPC.metal,
-      RPC_HTTP_OPTIONS,
-    ),
-  }),
+  eth_client: createPrimaryRpcClient(1750),
   lpHelperAddress: "0xcaa7d54453964773FE04B5aD32D06322Fc9d9fE4",
   stablecoins: buildStablecoinSet(
     StablecoinsJson.metal,
@@ -860,13 +705,7 @@ const SWELL_CONSTANTS: chainConstants = {
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: swellchain,
-    transport: http(
-      process.env.ENVIO_SWELL_RPC_URL || DefaultRPC.swell,
-      RPC_HTTP_OPTIONS,
-    ),
-  }) as PublicClient,
+  eth_client: createPrimaryRpcClient(1923),
   lpHelperAddress: "0x2002618dd63228670698200069E42f4422e82497",
   stablecoins: buildStablecoinSet(
     StablecoinsJson.swellchain,
@@ -893,13 +732,7 @@ const SUPERSEED_CONSTANTS: chainConstants = {
   },
   rewardToken: (blockNumber: number) =>
     "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: superseed satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_SUPERSEED_RPC_URL || DefaultRPC.superseed,
-      RPC_HTTP_OPTIONS,
-    ),
-  }),
+  eth_client: createPrimaryRpcClient(5330),
   lpHelperAddress: "0xee717411f6E44F9feE011835C8E6FAaC5dEfF166",
   stablecoins: buildStablecoinSet(
     StablecoinsJson.superseed,

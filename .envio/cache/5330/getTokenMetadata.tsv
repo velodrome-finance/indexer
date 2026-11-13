@@ -1,0 +1,10 @@
+id	output
+["0x01F7895B986a64f91113c528DA42E1f89720f8E4",5330]	{"name": "Seedling Pepe", "symbol": "SPROUT", "decimals": 18}
+["0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",5330]	{"name": "OpenUSDT", "symbol": "oUSDT", "decimals": 6}
+["0x4200000000000000000000000000000000000006",5330]	{"name": "Wrapped Ether", "symbol": "WETH", "decimals": 18}
+["0x6EA1fFcbD7F5D210dB07D9E773862B0512fA219B",5330]	{"name": "Superseed", "symbol": "SUPR", "decimals": 18}
+["0x6f36DBD829DE9b7e077DB8A35b480d4329ceB331",5330]	{"name": "Coinbase Wrapped BTC", "symbol": "cbBTC", "decimals": 8}
+["0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",5330]	{"name": "Superchain Velodrome", "symbol": "XVELO", "decimals": 18}
+["0xC316C8252B5F2176d0135Ebb0999E99296998F2e",5330]	{"name": "USDC", "symbol": "USDC", "decimals": 6}
+["0xafcc6AE807187A31E84138F3860D4CE27973e01b",5330]	{"name": "Superchain OP", "symbol": "XOP", "decimals": 18}
+["0xc5068BB6803ADbe5600DE5189fe27A4dAcE31170",5330]	{"name": "Tether USD", "symbol": "USDT", "decimals": 6}

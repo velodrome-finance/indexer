@@ -1,0 +1,8 @@
+id	output
+["0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",1750]	{"name": "OpenUSDT", "symbol": "oUSDT", "decimals": 6}
+["0x4200000000000000000000000000000000000006",1750]	{"name": "Wrapped Ether", "symbol": "WETH", "decimals": 18}
+["0x51E85d70944256710cb141847F1a04f568C1Db0e",1750]	{"name": "Bridged USDC (Metal Mainnet)", "symbol": "USDC.e", "decimals": 6}
+["0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",1750]	{"name": "Superchain Velodrome", "symbol": "XVELO", "decimals": 18}
+["0xBCFc435d8F276585f6431Fc1b9EE9A850B5C00A9",1750]	{"name": "Metal", "symbol": "MTL", "decimals": 8}
+["0xafcc6AE807187A31E84138F3860D4CE27973e01b",1750]	{"name": "Superchain OP", "symbol": "XOP", "decimals": 18}
+["0xb91CFCcA485C6E40E3bC622f9BFA02a8ACdEeBab",1750]	{"name": "USDC", "symbol": "USDC", "decimals": 6}

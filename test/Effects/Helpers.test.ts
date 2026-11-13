@@ -1,266 +1,228 @@
-import { vi } from "vitest";
-
-// Mock Helpers before RpcGateway is loaded so runWithRpcRetry uses the mocked sleep (ESM closure).
-vi.mock("../../src/Effects/Helpers", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("../../src/Effects/Helpers")>();
-  return {
-    ...actual,
-    sleep: vi.fn().mockImplementation((ms: number) => actual.sleep(ms)),
-  };
-});
-
+import {
+  BaseError,
+  HttpRequestError,
+  RpcRequestError,
+  TimeoutError,
+  encodeErrorResult,
+  parseAbi,
+} from "viem";
+import { describe, expect, it } from "vitest";
 import {
   ErrorType,
-  createReadableError,
+  RPC_ERROR_POLICY,
+  describeRpcError,
   getErrorType,
-  handleEffectErrorReturn,
-  sleep,
 } from "../../src/Effects/Helpers";
-import { runWithRpcRetry } from "../../src/Effects/RpcGateway";
+import { RpcConfigError } from "../../src/Effects/RpcConfig";
+import {
+  answeringViemClient,
+  captureReadError,
+  failingViemClient,
+} from "./setup";
 
-// Common test constants
-const TEST_EFFECT_NAME = "testEffect";
-const TEST_CONTEXT = "[testContext]";
-const TEST_DETAILS = { chainId: 10, blockNumber: 12345 };
-const TEST_FALLBACK_VALUE = 0n;
+const URL = "https://lb.drpc.live/base/SECRETKEYSECRETKEYSECRETKEY";
 
-describe("Helpers", () => {
-  describe("getErrorType", () => {
-    it("should return correct error types for different error messages", () => {
-      const testCases = [
-        { error: "Rate limit exceeded", expected: ErrorType.RATE_LIMIT },
-        { error: "HTTP 429 Too Many Requests", expected: ErrorType.RATE_LIMIT },
-        {
-          error: "Too many requests per second",
-          expected: ErrorType.RATE_LIMIT,
-        },
-        { error: "Transaction reverted", expected: ErrorType.CONTRACT_REVERT },
-        { error: "execution reverted", expected: ErrorType.CONTRACT_REVERT },
-        { error: "Contract revert", expected: ErrorType.CONTRACT_REVERT },
-        { error: "Network error", expected: ErrorType.NETWORK_ERROR },
-        { error: "Connection error", expected: ErrorType.NETWORK_ERROR },
-        {
-          error: "Temporary internal error. Please retry",
-          expected: ErrorType.NETWORK_ERROR,
-        },
-        {
-          error: 'the method "eth_call" does not exist / is not available',
-          expected: ErrorType.METHOD_NOT_SUPPORTED,
-        },
-        {
-          error: "method not found",
-          expected: ErrorType.METHOD_NOT_SUPPORTED,
-        },
-        {
-          error: "method not supported by this provider",
-          expected: ErrorType.METHOD_NOT_SUPPORTED,
-        },
-        {
-          error: "historical state is not available at block 1",
-          expected: ErrorType.HISTORICAL_STATE_NOT_AVAILABLE,
-        },
-        { error: "Something went wrong", expected: ErrorType.UNKNOWN },
-      ];
+/** Error exactly as the dRPC balancer returned it on Metal/Optimism, 2026-11-13. */
+const INSUFFICIENT_CHANGESETS =
+  "insufficient changesets to revert to block #12272400. Available changeset range: 41491212..=41501276";
 
-      for (const { error, expected } of testCases) {
-        // Pass string for UNKNOWN so stack trace doesn't add "error" and match NETWORK_ERROR
-        const input =
-          expected === ErrorType.UNKNOWN ? error : new Error(error as string);
-        expect(getErrorType(input)).toBe(expected);
-      }
-    });
+const classifyRead = async (thrown: unknown) =>
+  getErrorType(await captureReadError(failingViemClient(thrown)));
 
-    it("should return UNKNOWN for null, undefined, or unrecognized errors", () => {
-      expect(getErrorType(null)).toBe(ErrorType.UNKNOWN);
-      expect(getErrorType(undefined)).toBe(ErrorType.UNKNOWN);
-      expect(getErrorType("Something went wrong")).toBe(ErrorType.UNKNOWN);
-    });
-
-    it("should return first matching ErrorType when message matches multiple patterns", () => {
-      // "rate limit" and "network error" both match; RATE_LIMIT is checked before NETWORK_ERROR in ERROR_KEYWORDS
-      expect(getErrorType(new Error("rate limit network error"))).toBe(
-        ErrorType.RATE_LIMIT,
+describe("getErrorType (typed viem classification)", () => {
+  describe("pruned-node / historical-state errors", () => {
+    it("classifies reth 'insufficient changesets' (internal error code) as historical state, not revert", async () => {
+      const err = await captureReadError(
+        failingViemClient({ code: -32603, message: INSUFFICIENT_CHANGESETS }),
       );
-    });
-  });
-
-  describe("sleep", () => {
-    it("should resolve after the specified time", async () => {
-      const start = Date.now();
-      await sleep(100);
-      const end = Date.now();
-      const elapsed = end - start;
-
-      expect(elapsed).toBeGreaterThanOrEqual(90);
-      expect(elapsed).toBeLessThan(150);
-    });
-
-    it("should resolve immediately for 0ms", async () => {
-      const start = Date.now();
-      await sleep(0);
-      const end = Date.now();
-      const elapsed = end - start;
-
-      expect(elapsed).toBeLessThan(20);
-    });
-
-    it("should return a Promise", () => {
-      expect(sleep(100)).toBeInstanceOf(Promise);
-    });
-
-    it("should handle longer sleep durations", async () => {
-      const start = Date.now();
-      await sleep(200);
-      const end = Date.now();
-      const elapsed = end - start;
-
-      expect(elapsed).toBeGreaterThanOrEqual(190);
-      expect(elapsed).toBeLessThan(250);
-    });
-  });
-
-  describe("createReadableError", () => {
-    it("should create error with context and details from Error instance", () => {
-      const originalError = new Error("Original error message");
-      originalError.stack = "Error stack trace";
-      const details = { key1: "value1", key2: 123 };
-
-      const result = createReadableError(originalError, TEST_CONTEXT, details);
-
-      expect(result).toBeInstanceOf(Error);
-      expect(result.message).toContain(TEST_CONTEXT);
-      expect(result.message).toContain("key1=value1");
-      expect(result.message).toContain("key2=123");
-      expect(result.message).toContain("Original error message");
-      expect(result.stack).toBe("Error stack trace");
-    });
-
-    it("should create error from non-Error value", () => {
-      const nonErrorValue = "string error";
-
-      const result = createReadableError(nonErrorValue, TEST_CONTEXT, {
-        key: "value",
+      // viem surfaces it as a revert with the provider text as the reason...
+      expect((err as Error).message).toContain(
+        "reverted with the following reason",
+      );
+      expect((err as Error).message).toContain("insufficient changesets");
+      // ...but it must not be treated as a deterministic revert.
+      expect(getErrorType(err)).toBe(ErrorType.HISTORICAL_STATE_NOT_AVAILABLE);
+      expect(
+        RPC_ERROR_POLICY[ErrorType.HISTORICAL_STATE_NOT_AVAILABLE],
+      ).toEqual({
+        retrySameEndpoint: true,
+        tryFallback: true,
+        cacheableDefault: false,
+        fatal: false,
       });
+    });
 
-      expect(result).toBeInstanceOf(Error);
-      expect(result.message).toContain(TEST_CONTEXT);
-      expect(result.message).toContain("key=value");
-      expect(result.message).toContain("string error");
-      expect(result.stack).toBeDefined();
-      expect(result.stack).toContain("createReadableError");
+    it("classifies 'insufficient changesets' arriving as code 3 without revert data as historical state", async () => {
+      expect(
+        await classifyRead({ code: 3, message: INSUFFICIENT_CHANGESETS }),
+      ).toBe(ErrorType.HISTORICAL_STATE_NOT_AVAILABLE);
+    });
+
+    it("classifies 'insufficient changesets' from an HTTP JSON-RPC response (RpcRequestError) as historical state", async () => {
+      const rpcErr = new RpcRequestError({
+        body: { method: "eth_call" },
+        error: { code: -32603, message: INSUFFICIENT_CHANGESETS },
+        url: URL,
+      });
+      expect(await classifyRead(rpcErr)).toBe(
+        ErrorType.HISTORICAL_STATE_NOT_AVAILABLE,
+      );
+    });
+
+    it.each([
+      "missing trie node 7c1d0d4b9c (path ) state 0x... is not available",
+      "header not found",
+      "historical state not available",
+    ])("classifies -32000 '%s' as historical state", async (message) => {
+      expect(await classifyRead({ code: -32000, message })).toBe(
+        ErrorType.HISTORICAL_STATE_NOT_AVAILABLE,
+      );
     });
   });
 
-  describe("handleEffectErrorReturn", () => {
-    it("should log error and return fallback value for a non-revert error", () => {
-      const error = new Error("Test error");
-      const mockLog = { error: vi.fn(), warn: vi.fn() };
-      const context = { cache: true, log: mockLog };
-
-      const result = handleEffectErrorReturn(
-        error,
-        context,
-        TEST_EFFECT_NAME,
-        TEST_DETAILS,
-        TEST_FALLBACK_VALUE,
-      );
-
-      expect(result).toBe(TEST_FALLBACK_VALUE);
-      expect(context.cache).toBe(false);
-      expect(mockLog.error).toHaveBeenCalledTimes(1);
-      expect(mockLog.warn).not.toHaveBeenCalled();
-      const errorCall = mockLog.error.mock.calls[0];
-      expect(errorCall[0]).toContain(`[${TEST_EFFECT_NAME}]`);
-      expect(errorCall[0]).toContain("chainId=10");
-      expect(errorCall[0]).toContain("blockNumber=12345");
-      expect(errorCall[1]).toBeInstanceOf(Error);
+  describe("deterministic reverts", () => {
+    it("classifies a revert carrying Error(string) data as CONTRACT_REVERT", async () => {
+      const data = encodeErrorResult({
+        abi: parseAbi(["error Error(string)"]),
+        errorName: "Error",
+        args: ["not supported"],
+      });
+      expect(
+        await classifyRead({
+          code: 3,
+          message: "execution reverted: not supported",
+          data,
+        }),
+      ).toBe(ErrorType.CONTRACT_REVERT);
     });
 
-    it("logs a CONTRACT_REVERT via warn instead of error (issue #692)", () => {
-      const error = new Error("execution reverted");
-      const mockLog = { error: vi.fn(), warn: vi.fn() };
-      const context = { cache: true, log: mockLog };
+    it("classifies -32000 'execution reverted' without data as CONTRACT_REVERT", async () => {
+      expect(
+        await classifyRead({ code: -32000, message: "execution reverted" }),
+      ).toBe(ErrorType.CONTRACT_REVERT);
+    });
 
-      const result = handleEffectErrorReturn(
-        error,
-        context,
-        TEST_EFFECT_NAME,
-        TEST_DETAILS,
-        TEST_FALLBACK_VALUE,
-      );
+    it("classifies an empty eth_call result (no contract) as CONTRACT_REVERT", async () => {
+      expect(
+        getErrorType(await captureReadError(answeringViemClient("0x"))),
+      ).toBe(ErrorType.CONTRACT_REVERT);
+    });
 
-      expect(result).toBe(TEST_FALLBACK_VALUE);
-      expect(context.cache).toBe(false);
-      expect(mockLog.warn).toHaveBeenCalledTimes(1);
-      expect(mockLog.error).not.toHaveBeenCalled();
-      const warnMsg = mockLog.warn.mock.calls[0][0];
-      expect(warnMsg).toContain(`[${TEST_EFFECT_NAME}]`);
-      expect(warnMsg).toContain("execution reverted");
+    it("does not treat an internal error with an arbitrary reason as a revert", async () => {
+      expect(
+        await classifyRead({ code: -32603, message: "upstream node crashed" }),
+      ).toBe(ErrorType.UNKNOWN);
     });
   });
 
-  describe("runWithRpcRetry", () => {
-    beforeEach(() => {
-      vi.mocked(sleep).mockResolvedValue(undefined);
+  describe("HTTP status", () => {
+    it.each([
+      [500, ErrorType.SERVER_ERROR],
+      [502, ErrorType.SERVER_ERROR],
+      [503, ErrorType.SERVER_ERROR],
+      [429, ErrorType.RATE_LIMIT],
+      [401, ErrorType.AUTH_OR_QUOTA],
+      [402, ErrorType.AUTH_OR_QUOTA],
+      [403, ErrorType.AUTH_OR_QUOTA],
+      [404, ErrorType.ENDPOINT_ERROR],
+      [408, ErrorType.TIMEOUT],
+    ])("HTTP %i -> %s", async (status, expected) => {
+      expect(
+        await classifyRead(new HttpRequestError({ status, url: URL })),
+      ).toBe(expected);
     });
 
-    afterEach(() => {
-      vi.restoreAllMocks();
+    it("no status (connection failure) -> NETWORK_ERROR", async () => {
+      expect(
+        await classifyRead(
+          new HttpRequestError({
+            url: URL,
+            cause: new TypeError("fetch failed"),
+          }),
+        ),
+      ).toBe(ErrorType.NETWORK_ERROR);
     });
 
-    it("should return result on first success", async () => {
-      const fn = vi.fn().mockResolvedValue(42);
-      const result = await runWithRpcRetry(fn);
-      expect(result).toBe(42);
-      expect(fn).toHaveBeenCalledTimes(1);
+    it("ignores '429' and 'revert' inside the request body (calldata)", async () => {
+      const err = new HttpRequestError({
+        status: 503,
+        url: URL,
+        body: {
+          method: "eth_call",
+          params: [{ data: "0x429429revert429" }],
+        },
+      });
+      expect(await classifyRead(err)).toBe(ErrorType.SERVER_ERROR);
+    });
+  });
+
+  describe("JSON-RPC codes", () => {
+    it.each([
+      [-32005, ErrorType.RATE_LIMIT],
+      [429, ErrorType.RATE_LIMIT],
+      [-32601, ErrorType.METHOD_NOT_SUPPORTED],
+      [-32004, ErrorType.METHOD_NOT_SUPPORTED],
+      [-32602, ErrorType.INVALID_REQUEST],
+    ])("code %i -> %s", async (code, expected) => {
+      expect(await classifyRead({ code, message: "x" })).toBe(expected);
     });
 
-    it("should retry on RATE_LIMIT then succeed", async () => {
-      const fn = vi
-        .fn()
-        .mockRejectedValueOnce(new Error("rate limit exceeded"))
-        .mockResolvedValueOnce(100n);
-      const result = await runWithRpcRetry(fn);
-      expect(result).toBe(100n);
-      expect(fn).toHaveBeenCalledTimes(2);
+    it("rate limit without '429' anywhere in the text is still RATE_LIMIT", async () => {
+      expect(
+        await classifyRead({ code: -32005, message: "slow down please" }),
+      ).toBe(ErrorType.RATE_LIMIT);
     });
+  });
 
-    it("should retry on NETWORK_ERROR across multiple attempts then succeed", async () => {
-      const fn = vi
-        .fn()
-        .mockRejectedValueOnce(
-          new Error("Temporary internal error. Please retry"),
-        )
-        .mockRejectedValueOnce(new Error("connection error"))
-        .mockRejectedValueOnce(new Error("socket hang up"))
-        .mockResolvedValueOnce(99n);
-      const result = await runWithRpcRetry(fn);
-      expect(result).toBe(99n);
-      expect(fn).toHaveBeenCalledTimes(4);
-    });
+  it("classifies viem TimeoutError as TIMEOUT", async () => {
+    expect(await classifyRead(new TimeoutError({ body: {}, url: URL }))).toBe(
+      ErrorType.TIMEOUT,
+    );
+  });
 
-    it("should not retry on CONTRACT_REVERT", async () => {
-      const fn = vi.fn().mockRejectedValue(new Error("execution reverted"));
-      await expect(runWithRpcRetry(fn)).rejects.toThrow("execution reverted");
-      expect(fn).toHaveBeenCalledTimes(1);
-    });
+  it("classifies RpcConfigError (also when wrapped by viem) as CONFIGURATION", async () => {
+    const cfg = new RpcConfigError("set ENVIO_BASE_RPC_URL");
+    expect(getErrorType(cfg)).toBe(ErrorType.CONFIGURATION);
+    expect(await classifyRead(cfg)).toBe(ErrorType.CONFIGURATION);
+    expect(RPC_ERROR_POLICY[ErrorType.CONFIGURATION].fatal).toBe(true);
+  });
 
-    it("should throw after max retries exhausted", async () => {
-      const fn = vi.fn().mockRejectedValue(new Error("rate limit exceeded"));
-      await expect(runWithRpcRetry(fn)).rejects.toThrow("rate limit exceeded");
-      expect(fn).toHaveBeenCalledTimes(8); // 1 initial + 7 retries (RPC_APP_RETRY.maxRetries)
-    });
+  it("classifies non-viem errors and falsy values as UNKNOWN (transient)", () => {
+    expect(getErrorType(new Error("revert 429 rate limit"))).toBe(
+      ErrorType.UNKNOWN,
+    );
+    expect(getErrorType(undefined)).toBe(ErrorType.UNKNOWN);
+    expect(RPC_ERROR_POLICY[ErrorType.UNKNOWN].retrySameEndpoint).toBe(true);
+  });
 
-    it("should retry METHOD_NOT_SUPPORTED on its own low cap and escalate fast", async () => {
-      // 1 initial + methodNotSupportedMaxRetries (2) = 3 total attempts before throwing.
-      const fn = vi
-        .fn()
-        .mockRejectedValue(
-          new Error('the method "eth_call" does not exist / is not available'),
-        );
-      await expect(runWithRpcRetry(fn)).rejects.toThrow("does not exist");
-      expect(fn).toHaveBeenCalledTimes(3);
-    });
+  it("only CONTRACT_REVERT defaults are cacheable", () => {
+    const cacheable = Object.entries(RPC_ERROR_POLICY)
+      .filter(([, p]) => p.cacheableDefault)
+      .map(([k]) => k);
+    expect(cacheable).toEqual([ErrorType.CONTRACT_REVERT]);
+  });
+});
+
+describe("describeRpcError", () => {
+  it("includes provider details but never the URL key or request body", async () => {
+    const err = await captureReadError(
+      failingViemClient(
+        new RpcRequestError({
+          body: { params: ["0xsecretcalldata"] },
+          error: { code: -32603, message: INSUFFICIENT_CHANGESETS },
+          url: URL,
+        }),
+      ),
+    );
+    const text = describeRpcError(err);
+    expect(text).toContain("insufficient changesets");
+    expect(text).not.toContain("SECRETKEY");
+    expect(text).not.toContain("secretcalldata");
+  });
+
+  it("handles plain errors and non-errors", () => {
+    expect(describeRpcError(new Error("boom"))).toBe("boom");
+    expect(describeRpcError("x")).toBe("x");
+    expect(describeRpcError(new BaseError("short"))).toContain("short");
   });
 });
