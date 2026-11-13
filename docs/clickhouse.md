@@ -123,7 +123,10 @@ few hours for production's 248 GiB of `Pool` history. **Rebuild** = `rebuild` (d
 again). **After an indexer reset** envio empties its database; the refreshes stop loading
 (their source no longer matches the recorded instance id), `status` prints `STALE`, and the next
 `install` rebuilds once the new run has written its first batch. Running `install` from cron
-(hourly) automates that.
+(hourly) automates that. During a long resync the refreshes then carry the load, at most
+500,000 checkpoints per refresh (`ANALYTICS_MAX_CHECKPOINTS_PER_REFRESH`); if they fall behind
+(`status` shows `source_rows_behind` growing), `rebuild` once the indexer reaches the head is
+faster than catching up.
 
 Requirements: ClickHouse 24.10 or later (refreshable materialized views, `mergeTreeIndex`,
 `keccak256`); a user with `CREATE DATABASE` (or an analytics database created for you) and
@@ -190,6 +193,12 @@ sides are compared as text, column by column, so a lossy cast would show up too.
 keys missing from the layer, extra keys and mismatches per column. Results:
 
 <!-- VERIFY:BEGIN -->
+| database | how the layer was loaded | keys compared | result |
+|---|---|---|---|
+| ten-chain sync (`velo_small_legacy`, older schema, 4b48e15) | backfill, then refreshes while the indexer ran to the head | 843 pools (78 columns), 425 tokens, 2,327,201 user-pool rows, 700,789 positions, 49 ALM wrappers, 1,290,632 token-price hours, 1,843,264 pool-hours and 165,701 pool-days (56 columns incl. `prev_*`) | all equal, 0 missing, 0 extra (verify took 38 min) |
+| Aero sync (`velo_aero_all`, a397cc0, seven Aero chains) | backfill at checkpoint 103 k, then refreshes up to 672 k while the indexer was backfilling | 1,096 pools, 148,196 user-pool rows, 31,414 positions, 36,878 pool-hours, every Aero table (477 gauges, 17,324 sAERO positions, 28,527 root allocations, 23,643 leaf allocations, 2,170 gauge-days, …) | all equal |
+| three-chain sync (`velo_verify`, 4b48e15) | backfill | 906,204 user-pool rows, 597,097 pool-hours, … | all equal |
+| Metal sync with the proposed schema (custom `orderBy`, `Decimal(38,0)` sources) | backfill | 18 pools, 3,733 user-pool rows, 512 positions, 54,363 token prices, 30,960 pool-hours | all equal |
 <!-- VERIFY:END -->
 
 `clickhouse/tests/test_mechanism.py` plays the edge cases on a synthetic envio database (rows
@@ -299,6 +308,426 @@ backfilling when measured), which also ran 1–25. The server was a 4-thread Cli
 in production use `today()`.
 
 <!-- QUERIES:BEGIN -->
+
+### 1. TVL now, by chain and deployment
+
+```sql
+SELECT chain_name, deployment, count() AS pools, countIf(tvl_usd > 0) AS pools_with_tvl,
+       round(sum(tvl_usd)) AS tvl, round(sum(staked_usd)) AS staked
+FROM pools
+GROUP BY chain_name, deployment
+ORDER BY tvl DESC
+```
+
+Ten-chain sync: **10 rows, 0.100 s** (first run 0.655 s; read 4.3 krows, 503.6 kB). Aero sync: **7 rows, 0.055 s** (first run 0.142 s; read 6.8 krows, 743.3 kB). Production: `pools` is one row per pool (≈ 44 k) read with FINAL plus two token joins, so this stays well under a second; it does not depend on the 248 GiB of `Pool` history.
+
+### 2. Daily volume, fees and swaps per chain over the last 30 days of data
+
+```sql
+-- (in production replace last_day with today())
+WITH (SELECT max(day) FROM chain_daily) AS last_day
+SELECT day, chain_name, deployment, round(volume_usd) AS volume, round(fees_usd) AS fees, swaps, active_pools
+FROM chain_daily
+WHERE day > last_day - 30
+ORDER BY day DESC, volume DESC
+```
+
+Ten-chain sync: **228 rows, 0.356 s** (first run 0.369 s; read 400.1 krows, 52.9 MB). Aero sync: **41 rows, 0.112 s** (first run 0.124 s; read 19.3 krows, 2.3 MB). Production: `chain_daily` recomputes deltas over every pool-day (`pool_daily`, a few million rows at production scale) before aggregating; expect seconds. If dashboards poll it, materialize `chain_daily` into a table on a schedule.
+
+### 3. Monthly volume and fees by deployment (legacy Velodrome / Aerodrome, Aero), all chains
+
+```sql
+SELECT toStartOfMonth(day) AS month, deployment,
+       round(sum(volume_usd)) AS volume, round(sum(fees_usd)) AS fees, sum(swaps) AS swap_count
+FROM chain_daily
+GROUP BY month, deployment
+ORDER BY month, deployment
+```
+
+Ten-chain sync: **31 rows, 0.164 s** (first run 0.164 s; read 200.0 krows, 40.7 MB). Aero sync: **2 rows, 0.049 s** (first run 0.049 s; read 9.7 krows, 1.5 MB). Production: same cost as query 2 (it reads all of `pool_daily`).
+
+### 4. TVL per chain at the end of each week (carry-forward of every pool's last state)
+
+```sql
+SELECT week, chain_name, round(sum(tvl)) AS tvl_end_of_week
+FROM (SELECT chain_name, deployment, toStartOfWeek(day) AS week, argMax(tvl_usd, day) AS tvl
+      FROM chain_daily GROUP BY chain_name, deployment, week)
+GROUP BY week, chain_name
+ORDER BY week, chain_name
+```
+
+Ten-chain sync: **970 rows, 0.198 s** (first run 0.309 s; read 200.0 krows, 24.9 MB). Aero sync: **15 rows, 0.076 s** (first run 0.076 s; read 9.7 krows, 1.1 MB). TVL is the carried-forward sum of the pools' last known `totalLiquidityUSD`, which the indexer revalues only when a pool has an event. Production: as query 2.
+
+### 5. Top 20 pools by TVL now
+
+```sql
+SELECT chain_name, deployment, pair, pool_type, pool_address, round(tvl_usd) AS tvl,
+       round(staked_share, 3) AS staked_frac, round(volume_usd_total) AS lifetime_volume, current_fee_pct
+FROM pools
+ORDER BY tvl_usd DESC
+LIMIT 20
+```
+
+Ten-chain sync: **20 rows, 0.070 s** (first run 0.104 s; read 4.3 krows, 634.6 kB). Aero sync: **20 rows, 0.110 s** (first run 0.148 s; read 6.8 krows, 925.8 kB). Production: as query 1.
+
+### 6. Top 20 pools by volume in the last 7 days of data, with fees and fee APR on average TVL
+
+```sql
+WITH (SELECT max(day) FROM chain_daily) AS last_day
+SELECT chain_name, pair, pool_type, pool_address,
+       round(sum(volume_usd)) AS volume_7d, round(sum(fees_usd)) AS fees_7d, round(avg(tvl_usd)) AS avg_tvl,
+       round(if(avg(tvl_usd) > 0, sum(fees_usd) / avg(tvl_usd) * 365 / 7, NULL), 4) AS fee_apr
+FROM pool_daily
+WHERE day > last_day - 7
+GROUP BY chain_name, pair, pool_type, pool_address
+ORDER BY volume_7d DESC
+LIMIT 20
+```
+
+Ten-chain sync: **20 rows, 0.248 s** (first run 0.248 s; read 400.1 krows, 55.9 MB). Aero sync: **20 rows, 0.087 s** (first run 0.342 s; read 19.3 krows, 2.4 MB). Production: the window over `pool_daily` covers all pools and days before the date filter applies (the filter cannot be pushed below the delta computation); add `chain_id` to the WHERE clause to cut it to one chain.
+
+### 7. One pool's last 168 hourly rows (WETH/weETH, the deepest pool on Ink here)
+
+```sql
+-- Give the pool as a literal or a scalar subquery `pool_address = (SELECT ...)`: a WITH alias
+-- is not pushed down to the table's sort key and makes the query read every pool.
+SELECT hour, tvl_usd, volume_usd, fees_usd, swaps, price0_in_token1, staked_share
+FROM pool_hourly
+WHERE chain_id = 57073 AND pool_address = '0xf9349c5af43d2abc2758e90cfb341722116fac38'
+ORDER BY hour DESC
+LIMIT 168
+```
+
+Ten-chain sync: **168 rows, 0.140 s** (first run 0.142 s; read 21.9 krows, 6.2 MB). Aero sync: **0 rows, 0.047 s** (first run 0.047 s; read 6.4 krows, 1.3 MB). Filters on chain_id and pool_address reach `_pool_hour`'s sort key (no window function in the view), so this reads one pool's rows plus the small pool and token dimensions. Give the pool as a literal or a scalar subquery: a value bound with `WITH ... AS pool` is not used for index analysis and the query then reads every pool. Production: a busy Base pool has up to 24 rows a day; milliseconds.
+
+### 8. One pool's full daily history with cumulative totals (USDC/WETH, the busiest pool on Unichain here)
+
+```sql
+SELECT day, tvl_usd, reserve0, reserve1, volume_usd, volume_usd_total, fees_usd, swaps
+FROM pool_daily
+WHERE chain_id = 130 AND pool_address = '0x5438e884c621d5db08fa605b53ca04c5b33a623a'
+ORDER BY day
+```
+
+Ten-chain sync: **625 rows, 0.109 s** (first run 0.130 s; read 15.3 krows, 4.1 MB). Aero sync: **0 rows, 0.073 s** (first run 0.073 s; read 9.7 krows, 2.0 MB). Production: one pool's daily rows; milliseconds.
+
+### 9. Fees generated versus emissions (USD) per chain and month: are emissions buying volume?
+
+```sql
+SELECT toStartOfMonth(day) AS month, chain_name,
+       round(sum(fees_usd)) AS fees, round(sum(emissions_usd)) AS emissions,
+       round(sum(gauge_rewards_claimed_usd)) AS gauge_rewards_claimed,
+       round(sum(bribes_claimed_usd) + sum(fee_rewards_claimed_usd)) AS voter_rewards_claimed,
+       round(if(emissions > 0, fees / emissions, NULL), 3) AS fees_per_emission_dollar
+FROM chain_daily
+GROUP BY month, chain_name
+ORDER BY month, chain_name
+```
+
+Ten-chain sync: **233 rows, 0.186 s** (first run 0.186 s; read 200.0 krows, 62.8 MB). Aero sync: **7 rows, 0.063 s** (first run 0.253 s; read 9.7 krows, 1.1 MB). The ten-chain data has no Optimism, where the leaf chains' gauges get their emissions from (root gauges), so emissions read 0 here. Production: as query 2. Emissions are legacy-gauge only; Aero gauges are not indexed yet.
+
+### 10. Pools ranked by lifetime emissions (USD) against the fees they generated
+
+```sql
+SELECT chain_name, pair, pool_address, round(emissions_usd_total) AS emissions, round(fees_usd_total) AS fees,
+       round(gauge_rewards_claimed_usd_total) AS gauge_rewards_claimed,
+       round(if(emissions_usd_total > 0, fees_usd_total / emissions_usd_total, NULL), 3) AS fees_per_emission_dollar
+FROM pools
+WHERE emissions_usd_total > 0 OR gauge_rewards_claimed_usd_total > 0
+ORDER BY emissions_usd_total DESC, gauge_rewards_claimed_usd_total DESC
+LIMIT 20
+```
+
+Ten-chain sync: **20 rows, 0.078 s** (first run 0.114 s; read 4.3 krows, 507.9 kB). Aero sync: **0 rows, 0.064 s** (first run 0.064 s; read 6.8 krows, 681.0 kB). Empty on the ten-chain data for the reason given in query 9. Production: as query 1.
+
+### 11. A wallet's open CL positions on Ink with current amounts and value (addresses are lowercase)
+
+```sql
+SELECT chain_name, pair, pool_type, nfpm_address, token_id, tick_lower, tick_upper, in_range, is_staked,
+       amount0, amount1, value_usd, last_updated
+FROM positions
+WHERE chain_id = 57073 AND owner = '0x19df5d96f5024f53459a282260cead38e8feb3b5' AND liquidity > 0
+ORDER BY value_usd DESC
+LIMIT 50
+```
+
+Ten-chain sync: **50 rows, 0.254 s** (first run 0.386 s; read 231.2 krows, 29.6 MB). Aero sync: **0 rows, 0.127 s** (first run 0.330 s; read 0 rows, 0 B). Production: `_position` is sorted by (chain, NFPM, token id) with a bloom index on owner; one owner's positions read only the granules that hold them, but the view also joins every pool's current price and the tokens (tens of thousands of rows): well under a second.
+
+### 12. A wallet's activity in every pool on a chain: swaps, volume, fees paid, liquidity, rewards
+
+```sql
+SELECT chain_name, pair, pool_type, swaps_total, swap_volume_usd_total, fees_paid_usd_total,
+       liquidity_added_usd_total, liquidity_removed_usd_total, gauge_rewards_claimed_usd_total,
+       first_activity, last_activity
+FROM user_pools
+WHERE chain_id = 57073 AND user_address = '0xe244b3bdd6f452e03958f76d2b9c66ccd9c53288'
+ORDER BY swap_volume_usd_total DESC
+LIMIT 50
+```
+
+Ten-chain sync: **26 rows, 0.081 s** (first run 0.152 s; read 29.4 krows, 6.8 MB). Aero sync: **0 rows, 0.180 s** (first run 0.180 s; read 11.4 krows, 2.5 MB). `_user_pool` is sorted by (chain_id, user_address, pool_address): with both filters it reads one slice. Without chain_id it scans the user_address column (tens of millions of rows in production): add the chain when you can. Note that per-user swap stats are keyed by the address the pool sees, often a router.
+
+### 13. A wallet's hourly snapshots on one chain (parameterized view; any address case works)
+
+```sql
+SELECT hour, pool_address, swaps_total, swap_volume_usd_total, liquidity_added_usd_total, lp_balance
+FROM user_pool_snapshots(chain_id = 57073, user = '0xE244B3BDD6F452E03958F76D2B9C66CCD9C53288')
+ORDER BY hour DESC
+LIMIT 100
+```
+
+Ten-chain sync: **100 rows, 0.058 s** (first run 0.285 s; read 24.6 krows, 3.9 MB). Aero sync: **0 rows, 0.124 s** (first run 0.453 s; read 19 rows, 380 B). Reads only ids starting with the checksummed `{chainId}-{user}` prefix of envio's `UserStatsPerPoolSnapshot`. Production (244 M rows): milliseconds, independent of table size.
+
+### 14. Top 10 wallets by swap volume on each chain (routers and aggregators show up here)
+
+```sql
+SELECT chain_name, user_address, round(volume) AS volume_usd_all_pools, swap_count, pool_count
+FROM (
+  SELECT chain_name, user_address, sum(swap_volume_usd_total) AS volume, sum(swaps_total) AS swap_count, count() AS pool_count
+  FROM user_pools
+  GROUP BY chain_name, user_address
+)
+ORDER BY chain_name, volume DESC
+LIMIT 10 BY chain_name
+```
+
+Ten-chain sync: **100 rows, 1.203 s** (first run 1.508 s; read 2.6 Mrows, 365.5 MB). Aero sync: **70 rows, 0.130 s** (first run 0.293 s; read 235.6 krows, 33.3 MB). Production: a full aggregation of `_user_pool` (one row per user and pool, tens of millions): seconds and a few hundred MB; restrict to one chain for interactive use.
+
+### 15. One token's hourly USD price, with where each price came from (WETH on Unichain here)
+
+```sql
+SELECT hour, price_usd, price_source, pricing_pool_id, pricing_depth_usd
+FROM token_prices_hourly
+WHERE chain_id = 130 AND token_address = '0x4200000000000000000000000000000000000006'
+ORDER BY hour DESC
+LIMIT 168
+```
+
+Ten-chain sync: **168 rows, 0.039 s** (first run 0.081 s; read 41.4 krows, 7.1 MB). Aero sync: **0 rows, 0.029 s** (first run 0.039 s; read 12.0 krows, 1.9 MB). `_token_price` is sorted by (chain_id, token_address, key): one token's rows only. Production (26 M snapshots): milliseconds.
+
+### 16. Daily open / high / low / close of a token's hourly prices (fresh prices only)
+
+```sql
+SELECT toDate(hour) AS day, any(symbol) AS token,
+       argMin(price_usd, hour) AS open, max(price_usd) AS high, min(price_usd) AS low, argMax(price_usd, hour) AS close,
+       count() AS fresh_hours
+FROM token_prices_hourly
+WHERE chain_id = 130 AND token_address = '0x4200000000000000000000000000000000000006' AND is_fresh
+GROUP BY day
+ORDER BY day DESC
+LIMIT 60
+```
+
+Ten-chain sync: **60 rows, 0.035 s** (first run 0.084 s; read 41.4 krows, 4.4 MB). Aero sync: **0 rows, 0.026 s** (first run 0.032 s; read 12.0 krows, 1.2 MB). Only hours in which the price was freshly obtained count (`is_fresh`). Production: as query 15.
+
+### 17. Legacy versus Aero share of volume, fees and TVL per day since the Aero launch (2026-10-21)
+
+```sql
+SELECT day,
+       round(sumIf(volume_usd, deployment = 'AERO') / sum(volume_usd), 4) AS aero_volume_share,
+       round(sumIf(fees_usd, deployment = 'AERO') / sum(fees_usd), 4) AS aero_fee_share,
+       round(sumIf(tvl_usd, deployment = 'AERO') / sum(tvl_usd), 4) AS aero_tvl_share,
+       round(sum(volume_usd)) AS total_volume
+FROM chain_daily
+WHERE day >= '2026-10-21'
+GROUP BY day
+ORDER BY day
+```
+
+Ten-chain sync: **24 rows, 0.172 s** (first run 0.263 s; read 200.0 krows, 50.2 MB). Aero sync: **7 rows, 0.059 s** (first run 0.059 s; read 9.7 krows, 1.8 MB). On the ten-chain sync every pool is legacy (its schema predates `deployment`; Aero pools on Ink are not in that config), so the Aero shares are 0 there; on the Aero sync every pool is AERO. In production both kinds are on the same chains and the shares are meaningful. Production: as query 2, restricted to days since the launch.
+
+### 18. Share of TVL staked in gauges per chain, now and at the end of each of the last 6 months of data
+
+```sql
+SELECT chain_name, 'now' AS at, round(sum(staked_usd) / sum(tvl_usd), 4) AS staked_frac
+FROM pools GROUP BY chain_name
+UNION ALL
+SELECT chain_name, toString(month) AS at, round(sum(staked) / sum(tvl), 4) AS staked_frac
+FROM (SELECT chain_name, deployment, toStartOfMonth(day) AS month, argMax(staked_usd, day) AS staked, argMax(tvl_usd, day) AS tvl
+      FROM chain_daily GROUP BY chain_name, deployment, month)
+WHERE month > (SELECT max(day) FROM chain_daily) - INTERVAL 6 MONTH
+GROUP BY chain_name, month
+ORDER BY chain_name, at
+```
+
+Ten-chain sync: **65 rows, 0.311 s** (first run 0.373 s; read 404.3 krows, 50.3 MB). Aero sync: **14 rows, 0.115 s** (first run 0.159 s; read 26.1 krows, 3.0 MB). `staked_usd` is the pool-level `currentLiquidityStakedUSD` (live for CL pools, stale between gauge events for V2 pools, #899). Production: as query 1 plus a small `chain_daily` lookup per chain.
+
+### 19. Tokens that are unpriced (price 0) or untrusted but sit in pools with swaps: USD figures miss them
+
+```sql
+SELECT t.chain_name, t.symbol, t.token_address, t.is_unpriced, t.is_price_trusted, t.price_trust_reason,
+       t.price_updated_at, count() AS pool_count, sum(p.swaps_total) AS swap_count
+FROM tokens AS t
+INNER JOIN pools AS p ON p.chain_id = t.chain_id AND (p.token0_address = t.token_address OR p.token1_address = t.token_address)
+WHERE t.is_unpriced OR NOT t.is_price_trusted
+GROUP BY t.chain_name, t.symbol, t.token_address, t.is_unpriced, t.is_price_trusted, t.price_trust_reason, t.price_updated_at
+ORDER BY swap_count DESC
+LIMIT 25
+```
+
+Ten-chain sync: **25 rows, 0.104 s** (first run 0.202 s; read 4.7 krows, 454.0 kB). Aero sync: **25 rows, 0.078 s** (first run 0.078 s; read 7.9 krows, 728.9 kB). These tokens contribute $0 to every USD figure. Production: a join of `tokens` (≈ 100 k) with `pools` (≈ 44 k) on an OR condition; seconds at most.
+
+### 20. Data freshness per chain: last committed block, last pool change and price refresh (block time)
+
+```sql
+SELECT chain_name, wound_down, indexed_block, last_pool_change, last_price_refresh, minutes_behind_now,
+       layer_checkpoint, indexed_checkpoint, layer_loaded_at
+FROM freshness
+ORDER BY chain_name
+```
+
+Ten-chain sync: **10 rows, 0.078 s** (first run 0.309 s; read 518.4 krows, 6.5 MB). Aero sync: **7 rows, 0.050 s** (first run 0.112 s; read 101.1 krows, 1.6 MB). Compare `indexed_block` with the chain head (e.g. `velo report`); `minutes_behind_now` is block time of the last change against now, so a quiet chain also looks behind. Production: milliseconds.
+
+### 21. New pools per month and chain (first day with a pool change = creation day)
+
+```sql
+SELECT toStartOfMonth(first_day) AS month, chain_name, family, count() AS new_pools
+FROM (
+  SELECT chain_name, pool_address, if(pool_type LIKE 'CL%', 'CL', 'V2') AS family, min(day) AS first_day
+  FROM pool_daily GROUP BY chain_name, pool_address, family
+)
+GROUP BY month, chain_name, family
+ORDER BY month, chain_name, family
+```
+
+Ten-chain sync: **186 rows, 0.138 s** (first run 0.163 s; read 200.0 krows, 12.1 MB). Aero sync: **13 rows, 0.055 s** (first run 0.055 s; read 9.7 krows, 797.3 kB). Production: one pass over `pool_daily`; seconds.
+
+### 22. CL versus V2 share of volume per month
+
+```sql
+SELECT toStartOfMonth(day) AS month,
+       round(sumIf(volume_usd, pool_type LIKE 'CL%') / sum(volume_usd), 4) AS cl_share,
+       round(sum(volume_usd)) AS total_volume
+FROM pool_daily
+GROUP BY month
+ORDER BY month
+```
+
+Ten-chain sync: **31 rows, 0.106 s** (first run 0.106 s; read 200.0 krows, 24.7 MB). Aero sync: **2 rows, 0.050 s** (first run 0.067 s; read 9.7 krows, 1.1 MB). Production: as query 2.
+
+### 23. How token prices were obtained per chain in the last 30 days of data: fresh vs carried vs unpriced
+
+```sql
+WITH (SELECT max(hour) FROM token_prices_hourly) AS last_hour
+SELECT c.chain_name, ifNull(p.price_source, '(none)') AS source, count() AS token_hours,
+       round(count() / sum(count()) OVER (PARTITION BY c.chain_name), 4) AS share
+FROM token_prices_hourly AS p
+INNER JOIN chains AS c ON c.chain_id = p.chain_id
+WHERE p.hour > last_hour - INTERVAL 30 DAY
+GROUP BY c.chain_name, source
+ORDER BY c.chain_name, token_hours DESC
+```
+
+Ten-chain sync: **27 rows, 0.470 s** (first run 0.470 s; read 2.9 Mrows, 210.0 MB). Aero sync: **33 rows, 0.067 s** (first run 0.074 s; read 66.0 krows, 4.8 MB). Production: 30 days of `token_prices_hourly` (≈ 1 M rows); under a second.
+
+### 24. Pools whose numbers need care: swap-fee fallbacks, swaps but no USD, staked > TVL
+
+```sql
+SELECT p.chain_name, p.pair, p.pool_address, p.swaps_total, p.volume_usd_total, p.tvl_usd, p.staked_share, s.swap_fee_fallbacks
+FROM pools AS p
+INNER JOIN (SELECT chain_id, pool_address, swap_fee_fallbacks FROM _pool FINAL) AS s
+  ON s.chain_id = p.chain_id AND s.pool_address = p.pool_address
+WHERE s.swap_fee_fallbacks > 0 OR (p.swaps_total > 100 AND p.volume_usd_total = 0) OR p.staked_share > 1.01
+ORDER BY p.swaps_total DESC
+LIMIT 25
+```
+
+Ten-chain sync: **25 rows, 0.102 s** (first run 0.113 s; read 5.9 krows, 685.1 kB). Aero sync: **11 rows, 0.059 s** (first run 0.080 s; read 9.1 krows, 978.4 kB). Production: as query 1.
+
+### 25. Hourly volume and active pools per chain over the last 7 days of data
+
+```sql
+WITH (SELECT max(hour) FROM chain_hourly) AS last_hour
+SELECT hour, chain_name, volume_usd, swaps, active_pools, tvl_usd
+FROM chain_hourly
+WHERE hour > last_hour - INTERVAL 7 DAY
+ORDER BY hour DESC, volume_usd DESC
+```
+
+Ten-chain sync: **933 rows, 1.676 s** (first run 2.273 s; read 3.8 Mrows, 515.4 MB). Aero sync: **763 rows, 0.143 s** (first run 0.155 s; read 112.8 krows, 14.8 MB). Production: `chain_hourly` computes deltas over every pool-hour (`pool_hourly`, ≈ 20 M rows at production scale) before the date filter: tens of seconds. For dashboards, query `pool_hourly` with a chain filter, or materialize `chain_hourly` on a schedule.
+
+### 26. Aero emissions per chain and day: credited by the LeafVoter, minted on claim, forfeited; USD as indexed
+
+```sql
+-- and at Base AERO's price (xAERO on the leaf chains often has no price of its own)
+SELECT day, chain_name, round(emissions_credited) AS credited, round(emissions_minted) AS minted,
+       round(emissions_forfeited) AS forfeited, round(emissions_minted_usd) AS minted_usd_indexed,
+       round(emissions_minted_usd_at_base_aero) AS minted_usd_at_base_aero, round(xaero_outstanding) AS xaero_outstanding
+FROM aero_chain_daily
+ORDER BY day DESC, minted DESC
+```
+
+Aero sync: **38 rows, 0.031 s** (first run 0.054 s; read 10.9 krows, 1.2 MB). `emissions_minted_usd` is the indexed USD (the reward token's price on that chain); on the leaf chains xAERO had no price on the Aero sync, so only Base (and part of Robinhood) has a value, while `minted_usd_at_base_aero` values every chain at that day's Base AERO price (on Base the two agree within 0.3 %). Production: one row per chain and day; milliseconds.
+
+### 27. Aero gauges: pool fees against emissions minted, last 7 days of data (top 20 by emissions)
+
+```sql
+WITH (SELECT max(day) FROM aero_gauge_daily) AS last_day
+SELECT chain_name, pair, gauge_address, round(sum(emissions_minted)) AS aero_minted,
+       round(sum(emissions_minted_usd_at_base_aero)) AS minted_usd, round(sum(pool_fees_usd)) AS pool_fees_7d,
+       round(sum(pool_fees_usd) / nullIf(sum(emissions_minted_usd_at_base_aero), 0), 3) AS fees_per_emission_dollar
+FROM aero_gauge_daily
+WHERE day > last_day - 7
+GROUP BY chain_name, pair, gauge_address
+ORDER BY aero_minted DESC
+LIMIT 20
+```
+
+Aero sync: **20 rows, 0.205 s** (first run 0.835 s; read 55.9 krows, 5.6 MB). Pool fees come from `pool_daily` joined on (chain, pool, day). Production: `_aero_gauge_day` (one row per gauge-day) plus `pool_daily` for the Aero pools; well under a second.
+
+### 28. sAERO: total staked, permanent share and voting power now, and the 10 largest positions
+
+```sql
+SELECT * FROM (
+  SELECT 'total' AS row_kind, CAST(NULL AS Nullable(UInt64)) AS position, CAST(NULL AS Nullable(String)) AS holder,
+         round(sum(amount)) AS aero, round(sumIf(amount, is_permanent) / sum(amount), 4) AS permanent_share,
+         round(sum(voting_power_now)) AS voting_power
+  FROM saero_positions
+  UNION ALL
+  SELECT 'position', toNullable(toUInt64(token_id)), toNullable(owner), round(amount), toFloat64(is_permanent), round(voting_power_now)
+  FROM (SELECT * FROM saero_positions ORDER BY amount DESC LIMIT 10)
+)
+ORDER BY row_kind DESC, aero DESC
+```
+
+Aero sync: **11 rows, 0.037 s** (first run 0.037 s; read 37.8 krows, 4.7 MB). Voting power is computed at query time from `stake_end` (as the contracts do), so it decays between runs. Production: tens of thousands of positions; milliseconds.
+
+### 29. Allocation books per chain: what the root Voter on Base booked against what each LeafVoter holds
+
+```sql
+SELECT chain_id, chain_name, count() AS positions, round(sum(root_booked)) AS root_booked, round(sum(leaf_budget)) AS leaf_budget,
+       round(sum(leaf_booked_on_gauges)) AS leaf_on_gauges, round(sum(leaf_idle)) AS leaf_idle,
+       countIf(abs(root_minus_leaf) > 1e-9) AS positions_out_of_step
+FROM aero_allocation_books
+GROUP BY chain_id, chain_name
+ORDER BY chain_id
+```
+
+Aero sync: **8 rows, 0.214 s** (first run 0.277 s; read 43.3 krows, 4.7 MB). Chain 0 is CHAIN0, the idle pool on the root side. On the Aero sync, which backfills the chains at different speeds, many positions are out of step because the root and leaf events of one allocation were indexed at different times; at the head they should agree except for dispatches in flight, expired or rejected. Production: a full outer join of two tables of positions × chains; under a second.
+
+### 30. Aero gauge staking per chain and day: deposits, withdrawals and distinct stakers (from the stake events)
+
+```sql
+SELECT toDate(timestamp) AS day, chain_id, countIf(kind = 'DEPOSIT') AS deposits,
+       countIf(kind != 'DEPOSIT') AS withdrawals, uniqExact(account) AS stakers
+FROM aero_gauge_stake_events
+GROUP BY day, chain_id
+ORDER BY day DESC, deposits DESC
+```
+
+Aero sync: **39 rows, 0.485 s** (first run 1.310 s; read 1.4 Mrows, 208.0 MB). Reads envio's `AeroGaugeStakeEvent` through the typed view, so it scans the whole event table (3.1 M rows per 9 days on Base in production; seconds per month of data). The table-layout proposal does not help a per-day count; for dashboards build a daily rollup on top (or use `aero_gauge_daily.deposits / withdrawals`, which comes from the gauge counters).
+
+### 31. Legacy-to-Aero migration so far: veNFTs and liquid tokens migrated, per contract
+
+```sql
+SELECT chain_id, legacy_token, migration_contract, venfts_migrated, round(venft_amount_in) AS venft_in, round(venft_amount_out) AS venft_out,
+       liquid_migrations, round(liquid_amount_in) AS liquid_in, round(liquid_amount_out) AS liquid_out, settlements, round(settled_amount) AS settled
+FROM aero_migration
+ORDER BY chain_id, legacy_token
+```
+
+Aero sync: **3 rows, 0.013 s** (first run 0.021 s; read 6 rows, 1.8 kB). Production: a handful of rows.
+
 <!-- QUERIES:END -->
 
 ## Limits and data-quality caveats
