@@ -1,8 +1,7 @@
--- A wallet's open CL positions with current amounts and value (the wallet with most open positions here)
-WITH (SELECT owner FROM positions WHERE liquidity > 0 GROUP BY owner ORDER BY count() DESC LIMIT 1) AS wallet
+-- A wallet's open CL positions on Ink with current amounts and value (addresses are lowercase)
 SELECT chain_name, pair, pool_type, nfpm_address, token_id, tick_lower, tick_upper, in_range, is_staked,
-       round(amount0, 6) AS amount0, round(amount1, 6) AS amount1, round(value_usd, 2) AS value_usd, last_updated
+       amount0, amount1, value_usd, last_updated
 FROM positions
-WHERE owner = wallet AND liquidity > 0
+WHERE chain_id = 57073 AND owner = '0x19df5d96f5024f53459a282260cead38e8feb3b5' AND liquidity > 0
 ORDER BY value_usd DESC
 LIMIT 50;

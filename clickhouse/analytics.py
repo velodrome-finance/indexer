@@ -628,22 +628,27 @@ def run_queries(ctx: Ctx, files: list[str]):
     results = []
     for p in paths:
         sql = ctx.render(p.read_text()).strip().rstrip(";")
-        # analysts query with the read-only user; run the same text
-        t0 = time.time()
-        body, summary = ctx.ch.request(sql + "\nFORMAT JSON", {"max_execution_time": "600", "database": ctx.db})
-        wall = time.time() - t0
-        doc = json.loads(body)
-        stats = doc.get("statistics", {})
-        res = {
-            "query": p.name,
-            "rows": doc.get("rows"),
-            "elapsed_s": round(stats.get("elapsed", wall), 3),
-            "read_rows": stats.get("rows_read"),
-            "read_bytes": stats.get("bytes_read"),
-            "first_rows": doc.get("data", [])[:3],
-        }
+        res = {"query": p.name}
+        try:
+            for run in ("first", "second"):  # the second run shows the warm-cache time
+                t0 = time.time()
+                body, _ = ctx.ch.request(sql + "\nFORMAT JSON", {"max_execution_time": "600", "database": ctx.db})
+                doc = json.loads(body)
+                stats = doc.get("statistics", {})
+                res[f"elapsed_{run}_s"] = round(stats.get("elapsed", time.time() - t0), 3)
+            res.update(
+                rows=doc.get("rows"),
+                elapsed_s=min(res["elapsed_first_s"], res["elapsed_second_s"]),
+                read_rows=stats.get("rows_read"),
+                read_bytes=stats.get("bytes_read"),
+                first_rows=doc.get("data", [])[:3],
+            )
+            log(f"{p.name}: {res['rows']} rows, {res['elapsed_first_s']}s / {res['elapsed_second_s']}s, "
+                f"read {res['read_rows']} rows / {res['read_bytes']} bytes")
+        except ClickHouseError as e:
+            res["error"] = str(e).splitlines()[0]
+            log(f"{p.name}: ERROR {res['error']}")
         results.append(res)
-        log(f"{p.name}: {res['rows']} rows, {res['elapsed_s']}s, read {res['read_rows']} rows / {res['read_bytes']} bytes")
     return results
 
 
