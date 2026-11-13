@@ -16,6 +16,8 @@ Kinds
   int32 / bool / time
            passed through (Int32, Bool, DateTime64(3, 'UTC'))
   u64list  [BigInt!]! (Array(String)) -> Array(UInt64)
+  biglist / addrlist / strlist
+           [BigInt!]! -> Array(Int256); [String!]! -> Array(String), addresses lowercased
   idpart   a part of the entity id (chain id, address, token id); always set, also on DELETE rows
 """
 
@@ -42,6 +44,7 @@ class Col:
     # envio columns of the expected (argMax) side
     verify_src: str | None = None
     ch_type: str | None = None  # override of the kind's type
+    optional: bool = False  # left out when the source table lacks it (mapped from schema.graphql)
 
 
 @dataclass
@@ -63,6 +66,8 @@ class Entity:
     partition_extra: str = ""  # leading partition expression (for time series)
     description: str = ""
     nullable: set[str] = field(default_factory=set)
+    # Series only: the key of one series (the id's natural key); the period is added to it.
+    series_key: str = "chain_id, pool_address"
 
 
 def id_part(n: int) -> str:
@@ -386,6 +391,66 @@ ENTITIES: list[Entity] = [
            description="end-of-day pool state for every day in which the pool changed (exact, from the per-block history)"),
 ]
 
+def _aero_entities() -> list[Entity]:
+    from schema_map import auto_columns, parse_schema  # noqa: PLC0415
+
+    types = parse_schema()
+    out = []
+    # (key, envio type, description): current state, one row per id, sorted by id
+    # (ids start with the chain id, then the entity's own key)
+    for key, src, desc in [
+        ("aero_gauge", "AeroGauge", "Aero gauges: cap, weight, allocations, emissions credited / minted / forfeited, fees"),
+        ("aero_gauge_factory", "AeroGaugeFactory", "Aero gauge factories: default cap, penalty, minimum stake"),
+        ("aero_leaf_voter", "AeroLeafVoterState", "each chain's Aero LeafVoter: emission and allocation totals"),
+        ("aero_voting_rewards_manager", "AeroVotingRewardsManager", "per-gauge rewards managers: fees and incentives for allocators"),
+        ("aero_incentive_program", "AeroIncentiveProgram", "incentive programs funded on Aero gauges"),
+        ("saero_position", "SAeroPosition", "sAERO positions (VotingEscrow NFTs on Base)"),
+        ("saero_escrow", "SAeroEscrowState", "the sAERO VotingEscrow: supply, permanent balance, accumulator"),
+        ("aero_root_allocation", "AeroRootAllocation", "root Voter (Base): power a position booked per chain"),
+        ("aero_root_gauge_vote", "AeroRootGaugeVote", "root Voter (Base): last gauge split dispatched per position and chain"),
+        ("aero_root_chain", "AeroRootChainState", "root Voter (Base): per-chain ledger, redemptions, buffer"),
+        ("aero_leaf_token", "AeroLeafTokenState", "each LeafVoter: a position's budget and booked split"),
+        ("aero_leaf_allocation", "AeroLeafAllocation", "each LeafVoter: a position's booked allocation per gauge"),
+        ("aero_minter", "AeroMinterState", "the Minter on Base: rates and mint totals"),
+        ("aero_migration_totals", "AeroMigrationTotals", "legacy-to-Aero migration totals per contract"),
+    ]:
+        if src in types:
+            out.append(Entity(key, f"_{key}", src, "id", auto_columns(src, types), description=desc))
+    # daily series (end-of-day state, prev_ for flows): emissions per gauge and per chain
+    if "AeroGauge" in types:
+        cols = [c for c in auto_columns("AeroGauge", types) if c.name in AERO_GAUGE_SERIES]
+        cols.append(Col("gauge_address", "idpart", expr=f"lower({id_part(2)})", ch_type="String",
+                        verify_src=f"lower({vid(2)})"))
+        out.append(Entity("aero_gauge_day", "_aero_gauge_day", "AeroGauge", "chain_id, gauge_address, period", cols,
+                          mode="day", period_expr="toStartOfDay(lastUpdatedTimestamp)", series_key="chain_id, gauge_address",
+                          prev_fields=AERO_GAUGE_PREV,
+                          description="end-of-day Aero gauge state for every day the gauge changed (from the per-block history)"))
+    if "AeroLeafVoterState" in types:
+        cols = [c for c in auto_columns("AeroLeafVoterState", types) if c.name in AERO_LEAF_SERIES]
+        out.append(Entity("aero_leaf_voter_day", "_aero_leaf_voter_day", "AeroLeafVoterState", "chain_id, period", cols,
+                          mode="day", period_expr="toStartOfDay(lastUpdatedTimestamp)", series_key="chain_id",
+                          prev_fields=AERO_LEAF_PREV,
+                          description="end-of-day Aero LeafVoter totals per chain (from the per-block history)"))
+    return out
+
+
+AERO_GAUGE_PREV = [
+    "total_allocated", "total_emissions_credited", "total_cap_surplus", "total_emissions_forfeited",
+    "total_emissions_minted", "total_emissions_minted_usd", "total_emissions_claimed", "total_early_withdraw_penalty",
+    "total_fees_claimed0", "total_fees_claimed1", "total_fees_claimed_usd", "number_of_deposits", "number_of_withdrawals",
+    "number_of_claims",
+]
+AERO_GAUGE_SERIES = {"id", "chain_id", "pool_address", "is_cl", "is_activated", "emission_cap", "last_gauge_weight",
+                     "last_updated_timestamp", *AERO_GAUGE_PREV}
+AERO_LEAF_PREV = [
+    "total_emissions_credited", "total_cap_surplus", "total_idle_surplus", "total_emissions_forfeited",
+    "total_emissions_minted", "total_emissions_minted_usd", "total_redeemed",
+]
+AERO_LEAF_SERIES = {"id", "chain_id", "receipt_token_supply", "emissions_per_vp", "total_chain_allocation",
+                    "total_booked_allocation", "last_updated_timestamp", *AERO_LEAF_PREV}
+
+ENTITIES += _aero_entities()
+
 KIND_TYPE = {
     "str": "String",
     "addr": "String",
@@ -396,6 +461,9 @@ KIND_TYPE = {
     "bool": "Bool",
     "time": "DateTime64(3, 'UTC')",
     "u64list": "Array(UInt64)",
+    "biglist": "Array(Int256)",
+    "addrlist": "Array(String)",
+    "strlist": "Array(String)",
 }
 
 
@@ -439,6 +507,10 @@ class Resolved:
             return f"toInt64({s})" if not self.nullable else f"CAST({s} AS Nullable(Int64))"
         if c.kind == "u64list":
             return f"arrayMap(x -> toUInt64OrZero(x), {s})"
+        if c.kind == "biglist":
+            return f"arrayMap(x -> toInt256OrZero(toString(x)), {s})"
+        if c.kind == "addrlist":
+            return f"arrayMap(x -> lower(x), {s})"
         return s
 
     def verify_fields(self) -> list[str]:
@@ -463,8 +535,10 @@ class Resolved:
             return None
         if c.kind == "addr":
             sv = f"lower({sv})"
-        if c.kind == "u64list":
-            return (f"toString(arrayMap(x -> toString(x), {tv}))", f"toString({sv})")
+        if c.kind in ("u64list", "biglist"):
+            return (f"toString(arrayMap(x -> toString(x), {tv}))", f"toString(arrayMap(x -> toString(x), {sv}))")
+        if c.kind == "addrlist":
+            return (f"toString({tv})", f"toString(arrayMap(x -> lower(x), {sv}))")
         return (f"ifNull(toString({tv}), '<null>')", f"ifNull(toString({sv}), '<null>')")
 
 

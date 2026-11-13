@@ -79,6 +79,8 @@ def main():
     x(f"DROP DATABASE IF EXISTS {DB} SYNC")
     x(f"DROP DATABASE IF EXISTS {SRC} SYNC")
     x(f"CREATE DATABASE {SRC}")
+    have = {r["name"] for r in ch.rows(f"SELECT name FROM system.tables WHERE database = '{a.template}'")}
+    TABLES[:] = [t for t in TABLES if t in have]  # a template from an older schema lacks newer entities
     for t in TABLES:
         x(f"CREATE TABLE {SRC}.{t} AS {a.template}.{t}")
     x(f"INSERT INTO {SRC}.envio_info VALUES (1, 'instance-A')")

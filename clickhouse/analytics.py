@@ -172,7 +172,8 @@ class Ctx:
 
     def resolved(self, e: Entity) -> list[Resolved]:
         types = self.source_types(e)
-        return [Resolved(c, types) for c in e.columns]
+        out = [Resolved(c, types) for c in e.columns]
+        return [r for r in out if r.present or not r.col.optional]
 
     def render(self, sql: str) -> str:
         def col(m):
@@ -264,7 +265,8 @@ def zero(t: str) -> str:
     return f"CAST(0, {lit(t)})"
 
 
-SERIES_WINDOW = "WINDOW __w AS (PARTITION BY chain_id, pool_address ORDER BY period ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)"
+def series_window(e: Entity) -> str:
+    return f"WINDOW __w AS (PARTITION BY {e.series_key} ORDER BY period ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)"
 
 
 def with_prev_backfill(ctx: Ctx, e: Entity, proj: str) -> str:
@@ -273,7 +275,7 @@ def with_prev_backfill(ctx: Ctx, e: Entity, proj: str) -> str:
         return proj
     types = {r.name: r.ch_type for r in ctx.resolved(e)}
     lags = ", ".join(f"lagInFrame({q(f)}, 1, {zero(types[f])}) OVER __w AS {q('prev_' + f)}" for f in e.prev_fields)
-    return f"SELECT *, {lags}\nFROM (\n{proj}\n)\n{SERIES_WINDOW}"
+    return f"SELECT *, {lags}\nFROM (\n{proj}\n)\n{series_window(e)}"
 
 
 def with_prev_refresh(ctx: Ctx, e: Entity, proj: str) -> str:
@@ -286,7 +288,10 @@ def with_prev_refresh(ctx: Ctx, e: Entity, proj: str) -> str:
     t = f"{q(ctx.db)}.{q(e.table)}"
     lags = ", ".join(f"lagInFrame({q(f)}, 1, {zero(types[f])}) OVER __w AS {q('__lag_' + f)}" for f in e.prev_fields)
     base = [r.name for r in ctx.resolved(e)] + ["period", "_version", "_deleted"]
-    pools = "(chain_id, pool_address) IN (SELECT chain_id, pool_address FROM __new)"
+    k = e.series_key
+    keys = [x.strip() for x in k.split(",")]
+    on = " AND ".join(f"{{a}}.{c} = n.{c}" for c in keys)
+    pools = f"({k}) IN (SELECT {k} FROM __new)"
     prevs = ", ".join(
         f"if(x.__has = 1, x.{q('prev_' + f)}, if(n.__rn = 1, if(o.__has = 1, o.{q('__end_' + f)}, {zero(types[f])}), n.{q('__lag_' + f)})) AS {q('prev_' + f)}"
         for f in e.prev_fields
@@ -294,14 +299,14 @@ def with_prev_refresh(ctx: Ctx, e: Entity, proj: str) -> str:
     ends = ", ".join(f"argMax({q(f)}, period) AS {q('__end_' + f)}" for f in e.prev_fields)
     xprev = ", ".join(q('prev_' + f) for f in e.prev_fields)
     return (
-        f"WITH __new AS (\n  SELECT *, row_number() OVER (PARTITION BY chain_id, pool_address ORDER BY period) AS __rn, {lags}\n"
-        f"  FROM (\n{proj}\n  )\n  {SERIES_WINDOW}\n)\n"
+        f"WITH __new AS (\n  SELECT *, row_number() OVER (PARTITION BY {k} ORDER BY period) AS __rn, {lags}\n"
+        f"  FROM (\n{proj}\n  )\n  {series_window(e)}\n)\n"
         f"SELECT " + ", ".join(f"n.{q(c)} AS {q(c)}" for c in base) + f", {prevs}\n"
         f"FROM __new AS n\n"
-        f"LEFT JOIN (SELECT chain_id, pool_address, period, 1 AS __has, {xprev} FROM {t} FINAL WHERE {pools}) AS x\n"
-        f"  ON x.chain_id = n.chain_id AND x.pool_address = n.pool_address AND x.period = n.period\n"
-        f"LEFT JOIN (SELECT chain_id, pool_address, 1 AS __has, {ends} FROM {t} FINAL WHERE {pools} GROUP BY chain_id, pool_address) AS o\n"
-        f"  ON o.chain_id = n.chain_id AND o.pool_address = n.pool_address"
+        f"LEFT JOIN (SELECT {k}, period, 1 AS __has, {xprev} FROM {t} FINAL WHERE {pools}) AS x\n"
+        f"  ON {on.format(a='x')} AND x.period = n.period\n"
+        f"LEFT JOIN (SELECT {k}, 1 AS __has, {ends} FROM {t} FINAL WHERE {pools} GROUP BY {k}) AS o\n"
+        f"  ON {on.format(a='o')}"
     )
 
 
@@ -460,7 +465,52 @@ def backfill(ctx: Ctx, e: Entity, frontier: int):
     log(f"  {e.table}: backfilled up to checkpoint {frontier} in {time.time() - t0:.1f}s ({total_read} source rows read)")
 
 
-VIEW_FILES = ["views.sql"]
+# (file, storage table the file needs): Aero views only where the indexer has Aero gauges
+VIEW_FILES = [("views.sql", "_pool"), ("views_aero.sql", "_aero_gauge")]
+
+# ClickHouse-only, append-only Aero entities (events and hourly snapshots): typed views read
+# straight from envio's history table (no copy).
+APPEND_ONLY = [
+    "AeroGaugeStakeEvent", "AeroEmissionsEvent", "AeroAllocationEvent", "SAeroPositionEvent",
+    "AeroVotingRewardsEvent", "AeroRedemptionEvent", "AeroMinterEvent", "AeroMigrationEvent",
+    "AeroGaugeSnapshot", "AeroLeafVoterStateSnapshot", "SAeroEscrowStateSnapshot", "AeroMinterSnapshot",
+]
+
+
+def append_only_view(ctx: Ctx, type_name: str) -> str | None:
+    """Typed view over an append-only envio table.
+
+    Each id is written once, except around a reorg: the rollback writes a DELETE at a later
+    checkpoint, and the re-included event may come back under the same id. So a row counts
+    when it is committed and, for the (rare) ids that ever had a DELETE, when it is the id's
+    latest version.
+    """
+    from layer import Entity  # noqa: PLC0415
+    from schema_map import auto_columns, snake  # noqa: PLC0415
+
+    hist = f"envio_history_{type_name}"
+    e = Entity(snake(type_name), "", type_name, "id", auto_columns(type_name))
+    if not ctx.has_source(e):
+        return None
+    exprs = []
+    for r in ctx.resolved(e):
+        exprs.append(f"{r.expr()} AS {q(r.name)}")
+        if r.col.kind == "big" and r.name.endswith("_usd"):
+            exprs[-1] = f"{r.expr()} AS {q(r.name + '_raw')}"
+            exprs.append(f"toFloat64({r.expr()}) / 1e18 AS {q(r.name)}")
+        if r.col.kind == "time":
+            exprs[-1] = f"toDateTime({r.expr()}) AS {q(r.name)}"
+    h = f"{q(ctx.src)}.{q(hist)}"
+    f = ctx.frontier_sql()
+    name = snake(type_name) + ("s" if not type_name.endswith("Snapshot") else "s")
+    return (
+        f"CREATE OR REPLACE VIEW {q(ctx.db)}.{q(name)} AS\nSELECT\n  " + ",\n  ".join(exprs) + "\n"
+        f"FROM {h}\n"
+        f"WHERE envio_change = 'SET' AND envio_checkpoint_id <= {f}\n"
+        f"  AND (id NOT IN (SELECT id FROM {h} WHERE envio_change = 'DELETE')\n"
+        f"       OR (id, envio_checkpoint_id) IN (SELECT id, max(envio_checkpoint_id) FROM {h}\n"
+        f"           WHERE envio_checkpoint_id <= {f} AND id IN (SELECT id FROM {h} WHERE envio_change = 'DELETE') GROUP BY id))"
+    )
 
 
 def statements(text: str) -> list[str]:
@@ -482,9 +532,15 @@ def statements(text: str) -> list[str]:
 
 
 def view_statements(ctx: Ctx) -> list[str]:
+    present = existing_tables(ctx)
     out = []
-    for f in VIEW_FILES:
-        out += [ctx.render(s) for s in statements((HERE / "sql" / f).read_text())]
+    for t in APPEND_ONLY:
+        v = append_only_view(ctx, t)
+        if v:
+            out.append(v)
+    for f, needs in VIEW_FILES:
+        if needs in present:
+            out += [ctx.render(s) for s in statements((HERE / "sql" / f).read_text())]
     return out
 
 
