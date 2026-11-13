@@ -21,11 +21,19 @@ import { FEE_SCALE } from "../Constants";
 /**
  * A derived fee above `amountIn / MAX_PLAUSIBLE_FEE_DIVISOR` (10%) is treated
  * as tick-map drift, not a real fee: Slipstream's `MAX_FEE` is 3% (dynamic fee
- * caps sit well below that). The one legitimate exception is a dust swap too
- * small to move the price, where the whole input is fee; it also lands here and
- * is valued with the stored rate, which differs by a few wei.
+ * caps sit well below that). Fees up to {@link MIN_CHARGEABLE_FEE} are exempt
+ * (dust swaps).
  */
 export const MAX_PLAUSIBLE_FEE_DIVISOR = 10n;
+
+/**
+ * The smallest fee a non-zero-fee swap pays: Slipstream rounds the fee up, so
+ * a swap of a few wei (under 10 wei, where 10% is less than a wei) pays 1 wei,
+ * often all of a 1-wei input that cannot move the price. Such a fee is never
+ * above the cap's intent and is accepted as derived. For any swap of 10 wei or
+ * more the 10% cap already admits 1 wei, so this only changes dust swaps.
+ */
+export const MIN_CHARGEABLE_FEE = 1n;
 
 /**
  * Minimum input amount (raw token units) for a swap's effective rate to be
@@ -48,7 +56,7 @@ export type CLSwapFeeFallbackReason =
   | "liquidity_mismatch"
   /** amountIn < principalIn: the walk over-counts the principal. */
   | "negative_fee"
-  /** feeIn > amountIn / {@link MAX_PLAUSIBLE_FEE_DIVISOR}. */
+  /** feeIn > amountIn / {@link MAX_PLAUSIBLE_FEE_DIVISOR} and feeIn > {@link MIN_CHARGEABLE_FEE}. */
   | "fee_above_cap";
 
 /** Inputs to {@link deriveCLSwapFee}; all amounts in raw token units. */
@@ -99,7 +107,7 @@ export type CLSwapFeeDerivation =
  *
  * Rejects the derivation (caller falls back to the stored rate) when the walk's
  * ending in-range liquidity disagrees with the event's, when the derived fee is
- * negative, or when it exceeds 10% of `amountIn`. A swap with no positive leg
+ * negative, or when it exceeds both 10% of `amountIn` and 1 wei. A swap with no positive leg
  * (both amounts ≤ 0, which Slipstream never emits) derives a zero fee.
  *
  * @param input - Event amounts, the walk's principal deltas and liquidities
@@ -132,7 +140,7 @@ export function deriveCLSwapFee(input: CLSwapFeeInput): CLSwapFeeDerivation {
   if (fee < 0n) {
     return { ok: false, reason: "negative_fee", derivedFee: fee, amountIn };
   }
-  if (fee * MAX_PLAUSIBLE_FEE_DIVISOR > amountIn) {
+  if (fee > MIN_CHARGEABLE_FEE && fee * MAX_PLAUSIBLE_FEE_DIVISOR > amountIn) {
     return { ok: false, reason: "fee_above_cap", derivedFee: fee, amountIn };
   }
 
