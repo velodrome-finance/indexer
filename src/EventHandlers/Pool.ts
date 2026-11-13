@@ -249,7 +249,7 @@ indexer.onEvent(
       token0Instance.address === OUSDT_ADDRESS ||
       token1Instance.address === OUSDT_ADDRESS
     ) {
-      createOUSDTSwapEntity(
+      await createOUSDTSwapEntity(
         event.transaction.hash,
         event.chainId,
         token0Instance,

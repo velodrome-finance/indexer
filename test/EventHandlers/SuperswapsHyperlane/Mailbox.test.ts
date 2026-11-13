@@ -13,6 +13,7 @@ import {
   toChecksumAddress,
 } from "../../../src/Constants";
 import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
+import { seedDispatchIdEvent, seedOUSDTSwap } from "../../testHelpers";
 
 describe("Mailbox Events", () => {
   const mailboxAddress = toChecksumAddress(
@@ -61,7 +62,7 @@ describe("Mailbox Events", () => {
       });
 
       // Assert - check DispatchId_event was created
-      const expectedId = MailboxMessageId(txHash, chainId, messageId);
+      const expectedId = MailboxMessageId(messageId);
       const entity = await indexer.DispatchId_event.get(expectedId);
       expect(entity).toBeDefined();
       expect(entity?.id).toBe(expectedId);
@@ -122,25 +123,20 @@ describe("Mailbox Events", () => {
         },
       });
 
-      // Assert - check both entities were created with different IDs
-      const expectedId1 = MailboxMessageId(
-        transactionHash1,
-        chainId,
-        messageId,
+      // Assert - the row is keyed by messageId (Hyperlane message ids are
+      // globally unique, so a real chain never re-dispatches one); each tx's
+      // registry lists the messageId it dispatched.
+      const entity = await indexer.DispatchId_event.get(
+        MailboxMessageId(messageId),
       );
-      const expectedId2 = MailboxMessageId(
-        transactionHash2,
-        chainId,
-        messageId,
-      );
-      const entity1 = await indexer.DispatchId_event.get(expectedId1);
-      const entity2 = await indexer.DispatchId_event.get(expectedId2);
-
-      expect(entity1).toBeDefined();
-      expect(entity2).toBeDefined();
-      expect(entity1?.id).toBe(expectedId1);
-      expect(entity2?.id).toBe(expectedId2);
-      expect(entity1?.id).not.toBe(entity2?.id);
+      expect(entity?.id).toBe(messageId);
+      expect(entity?.transactionHash).toBe(transactionHash2);
+      expect(
+        (await indexer.TxDispatchIdRegistry.get(transactionHash1))?.messageIds,
+      ).toEqual([messageId]);
+      expect(
+        (await indexer.TxDispatchIdRegistry.get(transactionHash2))?.messageIds,
+      ).toEqual([messageId]);
     });
 
     it("should handle different messageIds correctly", async () => {
@@ -197,10 +193,10 @@ describe("Mailbox Events", () => {
         },
       });
 
-      const expectedId1 = MailboxMessageId(sharedTxHash, chainId, messageId1);
+      const expectedId1 = MailboxMessageId(messageId1);
 
       // Assert - check both entities were created with different messageIds
-      const expectedId2 = MailboxMessageId(sharedTxHash, chainId, messageId2);
+      const expectedId2 = MailboxMessageId(messageId2);
       const entity1 = await indexer.DispatchId_event.get(expectedId1);
       const entity2 = await indexer.DispatchId_event.get(expectedId2);
 
@@ -208,6 +204,9 @@ describe("Mailbox Events", () => {
       expect(entity2).toBeDefined();
       expect(entity1?.messageId).toBe(messageId1);
       expect(entity2?.messageId).toBe(messageId2);
+      // Both messageIds are listed under the shared tx, in dispatch order
+      const registry = await indexer.TxDispatchIdRegistry.get(sharedTxHash);
+      expect(registry?.messageIds).toEqual([messageId1, messageId2]);
     });
   });
 
@@ -246,7 +245,7 @@ describe("Mailbox Events", () => {
       });
 
       // Assert - check ProcessId_event was created
-      const expectedId = MailboxMessageId(txHash, chainId, messageId);
+      const expectedId = MailboxMessageId(messageId);
       const entity = await indexer.ProcessId_event.get(expectedId);
       expect(entity).toBeDefined();
       expect(entity?.id).toBe(expectedId);
@@ -307,26 +306,13 @@ describe("Mailbox Events", () => {
         },
       });
 
-      const expectedId1 = MailboxMessageId(
-        transactionHash1,
-        chainId,
-        messageId,
+      // Assert - the row is keyed by messageId (a Mailbox delivers a message
+      // at most once, so a real chain never re-processes one)
+      const entity = await indexer.ProcessId_event.get(
+        MailboxMessageId(messageId),
       );
-
-      // Assert - check both entities were created with different IDs
-      const expectedId2 = MailboxMessageId(
-        transactionHash2,
-        chainId,
-        messageId,
-      );
-      const entity1 = await indexer.ProcessId_event.get(expectedId1);
-      const entity2 = await indexer.ProcessId_event.get(expectedId2);
-
-      expect(entity1).toBeDefined();
-      expect(entity2).toBeDefined();
-      expect(entity1?.id).toBe(expectedId1);
-      expect(entity2?.id).toBe(expectedId2);
-      expect(entity1?.id).not.toBe(entity2?.id);
+      expect(entity?.id).toBe(messageId);
+      expect(entity?.transactionHash).toBe(transactionHash2);
     });
 
     it("should handle different messageIds correctly", async () => {
@@ -383,10 +369,10 @@ describe("Mailbox Events", () => {
         },
       });
 
-      const expectedId1 = MailboxMessageId(sharedTxHash, chainId, messageId1);
+      const expectedId1 = MailboxMessageId(messageId1);
 
       // Assert - check both entities were created with different messageIds
-      const expectedId2 = MailboxMessageId(sharedTxHash, chainId, messageId2);
+      const expectedId2 = MailboxMessageId(messageId2);
       const entity1 = await indexer.ProcessId_event.get(expectedId1);
       const entity2 = await indexer.ProcessId_event.get(expectedId2);
 
@@ -435,7 +421,7 @@ describe("Mailbox Events", () => {
         },
       });
 
-      const expectedId1 = MailboxMessageId(sharedTxHash, chainId1, messageId);
+      const expectedId1 = MailboxMessageId(messageId);
       const entity1 = await indexer1.ProcessId_event.get(expectedId1);
 
       // Seed entity1 into indexer2 so the multi-chain assertion can see both
@@ -471,7 +457,7 @@ describe("Mailbox Events", () => {
       });
 
       // Assert - check both entities were created with different chainIds
-      const expectedId2 = MailboxMessageId(sharedTxHash, chainId2, messageId);
+      const expectedId2 = MailboxMessageId(messageId);
       const entityFromIndexer1 =
         await indexer1.ProcessId_event.get(expectedId1);
       const entityFromIndexer2 =
@@ -512,16 +498,12 @@ describe("Mailbox Events", () => {
 
       // 1. Create DispatchId_event (source chain)
       const dispatchIdEvent: DispatchId_event = {
-        id: MailboxMessageId(
-          sourceTransactionHash,
-          sourceChainId,
-          testMessageId,
-        ),
+        id: MailboxMessageId(testMessageId),
         chainId: sourceChainId,
         transactionHash: sourceTransactionHash,
         messageId: testMessageId,
       };
-      indexer.DispatchId_event.set(dispatchIdEvent);
+      await seedDispatchIdEvent(indexer, dispatchIdEvent);
 
       // 2. Create OUSDTBridgedTransaction
       const bridgedTransaction: OUSDTBridgedTransaction = {
@@ -540,11 +522,7 @@ describe("Mailbox Events", () => {
       // 3. Create ProcessId_event (destination chain) - this will be created by the handler
       // But we also need it for the lookup
       const processIdEvent: ProcessId_event = {
-        id: MailboxMessageId(
-          destinationTransactionHash,
-          destinationChainId,
-          testMessageId,
-        ),
+        id: MailboxMessageId(testMessageId),
         chainId: destinationChainId,
         transactionHash: destinationTransactionHash,
         messageId: testMessageId,
@@ -567,7 +545,7 @@ describe("Mailbox Events", () => {
         amountIn: 1000n,
         amountOut: oUSDTAmount,
       };
-      indexer.OUSDTSwaps.set(sourceSwap);
+      await seedOUSDTSwap(indexer, sourceSwap);
 
       // 5. Create destination chain swap (oUSDT -> tokenOut)
       const destinationSwap: OUSDTSwaps = {
@@ -585,7 +563,7 @@ describe("Mailbox Events", () => {
         amountIn: oUSDTAmount,
         amountOut: 950n,
       };
-      indexer.OUSDTSwaps.set(destinationSwap);
+      await seedOUSDTSwap(indexer, destinationSwap);
 
       // Execute: Process ProcessId event
       await indexer.process({
@@ -617,20 +595,12 @@ describe("Mailbox Events", () => {
       // Assert: once the SuperSwap is created, the matched DispatchId_event /
       // ProcessId_event correlators are consumed and hard-deleted (#817 Part B),
       // so they no longer linger in the scratch tables.
-      const processIdEntityId = MailboxMessageId(
-        destinationTransactionHash,
-        destinationChainId,
-        testMessageId,
-      );
+      const processIdEntityId = MailboxMessageId(testMessageId);
       const processIdEntity =
         await indexer.ProcessId_event.get(processIdEntityId);
       expect(processIdEntity).toBeUndefined();
 
-      const dispatchIdEntityId = MailboxMessageId(
-        sourceTransactionHash,
-        sourceChainId,
-        testMessageId,
-      );
+      const dispatchIdEntityId = MailboxMessageId(testMessageId);
       const dispatchIdEntity =
         await indexer.DispatchId_event.get(dispatchIdEntityId);
       expect(dispatchIdEntity).toBeUndefined();
@@ -683,11 +653,7 @@ describe("Mailbox Events", () => {
       });
 
       // Assert: ProcessId_event was created
-      const processIdEntityId = MailboxMessageId(
-        destinationTransactionHash,
-        destinationChainId,
-        testMessageId,
-      );
+      const processIdEntityId = MailboxMessageId(testMessageId);
       const processIdEntity =
         await indexer.ProcessId_event.get(processIdEntityId);
       expect(processIdEntity).toBeDefined();
@@ -702,16 +668,12 @@ describe("Mailbox Events", () => {
       const indexer = createTestIndexer();
 
       const dispatchIdEvent: DispatchId_event = {
-        id: MailboxMessageId(
-          sourceTransactionHash,
-          sourceChainId,
-          testMessageId,
-        ),
+        id: MailboxMessageId(testMessageId),
         chainId: sourceChainId,
         transactionHash: sourceTransactionHash,
         messageId: testMessageId,
       };
-      indexer.DispatchId_event.set(dispatchIdEvent);
+      await seedDispatchIdEvent(indexer, dispatchIdEvent);
 
       await indexer.process({
         chains: {
@@ -740,11 +702,7 @@ describe("Mailbox Events", () => {
       });
 
       // Assert: ProcessId_event was created
-      const processIdEntityId = MailboxMessageId(
-        destinationTransactionHash,
-        destinationChainId,
-        testMessageId,
-      );
+      const processIdEntityId = MailboxMessageId(testMessageId);
       const processIdEntity =
         await indexer.ProcessId_event.get(processIdEntityId);
       expect(processIdEntity).toBeDefined();
@@ -759,16 +717,12 @@ describe("Mailbox Events", () => {
       const indexer = createTestIndexer();
 
       const dispatchIdEvent: DispatchId_event = {
-        id: MailboxMessageId(
-          sourceTransactionHash,
-          sourceChainId,
-          testMessageId,
-        ),
+        id: MailboxMessageId(testMessageId),
         chainId: sourceChainId,
         transactionHash: sourceTransactionHash,
         messageId: testMessageId,
       };
-      indexer.DispatchId_event.set(dispatchIdEvent);
+      await seedDispatchIdEvent(indexer, dispatchIdEvent);
 
       const bridgedTransaction: OUSDTBridgedTransaction = {
         id: sourceTransactionHash,
@@ -784,11 +738,7 @@ describe("Mailbox Events", () => {
       indexer.OUSDTBridgedTransaction.set(bridgedTransaction);
 
       const processIdEvent: ProcessId_event = {
-        id: MailboxMessageId(
-          destinationTransactionHash,
-          destinationChainId,
-          testMessageId,
-        ),
+        id: MailboxMessageId(testMessageId),
         chainId: destinationChainId,
         transactionHash: destinationTransactionHash,
         messageId: testMessageId,
@@ -824,11 +774,7 @@ describe("Mailbox Events", () => {
       });
 
       // Assert: ProcessId_event was created
-      const processIdEntityId = MailboxMessageId(
-        destinationTransactionHash,
-        destinationChainId,
-        testMessageId,
-      );
+      const processIdEntityId = MailboxMessageId(testMessageId);
       const processIdEntity =
         await indexer.ProcessId_event.get(processIdEntityId);
       expect(processIdEntity).toBeDefined();

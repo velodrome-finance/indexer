@@ -168,8 +168,8 @@ describe("ID helpers preserve EIP-55 checksum input (issue #633)", () => {
     },
     {
       name: "MailboxMessageId",
-      actual: () => MailboxMessageId(TX_HASH, CHAIN_ID, MSG_ID),
-      expected: `${TX_HASH}-${CHAIN_ID}-${MSG_ID}`,
+      actual: () => MailboxMessageId(MSG_ID),
+      expected: MSG_ID,
     },
     {
       name: "OUSDTSwapsId",

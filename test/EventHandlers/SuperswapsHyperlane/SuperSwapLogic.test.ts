@@ -4,6 +4,8 @@ import type {
   OUSDTSwaps,
   ProcessId_event,
   SuperSwap,
+  TxDispatchIdRegistry,
+  TxOUSDTSwapRegistry,
 } from "envio";
 import {
   MailboxMessageId,
@@ -21,6 +23,35 @@ import {
   loadDestinationSwaps,
   processCrossChainSwap,
 } from "../../../src/EventHandlers/SuperswapsHyperlane/SuperSwapLogic";
+
+/**
+ * The TxOUSDTSwapRegistry row the swap handlers write for a tx: the first
+ * oUSDT swap recorded in it (what OUSDTSwaps.getWhere({ transactionHash })[0]
+ * used to return).
+ */
+function swapRegistryRow(
+  swaps: OUSDTSwaps[] | undefined,
+): TxOUSDTSwapRegistry | undefined {
+  const first = swaps?.[0];
+  if (!first) return undefined;
+  return {
+    id: first.transactionHash,
+    swapId: first.id,
+    tokenInPool: first.tokenInPool,
+    tokenOutPool: first.tokenOutPool,
+    amountIn: first.amountIn,
+    amountOut: first.amountOut,
+  };
+}
+
+/** The TxDispatchIdRegistry row the DispatchId handler writes for a tx. */
+function dispatchRegistryRow(
+  txHash: string,
+  dispatches: DispatchId_event[] | undefined,
+): TxDispatchIdRegistry | undefined {
+  if (!dispatches || dispatches.length === 0) return undefined;
+  return { id: txHash, messageIds: dispatches.map((d) => d.messageId) };
+}
 
 describe("SuperSwapLogic", () => {
   const chainId = 10; // Optimism
@@ -73,7 +104,7 @@ describe("SuperSwapLogic", () => {
     messageId: string,
   ): DispatchId_event {
     return {
-      id: MailboxMessageId(txHash, chainIdNum, messageId),
+      id: MailboxMessageId(messageId),
       chainId: chainIdNum,
       transactionHash: txHash,
       messageId,
@@ -86,7 +117,7 @@ describe("SuperSwapLogic", () => {
     messageId: string,
   ): ProcessId_event {
     return {
-      id: MailboxMessageId(txHash, chainIdNum, messageId),
+      id: MailboxMessageId(messageId),
       chainId: chainIdNum,
       transactionHash: txHash,
       messageId,
@@ -141,30 +172,27 @@ describe("SuperSwapLogic", () => {
       swapMap.set(event.transactionHash, [...existing, event]);
     }
 
+    const deletedDispatchRegistries = new Set<string>();
+
     return {
       DispatchId_event: {
         deleteUnsafe: (id: string) => {
           deletedDispatchIds.add(id);
         },
       },
-      ProcessId_event: {
-        // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
-        getWhere: async (params: any) => {
-          if (params.messageId?._eq)
-            return processIdMap.get(params.messageId._eq) || [];
-          return [];
+      TxDispatchIdRegistry: {
+        deleteUnsafe: (id: string) => {
+          deletedDispatchRegistries.add(id);
         },
+      },
+      ProcessId_event: {
+        get: async (id: string) => processIdMap.get(id)?.[0],
         deleteUnsafe: (id: string) => {
           deletedProcessIds.add(id);
         },
       },
-      OUSDTSwaps: {
-        // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
-        getWhere: async (params: any) => {
-          if (params.transactionHash?._eq)
-            return swapMap.get(params.transactionHash._eq) || [];
-          return [];
-        },
+      TxOUSDTSwapRegistry: {
+        get: async (txHash: string) => swapRegistryRow(swapMap.get(txHash)),
       },
       SuperSwap: {
         set: (entity: SuperSwap) => {
@@ -186,6 +214,7 @@ describe("SuperSwapLogic", () => {
       getSuperSwaps: () => superSwaps,
       getDeletedDispatchIds: () => deletedDispatchIds,
       getDeletedProcessIds: () => deletedProcessIds,
+      getDeletedDispatchRegistries: () => deletedDispatchRegistries,
       // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
     } as any;
   };
@@ -308,14 +337,14 @@ describe("SuperSwapLogic", () => {
       // and hard-deleted so the Mailbox scratch tables stop growing (#817 Part B).
       expect(context.getSuperSwaps().size).toBe(1);
       expect([...context.getDeletedDispatchIds()]).toEqual([
-        MailboxMessageId(transactionHash, chainId, messageId1),
+        MailboxMessageId(messageId1),
       ]);
       expect([...context.getDeletedProcessIds()]).toEqual([
-        MailboxMessageId(
-          destinationTxHash,
-          Number(destinationDomain),
-          messageId1,
-        ),
+        MailboxMessageId(messageId1),
+      ]);
+      // The tx's only dispatch is consumed, so its registry row goes too.
+      expect([...context.getDeletedDispatchRegistries()]).toEqual([
+        transactionHash,
       ]);
     });
 
@@ -370,16 +399,10 @@ describe("SuperSwapLogic", () => {
 
       expect(context.getSuperSwaps().size).toBe(1);
       const deletedDispatch = context.getDeletedDispatchIds();
-      expect(
-        deletedDispatch.has(
-          MailboxMessageId(transactionHash, chainId, messageId1),
-        ),
-      ).toBe(true);
-      expect(
-        deletedDispatch.has(
-          MailboxMessageId(transactionHash, chainId, messageId2),
-        ),
-      ).toBe(false);
+      expect(deletedDispatch.has(MailboxMessageId(messageId1))).toBe(true);
+      expect(deletedDispatch.has(MailboxMessageId(messageId2))).toBe(false);
+      // messageId2 is still live, so the tx registry must stay.
+      expect(context.getDeletedDispatchRegistries().size).toBe(0);
     });
 
     it("should stay idempotent when re-processed after the pair was deleted (#817 Part B backfill/replay)", async () => {
@@ -441,20 +464,10 @@ describe("SuperSwapLogic", () => {
 
       expect(context.getSuperSwaps().size).toBe(1);
       expect(
-        context
-          .getDeletedDispatchIds()
-          .has(MailboxMessageId(transactionHash, chainId, messageId1)),
+        context.getDeletedDispatchIds().has(MailboxMessageId(messageId1)),
       ).toBe(true);
       expect(
-        context
-          .getDeletedProcessIds()
-          .has(
-            MailboxMessageId(
-              destinationTxHash,
-              Number(destinationDomain),
-              messageId1,
-            ),
-          ),
+        context.getDeletedProcessIds().has(MailboxMessageId(messageId1)),
       ).toBe(true);
     });
 
@@ -899,13 +912,7 @@ describe("SuperSwapLogic", () => {
       expect(processId1?.messageId).toBe(messageId1);
       expect(processId1?.transactionHash).toBe(destinationTxHash);
       expect(processId1?.chainId).toBe(Number(destinationDomain));
-      expect(processId1?.id).toBe(
-        MailboxMessageId(
-          destinationTxHash,
-          Number(destinationDomain),
-          messageId1,
-        ),
-      );
+      expect(processId1?.id).toBe(MailboxMessageId(messageId1));
 
       // Verify messageId2 maps to correct ProcessId_event
       const processId2 = result.messageIdToProcessId.get(messageId2);
@@ -913,13 +920,7 @@ describe("SuperSwapLogic", () => {
       expect(processId2?.messageId).toBe(messageId2);
       expect(processId2?.transactionHash).toBe(destinationTxHash);
       expect(processId2?.chainId).toBe(Number(destinationDomain));
-      expect(processId2?.id).toBe(
-        MailboxMessageId(
-          destinationTxHash,
-          Number(destinationDomain),
-          messageId2,
-        ),
-      );
+      expect(processId2?.id).toBe(MailboxMessageId(messageId2));
 
       // Verify no unexpected messageIds in map
       expect(result.messageIdToProcessId.has(messageId1)).toBe(true);
@@ -1531,38 +1532,23 @@ describe("SuperSwapLogic", () => {
 
       return {
         DispatchId_event: {
-          // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
-          getWhere: async (params: any) => {
-            if (params.messageId?._eq)
-              return dispatchIdByMessageId.get(params.messageId._eq) || [];
-            if (params.transactionHash?._eq)
-              return dispatchIdByTxHash.get(params.transactionHash._eq) || [];
-            return [];
-          },
+          get: async (id: string) => dispatchIdByMessageId.get(id)?.[0],
+          deleteUnsafe: () => {},
+        },
+        TxDispatchIdRegistry: {
+          get: async (txHash: string) =>
+            dispatchRegistryRow(txHash, dispatchIdByTxHash.get(txHash)),
+          deleteUnsafe: () => {},
         },
         ProcessId_event: {
-          // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
-          getWhere: async (params: any) => {
-            if (params.messageId?._eq)
-              return processIdMap.get(params.messageId._eq) || [];
-            return [];
-          },
+          get: async (id: string) => processIdMap.get(id)?.[0],
+          deleteUnsafe: () => {},
         },
         OUSDTBridgedTransaction: {
-          // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
-          getWhere: async (params: any) => {
-            if (params.transactionHash?._eq)
-              return bridgedTxMap.get(params.transactionHash._eq) || [];
-            return [];
-          },
+          get: async (txHash: string) => bridgedTxMap.get(txHash)?.[0],
         },
-        OUSDTSwaps: {
-          // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
-          getWhere: async (params: any) => {
-            if (params.transactionHash?._eq)
-              return swapMap.get(params.transactionHash._eq) || [];
-            return [];
-          },
+        TxOUSDTSwapRegistry: {
+          get: async (txHash: string) => swapRegistryRow(swapMap.get(txHash)),
         },
         SuperSwap: {
           set: (entity: SuperSwap) => {
@@ -1703,14 +1689,8 @@ describe("SuperSwapLogic", () => {
         [],
       );
 
-      // Mock the getWhere to return dispatch event for messageId but empty for transactionHash query
-      const originalGetWhere = context.DispatchId_event.getWhere;
-      // biome-ignore lint/suspicious/noExplicitAny: test mock override needs flexibility
-      context.DispatchId_event.getWhere = async (params: any) => {
-        if (params.messageId?._eq) return originalGetWhere(params);
-        if (params.transactionHash?._eq) return [];
-        return [];
-      };
+      // The dispatch resolves by messageId, but its tx has no registry row
+      context.TxDispatchIdRegistry.get = async () => undefined;
 
       await attemptSuperSwapCreationFromProcessId(
         messageId1,
@@ -1720,9 +1700,6 @@ describe("SuperSwapLogic", () => {
 
       const superSwaps = context.getSuperSwaps();
       expect(superSwaps.size).toBe(0);
-
-      // Restore original
-      context.DispatchId_event.getWhere = originalGetWhere;
     });
 
     it("should handle errors gracefully and log warning", async () => {
@@ -1746,9 +1723,8 @@ describe("SuperSwapLogic", () => {
         [],
       );
 
-      // Override OUSDTSwaps getWhere to throw an error
-      const originalGetWhere = context.OUSDTSwaps.getWhere;
-      context.OUSDTSwaps.getWhere = async () => {
+      // Make the oUSDT swap lookup throw
+      context.TxOUSDTSwapRegistry.get = async () => {
         throw new Error("Database connection failed");
       };
 
@@ -1767,9 +1743,6 @@ describe("SuperSwapLogic", () => {
           ),
         ),
       ).toBe(true);
-
-      // Restore original
-      context.OUSDTSwaps.getWhere = originalGetWhere;
     });
   });
 
@@ -1810,33 +1783,35 @@ describe("SuperSwapLogic", () => {
         swapMap.set(event.transactionHash, [...existing, event]);
       }
 
+      // The registry is append-only (consumed rows stay listed); only the
+      // DispatchId_event rows themselves disappear on delete.
+      const registryByTx = new Map<string, TxDispatchIdRegistry>();
+      for (const [txHash, events] of dispatchIdByTxHash) {
+        const row = dispatchRegistryRow(txHash, events);
+        if (row) registryByTx.set(txHash, row);
+      }
+      const dispatchById = new Map(
+        dispatchIdEvents.map((event) => [event.id, event]),
+      );
+
       return {
         DispatchId_event: {
-          // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
-          getWhere: async (params: any) => {
-            if (params.transactionHash?._eq)
-              return dispatchIdByTxHash.get(params.transactionHash._eq) || [];
-            return [];
-          },
-          // Mutates the map so a subsequent getWhere reflects the deletion,
+          get: async (id: string) => dispatchById.get(id),
+          // Mutates the map so a subsequent get reflects the deletion,
           // modeling the real in-memory store's in-batch delete semantics.
           deleteUnsafe: (id: string) => {
             deletedDispatchIds.add(id);
-            for (const [txHash, events] of dispatchIdByTxHash) {
-              dispatchIdByTxHash.set(
-                txHash,
-                events.filter((event) => event.id !== id),
-              );
-            }
+            dispatchById.delete(id);
+          },
+        },
+        TxDispatchIdRegistry: {
+          get: async (txHash: string) => registryByTx.get(txHash),
+          deleteUnsafe: (txHash: string) => {
+            registryByTx.delete(txHash);
           },
         },
         ProcessId_event: {
-          // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
-          getWhere: async (params: any) => {
-            if (params.messageId?._eq)
-              return processIdMap.get(params.messageId._eq) || [];
-            return [];
-          },
+          get: async (id: string) => processIdMap.get(id)?.[0],
           deleteUnsafe: (id: string) => {
             deletedProcessIds.add(id);
             for (const [mid, events] of processIdMap) {
@@ -1848,20 +1823,10 @@ describe("SuperSwapLogic", () => {
           },
         },
         OUSDTBridgedTransaction: {
-          // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
-          getWhere: async (params: any) => {
-            if (params.transactionHash?._eq)
-              return bridgedTxMap.get(params.transactionHash._eq) || [];
-            return [];
-          },
+          get: async (txHash: string) => bridgedTxMap.get(txHash)?.[0],
         },
-        OUSDTSwaps: {
-          // biome-ignore lint/suspicious/noExplicitAny: test mock context needs flexibility
-          getWhere: async (params: any) => {
-            if (params.transactionHash?._eq)
-              return swapMap.get(params.transactionHash._eq) || [];
-            return [];
-          },
+        TxOUSDTSwapRegistry: {
+          get: async (txHash: string) => swapRegistryRow(swapMap.get(txHash)),
         },
         SuperSwap: {
           set: (entity: SuperSwap) => {
@@ -1994,20 +1959,10 @@ describe("SuperSwapLogic", () => {
       );
       expect(context.getSuperSwaps().size).toBe(1);
       expect(
-        context
-          .getDeletedDispatchIds()
-          .has(MailboxMessageId(transactionHash, chainId, messageId1)),
+        context.getDeletedDispatchIds().has(MailboxMessageId(messageId1)),
       ).toBe(true);
       expect(
-        context
-          .getDeletedProcessIds()
-          .has(
-            MailboxMessageId(
-              destinationTxHash,
-              Number(destinationDomain),
-              messageId1,
-            ),
-          ),
+        context.getDeletedProcessIds().has(MailboxMessageId(messageId1)),
       ).toBe(true);
 
       // Backfill / reorg re-apply: reprocess the same source event. The DispatchId

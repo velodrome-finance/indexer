@@ -7,14 +7,26 @@ indexer.onEvent(
   { contract: "Mailbox", event: "DispatchId" },
   async ({ event, context }) => {
     const messageId = event.params.messageId;
+    const transactionHash = event.transaction.hash;
     const entity: DispatchId_event = {
-      id: MailboxMessageId(event.transaction.hash, event.chainId, messageId),
+      id: MailboxMessageId(messageId),
       chainId: event.chainId,
-      transactionHash: event.transaction.hash,
+      transactionHash,
       messageId: messageId,
     };
 
     context.DispatchId_event.set(entity);
+
+    // Record the messageId under its tx so consumers can list a source tx's
+    // dispatches by primary key (see TxDispatchIdRegistry in schema.graphql).
+    const registry = await context.TxDispatchIdRegistry.get(transactionHash);
+    if (registry?.messageIds.includes(messageId)) {
+      return;
+    }
+    context.TxDispatchIdRegistry.set({
+      id: transactionHash,
+      messageIds: [...(registry?.messageIds ?? []), messageId],
+    });
   },
 );
 
@@ -23,7 +35,7 @@ indexer.onEvent(
   async ({ event, context }) => {
     const messageId = event.params.messageId;
     const entity: ProcessId_event = {
-      id: MailboxMessageId(event.transaction.hash, event.chainId, messageId),
+      id: MailboxMessageId(messageId),
       chainId: event.chainId,
       transactionHash: event.transaction.hash,
       messageId: messageId,

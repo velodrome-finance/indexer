@@ -624,7 +624,7 @@ indexer.onEvent(
       const amount1In = event.params.amount1 > 0n ? event.params.amount1 : 0n;
       const amount1Out = event.params.amount1 < 0n ? -event.params.amount1 : 0n;
 
-      createOUSDTSwapEntity(
+      await createOUSDTSwapEntity(
         event.transaction.hash,
         event.chainId,
         poolData.token0Instance,

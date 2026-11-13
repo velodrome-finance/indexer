@@ -5,9 +5,49 @@ import type {
   ProcessId_event,
   SuperSwap,
 } from "envio";
-import { OUSDT_ADDRESS, SuperSwapId } from "../../Constants";
+import { loadFirstOUSDTSwapInTx } from "../../Aggregators/OUSDTSwaps";
+import { MailboxMessageId, OUSDT_ADDRESS, SuperSwapId } from "../../Constants";
 import { getRehydrated } from "../../EntityTimestamps";
 import type { handlerContext } from "../../EntityTypes";
+
+/**
+ * Loads the live (not yet consumed) DispatchId_event rows of a source
+ * transaction, in dispatch order, via `TxDispatchIdRegistry` and primary-key
+ * reads. Same rows as `DispatchId_event.getWhere({ transactionHash })`.
+ * @param transactionHash - Source transaction hash
+ * @param context - Handler context
+ * @returns Promise resolving to the tx's DispatchId_event rows
+ */
+export async function loadDispatchIdEventsInTx(
+  transactionHash: string,
+  context: handlerContext,
+): Promise<DispatchId_event[]> {
+  const registry = await context.TxDispatchIdRegistry.get(transactionHash);
+  if (!registry) {
+    return [];
+  }
+  const rows = await Promise.all(
+    registry.messageIds.map((messageId) =>
+      context.DispatchId_event.get(MailboxMessageId(messageId)),
+    ),
+  );
+  return rows.filter((row): row is DispatchId_event => row !== undefined);
+}
+
+/**
+ * Loads the ProcessId_event rows for a messageId by primary key, in the shape
+ * `ProcessId_event.getWhere({ messageId })` returned (zero or one row).
+ * @param messageId - Hyperlane message id
+ * @param context - Handler context
+ * @returns Promise resolving to `[]` or `[processIdEvent]`
+ */
+export async function loadProcessIdEvents(
+  messageId: string,
+  context: handlerContext,
+): Promise<ProcessId_event[]> {
+  const row = await context.ProcessId_event.get(MailboxMessageId(messageId));
+  return row ? [row] : [];
+}
 
 /**
  * Builds a map from messageId to ProcessId event and collects unique destination transaction hashes.
@@ -50,9 +90,10 @@ export async function findSourceSwapWithOUSDT(
   sourceChainToken: string;
   sourceChainTokenAmountSwapped: bigint;
 } | null> {
-  const sourceChainSwaps = await context.OUSDTSwaps.getWhere({
-    transactionHash: { _eq: transactionHash },
-  });
+  const sourceChainSwaps = await loadFirstOUSDTSwapInTx(
+    transactionHash,
+    context,
+  );
 
   // Since we only store swaps involving oUSDT, take the first swap
   // (all stored swaps should involve oUSDT, but verify for safety)
@@ -100,7 +141,7 @@ export async function loadDestinationSwaps(
 ): Promise<Map<string, OUSDTSwaps[]>> {
   const transactionHashesArray = Array.from(destinationTransactionHashes);
   const swapPromises = transactionHashesArray.map((txHash) =>
-    context.OUSDTSwaps.getWhere({ transactionHash: { _eq: txHash } }),
+    loadFirstOUSDTSwapInTx(txHash, context),
   );
   const swapResults = await Promise.all(swapPromises);
 
@@ -266,6 +307,15 @@ function deleteConsumedMailboxPair(
   );
   if (dispatchEntity) {
     context.DispatchId_event.deleteUnsafe(dispatchEntity.id);
+    // Once every message dispatched in the tx is consumed, the tx registry
+    // lists only deleted rows, so drop it too.
+    if (
+      sourceChainMessageIdEntities.every(
+        (entity) => entity.messageId === matchingMessageId,
+      )
+    ) {
+      context.TxDispatchIdRegistry.deleteUnsafe(dispatchEntity.transactionHash);
+    }
   }
 
   const processEntity = messageIdToProcessId.get(matchingMessageId);
@@ -379,17 +429,14 @@ export async function handleCrossChainSwapEvent(
   blockTimestamp: number,
   context: handlerContext,
 ): Promise<void> {
-  const [oUSDTBridgedTransactions, sourceChainMessageIdEntities] =
-    await Promise.all([
-      context.OUSDTBridgedTransaction.getWhere({
-        transactionHash: { _eq: transactionHash },
-      }),
-      context.DispatchId_event.getWhere({
-        transactionHash: { _eq: transactionHash },
-      }),
-    ]);
+  // OUSDTBridgedTransaction is keyed by its tx hash, so a primary-key read
+  // returns exactly the row getWhere({ transactionHash }) did.
+  const [bridgedTransaction, sourceChainMessageIdEntities] = await Promise.all([
+    context.OUSDTBridgedTransaction.get(transactionHash),
+    loadDispatchIdEventsInTx(transactionHash, context),
+  ]);
 
-  if (oUSDTBridgedTransactions.length === 0) {
+  if (!bridgedTransaction) {
     // No OUSDTBridgedTransaction for this tx — distinguish two cases via
     // the OUSDTSwaps lookup, preserving symmetry with the UniversalRouterBridge
     // producer (which only records OUSDTBridgedTransaction when token === OUSDT):
@@ -397,9 +444,10 @@ export async function handleCrossChainSwapEvent(
     //     but the bridge record is missing → real correlation failure, uerror.
     //   - sourceChainOUSDTSwaps.length === 0: bridged token was not OUSDT,
     //     so neither OUSDTBridgedTransaction nor OUSDTSwaps exist → silent skip.
-    const sourceChainOUSDTSwaps = await context.OUSDTSwaps.getWhere({
-      transactionHash: { _eq: transactionHash },
-    });
+    const sourceChainOUSDTSwaps = await loadFirstOUSDTSwapInTx(
+      transactionHash,
+      context,
+    );
     if (sourceChainOUSDTSwaps.length > 0) {
       context.log.error(
         `No OUSDTBridgedTransaction found for OUSDT swap at chain ${chainId} tx ${transactionHash}`,
@@ -411,17 +459,13 @@ export async function handleCrossChainSwapEvent(
     return;
   }
 
-  const bridgedTransaction = oUSDTBridgedTransactions[0];
-
   if (sourceChainMessageIdEntities.length === 0) {
     return;
   }
 
   const processIdPromises = sourceChainMessageIdEntities.map(
     (entity: { messageId: string }) =>
-      context.ProcessId_event.getWhere({
-        messageId: { _eq: entity.messageId },
-      }),
+      loadProcessIdEvents(entity.messageId, context),
   );
   const processIdResults = await Promise.all(processIdPromises);
 
@@ -454,32 +498,26 @@ export async function attemptSuperSwapCreationFromProcessId(
   context: handlerContext,
 ): Promise<void> {
   try {
-    // Find matching DispatchId_event by messageId
-    const dispatchIdEvents = await context.DispatchId_event.getWhere({
-      messageId: { _eq: messageId },
-    });
+    // Find the matching DispatchId_event (keyed by messageId)
+    const dispatchIdEvent = await context.DispatchId_event.get(
+      MailboxMessageId(messageId),
+    );
 
-    if (dispatchIdEvents.length === 0) {
+    if (!dispatchIdEvent) {
       return;
     }
 
-    // Use the first matching DispatchId (should be unique per messageId)
-    const dispatchIdEvent = dispatchIdEvents[0];
     const sourceTransactionHash = dispatchIdEvent.transactionHash;
     const sourceChainId = dispatchIdEvent.chainId;
 
     // Load OUSDTBridgedTransaction and DispatchId_event entities in parallel
-    const [oUSDTBridgedTransactions, sourceChainMessageIdEntities] =
+    const [bridgedTransaction, sourceChainMessageIdEntities] =
       await Promise.all([
-        context.OUSDTBridgedTransaction.getWhere({
-          transactionHash: { _eq: sourceTransactionHash },
-        }),
-        context.DispatchId_event.getWhere({
-          transactionHash: { _eq: sourceTransactionHash },
-        }),
+        context.OUSDTBridgedTransaction.get(sourceTransactionHash),
+        loadDispatchIdEventsInTx(sourceTransactionHash, context),
       ]);
 
-    if (oUSDTBridgedTransactions.length === 0) {
+    if (!bridgedTransaction) {
       return;
     }
 
@@ -487,13 +525,9 @@ export async function attemptSuperSwapCreationFromProcessId(
       return;
     }
 
-    const bridgedTransaction = oUSDTBridgedTransactions[0];
-
     // Load all ProcessId_event entities for all messageIds from the DispatchId events
     const processIdPromises = sourceChainMessageIdEntities.map((entity) =>
-      context.ProcessId_event.getWhere({
-        messageId: { _eq: entity.messageId },
-      }),
+      loadProcessIdEvents(entity.messageId, context),
     );
     const processIdResults = await Promise.all(processIdPromises);
 

@@ -652,18 +652,48 @@ type CLGaugeConfig {
   lastUpdatedTimestamp: Timestamp! # Timestamp of the last CLGaugeConfig update
 }
 
+# Keyed by the Hyperlane messageId, which is globally unique (keccak256 of the
+# packed message, including origin domain and the origin Mailbox's nonce), so
+# the ProcessId consumer resolves it with a primary-key read.
 type DispatchId_event @storage(postgres: true, clickhouse: false) @internal {
-  id: ID! # Format: {transactionHash}_{chainId}_{messageId}
+  id: ID! # Format: {messageId}
   chainId: Int! # Chain ID where the message was dispatched (origin chain)
-  transactionHash: String! @index # Transaction hash of the dispatch transaction
-  messageId: String! @index # Unique message ID identifying the cross-chain message in Hyperlane
+  transactionHash: String! # Transaction hash of the dispatch transaction
+  messageId: String! # Unique message ID identifying the cross-chain message in Hyperlane
 }
 
+# Keyed by the Hyperlane messageId: a Mailbox delivers a message at most once.
 type ProcessId_event @storage(postgres: true, clickhouse: false) @internal {
-  id: ID! # Format: {transactionHash}_{chainId}_{messageId}
+  id: ID! # Format: {messageId}
   chainId: Int! # Chain ID where the message was processed (destination chain)
-  transactionHash: String! @index # Transaction hash of the process transaction
-  messageId: String! @index # Unique message ID identifying the cross-chain message in Hyperlane (matches DispatchId messageId)
+  transactionHash: String! # Transaction hash of the process transaction
+  messageId: String! # Unique message ID identifying the cross-chain message in Hyperlane (matches DispatchId messageId)
+}
+
+# Per-transaction registry of the messageIds dispatched in a tx, so the
+# CrossChainSwap / ProcessId consumers find a source tx's DispatchId_event rows
+# with primary-key reads instead of DispatchId_event.getWhere({ transactionHash }).
+# Append-only: consumers PK-get each DispatchId_event and skip consumed
+# (deleted) ones; the row is deleted once every listed message is consumed.
+type TxDispatchIdRegistry
+  @storage(postgres: true, clickhouse: false)
+  @internal
+{
+  id: ID! # Format: {transactionHash}
+  messageIds: [String!]! # DispatchId_event ids (= messageIds) dispatched in this tx, in processing order
+}
+
+# The first oUSDT swap recorded in a transaction, so the SuperSwap stitching
+# resolves "the oUSDT swap of tx X" with a primary-key read instead of
+# OUSDTSwaps.getWhere({ transactionHash })[0]. Written only when absent, so it
+# holds the first swap in processing order (the row getWhere returned first).
+type TxOUSDTSwapRegistry @storage(postgres: true, clickhouse: false) @internal {
+  id: ID! # Format: {transactionHash}
+  swapId: String! # OUSDTSwaps id of the first oUSDT swap recorded in this tx
+  tokenInPool: String! # Copy of OUSDTSwaps.tokenInPool
+  tokenOutPool: String! # Copy of OUSDTSwaps.tokenOutPool
+  amountIn: BigInt! @config(precision: 76) # Copy of OUSDTSwaps.amountIn
+  amountOut: BigInt! @config(precision: 76) # Copy of OUSDTSwaps.amountOut
 }
 
 type ALM_TotalSupplyLimitUpdated_event {

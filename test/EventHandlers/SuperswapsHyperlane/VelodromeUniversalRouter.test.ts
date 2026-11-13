@@ -13,6 +13,7 @@ import {
   toChecksumAddress,
 } from "../../../src/Constants";
 import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
+import { seedDispatchIdEvent, seedOUSDTSwap } from "../../testHelpers";
 
 describe("VelodromeUniversalRouter Event Handlers", () => {
   const chainId = 10 as const; // Optimism
@@ -230,7 +231,7 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
 
       // Create DispatchId event
       const dispatchIdEvent: DispatchId_event = {
-        id: MailboxMessageId(transactionHash, chainId, messageId),
+        id: MailboxMessageId(messageId),
         chainId: chainId,
         transactionHash: transactionHash,
         messageId: messageId,
@@ -238,7 +239,7 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
 
       // Create ProcessId event
       const processIdEvent: ProcessId_event = {
-        id: MailboxMessageId(destinationTxHash, destinationDomain, messageId),
+        id: MailboxMessageId(messageId),
         chainId: Number(destinationDomain),
         transactionHash: destinationTxHash,
         messageId: messageId,
@@ -280,10 +281,10 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
 
       // Seed all required entities so native getWhere finds them
       indexer.OUSDTBridgedTransaction.set(existingBridgedTransaction);
-      indexer.DispatchId_event.set(dispatchIdEvent);
+      await seedDispatchIdEvent(indexer, dispatchIdEvent);
       indexer.ProcessId_event.set(processIdEvent);
-      indexer.OUSDTSwaps.set(sourceSwapEvent);
-      indexer.OUSDTSwaps.set(destinationSwapEvent);
+      await seedOUSDTSwap(indexer, sourceSwapEvent);
+      await seedOUSDTSwap(indexer, destinationSwapEvent);
 
       await indexer.process({
         chains: {
@@ -347,14 +348,14 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
       };
 
       const dispatchIdEvent: DispatchId_event = {
-        id: MailboxMessageId(transactionHash, chainId, messageId),
+        id: MailboxMessageId(messageId),
         chainId: chainId,
         transactionHash: transactionHash,
         messageId: messageId,
       };
 
       const processIdEvent: ProcessId_event = {
-        id: MailboxMessageId(destinationTxHash, metalChainId, messageId),
+        id: MailboxMessageId(messageId),
         chainId: metalChainId,
         transactionHash: destinationTxHash,
         messageId: messageId,
@@ -393,10 +394,10 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
       };
 
       indexer.OUSDTBridgedTransaction.set(existingBridgedTransaction);
-      indexer.DispatchId_event.set(dispatchIdEvent);
+      await seedDispatchIdEvent(indexer, dispatchIdEvent);
       indexer.ProcessId_event.set(processIdEvent);
-      indexer.OUSDTSwaps.set(sourceSwapEvent);
-      indexer.OUSDTSwaps.set(destinationSwapEvent);
+      await seedOUSDTSwap(indexer, sourceSwapEvent);
+      await seedOUSDTSwap(indexer, destinationSwapEvent);
 
       await indexer.process({
         chains: {
@@ -538,14 +539,14 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
       };
 
       const dispatchIdEvent: DispatchId_event = {
-        id: MailboxMessageId(transactionHash, chainId, messageId),
+        id: MailboxMessageId(messageId),
         chainId: chainId,
         transactionHash: transactionHash,
         messageId: messageId,
       };
 
       const processIdEvent: ProcessId_event = {
-        id: MailboxMessageId(destinationTxHash, destinationDomain, messageId),
+        id: MailboxMessageId(messageId),
         chainId: Number(destinationDomain),
         transactionHash: destinationTxHash,
         messageId: messageId,
@@ -587,10 +588,10 @@ describe("VelodromeUniversalRouter Event Handlers", () => {
 
       indexer.OUSDTBridgedTransaction.set(bridgedTransaction1);
       indexer.OUSDTBridgedTransaction.set(bridgedTransaction2);
-      indexer.DispatchId_event.set(dispatchIdEvent);
+      await seedDispatchIdEvent(indexer, dispatchIdEvent);
       indexer.ProcessId_event.set(processIdEvent);
-      indexer.OUSDTSwaps.set(sourceSwapEvent);
-      indexer.OUSDTSwaps.set(destinationSwapEvent);
+      await seedOUSDTSwap(indexer, sourceSwapEvent);
+      await seedOUSDTSwap(indexer, destinationSwapEvent);
 
       await indexer.process({
         chains: {

@@ -6,7 +6,7 @@
 
 # Entity & field reference
 
-Generated from [`schema.graphql`](../schema.graphql). The schema defines **40 entity types**; each becomes a queryable table in the indexer's database.
+Generated from [`schema.graphql`](../schema.graphql). The schema defines **42 entity types**; each becomes a queryable table in the indexer's database.
 
 ## Reading this reference
 
@@ -22,7 +22,7 @@ Generated from [`schema.graphql`](../schema.graphql). The schema defines **40 en
 - **Snapshots** — [PoolSnapshot](#poolsnapshot), [TokenPriceSnapshot](#tokenpricesnapshot), [UserStatsPerPoolSnapshot](#userstatsperpoolsnapshot), [NonFungiblePositionSnapshot](#nonfungiblepositionsnapshot), [VeNFTStateSnapshot](#venftstatesnapshot), [VeNFTPoolVoteSnapshot](#venftpoolvotesnapshot), [ALM_LP_WrapperSnapshot](#alm_lp_wrappersnapshot)
 - **Config & registry** — [FactoryRegistryConfig](#factoryregistryconfig), [DynamicFeeGlobalConfig](#dynamicfeeglobalconfig), [CLGaugeConfig](#clgaugeconfig), [FeeToTickSpacingMapping](#feetotickspacingmapping), [RedistributorConfig](#redistributorconfig), [RootPool_LeafPool](#rootpool_leafpool), [RootGauge_RootPool](#rootgauge_rootpool)
 - **Pool launcher** — [PoolLauncherPool](#poollauncherpool), [PoolLauncherConfig](#poollauncherconfig)
-- **Cross-chain superswaps (Hyperlane)** — [SuperSwap](#superswap), [OUSDTBridgedTransaction](#ousdtbridgedtransaction), [OUSDTSwaps](#ousdtswaps), [DispatchId_event](#dispatchid_event), [ProcessId_event](#processid_event)
+- **Cross-chain superswaps (Hyperlane)** — [SuperSwap](#superswap), [OUSDTBridgedTransaction](#ousdtbridgedtransaction), [OUSDTSwaps](#ousdtswaps), [DispatchId_event](#dispatchid_event), [ProcessId_event](#processid_event), [TxDispatchIdRegistry](#txdispatchidregistry), [TxOUSDTSwapRegistry](#txousdtswapregistry)
 - **Internal buffers & deferred state** — [PendingVote](#pendingvote), [CLPoolPendingInitialize](#clpoolpendinginitialize), [PendingRootPoolMapping](#pendingrootpoolmapping), [PendingDistribution](#pendingdistribution), [PoolTickMap](#pooltickmap), [CLPoolMintEvent](#clpoolmintevent), [CLPositionPendingPrincipal](#clpositionpendingprincipal), [TxCLPoolMintRegistry](#txclpoolmintregistry), [TokenPricingPools](#tokenpricingpools), [TxPoolTransferRegistry](#txpooltransferregistry), [PoolTransferInTx](#pooltransferintx), [ALMLPWrapperTransferInTx](#almlpwrappertransferintx), [ALM_TotalSupplyLimitUpdated_event](#alm_totalsupplylimitupdated_event)
 
 ## Core aggregates
@@ -654,21 +654,47 @@ Registering each event related from/to oUSDT. Needed for filtering and eventual 
 
 ### DispatchId_event
 
+Keyed by the Hyperlane messageId, which is globally unique (keccak256 of the packed message, including origin domain and the origin Mailbox's nonce), so the ProcessId consumer resolves it with a primary-key read.
+
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {transactionHash}_{chainId}_{messageId} |
+| `id` | `ID!` | Format: {messageId} |
 | `chainId` | `Int!` | Chain ID where the message was dispatched (origin chain) |
-| `transactionHash` | `String!` | Transaction hash of the dispatch transaction _(indexed)_ |
-| `messageId` | `String!` | Unique message ID identifying the cross-chain message in Hyperlane _(indexed)_ |
+| `transactionHash` | `String!` | Transaction hash of the dispatch transaction |
+| `messageId` | `String!` | Unique message ID identifying the cross-chain message in Hyperlane |
 
 ### ProcessId_event
 
+Keyed by the Hyperlane messageId: a Mailbox delivers a message at most once.
+
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {transactionHash}_{chainId}_{messageId} |
+| `id` | `ID!` | Format: {messageId} |
 | `chainId` | `Int!` | Chain ID where the message was processed (destination chain) |
-| `transactionHash` | `String!` | Transaction hash of the process transaction _(indexed)_ |
-| `messageId` | `String!` | Unique message ID identifying the cross-chain message in Hyperlane (matches DispatchId messageId) _(indexed)_ |
+| `transactionHash` | `String!` | Transaction hash of the process transaction |
+| `messageId` | `String!` | Unique message ID identifying the cross-chain message in Hyperlane (matches DispatchId messageId) |
+
+### TxDispatchIdRegistry
+
+Per-transaction registry of the messageIds dispatched in a tx, so the CrossChainSwap / ProcessId consumers find a source tx's DispatchId_event rows with primary-key reads instead of DispatchId_event.getWhere({ transactionHash }). Append-only: consumers PK-get each DispatchId_event and skip consumed (deleted) ones; the row is deleted once every listed message is consumed.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {transactionHash} |
+| `messageIds` | `[String!]!` | DispatchId_event ids (= messageIds) dispatched in this tx, in processing order |
+
+### TxOUSDTSwapRegistry
+
+The first oUSDT swap recorded in a transaction, so the SuperSwap stitching resolves "the oUSDT swap of tx X" with a primary-key read instead of OUSDTSwaps.getWhere({ transactionHash })[0]. Written only when absent, so it holds the first swap in processing order (the row getWhere returned first).
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {transactionHash} |
+| `swapId` | `String!` | OUSDTSwaps id of the first oUSDT swap recorded in this tx |
+| `tokenInPool` | `String!` | Copy of OUSDTSwaps.tokenInPool |
+| `tokenOutPool` | `String!` | Copy of OUSDTSwaps.tokenOutPool |
+| `amountIn` | `BigInt!` | Copy of OUSDTSwaps.amountIn |
+| `amountOut` | `BigInt!` | Copy of OUSDTSwaps.amountOut |
 
 ## Internal buffers & deferred state
 

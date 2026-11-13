@@ -1036,16 +1036,14 @@ export const PoolSnapshotId = (
   epochMs: number,
 ) => `${PoolId(chainId, poolAddress)}-${epochMs}`;
 
-/** Entity ID for DispatchId_event and ProcessId_event (Mailbox events).
- * @param transactionHash
- * @param chainId
- * @param messageId
+/** Entity ID for DispatchId_event and ProcessId_event (Mailbox events): the
+ * Hyperlane messageId itself, which is globally unique (keccak256 of the packed
+ * message, including origin domain and the origin Mailbox's nonce) and is
+ * delivered at most once, so consumers can resolve either row by primary key.
+ * @param messageId - Hyperlane message id (bytes32 hex)
+ * @returns string Entity ID.
  */
-export const MailboxMessageId = (
-  transactionHash: string,
-  chainId: number,
-  messageId: string,
-) => `${transactionHash}-${chainId}-${messageId}`;
+export const MailboxMessageId = (messageId: string) => messageId;
 
 /** Entity ID for OUSDTSwaps.
  * @param transactionHash
