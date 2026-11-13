@@ -613,6 +613,88 @@ describe("PriceOracle", () => {
       expect(store.effectCalls).toEqual(["getTokenDetails"]);
       expect(store.snapshots).toHaveLength(0);
     });
+
+    describe("preload pass", () => {
+      /** The store's context as envio's preload pass presents it: writes are no-ops. */
+      const preloadContext = (store: ReturnType<typeof createPricingStore>) =>
+        ({
+          ...store.context,
+          isPreload: true,
+          Token: { ...store.context.Token, set: vi.fn() },
+          TokenPriceSnapshot: { set: vi.fn() },
+        }) as unknown as handlerContext;
+
+      const refreshIn = (
+        store: ReturnType<typeof createPricingStore>,
+        context: handlerContext,
+        timestamp: number,
+      ) => {
+        const token = store.tokens.get(TokenId(OP, OP_TOKEN_X));
+        if (!token) throw new Error("no token");
+        return PriceOracle.refreshTokenPrice(
+          token,
+          123,
+          timestamp,
+          OP,
+          context,
+        );
+      };
+
+      it("resolves each (token, hour) once and shares the result", async () => {
+        const store = opStore();
+        // Clear any memo a previous test's preload left behind.
+        await refresh(store, OP, OP_USDC);
+        vi.mocked(store.context.TokenPricingPools.get).mockClear();
+
+        const context = preloadContext(store);
+        const results = await Promise.all(
+          [10, 20, 30].map((minute) =>
+            refreshIn(store, context, HOUR_START_S + minute * 60),
+          ),
+        );
+
+        // X, then its counterparty chain VELO → WETH: one read each, not three.
+        expect(store.context.TokenPricingPools.get).toHaveBeenCalledTimes(3);
+        expect(results[1]).toBe(results[0]);
+        expect(results[2]).toBe(results[0]);
+
+        // Same price the run proper computes for the first event of the hour.
+        const runProper = await refresh(
+          store,
+          OP,
+          OP_TOKEN_X,
+          HOUR_START_S + 600,
+        );
+        expect(results[0].pricePerUSDNew).toBe(runProper.pricePerUSDNew);
+        expect(results[0].pricePerUSDNew).toBe((5n * E18) / 100n);
+      });
+
+      it("does not carry its memo past the batch's run proper", async () => {
+        const store = opStore();
+        const context = preloadContext(store);
+        await refreshIn(store, context, NOW);
+        // Run proper of the batch (any due refresh) clears the memo...
+        await refresh(store, OP, OP_USDC);
+        vi.mocked(store.context.TokenPricingPools.get).mockClear();
+        // ...so the next batch's preload resolves (and loads) again.
+        await refreshIn(store, context, NOW);
+        expect(store.context.TokenPricingPools.get).toHaveBeenCalled();
+      });
+
+      it("a different clock hour is resolved separately", async () => {
+        const store = opStore();
+        const context = preloadContext(store);
+        await refresh(store, OP, OP_USDC); // clear the memo
+        vi.mocked(store.context.TokenPricingPools.get).mockClear();
+        await refreshIn(store, context, NOW);
+        const callsFirstHour = vi.mocked(store.context.TokenPricingPools.get)
+          .mock.calls.length;
+        await refreshIn(store, context, NOW + HOUR_S);
+        expect(
+          vi.mocked(store.context.TokenPricingPools.get).mock.calls.length,
+        ).toBe(callsFirstHour * 2);
+      });
+    });
   });
 
   describe("createTokenEntity", () => {

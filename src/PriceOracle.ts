@@ -18,6 +18,7 @@ import {
   isPriceRefreshDue,
 } from "./Pricing/PriceResolution";
 import {
+  PRICE_REFRESH_INTERVAL_MS,
   PRICING_TIER,
   type PricingTier,
   getMinPricingDepthUSD,
@@ -186,6 +187,69 @@ export async function refreshTokenPrice(
     return healed;
   }
 
+  if (!context.isPreload) {
+    // The batch's preload pass is over; its memo must not outlive it.
+    if (preloadRefreshes.size > 0) preloadRefreshes.clear();
+    return refreshDueTokenPrice(
+      healed,
+      blockNumber,
+      blockTimestamp,
+      chainId,
+      context,
+    );
+  }
+
+  // Preload pass: writes are discarded, so the Token.set below never lands and
+  // every event of the batch touching this token in this clock hour would see
+  // it as due and redo the whole resolution. The run proper refreshes it once
+  // (later events see the written row and are throttled), so resolve each
+  // (token, hour, stored state) once here too: the first call issues the loads
+  // the run proper needs, the rest share its result.
+  const key = `${healed.id}|${Math.floor(blockTimestampMs / PRICE_REFRESH_INTERVAL_MS)}|${healed.lastUpdatedTimestamp?.getTime() ?? ""}`;
+  const pending = preloadRefreshes.get(key);
+  if (pending) return pending;
+  if (preloadRefreshes.size >= PRELOAD_REFRESH_MEMO_LIMIT) {
+    preloadRefreshes.clear();
+  }
+  const refresh = refreshDueTokenPrice(
+    healed,
+    blockNumber,
+    blockTimestamp,
+    chainId,
+    context,
+  );
+  preloadRefreshes.set(key, refresh);
+  return refresh;
+}
+
+/**
+ * Preload-pass memo of due refreshes, keyed by token id, clock hour and the
+ * token's stored `lastUpdatedTimestamp`. Cleared by the first run-proper
+ * refresh (envio runs a batch's preload pass to completion before its handlers
+ * run), and bounded in case a batch has no run-proper refresh at all.
+ */
+const preloadRefreshes = new Map<string, Promise<Token>>();
+const PRELOAD_REFRESH_MEMO_LIMIT = 50_000;
+
+/**
+ * The due-refresh body of {@link refreshTokenPrice}: resolve, apply, write the
+ * Token and its TokenPriceSnapshot.
+ *
+ * @param healed - The token (metadata already healed), known to be due
+ * @param blockNumber - Block of the triggering event
+ * @param blockTimestamp - Block timestamp in seconds
+ * @param chainId - Chain the token lives on
+ * @param context - Envio handler context
+ * @returns The refreshed token
+ */
+async function refreshDueTokenPrice(
+  healed: Token,
+  blockNumber: number,
+  blockTimestamp: number,
+  chainId: number,
+  context: handlerContext,
+): Promise<Token> {
+  const blockTimestampMs = blockTimestamp * 1000;
   let resolution: PriceResolution;
   try {
     resolution = await resolveTokenPrice(
