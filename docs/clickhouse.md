@@ -176,8 +176,10 @@ sort keys (ClickHouse does not push filters through window functions).
 
 **Freshness.** The layer trails the indexer by at most one refresh period (1 minute) plus the
 refresh's own run time; `freshness` and `analytics.py status` show both sides. On the Aero test
-sync, which was backfilling at about 1,000 checkpoints a minute, the refreshes stayed within a
-minute of the frontier.
+sync, which was backfilling at 20,000 to 30,000 checkpoints a minute, the refreshes stayed
+within a minute or two of the frontier; over 30 minutes the 26 refreshes took 0.5–4.6 s each
+per run (mean), reading up to 460 k rows to write about 1 k (the series also read the previous
+period of each pool they touch). At the head of a live chain the windows are far smaller.
 
 **The proof.** `analytics.py verify` stops the refreshes, takes each table's watermark `W`,
 and compares the table, read with `FINAL`, against an independent computation over envio's
