@@ -54,8 +54,23 @@ export function divRoundNearest(
  * @returns sqrt(1.0001^tick) in Q64.96 fixed-point as bigint
  */
 function sqrtRatioAtTick(tick: bigint): bigint {
-  return BigInt(TickMath.getSqrtRatioAtTick(Number(tick)).toString());
+  const tickNumber = Number(tick);
+  const memoised = sqrtRatioMemo.get(tickNumber);
+  if (memoised !== undefined) return memoised;
+  const ratio = BigInt(TickMath.getSqrtRatioAtTick(tickNumber).toString());
+  if (sqrtRatioMemo.size >= SQRT_RATIO_MEMO_LIMIT) sqrtRatioMemo.clear();
+  sqrtRatioMemo.set(tickNumber, ratio);
+  return ratio;
 }
+
+/**
+ * Memo for {@link sqrtRatioAtTick}: the JSBI-based SDK call plus the
+ * string round trip dominates the swap path's tick walk, and the ticks it is
+ * asked for (position edges, current ticks) repeat heavily. Pure function, so
+ * memoising cannot change results; bounded so memory stays flat.
+ */
+const sqrtRatioMemo = new Map<number, bigint>();
+const SQRT_RATIO_MEMO_LIMIT = 200_000;
 
 /**
  * Returns true if a position's tick range includes the current tick.
