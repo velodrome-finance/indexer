@@ -142,6 +142,7 @@ export function setupCommon() {
     totalUnstakedFeesCollectedUSD: 300n * TEN_TO_THE_18_BI,
     totalStakedFeesCollectedUSD: 0n,
     numberOfSwaps: 1n,
+    numberOfSwapFeeFallbacks: 0n,
     token0Price: 1n * TEN_TO_THE_18_BI,
     token1Price: 1n * TEN_TO_THE_18_BI,
     totalVotesDeposited: 1n,
@@ -167,10 +168,6 @@ export function setupCommon() {
     stakedReserve0: 0n,
     stakedReserve1: 0n,
     hasStakes: false,
-    stakedTickEdges: [],
-    stakedTickEdgeNets: [],
-    tickEdges: [],
-    tickEdgeNets: [],
     totalFlashLoanFees0: 0n,
     totalFlashLoanFees1: 0n,
     totalFlashLoanFeesUSD: 0n,
@@ -447,19 +444,6 @@ export function setupCommon() {
     return {
       ...mockLiquidityPoolData,
       ...overrides,
-      // Array fields: ensure mutable bigint[] to satisfy both envio.d.ts
-      // (readonly bigint[]) and Indexer.gen.ts (bigint[]) types used by MockDb.set()
-      stakedTickEdges: [
-        ...(overrides.stakedTickEdges ?? mockLiquidityPoolData.stakedTickEdges),
-      ],
-      stakedTickEdgeNets: [
-        ...(overrides.stakedTickEdgeNets ??
-          mockLiquidityPoolData.stakedTickEdgeNets),
-      ],
-      tickEdges: [...(overrides.tickEdges ?? mockLiquidityPoolData.tickEdges)],
-      tickEdgeNets: [
-        ...(overrides.tickEdgeNets ?? mockLiquidityPoolData.tickEdgeNets),
-      ],
       poolAddress,
       chainId,
       id,

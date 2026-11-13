@@ -1,9 +1,10 @@
 import { indexer } from "envio";
 import type { DynamicFeeGlobalConfig } from "envio";
 import { updatePool } from "../../Aggregators/Pool";
-import { PoolId, toCanonicalFeeScale } from "../../Constants";
+import { PoolId } from "../../Constants";
 import { getRehydrated } from "../../EntityTimestamps";
 import type { Pool } from "../../EntityTypes";
+import { resolveCustomSwapFee } from "./CustomSwapFeeSharedLogic";
 
 indexer.onEvent(
   { contract: "CustomSwapFeeModule", event: "SetCustomFee" },
@@ -16,26 +17,31 @@ indexer.onEvent(
       return;
     }
 
-    // Lift to canonical FEE_SCALE (1e6). Keyed on pool.isCL so the stored fee
-    // matches the single divisor regardless of which pool type the module
-    // targets (issue #812).
-    const canonicalFee = toCanonicalFeeScale(
+    // Store the fee the module charges, in canonical FEE_SCALE (1e6): 420 is
+    // the zero-fee indicator, 0 resets to the tick-spacing default, anything
+    // else is lifted keyed on pool.isCL (issue #812). For a CL pool currentFee
+    // is then re-measured by every swap; this seeds the fallback rate.
+    const chargedFee = await resolveCustomSwapFee(
       BigInt(event.params.fee),
-      pool.isCL,
-    );
-    const diff: Partial<Pool> = {
-      baseFee: canonicalFee,
-      currentFee: canonicalFee,
-    };
-
-    await updatePool(
-      diff,
       pool,
-      new Date(event.block.timestamp * 1000),
+      pool.isCL,
       context,
-      event.chainId,
-      event.block.number,
     );
+    if (chargedFee !== undefined) {
+      const diff: Partial<Pool> = {
+        baseFee: chargedFee,
+        currentFee: chargedFee,
+      };
+
+      await updatePool(
+        diff,
+        pool,
+        new Date(event.block.timestamp * 1000),
+        context,
+        event.chainId,
+        event.block.number,
+      );
+    }
 
     const configId = event.srcAddress;
 

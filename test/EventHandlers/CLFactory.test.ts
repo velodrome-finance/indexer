@@ -373,6 +373,7 @@ describe("CLFactory Events", () => {
           token1: token1Address,
           tickSpacing: TICK_SPACING,
           rootPoolMatchingHash: hash,
+          rootFactoryAddress: CL_FACTORY_ADDRESS_BY_CHAIN[chainId],
         };
 
         const idx = createTestIndexer();
@@ -444,6 +445,7 @@ describe("CLFactory Events", () => {
           token1: token1Address,
           tickSpacing: TICK_SPACING,
           rootPoolMatchingHash: hash,
+          rootFactoryAddress: CL_FACTORY_ADDRESS_BY_CHAIN[chainId],
         };
         const tokenId = 1n;
         const voteWeight = 100n;
@@ -822,6 +824,7 @@ describe("CLFactory Events", () => {
           token1: token1Address,
           tickSpacing: TICK_SPACING,
           rootPoolMatchingHash: hash,
+          rootFactoryAddress: CL_FACTORY_ADDRESS_BY_CHAIN[chainId],
         };
         const blockHash =
           "0x1234567890123456789012345678901234567890123456789012345678901234";

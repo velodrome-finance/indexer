@@ -9,7 +9,7 @@ type Pool {
   token1_address: String! # token1 address
   isStable: Boolean! # whether the pool is a stable AMM or a volatile AMM
   isCL: Boolean! # whether the pool is a CL pool
-  createdBlockNumber: BigInt! @config(precision: 76) # Block number at which PoolCreated fired; used to clamp roundBlockToInterval so getSwapFee/getTokenPrice never query before pool deployment (#759)
+  createdBlockNumber: BigInt! @config(precision: 76) # Block number at which PoolCreated fired (#759); creation-time metadata
   tickSpacing: BigInt! @config(precision: 24) # Tick spacing of the pool; 0 for non-CL pools
   reserve0: BigInt! @config(precision: 76) # reserve of token0 in token units
   reserve1: BigInt! @config(precision: 76) # reserve of token1 in token units
@@ -28,6 +28,7 @@ type Pool {
   totalUnstakedFeesCollectedUSD: BigInt! @config(precision: 76) # total fees collected from unstaked LPs (Collect events) in USD
   totalStakedFeesCollectedUSD: BigInt! @config(precision: 76) # total fees collected from staked LPs (CollectFees events) in USD
   numberOfSwaps: BigInt! @config(precision: 76) # total number of swaps in the pool
+  numberOfSwapFeeFallbacks: BigInt! @config(precision: 76) # CL only: swaps whose fee could not be derived from the swap (tick-map walk disagreed with the event's liquidity, or the derived fee was negative or above 10% of the input) and were valued with the stored currentFee instead. Should stay 0 on a from-creation sync
   token0Price: BigInt! @config(precision: 76) # price of token0 relative to token1
   token1Price: BigInt! @config(precision: 76) # price of token1 relative to token0
   totalVotesDeposited: BigInt! @config(precision: 76) # total votes deposited in veToken units
@@ -68,30 +69,8 @@ type Pool {
   # per-swap staked-tick sweep in processTickCrossings: pools that have
   # never been staked skip the sweep entirely. Set on the first gauge Deposit.
   # One-way latch: does NOT clear if every staked position is later withdrawn.
-  # A transiently-staked-then-fully-unstaked pool will keep running the sweep
-  # (with zero contributions). The structural fix that makes the residual cost
-  # negligible is tracked in #649 (sparse stakedTickEdges list); until it lands,
-  # the latch is "accept a degenerate case to avoid the bookkeeping of clearing".
+  # The per-tick maps themselves live on PoolTickMap (Postgres only).
   hasStakes: Boolean!
-  # Parallel arrays encoding Uniswap v3's per-tick liquidityNet for the staked
-  # subset. Sorted ascending by tick, dedup'd, no zero-net entries. Same length,
-  # same index: (stakedTickEdges[i], stakedTickEdgeNets[i]) is one (tick, net)
-  # pair. Two arrays instead of one list-of-structs because GraphQL lists only
-  # allow scalars or named types — tuples don't exist at this layer.
-  #
-  # Maintained on gauge deposit / withdraw / NFPM staked-position liquidity
-  # changes. Consumed by processTickCrossings via in-memory binary
-  # search — no per-tick entity loads on the swap path, which breaks the OOM
-  # chain-of-amplification from #648.
-  stakedTickEdges: [BigInt!]!
-  stakedTickEdgeNets: [BigInt!]! # Per-tick liquidityNet for the staked subset; paired index-for-index with stakedTickEdges (see stakedTickEdges).
-  # Total-liquidity analog of stakedTickEdges/stakedTickEdgeNets: the pool's full
-  # per-tick liquidityNet map (all positions, not just staked). Maintained on
-  # CLPool Mint/Burn; consumed by processTickCrossings on the swap path
-  # to compute the fee-free reserve delta from pool geometry (L·ΔsqrtPrice),
-  # replacing the stale-fee approximation that drifts on dynamic-fee pools (#803).
-  tickEdges: [BigInt!]!
-  tickEdgeNets: [BigInt!]! # Per-tick liquidityNet for all positions; paired index-for-index with tickEdges (see tickEdges).
   totalFlashLoanFees0: BigInt @config(precision: 76) # total flash loan fees collected in token0
   totalFlashLoanFees1: BigInt @config(precision: 76) # total flash loan fees collected in token1
   totalFlashLoanFeesUSD: BigInt @config(precision: 76) # total flash loan fees collected in USD
@@ -119,10 +98,10 @@ type Pool {
   veNFTamountStaked: BigInt! @config(precision: 76) # total amount of veNFT staked for this pool
 
   # Dynamic Fee fields
-  baseFee: BigInt! @config(precision: 24) # Current base fee, FEE_SCALE 1e6 (hundredths of a basis point); single fee divisor across V2 & CL — issue #812
+  baseFee: BigInt! @config(precision: 24) # Configured (nominal) fee, FEE_SCALE 1e6 (hundredths of a basis point; single divisor across V2 & CL, issue #812). V2: factory default or SetCustomFee. CL: tick-spacing default, CustomSwapFeeModule fee, or DynamicSwapFeeModule custom base fee (a dynamic pool charges this plus a TWAP-volatility part, up to feeCap). Custom-fee sentinels resolved as the contracts do: 420 = 0%, 0 = default (ADR 0001)
   feeCap: BigInt @config(precision: 76) # Current fee cap for pool
   scalingFactor: BigInt @config(precision: 76) # Current scaling factor for pool
-  currentFee: BigInt! @config(precision: 76) # Current fee (base + dynamic), FEE_SCALE 1e6; single fee divisor across V2 & CL — issue #812
+  currentFee: BigInt! @config(precision: 76) # Fee rate charged, FEE_SCALE 1e6 (issue #812). V2: the configured fee (= baseFee). CL: effective rate of the latest swap with input >= 1e7 raw units, derived from the swap itself ((amountIn - principal) / amountIn, rounded to nearest); seeded from baseFee at creation and on CustomSwapFeeModule.SetCustomFee; also the fallback rate for a swap whose fee cannot be derived (ADR 0001)
 
   # Unstaked Fee fields
   # Raw customFee value last emitted by an UnstakedFeeModule for this pool (CL pools only).
@@ -229,10 +208,10 @@ type PoolSnapshot @storage(postgres: false, clickhouse: true) {
   veNFTamountStaked: BigInt! @config(precision: 76) # total amount of veNFT staked for this pool
 
   # Dynamic Fee fields
-  baseFee: BigInt! @config(precision: 24) # Current base fee, FEE_SCALE 1e6 (hundredths of a basis point); single fee divisor across V2 & CL — issue #812
+  baseFee: BigInt! @config(precision: 24) # Configured (nominal) fee, FEE_SCALE 1e6 (hundredths of a basis point; single divisor across V2 & CL, issue #812). V2: factory default or SetCustomFee. CL: tick-spacing default, CustomSwapFeeModule fee, or DynamicSwapFeeModule custom base fee (a dynamic pool charges this plus a TWAP-volatility part, up to feeCap). Custom-fee sentinels resolved as the contracts do: 420 = 0%, 0 = default (ADR 0001)
   feeCap: BigInt @config(precision: 76) # Current fee cap for pool
   scalingFactor: BigInt @config(precision: 76) # Current scaling factor for pool
-  currentFee: BigInt! @config(precision: 76) # Current fee (base + dynamic), FEE_SCALE 1e6; single fee divisor across V2 & CL — issue #812
+  currentFee: BigInt! @config(precision: 76) # Fee rate charged, FEE_SCALE 1e6 (issue #812). V2: the configured fee (= baseFee). CL: effective rate of the latest swap with input >= 1e7 raw units, derived from the swap itself ((amountIn - principal) / amountIn, rounded to nearest); seeded from baseFee at creation and on CustomSwapFeeModule.SetCustomFee; also the fallback rate for a swap whose fee cannot be derived (ADR 0001)
 
   # Unstaked Fee fields
   unstakedFee: BigInt @config(precision: 24) # Raw customFee value last emitted by an UnstakedFeeModule for this pool (see Pool for semantics)
@@ -745,6 +724,7 @@ type PendingRootPoolMapping {
   id: ID! # Format: {rootChainId}-{rootPoolAddress}
   rootChainId: Int! # Chain ID where the root pool exists (typically Optimism)
   rootPoolAddress: String! # Address of the root pool (matches RootPool_LeafPool)
+  rootFactoryAddress: String! # RootCLPoolFactory that emitted RootPoolCreated; only a leaf pool created by the leaf CLFactory at this same address may claim the mapping
   leafChainId: Int! # Chain ID where the leaf pool will be created
   token0: String! # Address of token0 in the root/leaf pool
   token1: String! # Address of token1 in the root/leaf pool
@@ -774,6 +754,29 @@ type FeeToTickSpacingMapping {
   tickSpacing: BigInt! @config(precision: 24) @index # Tick spacing value
   fee: BigInt! @config(precision: 24) # Fee value for this tick spacing
   lastUpdatedTimestamp: Timestamp! # Timestamp when this mapping was last updated
+}
+
+# Per-tick liquidityNet maps of a CL pool, split off the Pool row: hot pools
+# hold hundreds of entries, which every Pool read and write would otherwise
+# (de)serialise, and envio writes a ClickHouse row per block in which an entity
+# changes. Postgres only; read by CLPool Swap / Mint / Burn, the gauge stake
+# paths and NFPM staked-position changes; written only when a map changes
+# (Mint / Burn / stake / unstake / staked-position liquidity change, never a Swap).
+#
+# Each map is a pair of parallel arrays encoding Uniswap v3's per-tick
+# liquidityNet: sorted ascending by tick, dedup'd, no zero-net entries, same
+# length; (edges[i], nets[i]) is one (tick, net) pair. Two arrays instead of a
+# list of structs because GraphQL lists only allow scalars or named types.
+type PoolTickMap @storage(postgres: true, clickhouse: false) @internal {
+  id: ID! # Same as the Pool id: {chainId}-{poolAddress} (PoolId)
+  # All positions (CLPool Mint/Burn). Drives the fee-free swap reserve delta
+  # (#803) and the swap-derived fee (src/Aggregators/CLSwapFee.ts).
+  tickEdges: [BigInt!]!
+  tickEdgeNets: [BigInt!]! # liquidityNet per tick in tickEdges
+  # Staked positions only (gauge deposit / withdraw, NFPM liquidity changes of
+  # staked positions). Drives the staked reserve deltas (#666/#719).
+  stakedTickEdges: [BigInt!]!
+  stakedTickEdgeNets: [BigInt!]! # staked liquidityNet per tick in stakedTickEdges
 }
 
 # Temporary entity for storing CLPool.Mint event data until consumed by NFPM.Transfer(mint)

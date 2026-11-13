@@ -92,7 +92,7 @@ There are five rules.
 | **Raw token amounts** — `reserve0/1`, `totalVolume0/1`, `lpBalance`, `totalLiquidityAdded/RemovedToken0/1`, `oUSDTamount`, … | `10^token.decimals` | `value / 10^decimals` gives whole tokens |
 | **Token prices** — `Token.pricePerUSDNew` | `1e18` | `value / 1e18` gives the USD price of one whole token. Despite the field name, the value is USD-per-token. |
 | **Pool price ratios** — `Pool.token0Price` / `token1Price` | `1e18`, already decimal-adjusted | `value / 1e18` gives whole counter-token per whole token |
-| **Fee rates** — `baseFee`, `currentFee` | `FEE_SCALE = 1e6` (hundredths of a basis point) | `value / 1e6` gives a fraction. `value / 1e4` gives a percentage (for example, `3000` is 0.30%). |
+| **Fee rates** — `baseFee`, `currentFee` | `FEE_SCALE = 1e6` (hundredths of a basis point) | `value / 1e6` gives a fraction. `value / 1e4` gives a percentage (for example, `3000` is 0.30%). On CL pools `baseFee` is the configured fee and `currentFee` the rate the latest swap actually paid (dynamic-fee pools move it swap to swap); see [ADR 0001](adr/0001-canonical-fee-field-scaling.md). |
 
 The four fee-amount fields `totalFeesGenerated0/1` and `totalFeesContributed0/1`
 are an exception to the raw-token rule. They are `1e18`-normalized rather than

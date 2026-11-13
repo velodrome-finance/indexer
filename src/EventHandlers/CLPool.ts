@@ -1,7 +1,11 @@
 import { indexer } from "envio";
-import { applyPositionToEdges } from "../Aggregators/CLStakedLiquidity";
+import {
+  applyPositionToEdges,
+  deriveLiquidityInRange,
+} from "../Aggregators/CLStakedLiquidity";
 import { createOUSDTSwapEntity } from "../Aggregators/OUSDTSwaps";
 import { loadPoolData, updatePool } from "../Aggregators/Pool";
+import { loadPoolTickMap, setPoolTickMap } from "../Aggregators/PoolTickMap";
 import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
@@ -12,6 +16,7 @@ import {
   PoolId,
   TxCLPoolMintRegistryId,
 } from "../Constants";
+import { shouldSnapshot } from "../Snapshots/Index";
 import { processCLPoolBurn } from "./CLPool/CLPoolBurnLogic";
 import { processCLPoolCollectFees } from "./CLPool/CLPoolCollectFeesLogic";
 import { processCLPoolCollect } from "./CLPool/CLPoolCollectLogic";
@@ -59,6 +64,25 @@ indexer.onEvent(
 
     const { liquidityPoolAggregator, token0Instance, token1Instance } =
       poolData;
+    const timestamp = new Date(event.block.timestamp * 1000);
+
+    // A zero-amount burn is a "poke": the position owner refreshes its owed
+    // fees before a collect (about two thirds of all burns). It moves no
+    // liquidity and no tokens, so reserves, in-range liquidity, the tick map,
+    // the burned-principal tracker (a missing tracker reads as zero) and the
+    // owner's flows are all unchanged. The only things it could still update
+    // are the Pool's bookkeeping: lastUpdatedTimestamp, a TVL revaluation at
+    // refreshed token prices and, on the first event of a new hour, the hourly
+    // PoolSnapshot. Keep the snapshot cadence (run the normal path when the
+    // poke opens a new snapshot epoch) and skip the write otherwise.
+    if (
+      event.params.amount === 0n &&
+      event.params.amount0 === 0n &&
+      event.params.amount1 === 0n &&
+      !shouldSnapshot(liquidityPoolAggregator.lastSnapshotTimestamp, timestamp)
+    ) {
+      return;
+    }
 
     const result = await processCLPoolBurn(
       event,
@@ -69,21 +93,45 @@ indexer.onEvent(
     );
     // #803: maintain the total per-tick liquidityNet map on every Burn so the swap
     // path can integrate geometry over it. Burn removes liquidity → negative delta.
-    const burnEdges = applyPositionToEdges(
-      liquidityPoolAggregator.tickEdges,
-      liquidityPoolAggregator.tickEdgeNets,
-      event.params.tickLower,
-      event.params.tickUpper,
-      -event.params.amount,
-    );
-    if (burnEdges.rejected) {
-      context.log.error(
-        `[TICK_EDGE_DRIFT][CLPool.Burn] rejected=${burnEdges.rejected} pool=${event.srcAddress} chain=${event.chainId} tickLower=${event.params.tickLower} tickUpper=${event.params.tickUpper}`,
+    // The map lives on PoolTickMap and is written only when it changes.
+    if (event.params.amount !== 0n) {
+      const tickMap = await loadPoolTickMap(
+        liquidityPoolAggregator.id,
+        context,
       );
+      const burnEdges = applyPositionToEdges(
+        tickMap.tickEdges,
+        tickMap.tickEdgeNets,
+        event.params.tickLower,
+        event.params.tickUpper,
+        -event.params.amount,
+      );
+      if (burnEdges.rejected) {
+        context.log.error(
+          `[TICK_EDGE_DRIFT][CLPool.Burn] rejected=${burnEdges.rejected} pool=${event.srcAddress} chain=${event.chainId} tickLower=${event.params.tickLower} tickUpper=${event.params.tickUpper}`,
+        );
+      }
+      if (burnEdges.changed) {
+        setPoolTickMap(
+          tickMap,
+          { tickEdges: burnEdges.edges, tickEdgeNets: burnEdges.nets },
+          context,
+        );
+      }
+      // Re-derive the staked in-range liquidity alongside the total one this
+      // event moves. The swap path seeds its staked walk from the cached value
+      // whenever 0 < staked < liquidityInRange; re-deriving here keeps a value
+      // that updatePool once clamped to the old total (#891) from passing for
+      // a derived one after the total grows.
+      if (liquidityPoolAggregator.hasStakes) {
+        result.liquidityPoolDiff.stakedLiquidityInRange =
+          deriveLiquidityInRange(
+            liquidityPoolAggregator.tick ?? 0n,
+            tickMap.stakedTickEdges,
+            tickMap.stakedTickEdgeNets,
+          );
+      }
     }
-    result.liquidityPoolDiff.tickEdges = burnEdges.edges;
-    result.liquidityPoolDiff.tickEdgeNets = burnEdges.nets;
-    const timestamp = new Date(event.block.timestamp * 1000);
 
     await updatePool(
       result.liquidityPoolDiff,
@@ -370,20 +418,45 @@ indexer.onEvent(
     );
     // #803: maintain the total per-tick liquidityNet map on every Mint so the swap
     // path can integrate geometry over it. Mint adds liquidity → positive delta.
-    const mintEdges = applyPositionToEdges(
-      liquidityPoolAggregator.tickEdges,
-      liquidityPoolAggregator.tickEdgeNets,
-      event.params.tickLower,
-      event.params.tickUpper,
-      event.params.amount,
-    );
-    if (mintEdges.rejected) {
-      context.log.error(
-        `[TICK_EDGE_DRIFT][CLPool.Mint] rejected=${mintEdges.rejected} pool=${event.srcAddress} chain=${event.chainId} tickLower=${event.params.tickLower} tickUpper=${event.params.tickUpper}`,
+    // The map lives on PoolTickMap and is written only when it changes.
+    if (event.params.amount !== 0n) {
+      const tickMap = await loadPoolTickMap(
+        liquidityPoolAggregator.id,
+        context,
       );
+      const mintEdges = applyPositionToEdges(
+        tickMap.tickEdges,
+        tickMap.tickEdgeNets,
+        event.params.tickLower,
+        event.params.tickUpper,
+        event.params.amount,
+      );
+      if (mintEdges.rejected) {
+        context.log.error(
+          `[TICK_EDGE_DRIFT][CLPool.Mint] rejected=${mintEdges.rejected} pool=${event.srcAddress} chain=${event.chainId} tickLower=${event.params.tickLower} tickUpper=${event.params.tickUpper}`,
+        );
+      }
+      if (mintEdges.changed) {
+        setPoolTickMap(
+          tickMap,
+          { tickEdges: mintEdges.edges, tickEdgeNets: mintEdges.nets },
+          context,
+        );
+      }
+      // Re-derive the staked in-range liquidity alongside the total one this
+      // event moves. The swap path seeds its staked walk from the cached value
+      // whenever 0 < staked < liquidityInRange; re-deriving here keeps a value
+      // that updatePool once clamped to the old total (#891) from passing for
+      // a derived one after the total grows.
+      if (liquidityPoolAggregator.hasStakes) {
+        result.liquidityPoolDiff.stakedLiquidityInRange =
+          deriveLiquidityInRange(
+            liquidityPoolAggregator.tick ?? 0n,
+            tickMap.stakedTickEdges,
+            tickMap.stakedTickEdgeNets,
+          );
+      }
     }
-    result.liquidityPoolDiff.tickEdges = mintEdges.edges;
-    result.liquidityPoolDiff.tickEdgeNets = mintEdges.nets;
     const timestamp = new Date(event.block.timestamp * 1000);
 
     await updatePool(
@@ -485,8 +558,9 @@ indexer.onEvent(
   async ({ event, context }) => {
     const timestamp = new Date(event.block.timestamp * 1000);
 
-    // Load pool data and user data concurrently for better performance
-    const [poolData, userData] = await Promise.all([
+    // Load pool data, user data and the tick maps concurrently. The tick maps
+    // are read-only here: a swap never changes them.
+    const [poolData, userData, tickMap] = await Promise.all([
       loadPoolData(
         event.srcAddress,
         event.chainId,
@@ -502,6 +576,7 @@ indexer.onEvent(
         context,
         timestamp,
       ),
+      loadPoolTickMap(PoolId(event.chainId, event.srcAddress), context),
     ]);
 
     if (!poolData) {
@@ -518,6 +593,7 @@ indexer.onEvent(
       token0Instance,
       token1Instance,
       context,
+      tickMap,
     );
 
     const poolDiff = result.liquidityPoolDiff;

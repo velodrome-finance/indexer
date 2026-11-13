@@ -122,8 +122,6 @@ describe("Pool Swap Event", () => {
     beforeEach(async () => {
       indexer.Pool.set({
         ...mockLiquidityPoolData,
-        stakedTickEdges: [...mockLiquidityPoolData.stakedTickEdges],
-        stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
       });
       indexer.Token.set(mockToken0Data as Token);
       indexer.Token.set(mockToken1Data as Token);
@@ -204,8 +202,6 @@ describe("Pool Swap Event", () => {
     beforeEach(async () => {
       indexer.Pool.set({
         ...mockLiquidityPoolData,
-        stakedTickEdges: [...mockLiquidityPoolData.stakedTickEdges],
-        stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
       });
       indexer.Token.set(mockToken0Data as Token);
       indexer.Token.set(mockToken1Data as Token);
@@ -318,8 +314,6 @@ describe("Pool Swap Event", () => {
         ...mockLiquidityPoolData,
         token0_id: ousdtToken.id,
         token0_address: ousdtAddress,
-        stakedTickEdges: [...mockLiquidityPoolData.stakedTickEdges],
-        stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
       };
 
       indexer.Pool.set(poolWithOusdt);
@@ -370,8 +364,6 @@ describe("Pool Swap Event", () => {
         ...mockLiquidityPoolData,
         token1_id: ousdtToken.id,
         token1_address: ousdtAddress,
-        stakedTickEdges: [...mockLiquidityPoolData.stakedTickEdges],
-        stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
       };
 
       indexer.Pool.set(poolWithOusdt);
@@ -417,8 +409,6 @@ describe("Pool Swap Event", () => {
     it("should not create OUSDTSwap entity when neither token is OUSDT", async () => {
       indexer.Pool.set({
         ...mockLiquidityPoolData,
-        stakedTickEdges: [...mockLiquidityPoolData.stakedTickEdges],
-        stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
       });
       indexer.Token.set(mockToken0Data as Token);
       indexer.Token.set(mockToken1Data as Token);

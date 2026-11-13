@@ -972,6 +972,14 @@ describe("GaugeSharedLogic", () => {
 
       clMockContext = {
         ...mockContext,
+        // Staked tick maps live on PoolTickMap (in-memory store here).
+        PoolTickMap: {
+          get: async (id: string) => store.get(`PoolTickMap:${id}`),
+          // biome-ignore lint/suspicious/noExplicitAny: Mock entity for testing
+          set: (entity: any) => {
+            store.set(`PoolTickMap:${entity.id}`, entity);
+          },
+        },
         Pool: {
           ...mockContext.Pool,
           // biome-ignore lint/suspicious/noExplicitAny: Mock entity for testing

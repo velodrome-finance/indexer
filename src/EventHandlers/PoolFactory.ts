@@ -16,6 +16,7 @@ import type { Pool } from "../EntityTypes";
 import { createTokenEntity } from "../PriceOracle";
 import { registerPricingPool } from "../Pricing/PoolRoute";
 import type { TokenEntityMapping } from "./../CustomTypes";
+import { resolveCustomSwapFee } from "./SwapFeeModule/CustomSwapFeeSharedLogic";
 import { flushPendingVotesAndDistributionsForRootPool } from "./Voter/CrossChainPendingResolution";
 
 indexer.contractRegister(
@@ -199,16 +200,21 @@ indexer.onEvent(
       return;
     }
 
-    // V2 SetCustomFee carries the fee in basis points; lift to FEE_SCALE (1e6).
-    // poolEntity.isCL is always false here (PoolFactory only owns V2 pools) — we
-    // still key on it so the canonical-scale rule is uniform across write sites.
-    const canonicalFee = toCanonicalFeeScale(
+    // V2 SetCustomFee carries the fee in basis points. Store what the factory
+    // charges, in FEE_SCALE (1e6): 420 is the zero-fee indicator, 0 resets to
+    // the stable/volatile default, anything else is lifted ×100 (issue #812).
+    const chargedFee = await resolveCustomSwapFee(
       BigInt(event.params.fee),
-      poolEntity.isCL,
+      poolEntity,
+      false,
+      context,
     );
+    if (chargedFee === undefined) {
+      return;
+    }
     const diff: Partial<Pool> = {
-      baseFee: canonicalFee,
-      currentFee: canonicalFee, // When custom fee is set, both baseFee and currentFee are updated
+      baseFee: chargedFee,
+      currentFee: chargedFee, // When custom fee is set, both baseFee and currentFee are updated
     };
 
     await updatePool(

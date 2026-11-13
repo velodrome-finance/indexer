@@ -2,7 +2,6 @@ import type { Token } from "envio";
 import {
   loadPoolData,
   loadPoolDataOrRootCLPool,
-  updateDynamicFeePools,
   updatePool,
 } from "../../src/Aggregators/Pool";
 import {
@@ -14,7 +13,6 @@ import {
   toChecksumAddress,
 } from "../../src/Constants";
 import { getSwapFee } from "../../src/Effects/SwapFee";
-import { roundBlockToInterval } from "../../src/Effects/Token";
 import type { Pool, handlerContext } from "../../src/EntityTypes";
 import * as PriceOracle from "../../src/PriceOracle";
 import { setPoolSnapshot } from "../../src/Snapshots/PoolSnapshot";
@@ -155,214 +153,6 @@ describe("Pool Functions", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
-  });
-
-  describe("updateDynamicFeePools", () => {
-    it("should update the pool with current dynamic fee", async () => {
-      const updatedPool = await updateDynamicFeePools(
-        liquidityPoolAggregator as Pool,
-        mockContext as handlerContext,
-        10,
-        blockNumber,
-      );
-
-      // Verify that the pool was updated with the current fee
-      expect(updatedPool.currentFee).toBe(1900n); // From the mocked effect
-    });
-
-    it("should skip update when pool has no factoryAddress", async () => {
-      const poolNoFactory = {
-        ...liquidityPoolAggregator,
-        factoryAddress: "",
-      } as Pool;
-
-      const updatedPool = await updateDynamicFeePools(
-        poolNoFactory,
-        mockContext as handlerContext,
-        10,
-        blockNumber,
-      );
-
-      expect(updatedPool).toBe(poolNoFactory);
-      expect(vi.mocked(mockContext.log?.warn)).toHaveBeenCalledWith(
-        expect.stringContaining("no factoryAddress"),
-      );
-      expect(mockContext.effect).not.toHaveBeenCalled();
-    });
-
-    it("should handle effect errors gracefully", async () => {
-      // Mock effect to return undefined (error case)
-      expect(mockContext.effect).toBeDefined();
-      vi
-        // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
-        .mocked(mockContext.effect!)
-        .mockResolvedValue(undefined);
-
-      // Should complete without throwing and skip update
-      await updateDynamicFeePools(
-        liquidityPoolAggregator as Pool,
-        mockContext as handlerContext,
-        10,
-        blockNumber,
-      );
-
-      // Should log a warning
-      expect(vi.mocked(mockContext.log?.warn)).toHaveBeenCalled();
-
-      // Verify that the effect was called with the hour-rounded blockNumber
-      // (issue #749: cache key must be stable within an hour for L1/preload reuse)
-      // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
-      const effectMock = vi.mocked(mockContext.effect!);
-      expect(effectMock).toHaveBeenCalledWith(getSwapFee, {
-        poolAddress: liquidityPoolAggregator.poolAddress,
-        factoryAddress: toChecksumAddress(
-          "0x548118C7E0B865C2CfA94D15EC86B666468ac758",
-        ),
-        chainId: liquidityPoolAggregator.chainId,
-        blockNumber: roundBlockToInterval(
-          blockNumber,
-          // biome-ignore lint/style/noNonNullAssertion: chainId is set in beforeEach
-          liquidityPoolAggregator.chainId!,
-        ),
-      });
-    });
-
-    // Regression test for issue #749: getSwapFee's effect cache key must be
-    // hour-stable so preload dual-pass and re-index back-fills hit the cache
-    // instead of producing a new slot per raw block.
-    it("should pass an hour-rounded blockNumber so cache key is stable within the hour", async () => {
-      const blocksPerHour = 1800; // 2s blocks on Optimism (chainId 10)
-      const firstBlockInHour =
-        Math.floor(blockNumber / blocksPerHour) * blocksPerHour;
-      const lastBlockInHour = firstBlockInHour + blocksPerHour - 1;
-
-      await updateDynamicFeePools(
-        liquidityPoolAggregator as Pool,
-        mockContext as handlerContext,
-        10,
-        firstBlockInHour,
-      );
-      await updateDynamicFeePools(
-        liquidityPoolAggregator as Pool,
-        mockContext as handlerContext,
-        10,
-        lastBlockInHour,
-      );
-
-      // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
-      const effectMock = vi.mocked(mockContext.effect!);
-      const swapFeeCalls = effectMock.mock.calls.filter(
-        (call) => call[0] === getSwapFee,
-      );
-      expect(swapFeeCalls).toHaveLength(2);
-      const [firstCall, secondCall] = swapFeeCalls;
-      // biome-ignore lint/style/noNonNullAssertion: filtered for length 2 above
-      const firstInput = firstCall![1] as { blockNumber: number };
-      // biome-ignore lint/style/noNonNullAssertion: filtered for length 2 above
-      const secondInput = secondCall![1] as { blockNumber: number };
-      expect(firstInput.blockNumber).toBe(firstBlockInHour);
-      expect(secondInput.blockNumber).toBe(firstBlockInHour);
-    });
-
-    it("should skip dynamic fee updates when event chain doesn’t match pool chain", async () => {
-      expect(mockContext.effect).toBeDefined();
-      const fallbackEffect = (async () =>
-        undefined) as unknown as typeof mockContext.effect;
-      const effectMock = vi.mocked(mockContext.effect ?? fallbackEffect);
-
-      const updatedPool = await updateDynamicFeePools(
-        liquidityPoolAggregator as Pool,
-        mockContext as handlerContext,
-        8453,
-        blockNumber,
-      );
-
-      expect(updatedPool).toBe(liquidityPoolAggregator);
-      expect(effectMock).not.toHaveBeenCalled();
-    });
-
-    // Regression test for issue #759: rounding-before-deploy revert.
-    // For a pool whose deployment block falls inside an hour but after the
-    // hour's start, the legacy code would query getSwapFee at the (earlier)
-    // rounded boundary where pool bytecode is empty and the call reverts.
-    // The fix clamps the rounded block up to the pool's createdBlockNumber.
-    it("clamps the queried blockNumber up to createdBlockNumber to avoid pre-deploy reverts", async () => {
-      // Swell (chainId 1923 → 2s blocks → 1800/hour). Pool deployed at 3920396,
-      // hour boundary is 3918600 — before deployment. The mock throws if
-      // getSwapFee is invoked at a block earlier than createdBlockNumber.
-      expect(mockContext.effect).toBeDefined();
-      // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
-      const effectMock = vi.mocked(mockContext.effect!);
-      const createdBlockNumber = 3920396n;
-      effectMock.mockImplementation(async (effectFn, input) => {
-        if (effectFn === getSwapFee) {
-          const { blockNumber: queriedBlock } = input as {
-            blockNumber: number;
-          };
-          if (BigInt(queriedBlock) < createdBlockNumber) {
-            throw new Error(
-              `getSwapFee queried at ${queriedBlock}, before pool deployment ${createdBlockNumber}`,
-            );
-          }
-          return 100n;
-        }
-        return {};
-      });
-
-      const pool = {
-        ...liquidityPoolAggregator,
-        chainId: 1923,
-        createdBlockNumber,
-      } as Pool;
-
-      const updatedPool = await updateDynamicFeePools(
-        pool,
-        mockContext as handlerContext,
-        1923,
-        Number(createdBlockNumber),
-      );
-
-      expect(updatedPool.currentFee).toBe(100n);
-      const swapFeeCall = effectMock.mock.calls.find(
-        (call) => call[0] === getSwapFee,
-      );
-      expect(swapFeeCall).toBeDefined();
-      // biome-ignore lint/style/noNonNullAssertion: existence verified above
-      const input = swapFeeCall![1] as { blockNumber: number };
-      expect(input.blockNumber).toBe(Number(createdBlockNumber));
-    });
-
-    // Defensive fallback (#759 AC): legacy pools indexed before the
-    // createdBlockNumber schema field existed will read it back as undefined.
-    // `Number(undefined)` is NaN — without the `?? BigInt(blockNumber)` fallback,
-    // `Math.max(rounded, NaN)` returns NaN and crashes the SwapFeeModule call.
-    it("falls back to the event blockNumber when createdBlockNumber is undefined (legacy pool)", async () => {
-      const legacyPool = {
-        ...liquidityPoolAggregator,
-        chainId: 10,
-        createdBlockNumber: undefined,
-      } as unknown as Pool;
-
-      await updateDynamicFeePools(
-        legacyPool,
-        mockContext as handlerContext,
-        10,
-        blockNumber,
-      );
-
-      // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
-      const effectMock = vi.mocked(mockContext.effect!);
-      const swapFeeCall = effectMock.mock.calls.find(
-        (call) => call[0] === getSwapFee,
-      );
-      expect(swapFeeCall).toBeDefined();
-      // biome-ignore lint/style/noNonNullAssertion: existence verified above
-      const input = swapFeeCall![1] as { blockNumber: number };
-      // With fallback minBlock = blockNumber, the clamp restores the event block
-      // (rounded 131536800 would be less than the fallback 131536921).
-      expect(Number.isNaN(input.blockNumber)).toBe(false);
-      expect(input.blockNumber).toBe(blockNumber);
-    });
   });
 
   describe("Snapshot Creation", () => {
@@ -547,14 +337,10 @@ describe("Pool Functions", () => {
       await updatePool(
         {
           hasStakes: undefined,
-          stakedTickEdges: [],
-          stakedTickEdgeNets: [],
         },
         {
           ...(liquidityPoolAggregator as Pool),
           hasStakes: true,
-          stakedTickEdges: [100n, 200n],
-          stakedTickEdgeNets: [500n, -500n],
         },
         timestamp,
         mockContext as handlerContext,
@@ -569,104 +355,6 @@ describe("Pool Functions", () => {
       const setCalls = vi.mocked(poolStore.set).mock.calls;
       const updated = setCalls.at(-1)?.[0] as Pool;
       expect(updated.hasStakes).toBe(true);
-      // Edge arrays should still be replaced (empty) since the diff provides them.
-      expect(updated.stakedTickEdges).toEqual([]);
-      expect(updated.stakedTickEdgeNets).toEqual([]);
-    });
-
-    // Issue #803: the TOTAL-liquidity parallel pair (tickEdges, tickEdgeNets)
-    // gets the same lockstep guard the staked pair has. A presence- or
-    // length-mismatched diff would silently desync the map the swap path
-    // binary-searches for the fee-free reserve geometry, so updatePool drops
-    // both edge fields, logs [TICK_EDGE_DRIFT], and retains the prior pair.
-    // Unlike the staked guard, liquidityInRange is NOT dropped (it comes from
-    // event.params.liquidity, not from this map).
-    it("drops tickEdges/tickEdgeNets together on a presence mismatch (#803)", async () => {
-      await updatePool(
-        {
-          tickEdges: [100n, 200n, 300n],
-          // tickEdgeNets intentionally omitted — half-written diff
-        },
-        {
-          ...(liquidityPoolAggregator as Pool),
-          tickEdges: [100n, 200n],
-          tickEdgeNets: [500n, -500n],
-        },
-        timestamp,
-        mockContext as handlerContext,
-        10,
-        blockNumber,
-      );
-
-      const poolStore = mockContext.Pool;
-      if (!poolStore) {
-        throw new Error("test setup: Pool store must exist");
-      }
-      const updated = vi.mocked(poolStore.set).mock.calls.at(-1)?.[0] as Pool;
-      // Prior consistent pair retained, not the half-written diff.
-      expect(updated.tickEdges).toEqual([100n, 200n]);
-      expect(updated.tickEdgeNets).toEqual([500n, -500n]);
-      expect(vi.mocked(mockContext.log?.error)).toHaveBeenCalledWith(
-        expect.stringContaining("[TICK_EDGE_DRIFT]"),
-      );
-    });
-
-    it("drops tickEdges/tickEdgeNets together on a length mismatch (#803)", async () => {
-      await updatePool(
-        {
-          tickEdges: [100n, 200n, 300n],
-          tickEdgeNets: [500n, -500n], // length 2 ≠ 3
-        },
-        {
-          ...(liquidityPoolAggregator as Pool),
-          tickEdges: [100n, 200n],
-          tickEdgeNets: [500n, -500n],
-        },
-        timestamp,
-        mockContext as handlerContext,
-        10,
-        blockNumber,
-      );
-
-      const poolStore = mockContext.Pool;
-      if (!poolStore) {
-        throw new Error("test setup: Pool store must exist");
-      }
-      const updated = vi.mocked(poolStore.set).mock.calls.at(-1)?.[0] as Pool;
-      expect(updated.tickEdges).toEqual([100n, 200n]);
-      expect(updated.tickEdgeNets).toEqual([500n, -500n]);
-      expect(vi.mocked(mockContext.log?.error)).toHaveBeenCalledWith(
-        expect.stringContaining("[TICK_EDGE_DRIFT]"),
-      );
-    });
-
-    it("writes a consistent tickEdges/tickEdgeNets pair through unchanged (#803)", async () => {
-      await updatePool(
-        {
-          tickEdges: [100n, 200n, 300n],
-          tickEdgeNets: [500n, -200n, -300n],
-        },
-        {
-          ...(liquidityPoolAggregator as Pool),
-          tickEdges: [100n, 200n],
-          tickEdgeNets: [500n, -500n],
-        },
-        timestamp,
-        mockContext as handlerContext,
-        10,
-        blockNumber,
-      );
-
-      const poolStore = mockContext.Pool;
-      if (!poolStore) {
-        throw new Error("test setup: Pool store must exist");
-      }
-      const updated = vi.mocked(poolStore.set).mock.calls.at(-1)?.[0] as Pool;
-      expect(updated.tickEdges).toEqual([100n, 200n, 300n]);
-      expect(updated.tickEdgeNets).toEqual([500n, -200n, -300n]);
-      expect(vi.mocked(mockContext.log?.error)).not.toHaveBeenCalledWith(
-        expect.stringContaining("[TICK_EDGE_DRIFT]"),
-      );
     });
 
     // Regression test for issue #771: stakedReserve0/stakedReserve1 are
@@ -1852,14 +1540,14 @@ describe("Pool Functions", () => {
       const snapshot = mockSet?.mock.calls[0]?.[0];
       expect(snapshot).toBeDefined();
 
-      // For non-CL pools, updateDynamicFeePools should NOT be called
+      // For non-CL pools, no fee RPC is made
       const effectCalls = effectSpy.mock.calls.filter(
         (call) => call[0] === getSwapFee,
       );
       expect(effectCalls.length).toBe(0);
     });
 
-    it("should call updateDynamicFeePools for CL pools when creating snapshot", async () => {
+    it("should make no RPC (getSwapFee) call for CL pools when creating snapshot", async () => {
       // Set up a CL pool (liquidityPoolAggregator has factoryAddress set in beforeEach)
       const oldTimestamp = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2 hours ago
       const currentTimestamp = new Date();
@@ -1890,11 +1578,10 @@ describe("Pool Functions", () => {
       const snapshot = mockSet?.mock.calls[0]?.[0];
       expect(snapshot).toBeDefined();
 
-      // For CL pools, updateDynamicFeePools should be called
-      const effectCalls = effectSpy.mock.calls.filter(
-        (call) => call[0] === getSwapFee,
-      );
-      expect(effectCalls.length).toBe(1);
+      // CL currentFee is derived per swap; the snapshot boundary makes no
+      // effect call at all (the per-hour getSwapFee refresh was removed).
+      expect(effectSpy).not.toHaveBeenCalled();
+      expect(snapshot?.currentFee).toBe(clPoolWithOldSnapshot.currentFee);
     });
 
     it("should recompute CL staked USD at snapshot time when staked liquidity > 0", async () => {

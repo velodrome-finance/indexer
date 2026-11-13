@@ -93,7 +93,6 @@ describe("Issue #812: fee-field scaling parity across V2 and CL", () => {
         token18,
         token6,
         0n,
-        ctx,
       );
       expect(swapFeesInToken1).toBe(EXPECTED_1E18);
     });
@@ -107,7 +106,6 @@ describe("Issue #812: fee-field scaling parity across V2 and CL", () => {
         token18,
         token6,
         0n,
-        ctx,
       ).swapFeesInToken1;
       expect(v2).toBe(cl);
     });

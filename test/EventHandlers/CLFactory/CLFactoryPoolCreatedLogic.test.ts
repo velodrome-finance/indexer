@@ -804,6 +804,9 @@ describe("CLFactoryPoolCreatedLogic", () => {
       "0x3333333333333333333333333333333333333333",
     );
     const tickSpacing = 60n;
+    const leafFactoryAddress = toChecksumAddress(
+      "0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F",
+    );
 
     it("should do nothing when no PendingRootPoolMapping exists for the hash", async () => {
       const getWhere = vi.fn().mockResolvedValue([]);
@@ -827,6 +830,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         token1,
         tickSpacing,
         leafPoolAddress,
+        leafFactoryAddress,
       );
 
       const expectedHash = rootPoolMatchingHash(
@@ -868,6 +872,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
           token1,
           tickSpacing,
           leafPoolAddress,
+          leafFactoryAddress,
         );
 
         const expectedHash = rootPoolMatchingHash(
@@ -902,6 +907,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         token1,
         tickSpacing,
         rootPoolMatchingHash: hash,
+        rootFactoryAddress: leafFactoryAddress,
       };
 
       const getWhere = vi.fn().mockResolvedValue([pendingMapping]);
@@ -927,6 +933,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         token1,
         tickSpacing,
         leafPoolAddress,
+        leafFactoryAddress,
       );
 
       expect(getWhere).toHaveBeenCalledWith({
@@ -955,6 +962,53 @@ describe("CLFactoryPoolCreatedLogic", () => {
       );
     });
 
+    it("should not let a pool from another factory claim the pending mapping (shared hash)", async () => {
+      const hash = rootPoolMatchingHash(
+        leafChainId,
+        token0,
+        token1,
+        tickSpacing,
+      );
+      const pendingMapping = {
+        id: PendingRootPoolMappingId(rootChainId, rootPoolAddress),
+        rootChainId,
+        rootPoolAddress,
+        leafChainId,
+        token0,
+        token1,
+        tickSpacing,
+        rootPoolMatchingHash: hash,
+        rootFactoryAddress: leafFactoryAddress,
+      };
+      const getWhere = vi.fn().mockResolvedValue([pendingMapping]);
+      const set = vi.fn();
+      const deleteUnsafe = vi.fn();
+      const flushSpy = vi.spyOn(
+        CrossChainPendingResolution,
+        "flushPendingVotesAndDistributionsForRootPool",
+      );
+      const context = {
+        PendingRootPoolMapping: { getWhere, deleteUnsafe },
+        RootPool_LeafPool: { set },
+        log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      } as unknown as handlerContext;
+
+      // Ink's second CL factory.
+      await flushPendingRootPoolMappingAndVotes(
+        context,
+        leafChainId,
+        token0,
+        token1,
+        tickSpacing,
+        leafPoolAddress,
+        toChecksumAddress("0x718E46d0962A66942E233760a8bd6038Ce54EdCD"),
+      );
+
+      expect(set).not.toHaveBeenCalled();
+      expect(deleteUnsafe).not.toHaveBeenCalled();
+      expect(flushSpy).not.toHaveBeenCalled();
+    });
+
     it("should still set RootPool_LeafPool, delete PendingRootPoolMapping, and complete without throwing when flushPendingVotesAndDistributionsForRootPool throws", async () => {
       const hash = rootPoolMatchingHash(
         leafChainId,
@@ -971,6 +1025,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         token1,
         tickSpacing,
         rootPoolMatchingHash: hash,
+        rootFactoryAddress: leafFactoryAddress,
       };
 
       const getWhere = vi.fn().mockResolvedValue([pendingMapping]);
@@ -997,6 +1052,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
           token1,
           tickSpacing,
           leafPoolAddress,
+          leafFactoryAddress,
         ),
       ).resolves.toBeUndefined();
 
