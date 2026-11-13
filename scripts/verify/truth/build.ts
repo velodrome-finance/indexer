@@ -271,9 +271,11 @@ export async function buildChainTruth(
     tokens: new Set(),
     whitelist: new Map(),
     whitelistHistory: new Map(),
+    listingHistory: new Map(),
     eventCounts: new Map(),
     unregisteredEventCounts: new Map(),
     tickSpacingFees: new Map(),
+    tickSpacingFeesChain: new Map(),
     v2CustomFees: new Map(),
     notes: [],
     stats: { logs: 0, seconds: 0 },
@@ -344,6 +346,10 @@ export async function buildChainTruth(
         truth.tokens.add(p.token1);
       } else if (ROLE.clFactory(c) && e === "TickSpacingEnabled") {
         truth.tickSpacingFees.set(
+          `${l.address}|${Number(d.tickSpacing as bigint)}`,
+          Number(d.fee as bigint),
+        );
+        truth.tickSpacingFeesChain.set(
           Number(d.tickSpacing as bigint),
           Number(d.fee as bigint),
         );
@@ -420,6 +426,11 @@ export async function buildChainTruth(
         const h = truth.whitelistHistory.get(tok) ?? [];
         h.push({ block: l.block_number, value: d._bool as boolean });
         truth.whitelistHistory.set(tok, h);
+      } else if (ROLE.tokenRegistry(c) && e === "ListingSet") {
+        const tok = (d.token as string).toLowerCase();
+        const h = truth.listingHistory.get(tok) ?? [];
+        h.push({ block: l.block_number, value: d.listed as boolean });
+        truth.listingHistory.set(tok, h);
       } else if (
         (c === "ALMDeployFactoryV1" || c === "ALMDeployFactoryV2") &&
         e === "StrategyCreated"

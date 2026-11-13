@@ -80,7 +80,13 @@ async function main(): Promise<number> {
   loadEnv();
   const args = parseArgs(process.argv.slice(2));
   const target = targetFromOptions(args);
-  const cfg = loadIndexerConfig();
+  // Verify against the configuration the instance was built from (its own checkout),
+  // so contracts and chains match what it indexed; --repo overrides.
+  const repo = args.repo ?? target.repo;
+  const cfg = repo
+    ? loadIndexerConfig(path.join(repo, "config.yaml"))
+    : loadIndexerConfig();
+  console.log(`config: ${path.join(cfg.root, "config.yaml")}`);
   const reg = new AbiRegistry(cfg);
   const out = path.resolve(
     args.out ??

@@ -19,6 +19,8 @@ export interface Target {
   metricsUrl?: string;
   /** Chains the instance indexes, when known. */
   chains?: number[];
+  /** Indexer checkout of the instance (its config.yaml, abis/, src/constants/). */
+  repo?: string;
 }
 
 const VELO_ROOT =
@@ -69,6 +71,7 @@ export function veloTarget(spec: string): Target {
       ? `http://127.0.0.1:${inst.metrics_port}/metrics`
       : undefined,
     chains: inst.chains,
+    repo: path.join(instDir, "src"),
   };
 }
 

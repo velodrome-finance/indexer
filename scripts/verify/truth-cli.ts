@@ -24,7 +24,8 @@ function arg(name: string): string | undefined {
 
 async function main(): Promise<void> {
   loadEnv();
-  const cfg = loadIndexerConfig();
+  const repo = arg("repo");
+  const cfg = repo ? loadIndexerConfig(path.join(repo, "config.yaml")) : loadIndexerConfig();
   const reg = new AbiRegistry(cfg);
   const chains = (arg("chains") ?? "").split(",").filter(Boolean).map(Number);
   const out = arg("out");

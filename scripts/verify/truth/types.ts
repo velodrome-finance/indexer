@@ -197,11 +197,16 @@ export interface ChainTruth {
   whitelist: Map<Addr, boolean>;
   /** Every WhitelistToken change, in order. */
   whitelistHistory: Map<Addr, { block: number; value: boolean }[]>;
+  /** Every token-registry ListingSet change (Aero), in order. */
+  listingHistory: Map<Addr, { block: number; value: boolean }[]>;
   /** `${contract}.${event}` -> on-chain logs the indexer should have handled (configured events, indexed addresses). */
   eventCounts: Map<string, number>;
   /** `${contract}.${event}` -> logs from addresses the config-derived rules would NOT register (e.g. gauges of unknown pool factories). */
   unregisteredEventCounts: Map<string, number>;
-  tickSpacingFees: Map<number, number>;
+  /** `${factory}|${tickSpacing}` -> fee, in log order (Map keeps first insertion order; values are the last fee). */
+  tickSpacingFees: Map<string, number>;
+  /** tickSpacing -> fee of the last TickSpacingEnabled over all CL factories of the chain. */
+  tickSpacingFeesChain: Map<number, number>;
   v2CustomFees: Map<Addr, bigint>;
   notes: string[];
   stats: { logs: number; seconds: number };

@@ -10,7 +10,8 @@ import { type YamlValue, parseYaml } from "./yaml";
 
 export interface ContractSpec {
   name: string;
-  abiFile: string;
+  /** ABI file; undefined when config.yaml gives full event signatures only. */
+  abiFile?: string;
   /** Event entries as written in config.yaml: a bare name or a full signature with an alias. */
   events: { event: string; name?: string }[];
 }
@@ -29,7 +30,15 @@ export interface ChainSpec {
 export interface IndexerConfig {
   contracts: Map<string, ContractSpec>;
   chains: Map<number, ChainSpec>;
+  /** Directory of config.yaml (the indexer checkout the config belongs to). */
+  root: string;
 }
+
+/**
+ * Root of the indexer checkout whose config was loaded last (abis/, src/constants/).
+ * Defaults to this repository; a velo target points it at the instance's own checkout.
+ */
+export let CONFIG_ROOT = REPO_ROOT;
 
 type Obj = { [k: string]: YamlValue };
 
@@ -53,6 +62,8 @@ function asArr(v: YamlValue): YamlValue[] {
 export function loadIndexerConfig(
   file = path.join(REPO_ROOT, "config.yaml"),
 ): IndexerConfig {
+  const dir = path.dirname(path.resolve(file));
+  CONFIG_ROOT = dir;
   const root = asObj(parseYaml(readFileSync(file, "utf8")), "root");
   const contracts = new Map<string, ContractSpec>();
   for (const c of asArr(root.contracts)) {
@@ -66,7 +77,9 @@ export function loadIndexerConfig(
     });
     contracts.set(String(o.name), {
       name: String(o.name),
-      abiFile: path.join(REPO_ROOT, String(o.abi_file_path)),
+      abiFile: o.abi_file_path
+        ? path.join(dir, String(o.abi_file_path))
+        : undefined,
       events,
     });
   }
@@ -103,7 +116,7 @@ export function loadIndexerConfig(
       contracts: cmap,
     });
   }
-  return { contracts, chains };
+  return { contracts, chains, root: dir };
 }
 
 /** Contracts the indexer registers at runtime (empty `address:` lists in config.yaml). */
@@ -148,6 +161,8 @@ export const ROLE = {
   nfpm: (name: string): boolean => /NFPM$/.test(name),
   /** Voters emitting GaugeCreated. */
   voter: (name: string): boolean => name === "Voter" || /LeafVoter$/.test(name),
+  /** Token lists that make a token trusted (Aero TokenRegistry ListingSet). */
+  tokenRegistry: (name: string): boolean => /TokenRegistry$/.test(name),
 };
 
 /**

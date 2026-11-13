@@ -7,7 +7,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { decodeLog } from "../lib/abi";
-import { REPO_ROOT } from "../lib/env";
+import { CONFIG_ROOT } from "../lib/config";
 import {
   LOG_FIELDS,
   hypersyncStream,
@@ -29,7 +29,7 @@ const E18 = 10n ** 18n;
  */
 function connectorSet(chainId: number): Set<string> {
   const file = path.join(
-    REPO_ROOT,
+    CONFIG_ROOT,
     "src",
     "constants",
     "price_connectors.json",
@@ -114,12 +114,19 @@ export async function checkUsdAggregates(
   const trusted = (t: string, block: number) => {
     if (ctx.tokens.get(t)?.priceTrustReason === "BLACKLISTED") return false;
     if (connectors.has(t)) return true;
-    let wl = false;
-    for (const h of ctx.truth.whitelistHistory.get(t) ?? []) {
-      if (h.block > block) break;
-      wl = h.value;
-    }
-    return wl;
+    const at = (hist: { block: number; value: boolean }[] | undefined) => {
+      let v = false;
+      for (const h of hist ?? []) {
+        if (h.block > block) break;
+        v = h.value;
+      }
+      return v;
+    };
+    // Legacy voter whitelist or Aero token-registry listing.
+    return (
+      at(ctx.truth.whitelistHistory.get(t)) ||
+      at(ctx.truth.listingHistory.get(t))
+    );
   };
   const dec = (t: string) => Number(ctx.tokens.get(t)?.decimals ?? 18);
   for (const p of chosen) {

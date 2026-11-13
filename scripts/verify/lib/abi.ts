@@ -51,7 +51,9 @@ export class AbiRegistry {
   }
 
   private addContract(spec: ContractSpec): void {
-    const raw = JSON.parse(readFileSync(spec.abiFile, "utf8"));
+    const raw = spec.abiFile
+      ? JSON.parse(readFileSync(spec.abiFile, "utf8"))
+      : [];
     const abi: AbiEvent[] = (Array.isArray(raw) ? raw : raw.abi).filter(
       (x: { type: string }) => x.type === "event",
     );

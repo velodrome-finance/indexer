@@ -25,6 +25,8 @@ export const LLAMA_SLUG: Record<number, string> = {
   42161: "arbitrum",
   42220: "celo",
   57073: "ink",
+  4663: "robinhood",
+  5042: "arc",
 };
 
 /** Production oracle prices are only meaningful before this date (outage from 2026-11-03). */
@@ -102,6 +104,14 @@ export function checkWhitelist(ctx: CheckContext): void {
       ctx.truth.whitelist.get(a) ?? false,
       { symbol: r.symbol ?? "" },
     );
+    // Aero schema: isListedOnAero follows the token registry's last ListingSet.
+    if ("isListedOnAero" in r) {
+      const h = ctx.truth.listingHistory.get(a);
+      const listed = h && h.length > 0 ? h[h.length - 1].value : false;
+      c.eq(`${a}.isListedOnAero`, r.isListedOnAero === "t", listed, {
+        symbol: r.symbol ?? "",
+      });
+    }
   }
   ctx.results.push(
     c.done(

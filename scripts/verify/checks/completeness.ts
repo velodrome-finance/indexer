@@ -58,6 +58,18 @@ export function checkPools(ctx: CheckContext): void {
       BigInt(p.created.block),
       det,
     );
+    // Aero schema: Pool.deployment is AERO exactly for pools of the Aero* factories (ADR 0005).
+    if ("deployment" in r) {
+      const factoryName =
+        [...ctx.chain.contracts].find(([, addrs]) =>
+          addrs.includes(p.factory),
+        )?.[0] ?? "";
+      const isAero = factoryName.startsWith("Aero");
+      c.eq(`${p.address}.deployment is AERO`, r.deployment === "AERO", isAero, {
+        ...det,
+        factory: factoryName,
+      });
+    }
   }
   for (const [a] of ctx.pools) {
     if (!ctx.truth.pools.has(a)) {
@@ -214,28 +226,43 @@ export async function checkTickSpacingFees(ctx: CheckContext): Promise<void> {
     "FeeToTickSpacingMapping",
     ctx.chainId,
   );
-  const byTs = new Map(rows.map((r) => [Number(r.tickSpacing), r]));
-  for (const [ts, fee] of ctx.truth.tickSpacingFees) {
-    const r = byTs.get(ts);
+  // Ids are {chainId}-{tickSpacing} (one row per chain) or, from the Aero
+  // schema on, {chainId}-{factory}-{tickSpacing} (one row per CL factory).
+  const perFactory = rows.some((r) => String(r.id).split("-").length >= 3);
+  const want = new Map<string, number>();
+  if (perFactory)
+    for (const [k, fee] of ctx.truth.tickSpacingFees) want.set(k, fee);
+  else
+    for (const [ts, fee] of ctx.truth.tickSpacingFeesChain)
+      want.set(String(ts), fee);
+  const keyOf = (r: Record<string, string | null>) => {
+    const parts = String(r.id).split("-");
+    return perFactory
+      ? `${parts[1].toLowerCase()}|${Number(r.tickSpacing)}`
+      : String(Number(r.tickSpacing));
+  };
+  const byKey = new Map(rows.map((r) => [keyOf(r), r]));
+  for (const [k, fee] of want) {
+    const r = byKey.get(k);
     if (!r)
       c.add({
-        key: `tickSpacing ${ts}`,
+        key: `tickSpacing ${k}`,
         indexed: "missing",
         truth: `fee ${fee}`,
       });
-    else c.eq(`tickSpacing ${ts}.fee`, r.fee, fee);
+    else c.eq(`tickSpacing ${k}.fee`, r.fee, fee);
   }
-  for (const ts of byTs.keys()) {
-    if (!ctx.truth.tickSpacingFees.has(ts))
+  for (const k of byKey.keys()) {
+    if (!want.has(k))
       c.add({
-        key: `tickSpacing ${ts}`,
+        key: `tickSpacing ${k}`,
         indexed: "present",
         truth: "never enabled",
       });
   }
   ctx.results.push(
     c.done(
-      `${ctx.truth.tickSpacingFees.size} tick spacings on chain, ${rows.length} rows`,
+      `${want.size} (factory,) tick spacings on chain, ${rows.length} rows${perFactory ? " (per-factory ids)" : ""}`,
     ),
   );
 }

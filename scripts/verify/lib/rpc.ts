@@ -190,6 +190,20 @@ export function rpcFor(
   chainId: number,
 ): RpcClient | undefined {
   loadEnv();
-  const url = envVar ? process.env[envVar] : undefined;
+  // Order: the chain's config.yaml variable, an explicit VERIFY_RPC_<chainId>,
+  // then dRPC built from ENVIO_DRPC_API_KEY (the indexer's own primary).
+  const key = process.env.ENVIO_DRPC_API_KEY;
+  const slug = DRPC_SLUG[chainId];
+  const url =
+    (envVar ? process.env[envVar] : undefined) ??
+    process.env[`VERIFY_RPC_${chainId}`] ??
+    (key && slug ? `https://lb.drpc.live/${slug}/${key}` : undefined);
   return url ? new RpcClient(url, chainId) : undefined;
 }
+
+/** dRPC network slugs for chains whose config.yaml has no RPC variable. */
+const DRPC_SLUG: Record<number, string> = {
+  1: "ethereum",
+  42161: "arbitrum",
+  5042: "arc",
+};
