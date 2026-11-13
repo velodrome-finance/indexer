@@ -159,6 +159,7 @@ describe("GaugeSharedLogic", () => {
       lastSuccessfulPriceTimestamp: mockTimestamp,
       pricingDepthUSD: undefined,
       isWhitelisted: true,
+      isListedOnAero: undefined,
       priceTrustOutcome: PRICE_TRUST_OUTCOME.TRUSTED,
       priceTrustReason: PRICE_TRUST_REASON.WL,
     };

@@ -459,6 +459,7 @@ indexer.onEvent(
         event.chainId,
         event.params.token,
         event.params._bool,
+        token.isListedOnAero ?? false,
       );
       const updatedToken: Token = {
         ...healed,
@@ -506,6 +507,7 @@ indexer.onEvent(
         chainId: event.chainId,
         decimals: BigInt(tokenDetails.decimals),
         isWhitelisted: event.params._bool,
+        isListedOnAero: undefined,
         lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
         priceTrustOutcome: decision.outcome,
         priceTrustReason: decision.reason,

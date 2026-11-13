@@ -20,15 +20,18 @@ export type PriceTrustOutcome =
  * Centralised values for the per-token `priceTrustReason` schema field.
  *
  * - `WL` — protocol-whitelisted and not in the operator BLACKLIST (trusted)
- * - `CONNECTOR` — not protocol-whitelisted, but a configured price connector on
- *   its chain and not in the operator BLACKLIST (trusted, #898)
- * - `BLACKLISTED` — has a positive trust signal (whitelist and/or connector) but
- *   the operator BLACKLIST overrides it
- * - `NON_WL` — no positive trust signal: neither whitelisted nor a connector
- *   (regardless of BLACKLIST membership)
+ * - `LISTED` — not legacy-whitelisted, but listed in the chain's Aero
+ *   TokenRegistry (`Token.isListedOnAero`) and not blacklisted (trusted, ADR 0005)
+ * - `CONNECTOR` — neither whitelisted nor listed, but a configured price
+ *   connector on its chain and not in the operator BLACKLIST (trusted, #898)
+ * - `BLACKLISTED` — has a positive trust signal (whitelist, listing and/or
+ *   connector) but the operator BLACKLIST overrides it
+ * - `NON_WL` — no positive trust signal: neither whitelisted, listed nor a
+ *   connector (regardless of BLACKLIST membership)
  */
 export const PRICE_TRUST_REASON = {
   WL: "WL",
+  LISTED: "LISTED",
   CONNECTOR: "CONNECTOR",
   NON_WL: "NON_WL",
   BLACKLISTED: "BLACKLISTED",
@@ -100,6 +103,7 @@ export function isTrusted(token: Token | undefined): boolean {
     token.chainId,
     token.address,
     token.isWhitelisted,
+    token.isListedOnAero ?? false,
   ).trusted;
 }
 
@@ -201,8 +205,9 @@ export function getHardAnchorUnitUSD(
  * `priceTrustOutcome` / `priceTrustReason` fields are populated in lockstep
  * with `isWhitelisted` rather than left null until the first aggregator consult.
  *
- * Trust requires a positive signal: protocol whitelist OR a configured price
- * connector (#898). The operator BLACKLIST overrides either signal downward.
+ * Trust requires a positive signal: legacy protocol whitelist, Aero
+ * TokenRegistry listing (ADR 0005) OR a configured price connector (#898). The
+ * operator BLACKLIST overrides any signal downward.
  *
  * Reason precedence:
  *  - No positive signal at all ⇒ `NON_WL` — and BLACKLIST membership is
@@ -210,22 +215,24 @@ export function getHardAnchorUnitUSD(
  *    semantic that a non-whitelisted, non-connector token reports `NON_WL` even
  *    when blacklisted.
  *  - A positive signal exists but the address is blacklisted ⇒ `BLACKLISTED`
- *    (operator override beats both whitelist and connector).
- *  - Otherwise trusted, tagged `WL` when whitelisted (the stronger provenance)
- *    or `CONNECTOR` when trusted solely by connector membership.
+ *    (operator override beats every signal).
+ *  - Otherwise trusted, tagged `WL` when whitelisted (the stronger provenance),
+ *    else `LISTED` when Aero-listed, else `CONNECTOR`.
  *
  * @param chainId - Chain ID for BLACKLIST + connector lookup
  * @param address - Token address (EIP-55 checksum) for BLACKLIST + connector lookup
- * @param isWhitelisted - Protocol-whitelist signal from the Voter contract
+ * @param isWhitelisted - Protocol-whitelist signal from the legacy Voter contract
+ * @param isListedOnAero - Listing signal from the Aero TokenRegistry (default false)
  * @returns `{ trusted, outcome, reason }` decision
  */
 export function getGateDecisionFromSignals(
   chainId: number,
   address: string,
   isWhitelisted: boolean,
+  isListedOnAero = false,
 ): PriceTrustDecision {
   const isConnector = isConnectorToken(chainId, address);
-  if (!isWhitelisted && !isConnector) {
+  if (!isWhitelisted && !isListedOnAero && !isConnector) {
     return {
       trusted: false,
       outcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
@@ -244,7 +251,9 @@ export function getGateDecisionFromSignals(
     outcome: PRICE_TRUST_OUTCOME.TRUSTED,
     reason: isWhitelisted
       ? PRICE_TRUST_REASON.WL
-      : PRICE_TRUST_REASON.CONNECTOR,
+      : isListedOnAero
+        ? PRICE_TRUST_REASON.LISTED
+        : PRICE_TRUST_REASON.CONNECTOR,
   };
 }
 
@@ -285,6 +294,7 @@ export function getGateDecision(
     token.chainId,
     token.address,
     token.isWhitelisted,
+    token.isListedOnAero ?? false,
   );
   if (
     context &&

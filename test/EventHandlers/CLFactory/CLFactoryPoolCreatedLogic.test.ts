@@ -43,6 +43,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         pricePerUSDNew: 1000000000000000000n,
         chainId: 10,
         isWhitelisted: false,
+        isListedOnAero: undefined,
         lastUpdatedTimestamp: new Date(1000000 * 1000),
         lastSuccessfulPriceTimestamp: undefined,
         pricingDepthUSD: undefined,

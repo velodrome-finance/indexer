@@ -421,6 +421,7 @@ describe("Pool Functions", () => {
         pricePerUSDNew,
         chainId: 8453,
         isWhitelisted: true,
+        isListedOnAero: undefined,
         lastUpdatedTimestamp: new Date(),
         lastSuccessfulPriceTimestamp: new Date(),
         pricingDepthUSD: undefined,

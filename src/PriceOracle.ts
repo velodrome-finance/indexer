@@ -122,6 +122,7 @@ export async function createTokenEntity(
     ...initialTokenPriceFields(chainId, tokenAddress, blockDatetime),
     lastUpdatedTimestamp: blockDatetime,
     isWhitelisted: false,
+    isListedOnAero: undefined,
     priceTrustOutcome: decision.outcome,
     priceTrustReason: decision.reason,
   };

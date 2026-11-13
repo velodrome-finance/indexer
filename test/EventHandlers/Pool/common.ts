@@ -73,6 +73,7 @@ export function setupCommon() {
     pricePerUSDNew: 1n * TEN_TO_THE_18_BI, // 1 USD
     chainId: CHAIN_ID,
     isWhitelisted: true,
+    isListedOnAero: undefined,
     lastUpdatedTimestamp: new Date(),
     lastSuccessfulPriceTimestamp: new Date(),
     pricingDepthUSD: undefined,
@@ -89,6 +90,7 @@ export function setupCommon() {
     pricePerUSDNew: 1n * TEN_TO_THE_18_BI, // 1 USD
     chainId: CHAIN_ID,
     isWhitelisted: true,
+    isListedOnAero: undefined,
     lastUpdatedTimestamp: new Date(),
     lastSuccessfulPriceTimestamp: new Date(),
     pricingDepthUSD: undefined,

@@ -122,6 +122,7 @@ function makeToken(overrides: Partial<Token> = {}): Token {
     decimals: 18n,
     pricePerUSDNew: 1n * TEN_TO_THE_18_BI,
     isWhitelisted,
+    isListedOnAero: undefined,
     lastUpdatedTimestamp: new Date(),
     lastSuccessfulPriceTimestamp: new Date(),
     pricingDepthUSD: undefined,

@@ -360,7 +360,11 @@ type Token {
   lastUpdatedTimestamp: Timestamp! # timestamp of last price refresh attempt (drives the once-per-clock-hour throttle; see src/PriceOracle.ts)
   lastSuccessfulPriceTimestamp: Timestamp # timestamp of last successful price (pinned / pool route / canonical source); drives the 7-day carry window (#694, docs/adr/0003)
   pricingDepthUSD: BigInt @config(precision: 76) # USD depth (1e18-base) behind pricePerUSDNew: the counterparty-side reserve of the pool that priced it, or the canonical source's own depth; kept while carried, unset when pinned / unpriced / overridden. Lets a cross-chain canonical source be compared with local pools (docs/adr/0004)
-  isWhitelisted: Boolean! # whether the token is whitelisted
+  isWhitelisted: Boolean! # whether the token is whitelisted by the legacy Voter / SuperchainLeafVoter (WhitelistToken)
+  # Aero listing: the latest ListingSet of the chain's Aero TokenRegistry (Aero's curated token list,
+  # the successor of the legacy whitelist). Null when the registry never emitted one for the token.
+  # A positive price-trust signal like isWhitelisted (priceTrustReason LISTED, ADR 0005).
+  isListedOnAero: Boolean
 
   # Price-trust gate per-token decision surface (issue #755 slice 2). Populated
   # at every Token construction site (Voter.WhitelistToken, SuperchainLeafVoter
