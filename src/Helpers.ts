@@ -87,7 +87,19 @@ export async function runAsyncWithErrorLog(
 export const normalizeTokenAmountTo1e18 = (
   amount: bigint,
   tokenDecimals: number,
-): bigint => (amount * TEN_TO_THE_18_BI) / 10n ** BigInt(tokenDecimals);
+): bigint => {
+  // Hot path (several calls per swap): most tokens have 18 decimals, and the
+  // power of ten comes from a table instead of a bigint exponentiation per call.
+  if (tokenDecimals === 18) return amount;
+  const divisor = POW10_BI[tokenDecimals] ?? 10n ** BigInt(tokenDecimals);
+  return (amount * TEN_TO_THE_18_BI) / divisor;
+};
+
+/** 10^0 … 10^77 as bigints (every power that fits a uint256). */
+const POW10_BI: readonly bigint[] = Array.from(
+  { length: 78 },
+  (_, exponent) => 10n ** BigInt(exponent),
+);
 
 /**
  * USD value of a raw token amount at a 1e18-scaled USD price.
