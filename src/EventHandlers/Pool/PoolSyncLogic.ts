@@ -32,7 +32,7 @@ export function processPoolSync(
   // the synced reserves — NOT from token oracle prices. This keeps the ratio
   // oracle-independent so a mispriced token (e.g. a non-WL scam token) can no
   // longer inflate it without bound (#783). pickPriceRatios falls back to the
-  // last-known ratio per leg when decimals are unavailable or reserves are zero.
+  // last-known ratios when decimals are unavailable or a reserve is zero.
   // Computed before the reserve branches so the #892 TVL cap below can use it.
   // Stable (sAMM) pools trade on x³y + xy³, not x·y, so their marginal price is
   // the curve slope rather than the reserve ratio (ADR 0003).

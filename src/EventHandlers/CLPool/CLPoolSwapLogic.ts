@@ -367,7 +367,8 @@ export async function processCLPoolSwap(
   // the swap's post-trade sqrtPriceX96 — NOT from token oracle prices. This
   // keeps the ratio oracle-independent so a mispriced token (e.g. a non-WL
   // scam token) can no longer inflate it without bound (#783). pickPriceRatios
-  // falls back to the last-known ratio per leg when decimals are unavailable.
+  // falls back to the last-known ratios when decimals are unavailable; at a
+  // tick bound the leg below 1e-18 is written as 0n, not kept stale.
   const priceRatios = pickPriceRatios(
     token0Instance && token1Instance
       ? deriveCLPriceRatios(

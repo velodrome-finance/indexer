@@ -248,30 +248,41 @@ export function deriveCLPriceRatios(
 }
 
 /**
- * Merges freshly derived ratios with the pool's last-known ratios, keeping the
- * last-known value for any leg that derives to a non-positive (0n) price.
+ * Merges freshly derived ratios with the pool's last-known ratios: keeps the
+ * last-known pair when the derivation is undefined (both legs 0n), and the
+ * derived pair otherwise.
  *
  * Both the CL Swap and V2 Sync writers compute ratios from live pool state, but
  * that state is momentarily undefined for an empty/uninitialised pool (zero
  * reserves or `sqrtPriceX96`) or when token decimals are unavailable — cases
- * where the derive functions return `0n`. Writing `0n` would clobber a
- * previously valid ratio with a meaningless zero, so each non-positive leg
- * falls back to its last-known value instead. Centralizing the rule here keeps
- * it identical across both writers (#783).
+ * where the derive functions return `0n` for both legs. Writing `0n` would
+ * clobber a previously valid ratio with a meaningless zero, so the pair falls
+ * back to its last-known value instead. Centralizing the rule here keeps it
+ * identical across both writers (#783).
+ *
+ * A defined price never derives to `0n` on both legs, but one leg is `0n` when
+ * it is below 1e-18: a CL pool pushed to a tick bound (±887272, e.g. a drained
+ * pool) or an extremely lopsided V2 pool. That `0n` is the true 1e18-scaled
+ * ratio and is kept, with the other leg's true (very large) ratio; falling back
+ * per leg would pair it with a stale, healthy-looking price.
  *
  * @param derived - Ratios computed from current pool state (legs may be 0n)
  * @param lastKnown - The pool's previously stored ratios to fall back on
- * @returns The 1e18-scaled ratio pair with each non-positive leg replaced by
- *   its last-known value.
+ * @returns The 1e18-scaled ratio pair: `lastKnown` when both derived legs are
+ *   non-positive, else `derived` (a 0n leg being a price below 1e-18).
  */
 export function pickPriceRatios(
   derived: PoolPriceRatios,
   lastKnown: PoolPriceRatios,
 ): PoolPriceRatios {
+  if (derived.token0Price <= 0n && derived.token1Price <= 0n) {
+    return {
+      token0Price: lastKnown.token0Price,
+      token1Price: lastKnown.token1Price,
+    };
+  }
   return {
-    token0Price:
-      derived.token0Price > 0n ? derived.token0Price : lastKnown.token0Price,
-    token1Price:
-      derived.token1Price > 0n ? derived.token1Price : lastKnown.token1Price,
+    token0Price: derived.token0Price,
+    token1Price: derived.token1Price,
   };
 }
