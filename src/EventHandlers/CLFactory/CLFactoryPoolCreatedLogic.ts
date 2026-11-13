@@ -158,16 +158,43 @@ export async function processCLFactoryPoolCreated(
 }
 
 /**
- * If a PendingRootPoolMapping exists for this leaf pool's (token0, token1, tickSpacing),
- * creates the RootPool_LeafPool mapping, deletes the pending mapping, and flushes any
- * pending votes for that root pool.
+ * Whether a leaf pool created by `leafFactoryAddress` is the leaf pool of a
+ * root pool created by `rootFactoryAddress`. The superchain leaf CLFactory is
+ * deployed at the same address as its RootCLPoolFactory on Optimism
+ * (0x04625B04…a55F on every leaf chain; verified with
+ * scripts/verify-root-leaf-factory.ts), and a leaf chain may host other CL
+ * factories whose pools share the (chain, token0, token1, tickSpacing) hash —
+ * Ink's second factory has a USD₮0/WETH CL100 pool too. Case-insensitive.
+ *
+ * @param leafFactoryAddress - Factory that created the leaf pool (`Pool.factoryAddress`)
+ * @param rootFactoryAddress - RootCLPoolFactory that emitted RootPoolCreated
+ * @returns true when the two addresses are equal
+ */
+export function isLeafPoolOfRootFactory(
+  leafFactoryAddress: string | undefined,
+  rootFactoryAddress: string,
+): boolean {
+  return (
+    leafFactoryAddress !== undefined &&
+    leafFactoryAddress.toLowerCase() === rootFactoryAddress.toLowerCase()
+  );
+}
+
+/**
+ * If a PendingRootPoolMapping exists for this leaf pool's (token0, token1,
+ * tickSpacing) AND was stored by the root factory paired with this pool's
+ * factory, creates the RootPool_LeafPool mapping, deletes the pending mapping,
+ * and flushes any pending votes for that root pool. A pool from another
+ * factory on the same chain with the same hash cannot claim the mapping (see
+ * {@link isLeafPoolOfRootFactory}).
  * @param context - The handler context
  * @param leafChainId - The chain ID of the leaf pool
  * @param token0 - The address of token0
  * @param token1 - The address of token1
  * @param tickSpacing - The tick spacing of the pool
  * @param leafPoolAddress - The address of the leaf pool
- * @returns void
+ * @param leafFactoryAddress - The CLFactory that created the leaf pool
+ * @returns Promise that resolves once the mapping, deletion and vote flush are staged
  */
 export async function flushPendingRootPoolMappingAndVotes(
   context: handlerContext,
@@ -176,19 +203,23 @@ export async function flushPendingRootPoolMappingAndVotes(
   token1: string,
   tickSpacing: bigint | number,
   leafPoolAddress: string,
+  leafFactoryAddress: string,
 ): Promise<void> {
   const hash = rootPoolMatchingHash(leafChainId, token0, token1, tickSpacing);
-  const pendingMappings =
+  const pendingMappings = (
     (await context.PendingRootPoolMapping.getWhere({
       rootPoolMatchingHash: { _eq: hash },
-    })) ?? [];
+    })) ?? []
+  ).filter((pending) =>
+    isLeafPoolOfRootFactory(leafFactoryAddress, pending.rootFactoryAddress),
+  );
   if (pendingMappings.length === 0) {
     return;
   }
 
   if (pendingMappings.length > 1) {
     context.log.warn(
-      `[flushPendingRootPoolMappingAndVotes] Multiple PendingRootPoolMapping entries for rootPoolMatchingHash ${hash}. Processing first only.`,
+      `[flushPendingRootPoolMappingAndVotes] Multiple PendingRootPoolMapping entries for rootPoolMatchingHash ${hash} from factory ${leafFactoryAddress}. Processing first only.`,
     );
   }
 

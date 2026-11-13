@@ -72,6 +72,7 @@ describe("RootCLPoolFactory Events", () => {
           token1_address: token1,
           tickSpacing: tickSpacing,
           isCL: true,
+          factoryAddress: rootCLPoolFactoryAddress,
           rootPoolMatchingHash: rootPoolMatchingHash(
             leafChainId,
             token0,
@@ -166,6 +167,7 @@ describe("RootCLPoolFactory Events", () => {
           token1_address: leafToken1.address,
           tickSpacing: tickSpacing,
           isCL: true,
+          factoryAddress: rootCLPoolFactoryAddress,
           rootPoolMatchingHash: rootPoolMatchingHash(
             leafChainId,
             token0,
@@ -347,95 +349,115 @@ describe("RootCLPoolFactory Events", () => {
         expect(pendingMapping?.rootPoolMatchingHash).toBe(
           rootPoolMatchingHash(leafChainId, token0, token1, tickSpacing),
         );
+        expect(pendingMapping?.rootFactoryAddress).toBe(
+          rootCLPoolFactoryAddress,
+        );
       });
     });
 
-    describe("when multiple matching pools exist", () => {
-      let indexer: ReturnType<typeof createTestIndexer>;
-      let mockLiquidityPool1: MockPool;
-      let mockLiquidityPool2: MockPool;
+    // Ink: two CL factories each have a USD₮0/WETH CL100 pool with the same
+    // rootPoolMatchingHash. Only the pool from the leaf CLFactory at the root
+    // factory's address is the leaf pool; the other must be ignored.
+    describe("when two pools share the hash (two leaf factories)", () => {
+      const otherFactoryAddress = toChecksumAddress(
+        "0x718E46d0962A66942E233760a8bd6038Ce54EdCD",
+      );
+      const otherPoolAddress = toChecksumAddress(
+        "0x0eA741a29Ed30B8d519a474277Ab6eDaB50a86bb",
+      );
+      const hash = rootPoolMatchingHash(
+        leafChainId,
+        token0,
+        token1,
+        tickSpacing,
+      );
+      const rootPoolCreated = {
+        contract: "RootCLPoolFactory" as const,
+        event: "RootPoolCreated" as const,
+        srcAddress: rootCLPoolFactoryAddress,
+        logIndex: 1,
+        block: { timestamp: 1000000, number: 123456, hash: "0xhash" },
+        params: {
+          token0,
+          token1,
+          tickSpacing,
+          chainid: BigInt(leafChainId),
+          pool: rootPoolAddress,
+        },
+      };
+      const makePool = (
+        createMockPool: ReturnType<typeof setupCommon>["createMockPool"],
+        poolAddress: string,
+        factoryAddress: string,
+      ) =>
+        createMockPool({
+          id: PoolId(leafChainId, poolAddress),
+          poolAddress,
+          chainId: leafChainId,
+          token0_id: TokenId(leafChainId, token0),
+          token1_id: TokenId(leafChainId, token1),
+          token0_address: token0,
+          token1_address: token1,
+          tickSpacing,
+          isCL: true,
+          factoryAddress,
+          rootPoolMatchingHash: hash,
+        });
 
-      beforeEach(async () => {
+      it.each([
+        ["leaf pool indexed first", true],
+        ["other factory's pool indexed first", false],
+      ])(
+        "maps the root pool to the pool from the root factory's address (%s)",
+        async (_label, leafFirst) => {
+          const { createMockPool } = setupCommon();
+          const indexer = createTestIndexer();
+          const leaf = makePool(
+            createMockPool,
+            leafPoolAddress,
+            rootCLPoolFactoryAddress,
+          );
+          const other = makePool(
+            createMockPool,
+            otherPoolAddress,
+            otherFactoryAddress,
+          );
+          for (const pool of leafFirst ? [leaf, other] : [other, leaf]) {
+            indexer.Pool.set(pool);
+          }
+
+          await indexer.process({
+            chains: { [rootChainId]: { simulate: [rootPoolCreated] } },
+          });
+
+          const mappings = await indexer.RootPool_LeafPool.getAll();
+          expect(mappings).toHaveLength(1);
+          expect(mappings[0]?.leafPoolAddress).toBe(leafPoolAddress);
+          expect(mappings[0]?.rootPoolAddress).toBe(rootPoolAddress);
+          const pending = await indexer.PendingRootPoolMapping.get(
+            PendingRootPoolMappingId(rootChainId, rootPoolAddress),
+          );
+          expect(pending).toBeUndefined();
+        },
+      );
+
+      it("keeps the mapping pending when only the other factory's pool exists", async () => {
         const { createMockPool } = setupCommon();
-        indexer = createTestIndexer();
-
-        // Create two pools with the same rootPoolMatchingHash
-        mockLiquidityPool1 = createMockPool({
-          id: PoolId(leafChainId, leafPoolAddress),
-          poolAddress: leafPoolAddress,
-          chainId: leafChainId,
-          token0_id: TokenId(leafChainId, token0),
-          token1_id: TokenId(leafChainId, token1),
-          token0_address: token0,
-          token1_address: token1,
-          tickSpacing: tickSpacing,
-          isCL: true,
-          rootPoolMatchingHash: rootPoolMatchingHash(
-            leafChainId,
-            token0,
-            token1,
-            tickSpacing,
-          ),
-        });
-
-        // Different pool address
-        mockLiquidityPool2 = createMockPool({
-          id: PoolId(
-            leafChainId,
-            toChecksumAddress("0xFc00000000000000000000000000000000000001"),
-          ),
-          poolAddress: toChecksumAddress(
-            "0xFc00000000000000000000000000000000000001",
-          ),
-          chainId: leafChainId,
-          token0_id: TokenId(leafChainId, token0),
-          token1_id: TokenId(leafChainId, token1),
-          token0_address: token0,
-          token1_address: token1,
-          tickSpacing: tickSpacing,
-          isCL: true,
-          rootPoolMatchingHash: rootPoolMatchingHash(
-            leafChainId,
-            token0,
-            token1,
-            tickSpacing,
-          ),
-        });
-
-        indexer.Pool.set(mockLiquidityPool1);
-        indexer.Pool.set(mockLiquidityPool2);
+        const indexer = createTestIndexer();
+        indexer.Pool.set(
+          makePool(createMockPool, otherPoolAddress, otherFactoryAddress),
+        );
 
         await indexer.process({
-          chains: {
-            [rootChainId]: {
-              simulate: [
-                {
-                  contract: "RootCLPoolFactory",
-                  event: "RootPoolCreated",
-                  srcAddress: rootCLPoolFactoryAddress,
-                  logIndex: 1,
-                  block: {
-                    timestamp: 1000000,
-                    number: 123456,
-                    hash: "0xhash",
-                  },
-                  params: {
-                    token0,
-                    token1,
-                    tickSpacing,
-                    chainid: BigInt(leafChainId),
-                    pool: rootPoolAddress,
-                  },
-                },
-              ],
-            },
-          },
+          chains: { [rootChainId]: { simulate: [rootPoolCreated] } },
         });
-      });
 
-      it("should not create RootPool_LeafPool entity", async () => {
-        const rootPoolLeafPools = await indexer.RootPool_LeafPool.getAll();
-        expect(rootPoolLeafPools).toHaveLength(0);
+        expect(await indexer.RootPool_LeafPool.getAll()).toHaveLength(0);
+        const pending = await indexer.PendingRootPoolMapping.get(
+          PendingRootPoolMappingId(rootChainId, rootPoolAddress),
+        );
+        expect(pending?.rootFactoryAddress).toBe(rootCLPoolFactoryAddress);
+        expect(pending?.rootPoolMatchingHash).toBe(hash);
       });
     });
   });

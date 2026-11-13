@@ -713,6 +713,7 @@ Deferred RootPool->LeafPool mapping: stored when RootPoolCreated fires but no Po
 | `id` | `ID!` | Format: {rootChainId}-{rootPoolAddress} |
 | `rootChainId` | `Int!` | Chain ID where the root pool exists (typically Optimism) |
 | `rootPoolAddress` | `String!` | Address of the root pool (matches RootPool_LeafPool) |
+| `rootFactoryAddress` | `String!` | RootCLPoolFactory that emitted RootPoolCreated; only a leaf pool created by the leaf CLFactory at this same address may claim the mapping |
 | `leafChainId` | `Int!` | Chain ID where the leaf pool will be created |
 | `token0` | `String!` | Address of token0 in the root/leaf pool |
 | `token1` | `String!` | Address of token1 in the root/leaf pool |

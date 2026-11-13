@@ -347,6 +347,9 @@ describe("Voter Events", () => {
         id: PendingRootPoolMappingId(rootChainId, rootPoolAddress),
         rootChainId,
         rootPoolAddress,
+        rootFactoryAddress: toChecksumAddress(
+          "0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F",
+        ),
         leafChainId,
         token0,
         token1,

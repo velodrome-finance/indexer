@@ -107,6 +107,7 @@ indexer.onEvent(
       event.params.token1,
       event.params.tickSpacing,
       event.params.pool,
+      event.srcAddress,
     );
   },
 );
