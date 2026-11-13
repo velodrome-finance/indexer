@@ -502,7 +502,7 @@ def append_only_view(ctx: Ctx, type_name: str) -> str | None:
             exprs[-1] = f"toDateTime({r.expr()}) AS {q(r.name)}"
     h = f"{q(ctx.src)}.{q(hist)}"
     f = ctx.frontier_sql()
-    name = snake(type_name) + ("s" if not type_name.endswith("Snapshot") else "s")
+    name = snake(type_name).replace("s_aero_", "saero_") + "s"
     return (
         f"CREATE OR REPLACE VIEW {q(ctx.db)}.{q(name)} AS\nSELECT\n  " + ",\n  ".join(exprs) + "\n"
         f"FROM {h}\n"
