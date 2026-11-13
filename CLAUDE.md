@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Multi-chain blockchain indexer for **Velodrome V2** (Optimism) and **Aerodrome** (Base) plus superchain deployments (Celo, Soneium, Ink, Mode, Lisk, Unichain, Fraxtal, Metal, Swell). Built with TypeScript on the **Envio HyperIndex** platform (v3 alpha). This is **not** a TheGraph subgraph.
+Multi-chain blockchain indexer for **Velodrome V2** (Optimism) and **Aerodrome** (Base) plus superchain deployments (Celo, Soneium, Ink, Mode, Lisk, Unichain, Fraxtal, Metal, Swell). Built with TypeScript on the **Envio HyperIndex** platform (v3.16). This is **not** a TheGraph subgraph.
 
 ## Commands
 
@@ -38,7 +38,7 @@ pnpm envio stop           # Stop the indexer
 - **`src/Helpers.ts`** - Shared utilities (error handling, CL position calculations using Uniswap v3 SDK, USD conversions).
 - **`src/PriceOracle.ts`** - Hourly token price refresh from indexed pool state (see Pricing below), token creation, metadata heal.
 - **`src/Pricing/`** - Pool-derived pricing building blocks: tiers + thresholds (`PricingConfig.ts`), candidate pools + deepest-pool selection (`PoolRoute.ts`), throttle / carry / 7-day expiry (`PriceResolution.ts`).
-- **`.envio/types.d.ts`** - Auto-generated types from `pnpm envio codegen` (gitignored), surfaced through the `envio` package. Never edit manually. (Envio v3.0.2 emits no `generated/` directory.)
+- **`.envio/types.d.ts`** - Auto-generated types from `pnpm envio codegen` (gitignored), surfaced through the `envio` package. Never edit manually. (There is no `generated/` directory.)
 
 ### Contract Domains
 
@@ -84,7 +84,13 @@ Token USD prices (`Token.pricePerUSDNew`, 1e18-scaled) are derived from indexed 
 
 ## Storage
 
-Dual-write Postgres + ClickHouse is enabled. The `storage:` block in `config.yaml` marks both backends with `default: true`, so every entity in `schema.graphql` is auto-routed to both — no `@storage` annotation is needed unless you want to override the default routing for a specific entity. (Requires envio ≥ 3.2.0.)
+Postgres and ClickHouse are both enabled (envio 3.16). The `storage:` block in `config.yaml` marks both backends with `default: true`, so an entity with no `@storage` directive is written to both and read by handlers from Postgres. Three groups are routed explicitly in `schema.graphql`:
+
+- **ClickHouse only** (`@storage(postgres: false, clickhouse: true)`): the seven `*Snapshot` entities. Handlers only ever write them. They are not served over GraphQL.
+- **Postgres only, hidden from the API** (`@storage(postgres: true, clickhouse: false) @internal`): handler working state that has no analytical value, i.e. the mint/transfer correlation entities, the Hyperlane staging entities, `PoolTickMap` and `TokenPricingPools`.
+- **Both** (no directive): everything else, including the aggregates handlers read and update (`Pool`, `UserStatsPerPool`, `Token`, `NonFungiblePosition`, `VeNFTState`, `VeNFTPoolVote`).
+
+When adding an entity: if no handler reads it back, make it ClickHouse-only; if it is scratch state, make it Postgres-only and `@internal`. Do not make an entity that handlers read and update ClickHouse-only: a load from ClickHouse scans every stored version of each id, and ClickHouse keeps one version per block in which the entity changed.
 
 ClickHouse env vars (Envio Hosted ClickHouse in production, placeholders in `.env.example`):
 

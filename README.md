@@ -8,7 +8,7 @@ launchers, and cross-chain swaps, and serves the derived state from a Postgres
 database.
 
 Built in TypeScript on the [Envio HyperIndex](https://docs.envio.dev/) platform
-(v3 alpha).
+(v3.16).
 
 > **Note:** This is an Envio HyperIndex project — **not** a TheGraph subgraph.
 

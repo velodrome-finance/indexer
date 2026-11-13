@@ -2,6 +2,7 @@
   "name": "velodrome v2",
   "version": "0.1.0",
   "type": "module",
+  "packageManager": "pnpm@9.15.9",
   "engines": {
     "node": ">=22.0.0"
   },
