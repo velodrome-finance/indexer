@@ -735,6 +735,7 @@ describe("Pool Functions", () => {
         isWhitelisted: true,
         lastUpdatedTimestamp: new Date(),
         lastSuccessfulPriceTimestamp: new Date(),
+        pricingDepthUSD: undefined,
         priceTrustOutcome: "TRUSTED",
         priceTrustReason: "WL",
       });

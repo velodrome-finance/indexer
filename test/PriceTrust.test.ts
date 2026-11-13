@@ -120,6 +120,7 @@ function makeToken(overrides: Partial<Token> = {}): Token {
     isWhitelisted,
     lastUpdatedTimestamp: new Date(),
     lastSuccessfulPriceTimestamp: new Date(),
+    pricingDepthUSD: undefined,
     priceTrustOutcome: decision.outcome,
     priceTrustReason: decision.reason,
     ...overrides,

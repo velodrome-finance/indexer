@@ -65,7 +65,7 @@ describe("PriceResolution", () => {
         {
           kind: "pool",
           priceUSD: USD(4),
-          poolId: "10-0xPool",
+          sourceId: "10-0xPool",
           depthUSD: USD(9),
         },
         nowMs,
@@ -77,16 +77,61 @@ describe("PriceResolution", () => {
       expect(applied.pricingDepthUSD).toBe(USD(9));
     });
 
-    it("rebind: takes the source price as a success", () => {
+    it("pool and canonical store the winning depth on the token", () => {
+      const pool = applyPriceResolution(
+        priced,
+        {
+          kind: "pool",
+          priceUSD: USD(4),
+          sourceId: "10-0xPool",
+          depthUSD: USD(9),
+        },
+        nowMs,
+      );
+      expect(pool.token.pricingDepthUSD).toBe(USD(9));
+    });
+
+    it("canonical: takes the source price and records the source token", () => {
       const applied = applyPriceResolution(
         priced,
-        { kind: "rebind", priceUSD: USD(5) },
+        {
+          kind: "canonical",
+          priceUSD: USD(5),
+          sourceId: "10-0xWETH",
+          depthUSD: USD(7_000_000),
+        },
         nowMs,
       );
       expect(applied.token.pricePerUSDNew).toBe(USD(5));
+      expect(applied.token.pricingDepthUSD).toBe(USD(7_000_000));
       expect(applied.token.lastSuccessfulPriceTimestamp).toEqual(at(now));
-      expect(applied.priceSource).toBe("rebind");
+      expect(applied.priceSource).toBe("canonical");
+      expect(applied.pricingSourceTokenId).toBe("10-0xWETH");
+      expect(applied.pricingDepthUSD).toBe(USD(7_000_000));
       expect(applied.pricingPoolId).toBeUndefined();
+    });
+
+    it("keeps the depth while carrying and clears it when pinned, overridden or unpriced", () => {
+      const withDepth = { ...priced, pricingDepthUSD: USD(9) };
+      expect(
+        applyPriceResolution(withDepth, { kind: "none" }, nowMs).token
+          .pricingDepthUSD,
+      ).toBe(USD(9));
+      expect(
+        applyPriceResolution(withDepth, { kind: "pinned" }, nowMs).token
+          .pricingDepthUSD,
+      ).toBeUndefined();
+      expect(
+        applyPriceResolution(withDepth, { kind: "override" }, nowMs).token
+          .pricingDepthUSD,
+      ).toBeUndefined();
+      expect(
+        applyPriceResolution(
+          { ...withDepth, lastSuccessfulPriceTimestamp: at(now - 8 * DAY_S) },
+          { kind: "none" },
+          nowMs,
+        ).token.pricingDepthUSD,
+      ).toBeUndefined();
     });
 
     it("override: zeroes the price without touching the success clock", () => {

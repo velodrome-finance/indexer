@@ -186,7 +186,7 @@ Top-level modules:
 - `PriceOracle.ts` — hourly token price refresh from indexed pool state (no
   RPC; see `docs/adr/0003-pool-derived-token-prices.md`), token creation and
   metadata heal
-- `PriceOverrides.ts` — token blacklist and cross-chain rebind fallbacks
+- `PriceOverrides.ts` — token blacklist and cross-chain canonical sources (ADR 0004)
 - `PriceTrust.ts` — price-trust gating used by USD valuation
 - `PoolPriceRatio.ts` — spot prices from pool state (CL `sqrtPriceX96`, V2
   volatile reserve ratio, V2 stable sAMM curve)

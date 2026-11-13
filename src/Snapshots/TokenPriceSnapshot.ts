@@ -21,19 +21,21 @@ import {
  * - `pinned`   — tier-0 token (destination token / stablecoin) at exactly $1
  * - `pool`     — derived from the deepest qualifying pool (`pricingPoolId`,
  *                `pricingDepthUSD` say which pool and how deep)
- * - `rebind`   — copied from the configured cross-chain source token's stored
- *                price because no local pool qualified
+ * - `canonical` — the same asset's stored price on its canonical chain won the
+ *                depth comparison (`pricingSourceTokenId`, `pricingDepthUSD`
+ *                say which token and how deep; ADR 0004)
  * - `override` — forced to 0 by the operator blacklist
  * - `carried`  — nothing qualified; the prior price is kept (last success < 7 days ago)
  * - `unpriced` — nothing qualified and nothing fresh to carry; price is 0
  *
- * Rows written before ADR 0003 carry the oracle-era tags `fresh` and
- * `pool-implied`, which are no longer produced.
+ * Earlier rows may carry tags that are no longer produced: `rebind` (the ADR
+ * 0003 fallback copy, replaced by `canonical`) and the oracle-era `fresh` /
+ * `pool-implied`.
  */
 export const PRICE_SOURCE = {
   PINNED: "pinned",
   POOL: "pool",
-  REBIND: "rebind",
+  CANONICAL: "canonical",
   OVERRIDE: "override",
   CARRIED: "carried",
   UNPRICED: "unpriced",
@@ -58,7 +60,9 @@ export interface TokenPriceSnapshotInput {
   readonly priceSource: PriceSource;
   /** Pool the price was derived through (`pool` ticks only). */
   readonly pricingPoolId?: string;
-  /** That pool's counterparty-side depth in USD, 1e18-base (`pool` ticks only). */
+  /** Canonical source token whose stored price was used (`canonical` ticks only). */
+  readonly pricingSourceTokenId?: string;
+  /** Depth of the winning candidate in USD, 1e18-base (`pool` / `canonical` ticks only). */
   readonly pricingDepthUSD?: bigint;
 }
 
@@ -99,6 +103,7 @@ export function createTokenPriceSnapshot(
     lastUpdatedTimestamp: input.timestamp,
     priceSource: input.priceSource,
     pricingPoolId: input.pricingPoolId,
+    pricingSourceTokenId: input.pricingSourceTokenId,
     pricingDepthUSD: input.pricingDepthUSD,
   };
 }

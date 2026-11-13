@@ -1,6 +1,7 @@
 import { TokenId, toChecksumAddress } from "./Constants";
 
-export interface RebindTarget {
+/** A token on a specific chain: the canonical source of an equivalent asset. */
+export interface CanonicalSource {
   readonly chainId: number;
   readonly address: string;
 }
@@ -623,30 +624,32 @@ const SUPERCHAINS = [
 ] as const;
 
 /**
- * Tokens that may copy their price from another (already-priced) Token entity
- * on a different chain. Each entry declares a canonical `source` and every
- * `target` (chain + address) that mirrors it.
+ * Same-asset equivalences across chains: each entry declares a canonical
+ * `source` (chain + address) and every `target` that is the same asset on
+ * another chain (docs/adr/0004-canonical-cross-chain-price-candidates.md).
  *
- * Under pool-derived pricing (docs/adr/0003-pool-derived-token-prices.md) a
- * rebind is a FALLBACK: the target is priced through its own chain's pools
- * first, and copies the source's stored price only when no local pool
- * qualifies and the source was successfully priced within the 7-day carry
- * window. If neither works, the target carries its last price like any other
- * token. The on-chain oracle is never consulted.
+ * A target is priced by the usual "deepest qualifying candidate wins" rule
+ * over its local pools PLUS one extra candidate: the source token's stored
+ * price, valued at the source token's stored `pricingDepthUSD`. That candidate
+ * only qualifies while the source's last successful price is within
+ * ±`CANONICAL_ALIGNMENT_WINDOW_MS` of the block being processed, so a source
+ * from the future (its chain is ahead in a backfill) is rejected like a stale
+ * one. A thin local pool therefore no longer beats a deep canonical market
+ * just because it scrapes over the depth floor. The source is read, never
+ * refreshed, so the cross-chain read cannot recurse.
  *
- * Two patterns:
- *  - Bridged 1:1 superchain tokens (XVELO across all superchains -> canonical
- *    VELO on Optimism; SuperERC20 mint/burn through Hyperlane preserves parity)
- *  - LST/LRT cross-chain duals (rsETH on Swell -> wrsETH on Base; both are Kelp
- *    wrappers of the same underlying restaked-ETH position; Aerodrome's deep
- *    wrsETH/WETH pool gives a clean Base price)
+ * Patterns:
+ *  - Bridged 1:1 superchain tokens (XVELO on every superchain -> VELO on
+ *    Optimism; SuperERC20 mint/burn through Hyperlane preserves parity)
+ *  - WETH on every leaf chain whose `weth` constant is ETH 1:1 -> Optimism WETH
+ *  - LST/LRT and BTC-wrapper duals (rsETH, SolvBTC, ezETH)
  *
- * The entries were added against bad oracle reads on the target chain; the
- * comments below describe that history.
+ * No source is tier 0 (a pinned token needs no candidate) and no source is
+ * itself a target (both asserted in test/PriceOverrides.test.ts).
  */
-const REBINDS: ReadonlyArray<{
-  source: RebindTarget;
-  targets: ReadonlyArray<RebindTarget>;
+const CANONICAL_SOURCES: ReadonlyArray<{
+  source: CanonicalSource;
+  targets: ReadonlyArray<CanonicalSource>;
 }> = [
   {
     // rsETH on Swell -> wrsETH on Base (Aerodrome wrsETH/WETH pool prices it cleanly)
@@ -689,7 +692,7 @@ const REBINDS: ReadonlyArray<{
     // prices it cleanly (~$2.5K); Swell reports $257 (~10x deflation) and Ink
     // reports $0. Mode prices cleanly locally (~$2.4K) so no rebind needed;
     // Fraxtal/Base ezETH entries are stale (no fresh exposure today).
-    // Source chain is Optimism because CHAIN_ANCHORS only covers OP + Base.
+    // Source chain is Optimism (its ezETH market prices cleanly).
     source: {
       chainId: 10,
       address: toChecksumAddress("0x2416092f143378750bb29b79eD961ab195CcEea5"),
@@ -710,22 +713,32 @@ const REBINDS: ReadonlyArray<{
     ],
   },
   {
-    // Issue #892: WETH on Metal -> WETH on Optimism. Both are the canonical
-    // OP-stack WETH at `0x4200…0006`. Metal's local oracle prices everything
-    // against oUSDT, which reads structurally high (~+28%), inflating Metal WETH
-    // to ~$2,005 vs the ~$1,565 cross-chain consensus. Optimism prices WETH
-    // cleanly; copying it makes WETH a trustworthy hard anchor on Metal for the
-    // directional TVL cap (Piece 1). The broader Metal oUSDT unit inflation is a
-    // separate, sub-10× follow-up.
+    // WETH on every leaf chain whose `weth` constant is canonical ETH 1:1 ->
+    // Optimism WETH. All but Celo are the OP-stack predeploy at `0x4200…0006`;
+    // Celo's `weth` is the native-bridge WETH (`0xD221…`), also ETH 1:1.
+    // Left out: Base (a root deployment with its own deep WETH market, and the
+    // source of other entries), Optimism (the source) and Fraxtal, whose `weth`
+    // (`0xFC00…0006`) is frxETH — Frax's liquid-staking ether, a different asset
+    // that is not redeemable 1:1 on demand.
+    // History: Metal (#892) was the first entry, because its oUSDT-denominated
+    // pools priced WETH ~28% high.
     source: {
       chainId: 10,
       address: toChecksumAddress("0x4200000000000000000000000000000000000006"),
     },
     targets: [
+      ...([1135, 34443, 1868, 130, 57073, 1750, 1923, 5330] as const).map(
+        (chainId) => ({
+          chainId,
+          address: toChecksumAddress(
+            "0x4200000000000000000000000000000000000006",
+          ),
+        }),
+      ),
       {
-        chainId: 1750,
+        chainId: 42220, // Celo
         address: toChecksumAddress(
-          "0x4200000000000000000000000000000000000006",
+          "0xD221812de1BD094f35587EE8E174B07B6167D9Af",
         ),
       },
     ],
@@ -743,14 +756,15 @@ const REBINDS: ReadonlyArray<{
   },
 ];
 
-const PRICE_REBIND: ReadonlyMap<string, RebindTarget> = new Map(
-  REBINDS.flatMap(({ source, targets }) =>
-    targets.map((t): [string, RebindTarget] => [
-      TokenId(t.chainId, t.address),
-      source,
-    ]),
-  ),
-);
+const CANONICAL_SOURCE_BY_TARGET: ReadonlyMap<string, CanonicalSource> =
+  new Map(
+    CANONICAL_SOURCES.flatMap(({ source, targets }) =>
+      targets.map((t): [string, CanonicalSource] => [
+        TokenId(t.chainId, t.address),
+        source,
+      ]),
+    ),
+  );
 
 /**
  * Whether this token's price should be forced to 0, ahead of any pool route.
@@ -762,13 +776,26 @@ export const isBlacklistedToken = (chainId: number, address: string): boolean =>
   BLACKLIST.has(TokenId(chainId, address));
 
 /**
- * Where this token's price may be copied from when no local pool route
- * qualifies, if anywhere.
+ * The canonical source of the same asset on another chain, if one is
+ * configured (see {@link CANONICAL_SOURCES}).
  * @param chainId - Chain the target token lives on
  * @param address - Target token address (EIP-55 checksum-cased)
- * @returns Source {chainId, address} to read the price from, or undefined if no rebind is configured
+ * @returns Source {chainId, address}, or undefined if the token has none
  */
-export const getRebindTarget = (
+export const getCanonicalSource = (
   chainId: number,
   address: string,
-): RebindTarget | undefined => PRICE_REBIND.get(TokenId(chainId, address));
+): CanonicalSource | undefined =>
+  CANONICAL_SOURCE_BY_TARGET.get(TokenId(chainId, address));
+
+/**
+ * Every configured (target, source) pair, for audits and tests.
+ * @returns The flattened equivalence list
+ */
+export const listCanonicalSources = (): ReadonlyArray<{
+  target: CanonicalSource;
+  source: CanonicalSource;
+}> =>
+  CANONICAL_SOURCES.flatMap(({ source, targets }) =>
+    targets.map((target) => ({ target, source })),
+  );

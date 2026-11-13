@@ -4,10 +4,11 @@ import { getTokenDetails, hasContractBytecode } from "./Effects/Index";
 import { getRehydrated } from "./EntityTimestamps";
 import type { handlerContext } from "./EntityTypes";
 import type { Pool } from "./EntityTypes";
-import { getRebindTarget, isBlacklistedToken } from "./PriceOverrides";
+import { getCanonicalSource, isBlacklistedToken } from "./PriceOverrides";
 import { getGateDecisionFromSignals } from "./PriceTrust";
 import {
   type PricingCandidate,
+  buildCanonicalCandidate,
   buildPricingCandidate,
   selectPricingCandidate,
 } from "./Pricing/PoolRoute";
@@ -17,8 +18,6 @@ import {
   isPriceRefreshDue,
 } from "./Pricing/PriceResolution";
 import {
-  MAX_ACCEPTED_PRICE,
-  PRICE_CARRY_WINDOW_MS,
   PRICING_TIER,
   type PricingTier,
   getMinPricingDepthUSD,
@@ -37,19 +36,31 @@ import { setTokenPriceSnapshot } from "./Snapshots/TokenPriceSnapshot";
  * @param chainId - Chain the token lives on
  * @param address - Token address
  * @param createdAt - Creation block time (callers also stamp it as `lastUpdatedTimestamp`)
- * @returns `pricePerUSDNew` and `lastSuccessfulPriceTimestamp` for the new row
+ * @returns `pricePerUSDNew`, `lastSuccessfulPriceTimestamp` and
+ *   `pricingDepthUSD` (always unset at creation) for the new row
  */
 export function initialTokenPriceFields(
   chainId: number,
   address: string,
   createdAt: Date,
-): Pick<Token, "pricePerUSDNew" | "lastSuccessfulPriceTimestamp"> {
+): Pick<
+  Token,
+  "pricePerUSDNew" | "lastSuccessfulPriceTimestamp" | "pricingDepthUSD"
+> {
   const pinned = isBlacklistedToken(chainId, address)
     ? undefined
     : getPinnedPrice(chainId, address);
   return pinned
-    ? { pricePerUSDNew: pinned, lastSuccessfulPriceTimestamp: createdAt }
-    : { pricePerUSDNew: 0n, lastSuccessfulPriceTimestamp: undefined };
+    ? {
+        pricePerUSDNew: pinned,
+        lastSuccessfulPriceTimestamp: createdAt,
+        pricingDepthUSD: undefined,
+      }
+    : {
+        pricePerUSDNew: 0n,
+        lastSuccessfulPriceTimestamp: undefined,
+        pricingDepthUSD: undefined,
+      };
 }
 
 /**
@@ -120,28 +131,35 @@ export async function createTokenEntity(
 
 /**
  * Refreshes a token's USD price from indexed pool state, at most once per
- * token per clock hour (docs/adr/0003-pool-derived-token-prices.md). No RPC is
- * involved: the price comes from pools already in the store.
+ * token per clock hour (docs/adr/0003-pool-derived-token-prices.md,
+ * docs/adr/0004-canonical-cross-chain-price-candidates.md). No RPC is
+ * involved: the price comes from entities already in the store.
  *
  * Resolution order on a due refresh:
  *
  * 1. Operator blacklist (src/PriceOverrides.ts) → 0 (`override`).
  * 2. Tier 0 (destination token / stablecoins) → exactly $1 (`pinned`).
- * 3. Pool route: every pool registered for the token in `TokenPricingPools`
- *    (counterparty in a strictly lower tier) offers a candidate price =
- *    pool ratio × counterparty USD price. Each counterparty is refreshed first
- *    when it is itself due, so the token is never priced off a stale
- *    counterparty; the tier rule bounds that recursion at three levels. The
- *    deepest candidate passing the depth floor, the 1000× imbalance bound and
- *    the $1M ceiling wins (`pool`).
- * 4. Cross-chain rebind (e.g. XVELO on leaf chains → Optimism VELO): when no
- *    local pool qualifies, copy the source token's stored price if it is
- *    positive and was successfully set within the carry window (`rebind`).
- * 5. Nothing qualified: carry the last price while its last success is under
+ * 3. Candidates, deepest qualifying one wins:
+ *    - every pool registered for the token in `TokenPricingPools`
+ *      (counterparty in a strictly lower tier) offers pool ratio ×
+ *      counterparty USD price, at the counterparty-side depth. Each
+ *      counterparty is refreshed first when it is itself due, so the token is
+ *      never priced off a stale counterparty; the tier rule bounds that
+ *      recursion at three levels;
+ *    - a token with a canonical source on another chain (src/PriceOverrides.ts:
+ *      WETH on ETH-equivalent leaf chains → Optimism WETH, XVELO → Optimism
+ *      VELO, …) also gets that source's stored price at its stored
+ *      `pricingDepthUSD`, if the source's last success is within ±2 h of this
+ *      block. The source is read, never refreshed, so this cannot recurse.
+ *    A candidate must pass the chain's depth floor, the 1000× imbalance bound
+ *    and the $1M ceiling (`pool` / `canonical`).
+ * 4. Nothing qualified: carry the last price while its last success is under
  *    7 days old (`carried`), else 0 (`unpriced`).
  *
  * Two clocks (#694): `lastUpdatedTimestamp` advances on every due refresh
- * (it is the throttle); `lastSuccessfulPriceTimestamp` only on steps 2–4.
+ * (it is the throttle); `lastSuccessfulPriceTimestamp` only on steps 2–3.
+ * `pricingDepthUSD` stores the winning depth so this token can serve as a
+ * canonical source elsewhere.
  * Every due refresh writes exactly one TokenPriceSnapshot, keyed by the clock
  * hour; a throttled call writes nothing.
  *
@@ -197,6 +215,7 @@ export async function refreshTokenPrice(
       isWhitelisted: applied.token.isWhitelisted,
       priceSource: applied.priceSource,
       pricingPoolId: applied.pricingPoolId,
+      pricingSourceTokenId: applied.pricingSourceTokenId,
       pricingDepthUSD: applied.pricingDepthUSD,
     },
     context,
@@ -205,7 +224,7 @@ export async function refreshTokenPrice(
 }
 
 /**
- * Decides how a due refresh prices `token` (steps 1–4 of
+ * Decides how a due refresh prices `token` (steps 1–3 of
  * {@link refreshTokenPrice}); carry / expiry is applied afterwards by
  * `applyPriceResolution`.
  *
@@ -232,41 +251,38 @@ async function resolveTokenPrice(
     return { kind: "pinned" };
   }
 
-  const best = await findPoolRoute(
-    token,
-    tier,
-    blockNumber,
-    blockTimestamp,
-    chainId,
-    context,
+  const [poolCandidates, canonicalCandidate] = await Promise.all([
+    findPoolCandidates(
+      token,
+      tier,
+      blockNumber,
+      blockTimestamp,
+      chainId,
+      context,
+    ),
+    findCanonicalCandidate(token, chainId, blockTimestamp * 1000, context),
+  ]);
+  // Pools first, so a depth tie keeps the local route.
+  const best = selectPricingCandidate(
+    canonicalCandidate
+      ? [...poolCandidates, canonicalCandidate]
+      : poolCandidates,
+    getMinPricingDepthUSD(chainId),
   );
-  if (best) {
-    return {
-      kind: "pool",
-      priceUSD: best.priceUSD,
-      poolId: best.poolId,
-      depthUSD: best.depthUSD,
-    };
-  }
-
-  const rebindPrice = await findRebindPrice(
-    token,
-    chainId,
-    blockTimestamp * 1000,
-    context,
-  );
-  if (rebindPrice !== undefined) {
-    return { kind: "rebind", priceUSD: rebindPrice };
-  }
-
-  return { kind: "none" };
+  if (!best) return { kind: "none" };
+  return {
+    kind: best.kind,
+    priceUSD: best.priceUSD,
+    sourceId: best.sourceId,
+    depthUSD: best.depthUSD,
+  };
 }
 
 /**
  * Loads the token's registered pricing pools and their counterparties,
- * refreshes each counterparty that is due, and selects the deepest qualifying
- * candidate. Reads are issued together with `Promise.all` so Envio's preload
- * pass batches them.
+ * refreshes each counterparty that is due, and builds one candidate per pool.
+ * Reads are issued together with `Promise.all` so Envio's preload pass batches
+ * them.
  *
  * Counterparties are re-checked against the tier rule here as well as at
  * registration, so even a stale or hand-edited `TokenPricingPools` row cannot
@@ -278,19 +294,19 @@ async function resolveTokenPrice(
  * @param blockTimestamp - Block timestamp in seconds
  * @param chainId - Chain the token lives on
  * @param context - Envio handler context
- * @returns The winning candidate, or `undefined` when none qualifies
+ * @returns One candidate per usable pool (selection happens in the caller)
  */
-async function findPoolRoute(
+async function findPoolCandidates(
   token: Token,
   tier: PricingTier,
   blockNumber: number,
   blockTimestamp: number,
   chainId: number,
   context: handlerContext,
-): Promise<PricingCandidate | undefined> {
+): Promise<PricingCandidate[]> {
   const registered = await context.TokenPricingPools.get(token.id);
   const poolIds = registered?.pools ?? [];
-  if (poolIds.length === 0) return undefined;
+  if (poolIds.length === 0) return [];
 
   const pools = (
     await Promise.all(
@@ -330,47 +346,37 @@ async function findPoolRoute(
     const candidate = buildPricingCandidate(pool, token, counterparty);
     if (candidate) candidates.push(candidate);
   }
-  return selectPricingCandidate(candidates, getMinPricingDepthUSD(chainId));
+  return candidates;
 }
 
 /**
- * Cross-chain rebind fallback (src/PriceOverrides.ts `REBINDS`): the source
- * token's stored price, when it is positive, within the absolute ceiling, and
- * was last successfully set within the carry window of this block. The source
- * is never refreshed from here (its chain has its own block clock) and the
- * on-chain oracle is never consulted.
+ * The canonical cross-chain candidate (src/PriceOverrides.ts): the same asset's
+ * stored price on its canonical chain, valued at that token's stored
+ * `pricingDepthUSD`, when its last success is time-aligned with this block
+ * (see `buildCanonicalCandidate`). The source is never refreshed from here —
+ * its chain has its own block clock — so the cross-chain read cannot recurse.
  *
  * @param token - The token being priced
  * @param chainId - Chain the token lives on
  * @param blockTimestampMs - Current block timestamp in milliseconds
  * @param context - Envio handler context
- * @returns The source price, or `undefined` when there is no rebind or the
- *   source has no usable price
+ * @returns The candidate, or `undefined` when the token has no canonical
+ *   source or the source is missing, unpriced or misaligned
  */
-async function findRebindPrice(
+async function findCanonicalCandidate(
   token: Token,
   chainId: number,
   blockTimestampMs: number,
   context: handlerContext,
-): Promise<bigint | undefined> {
-  const target = getRebindTarget(chainId, token.address);
-  if (!target) return undefined;
-  const source = await getRehydrated(
+): Promise<PricingCandidate | undefined> {
+  const source = getCanonicalSource(chainId, token.address);
+  if (!source) return undefined;
+  const sourceToken = await getRehydrated(
     context.Token,
     "Token",
-    TokenId(target.chainId, target.address),
+    TokenId(source.chainId, source.address),
   );
-  const lastSuccess = source?.lastSuccessfulPriceTimestamp;
-  if (
-    !source ||
-    source.pricePerUSDNew <= 0n ||
-    source.pricePerUSDNew > MAX_ACCEPTED_PRICE ||
-    !lastSuccess ||
-    blockTimestampMs - lastSuccess.getTime() >= PRICE_CARRY_WINDOW_MS
-  ) {
-    return undefined;
-  }
-  return source.pricePerUSDNew;
+  return buildCanonicalCandidate(sourceToken, blockTimestampMs);
 }
 
 /**

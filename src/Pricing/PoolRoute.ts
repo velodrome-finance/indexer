@@ -4,23 +4,29 @@ import type { handlerContext } from "../EntityTypes";
 import type { Pool } from "../EntityTypes";
 import { poolSpotPrice0 } from "../PoolPriceRatio";
 import {
+  CANONICAL_ALIGNMENT_WINDOW_MS,
   MAX_ACCEPTED_PRICE,
   MAX_PRICING_POOL_VALUE_IMBALANCE,
   getPricingTier,
 } from "./PricingConfig";
 
 /**
- * One pool's offer to price a target token T through its counterparty C.
- * All values are USD in 1e18-base.
+ * One offer to price a target token T. All values are USD in 1e18-base.
+ *
+ * - `pool`: a local pool pricing T through its counterparty C.
+ * - `canonical`: the same asset's stored price on its canonical chain
+ *   (src/PriceOverrides.ts), valued at that token's stored depth.
  */
 export interface PricingCandidate {
-  /** Pool id (`{chainId}-{poolAddress}`) the candidate comes from. */
-  readonly poolId: string;
-  /** T's USD price implied by this pool: pool ratio (T in C) × C's USD price. 0n ⇒ not derivable. */
+  /** Where the offer comes from. */
+  readonly kind: "pool" | "canonical";
+  /** Pool id (`{chainId}-{poolAddress}`) for `pool`; source token id (`{chainId}-{address}`) for `canonical`. */
+  readonly sourceId: string;
+  /** T's USD price: pool ratio (T in C) × C's USD price, or the source's stored price. 0n ⇒ not derivable. */
   readonly priceUSD: bigint;
-  /** Counterparty-side reserve valued at C's USD price — the pool's verifiable depth. */
+  /** Verifiable depth: C's reserve valued at C's price, or the source's stored `pricingDepthUSD`. */
   readonly depthUSD: bigint;
-  /** T-side reserve valued at the candidate price — what the pool claims T's side is worth. */
+  /** T-side reserve valued at the candidate price (0n for `canonical`, which has no local reserve). */
   readonly targetSideUSD: bigint;
 }
 
@@ -76,7 +82,13 @@ export function buildPricingCandidate(
 
   const spot0 = poolSpotPrice0(pool, decimals0, decimals1);
   if (!spot0 || counterpartyPrice <= 0n) {
-    return { poolId: pool.id, priceUSD: 0n, depthUSD, targetSideUSD: 0n };
+    return {
+      kind: "pool",
+      sourceId: pool.id,
+      priceUSD: 0n,
+      depthUSD,
+      targetSideUSD: 0n,
+    };
   }
   // Price of T in C units: token0-in-token1 when T is token0, its reciprocal otherwise.
   const [num, den] = targetIsToken0
@@ -88,7 +100,83 @@ export function buildPricingCandidate(
       ? (targetReserve * priceUSD) / 10n ** target.decimals
       : 0n;
 
-  return { poolId: pool.id, priceUSD, depthUSD, targetSideUSD };
+  return {
+    kind: "pool",
+    sourceId: pool.id,
+    priceUSD,
+    depthUSD,
+    targetSideUSD,
+  };
+}
+
+/**
+ * Whether a canonical source's price is time-aligned with the block being
+ * priced: its last successful price lies within
+ * {@link CANONICAL_ALIGNMENT_WINDOW_MS} either side of `blockTimestampMs`.
+ * Both directions matter: during a backfill the source chain can be far
+ * behind (a stale price) or far ahead (a price from the future).
+ *
+ * @param lastSuccessfulPriceTimestamp - The source token's last successful price time
+ * @param blockTimestampMs - Timestamp of the block being priced, in milliseconds
+ * @returns true when the source may be used for this block
+ */
+export function isCanonicalSourceAligned(
+  lastSuccessfulPriceTimestamp: Date | undefined,
+  blockTimestampMs: number,
+): boolean {
+  if (!lastSuccessfulPriceTimestamp) return false;
+  const skew = blockTimestampMs - lastSuccessfulPriceTimestamp.getTime();
+  return (
+    skew <= CANONICAL_ALIGNMENT_WINDOW_MS &&
+    skew >= -CANONICAL_ALIGNMENT_WINDOW_MS
+  );
+}
+
+/**
+ * Builds the candidate a canonical cross-chain source offers: its stored price
+ * at its stored `pricingDepthUSD`. It then competes in
+ * {@link selectPricingCandidate} with the target's local pools under the same
+ * floor and ceiling (the imbalance bound is vacuous: there is no local
+ * reserve). A source with no recorded depth gets depth 0, so it never clears
+ * the floor.
+ *
+ * Pure: no reads, no writes. The source is read by the caller and never
+ * refreshed, so this cannot recurse across chains.
+ *
+ * @param source - The canonical source token as stored on its own chain
+ * @param blockTimestampMs - Timestamp of the block being priced, in milliseconds
+ * @returns The candidate, or `undefined` when the source is missing, unpriced
+ *   or not time-aligned with this block
+ */
+export function buildCanonicalCandidate(
+  source:
+    | Pick<
+        Token,
+        | "id"
+        | "pricePerUSDNew"
+        | "pricingDepthUSD"
+        | "lastSuccessfulPriceTimestamp"
+      >
+    | undefined,
+  blockTimestampMs: number,
+): PricingCandidate | undefined {
+  if (
+    !source ||
+    source.pricePerUSDNew <= 0n ||
+    !isCanonicalSourceAligned(
+      source.lastSuccessfulPriceTimestamp,
+      blockTimestampMs,
+    )
+  ) {
+    return undefined;
+  }
+  return {
+    kind: "canonical",
+    sourceId: source.id,
+    priceUSD: source.pricePerUSDNew,
+    depthUSD: source.pricingDepthUSD ?? 0n,
+    targetSideUSD: 0n,
+  };
 }
 
 /**
@@ -114,14 +202,16 @@ export function isQualifyingCandidate(
 }
 
 /**
- * Picks the pool that sets a token's price: the deepest qualifying candidate
+ * Picks the candidate that sets a token's price: the deepest qualifying one
  * (see {@link isQualifyingCandidate}), as in the Uniswap v4 indexer's
- * `findNativePerToken`. Ties keep the earlier candidate, so the result is
- * deterministic in pool-registration order.
+ * `findNativePerToken`. Local pools and a canonical cross-chain source compete
+ * on the same depth scale. Ties keep the earlier candidate, so the result is
+ * deterministic in input order (callers list pools first, in registration
+ * order, then the canonical source).
  *
  * Pure: easy to unit test.
  *
- * @param candidates - Candidates from every registered pricing pool
+ * @param candidates - Candidates from every registered pricing pool, plus the canonical source
  * @param minDepthUSD - The chain's minimum counterparty depth (1e18-base USD)
  * @returns The winning candidate, or `undefined` when none qualifies
  */

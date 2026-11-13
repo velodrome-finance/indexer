@@ -64,6 +64,16 @@ export const PRICE_CARRY_WINDOW_MS = 7 * 24 * MS_IN_AN_HOUR;
 export const PRICE_REFRESH_INTERVAL_MS = MS_IN_AN_HOUR;
 
 /**
+ * A canonical cross-chain source (src/PriceOverrides.ts) is only a candidate
+ * while its last successful price is within this window either side of the
+ * block being priced. Chains are not processed in time order during a
+ * backfill, so the source chain may be months ahead or behind; a price from
+ * the future is rejected like a stale one. Two hours covers the source's own
+ * hourly cadence plus an hour of slack.
+ */
+export const CANONICAL_ALIGNMENT_WINDOW_MS = 2 * MS_IN_AN_HOUR;
+
+/**
  * Default minimum counterparty-side depth (USD, 1e18-base) for a pool to set a
  * price. $1,000 matches the repo's existing thin-pool guard for the #892 TVL
  * cap (`TVL_CAP_ANCHOR_FLOOR_USD`), which separated live poison from drained

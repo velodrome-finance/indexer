@@ -40,6 +40,7 @@ describe("CLFactoryPoolCreatedLogic", () => {
         isWhitelisted: false,
         lastUpdatedTimestamp: new Date(1000000 * 1000),
         lastSuccessfulPriceTimestamp: undefined,
+        pricingDepthUSD: undefined,
         priceTrustOutcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
         priceTrustReason: PRICE_TRUST_REASON.NON_WL,
       }),

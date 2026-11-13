@@ -368,7 +368,8 @@ type Token {
   decimals: BigInt! @config(precision: 76) # number of decimals
   pricePerUSDNew: BigInt! @config(precision: 76) # price of token per USD
   lastUpdatedTimestamp: Timestamp! # timestamp of last price refresh attempt (drives the once-per-clock-hour throttle; see src/PriceOracle.ts)
-  lastSuccessfulPriceTimestamp: Timestamp # timestamp of last successful price (pinned / pool route / rebind); drives the 7-day carry window (#694, docs/adr/0003)
+  lastSuccessfulPriceTimestamp: Timestamp # timestamp of last successful price (pinned / pool route / canonical source); drives the 7-day carry window (#694, docs/adr/0003)
+  pricingDepthUSD: BigInt @config(precision: 76) # USD depth (1e18-base) behind pricePerUSDNew: the counterparty-side reserve of the pool that priced it, or the canonical source's own depth; kept while carried, unset when pinned / unpriced / overridden. Lets a cross-chain canonical source be compared with local pools (docs/adr/0004)
   isWhitelisted: Boolean! # whether the token is whitelisted
 
   # Price-trust gate per-token decision surface (issue #755 slice 2). Populated
@@ -403,17 +404,19 @@ type TokenPriceSnapshot @storage(postgres: false, clickhouse: true) {
   lastUpdatedTimestamp: Timestamp! @index # Timestamp of the last update
   # Provenance of pricePerUSDNew for this tick (ADR 0003): `pinned` (stablecoin /
   # destination token at exactly $1), `pool` (derived from the deepest qualifying
-  # pool; see pricingPoolId / pricingDepthUSD), `rebind` (copied from the
-  # configured cross-chain source token's stored price), `override` (operator
+  # pool; see pricingPoolId / pricingDepthUSD), `canonical` (the same asset's
+  # price on its canonical chain won the depth comparison; see
+  # pricingSourceTokenId / pricingDepthUSD, ADR 0004), `override` (operator
   # blacklist -> 0), `carried` (no route qualified; prior price kept, last
   # success < 7 days ago) or `unpriced` (no route qualified and nothing fresh to
-  # carry -> 0). Rows written before ADR 0003 carry the oracle-era tags `fresh` /
-  # `pool-implied`, or no tag at all.
+  # carry -> 0). Earlier rows may carry `rebind` (ADR 0003 fallback copy) or the
+  # oracle-era tags `fresh` / `pool-implied`, or no tag at all.
   # Stored as String (not an enum) so the set can extend without an Envio schema
   # migration; the value set is pinned by PRICE_SOURCE in src/Snapshots/TokenPriceSnapshot.ts.
   priceSource: String
   pricingPoolId: String # Pool id ({chainId}-{poolAddress}) the price was derived through; set only when priceSource = `pool`
-  pricingDepthUSD: BigInt @config(precision: 76) # Counterparty-side reserve of pricingPoolId valued in USD (1e18-base) at refresh time; set only when priceSource = `pool`
+  pricingDepthUSD: BigInt @config(precision: 76) # USD depth (1e18-base) of the winning candidate: pricingPoolId's counterparty-side reserve, or the canonical source token's stored depth; set only when priceSource = `pool` or `canonical`
+  pricingSourceTokenId: String # Token id ({chainId}-{address}) of the canonical source whose stored price was used; set only when priceSource = `canonical`
 }
 
 # Per-token list of pools the token can be priced through (ADR 0003). A pool is

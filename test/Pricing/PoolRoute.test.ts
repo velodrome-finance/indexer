@@ -1,8 +1,10 @@
 import { PoolId, TokenId, toChecksumAddress } from "../../src/Constants";
 import {
   type PricingCandidate,
+  buildCanonicalCandidate,
   buildPricingCandidate,
   getPricingPoolTargets,
+  isCanonicalSourceAligned,
   isQualifyingCandidate,
   registerPricingPool,
   selectPricingCandidate,
@@ -110,7 +112,8 @@ describe("PoolRoute", () => {
       });
       const staleWeth = { ...weth, pricePerUSDNew: 0n };
       expect(buildPricingCandidate(pool, staleWeth, usdc)).toEqual({
-        poolId: pool.id,
+        kind: "pool",
+        sourceId: pool.id,
         priceUSD: USD(2_500),
         depthUSD: USD(1_000_000),
         targetSideUSD: USD(1_000_000),
@@ -137,7 +140,8 @@ describe("PoolRoute", () => {
       });
       const wbtc = makeToken(OP, OP_WBTC, 8n, 0n, HOUR_START_S);
       expect(buildPricingCandidate(pool, wbtc, usdc)).toEqual({
-        poolId: pool.id,
+        kind: "pool",
+        sourceId: pool.id,
         priceUSD: USD(100_000),
         depthUSD: USD(1_000_000),
         targetSideUSD: USD(1_000_000),
@@ -152,7 +156,8 @@ describe("PoolRoute", () => {
       });
       const zeroDec = makeToken(OP, OP_TOKEN_ZERO_DEC, 0n, 0n, HOUR_START_S);
       expect(buildPricingCandidate(pool, zeroDec, usdc)).toEqual({
-        poolId: pool.id,
+        kind: "pool",
+        sourceId: pool.id,
         priceUSD: USD(2),
         depthUSD: USD(1_000),
         targetSideUSD: USD(1_000),
@@ -234,11 +239,17 @@ describe("PoolRoute", () => {
   describe("selectPricingCandidate", () => {
     const floor = USD(1_000);
     const candidate = (
-      poolId: string,
+      sourceId: string,
       priceUSD: bigint,
       depthUSD: bigint,
       targetSideUSD = depthUSD,
-    ): PricingCandidate => ({ poolId, priceUSD, depthUSD, targetSideUSD });
+    ): PricingCandidate => ({
+      kind: "pool",
+      sourceId,
+      priceUSD,
+      depthUSD,
+      targetSideUSD,
+    });
 
     it("takes the deepest qualifying candidate", () => {
       const picked = selectPricingCandidate(
@@ -249,7 +260,7 @@ describe("PoolRoute", () => {
         ],
         floor,
       );
-      expect(picked?.poolId).toBe("deep");
+      expect(picked?.sourceId).toBe("deep");
     });
 
     it("keeps the first candidate on a depth tie", () => {
@@ -260,7 +271,7 @@ describe("PoolRoute", () => {
         ],
         floor,
       );
-      expect(picked?.poolId).toBe("first");
+      expect(picked?.sourceId).toBe("first");
     });
 
     it("enforces the depth floor (at the floor qualifies, just below does not)", () => {
@@ -301,7 +312,7 @@ describe("PoolRoute", () => {
         ],
         floor,
       );
-      expect(picked?.poolId).toBe("honest");
+      expect(picked?.sourceId).toBe("honest");
     });
 
     it("rejects unpriced and above-ceiling candidates", () => {
@@ -324,6 +335,97 @@ describe("PoolRoute", () => {
 
     it("returns undefined for no candidates", () => {
       expect(selectPricingCandidate([], floor)).toBeUndefined();
+    });
+  });
+  describe("canonical cross-chain candidate (ADR 0004)", () => {
+    const blockMs = (HOUR_START_S + 600) * 1000;
+    const HOUR_MS = 3_600_000;
+    const source = (lastSuccessMs: number, depth: bigint | undefined) =>
+      makeToken(OP, OP_WETH, 18n, USD(2_500), 0, {
+        pricingDepthUSD: depth,
+        lastSuccessfulPriceTimestamp: new Date(lastSuccessMs),
+      });
+
+    it("offers the source's stored price at its stored depth", () => {
+      expect(
+        buildCanonicalCandidate(
+          source(blockMs - HOUR_MS, USD(9_000_000)),
+          blockMs,
+        ),
+      ).toEqual({
+        kind: "canonical",
+        sourceId: TokenId(OP, OP_WETH),
+        priceUSD: USD(2_500),
+        depthUSD: USD(9_000_000),
+        targetSideUSD: 0n,
+      });
+    });
+
+    it("is aligned within ±2h of the block, inclusive", () => {
+      for (const skew of [0, 2 * HOUR_MS, -2 * HOUR_MS, 90 * 60_000]) {
+        expect(
+          isCanonicalSourceAligned(new Date(blockMs - skew), blockMs),
+        ).toBe(true);
+      }
+    });
+
+    it("rejects a stale source (behind) and a source from the future (ahead)", () => {
+      expect(
+        isCanonicalSourceAligned(new Date(blockMs - 2 * HOUR_MS - 1), blockMs),
+      ).toBe(false);
+      expect(
+        isCanonicalSourceAligned(new Date(blockMs + 2 * HOUR_MS + 1), blockMs),
+      ).toBe(false);
+      expect(
+        buildCanonicalCandidate(
+          source(blockMs + 90 * 24 * HOUR_MS, USD(9_000_000)),
+          blockMs,
+        ),
+      ).toBeUndefined();
+      expect(isCanonicalSourceAligned(undefined, blockMs)).toBe(false);
+    });
+
+    it("rejects a missing or unpriced source", () => {
+      expect(buildCanonicalCandidate(undefined, blockMs)).toBeUndefined();
+      expect(
+        buildCanonicalCandidate(
+          { ...source(blockMs, USD(9_000_000)), pricePerUSDNew: 0n },
+          blockMs,
+        ),
+      ).toBeUndefined();
+    });
+
+    it("a source with no recorded depth has depth 0 and never clears the floor", () => {
+      const candidate = buildCanonicalCandidate(
+        source(blockMs, undefined),
+        blockMs,
+      );
+      expect(candidate?.depthUSD).toBe(0n);
+      expect(
+        selectPricingCandidate(candidate ? [candidate] : [], USD(1_000)),
+      ).toBeUndefined();
+    });
+
+    it("competes with local pools on depth", () => {
+      const canonical = buildCanonicalCandidate(
+        source(blockMs, USD(9_000_000)),
+        blockMs,
+      );
+      if (!canonical) throw new Error("expected a canonical candidate");
+      const thinLocal: PricingCandidate = {
+        kind: "pool",
+        sourceId: "1135-0xThin",
+        priceUSD: USD(2_300),
+        depthUSD: USD(1_300),
+        targetSideUSD: USD(1_300),
+      };
+      const deepLocal = { ...thinLocal, depthUSD: USD(20_000_000) };
+      expect(
+        selectPricingCandidate([thinLocal, canonical], USD(1_000))?.kind,
+      ).toBe("canonical");
+      expect(
+        selectPricingCandidate([deepLocal, canonical], USD(1_000))?.kind,
+      ).toBe("pool");
     });
   });
 });

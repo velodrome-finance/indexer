@@ -153,6 +153,7 @@ describe("GaugeSharedLogic", () => {
       pricePerUSDNew: 1000000000000000000n, // 1 USD in 18 decimals
       lastUpdatedTimestamp: mockTimestamp,
       lastSuccessfulPriceTimestamp: mockTimestamp,
+      pricingDepthUSD: undefined,
       isWhitelisted: true,
       priceTrustOutcome: PRICE_TRUST_OUTCOME.TRUSTED,
       priceTrustReason: PRICE_TRUST_REASON.WL,

@@ -190,9 +190,10 @@ query TokenPrice {
   ) {
     lastUpdatedTimestamp
     pricePerUSDNew
-    priceSource            # pinned / pool / rebind = freshly priced this hour
+    priceSource            # pinned / pool / canonical = freshly priced this hour
     pricingPoolId          # pool the price came through (priceSource = pool)
-    pricingDepthUSD        # that pool's counterparty depth, ÷ 1e18 → USD
+    pricingSourceTokenId   # cross-chain source token (priceSource = canonical)
+    pricingDepthUSD        # depth of the winning candidate, ÷ 1e18 → USD
   }
 }
 ```
@@ -320,7 +321,7 @@ The following are non-obvious properties of the data rather than defects.
   leaf chains that never whitelisted tokens on-chain (e.g. **Mode**, **Swell**)
   and on WETH-paired pools on **Soneium**/**Metal** — connector legs count even
   when `isWhitelisted` is `false`. On `TokenPriceSnapshot`, filter `priceSource`
-  to `pinned`, `pool`, or `rebind` (or `pricePerUSDNew > 0`) to exclude
+  to `pinned`, `pool`, or `canonical` (or `pricePerUSDNew > 0`) to exclude
   carried and zeroed ticks. There is at most one snapshot per token per clock
   hour.
 - **Token prices come from indexed pool state, not an on-chain oracle.** Each

@@ -1,6 +1,6 @@
 # ADR 0003: Derive token prices from indexed pool state
 
-- **Status:** Accepted (2026-11-13)
+- **Status:** Accepted (2026-11-13); the rebind fallback is superseded by ADR 0004 (canonical sources compete on depth)
 
 ## Context
 

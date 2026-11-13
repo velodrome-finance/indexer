@@ -419,58 +419,183 @@ describe("PriceOracle", () => {
       });
     });
 
-    describe("cross-chain rebind (XVELO on Lisk → Optimism VELO)", () => {
-      const P_XVELO_USDT = addr(0xb1);
-      const opVelo = (price: bigint, at: number) =>
-        makeToken(OP, OP_VELO, 18n, price, at);
+    describe("canonical cross-chain candidate (ADR 0004)", () => {
+      // Lisk WETH (0x4200…0006) has Optimism WETH as its canonical source.
+      const LISK_WETH = OP_WETH;
+      const P_WETH_USDT = addr(0xb1);
+      const P_XVELO_WETH = addr(0xb2);
+      const OP_DEPTH = USD(9_000_000);
 
-      function liskStore(opts: { localPool: boolean; veloAt?: number }) {
-        // token0 = USDT (0x05D0…), token1 = XVELO (0x7f9A…): $20K vs 160K → $0.125.
-        const pool = makePool(LISK, P_XVELO_USDT, LISK_USDT, XVELO, {
-          reserve0: 20_000n * 10n ** 6n,
-          reserve1: 160_000n * E18,
+      /** Lisk USDT/WETH: token0 = USDT (0x05D0…), token1 = WETH (0x4200…). */
+      const liskWethPool = (usdt: bigint, weth: bigint) =>
+        makePool(LISK, P_WETH_USDT, LISK_USDT, LISK_WETH, {
+          reserve0: usdt,
+          reserve1: weth,
         });
+      /** $1,300 of USDT vs 0.5 WETH → $2,600 per WETH, just over the $1K floor. */
+      const thinPool = () => liskWethPool(1_300n * 10n ** 6n, E18 / 2n);
+      /** $500 of USDT vs 0.2 WETH → $2,500, below the floor. */
+      const subFloorPool = () => liskWethPool(500n * 10n ** 6n, E18 / 5n);
+
+      function liskStore(opts: {
+        pool?: ReturnType<typeof makePool>;
+        sourceAt: number;
+        sourceDepth?: bigint;
+        extraTokens?: Token[];
+        extraPools?: ReturnType<typeof makePool>[];
+        extraPricingPools?: Record<string, string[]>;
+      }) {
         return createPricingStore({
           tokens: [
             makeToken(LISK, LISK_USDT, 6n, USD(1), STALE),
-            makeToken(LISK, XVELO, 18n, USD(1) / 20n, NOW - 2 * DAY_S),
-            opVelo(E18 / 10n, opts.veloAt ?? NOW - HOUR_S),
+            makeToken(LISK, LISK_WETH, 18n, USD(2_000), NOW - 2 * DAY_S),
+            makeToken(OP, OP_WETH, 18n, USD(2_500), opts.sourceAt, {
+              pricingDepthUSD: opts.sourceDepth,
+            }),
+            ...(opts.extraTokens ?? []),
           ],
-          pools: [pool],
-          pricingPools: opts.localPool
-            ? { [TokenId(LISK, XVELO)]: [PoolId(LISK, P_XVELO_USDT)] }
-            : {},
+          pools: [
+            ...(opts.pool ? [opts.pool] : []),
+            ...(opts.extraPools ?? []),
+          ],
+          pricingPools: {
+            ...(opts.pool
+              ? { [TokenId(LISK, LISK_WETH)]: [PoolId(LISK, P_WETH_USDT)] }
+              : {}),
+            ...opts.extraPricingPools,
+          },
         });
       }
 
-      it("prefers a qualifying local pool route", async () => {
-        const store = liskStore({ localPool: true });
-        const xvelo = await refresh(store, LISK, XVELO);
-        expect(xvelo.pricePerUSDNew).toBe(E18 / 8n);
-        expect(store.snapshots.at(-1)).toMatchObject({
-          priceSource: "pool",
-          pricingPoolId: PoolId(LISK, P_XVELO_USDT),
+      it("canonical wins over a thin local pool when deeper and time-aligned", async () => {
+        const store = liskStore({
+          pool: thinPool(),
+          sourceAt: NOW - 30 * 60,
+          sourceDepth: OP_DEPTH,
         });
-      });
-
-      it("falls back to the source token's stored price", async () => {
-        const store = liskStore({ localPool: false });
-        const xvelo = await refresh(store, LISK, XVELO);
-        expect(xvelo.pricePerUSDNew).toBe(E18 / 10n);
-        expect(xvelo.lastSuccessfulPriceTimestamp).toEqual(
-          new Date(NOW * 1000),
-        );
-        expect(store.snapshots.at(-1)?.priceSource).toBe("rebind");
+        const weth = await refresh(store, LISK, LISK_WETH);
+        expect(weth.pricePerUSDNew).toBe(USD(2_500));
+        expect(weth.pricingDepthUSD).toBe(OP_DEPTH);
+        expect(weth.lastSuccessfulPriceTimestamp).toEqual(new Date(NOW * 1000));
+        expect(store.snapshots.at(-1)).toMatchObject({
+          address: LISK_WETH,
+          chainId: LISK,
+          priceSource: "canonical",
+          pricingSourceTokenId: TokenId(OP, OP_WETH),
+          pricingDepthUSD: OP_DEPTH,
+          pricingPoolId: undefined,
+        });
         // The source is read, never refreshed from the target chain.
-        expect(snapshotsFor(store, OP_VELO)).toHaveLength(0);
+        expect(store.snapshots.some((s) => s.chainId === OP)).toBe(false);
         expect(store.effectCalls).toEqual([]);
       });
 
-      it("carries instead of copying a source whose last success is 7+ days old", async () => {
-        const store = liskStore({ localPool: false, veloAt: NOW - 8 * DAY_S });
+      it.each([
+        ["behind (stale)", NOW - 3 * HOUR_S],
+        ["ahead (from the future)", NOW + 3 * HOUR_S],
+        ["months ahead in a backfill", NOW + 90 * DAY_S],
+      ])(
+        "local wins when the canonical source is misaligned: %s",
+        async (_, at) => {
+          const store = liskStore({
+            pool: thinPool(),
+            sourceAt: at,
+            sourceDepth: OP_DEPTH,
+          });
+          const weth = await refresh(store, LISK, LISK_WETH);
+          expect(weth.pricePerUSDNew).toBe(USD(2_600));
+          expect(weth.pricingDepthUSD).toBe(USD(1_300));
+          expect(store.snapshots.at(-1)).toMatchObject({
+            priceSource: "pool",
+            pricingPoolId: PoolId(LISK, P_WETH_USDT),
+            pricingSourceTokenId: undefined,
+          });
+        },
+      );
+
+      it("local wins when it is deeper than the canonical source", async () => {
+        const store = liskStore({
+          pool: liskWethPool(20_000_000n * 10n ** 6n, 8_000n * E18),
+          sourceAt: NOW - 30 * 60,
+          sourceDepth: OP_DEPTH,
+        });
+        const weth = await refresh(store, LISK, LISK_WETH);
+        expect(weth.pricePerUSDNew).toBe(USD(2_500));
+        expect(store.snapshots.at(-1)?.priceSource).toBe("pool");
+      });
+
+      it("uses the canonical source when no local pool clears the floor", async () => {
+        const store = liskStore({
+          pool: subFloorPool(),
+          sourceAt: NOW - 30 * 60,
+          sourceDepth: OP_DEPTH,
+        });
+        const weth = await refresh(store, LISK, LISK_WETH);
+        expect(weth.pricePerUSDNew).toBe(USD(2_500));
+        expect(store.snapshots.at(-1)?.priceSource).toBe("canonical");
+      });
+
+      it("a source with no recorded depth never qualifies (local pool or carry instead)", async () => {
+        const withPool = liskStore({ pool: thinPool(), sourceAt: NOW - 60 });
+        expect((await refresh(withPool, LISK, LISK_WETH)).pricePerUSDNew).toBe(
+          USD(2_600),
+        );
+        expect(withPool.snapshots.at(-1)?.priceSource).toBe("pool");
+
+        const noPool = liskStore({ sourceAt: NOW - 60 });
+        const weth = await refresh(noPool, LISK, LISK_WETH);
+        expect(weth.pricePerUSDNew).toBe(USD(2_000));
+        expect(noPool.snapshots.at(-1)?.priceSource).toBe("carried");
+      });
+
+      it("XVELO still binds to Optimism VELO", async () => {
+        const store = createPricingStore({
+          tokens: [
+            makeToken(LISK, XVELO, 18n, USD(1) / 20n, NOW - 2 * DAY_S),
+            makeToken(OP, OP_VELO, 18n, E18 / 10n, NOW - HOUR_S, {
+              pricingDepthUSD: USD(250_000),
+            }),
+          ],
+        });
         const xvelo = await refresh(store, LISK, XVELO);
-        expect(xvelo.pricePerUSDNew).toBe(USD(1) / 20n);
-        expect(store.snapshots.at(-1)?.priceSource).toBe("carried");
+        expect(xvelo.pricePerUSDNew).toBe(E18 / 10n);
+        expect(store.snapshots.at(-1)).toMatchObject({
+          priceSource: "canonical",
+          pricingSourceTokenId: TokenId(OP, OP_VELO),
+        });
+      });
+
+      it("stays acyclic: the cross-chain source is read, never refreshed or routed", async () => {
+        // XVELO (tier 2) → Lisk WETH (tier 1, refreshed as its counterparty) →
+        // reads Optimism WETH. Optimism WETH is due (last refresh 90 min ago)
+        // and has a pricing-pool row, yet neither is touched.
+        const xveloPool = makePool(LISK, P_XVELO_WETH, LISK_WETH, XVELO, {
+          reserve0: 10n * E18, // $25K of WETH at the canonical $2,500
+          reserve1: 250_000n * E18,
+        });
+        const store = liskStore({
+          pool: thinPool(),
+          sourceAt: NOW - 90 * 60,
+          sourceDepth: OP_DEPTH,
+          extraTokens: [makeToken(LISK, XVELO, 18n, 0n, STALE)],
+          extraPools: [xveloPool],
+          extraPricingPools: {
+            [TokenId(LISK, XVELO)]: [PoolId(LISK, P_XVELO_WETH)],
+            [TokenId(OP, OP_WETH)]: [PoolId(OP, P_WETH_USDC)],
+          },
+        });
+        const xvelo = await refresh(store, LISK, XVELO);
+        // OP VELO is absent, so XVELO prices through Lisk WETH ($2,500, canonical).
+        expect(xvelo.pricePerUSDNew).toBe(E18 / 10n);
+        expect(store.context.TokenPricingPools.get).not.toHaveBeenCalledWith(
+          TokenId(OP, OP_WETH),
+        );
+        expect(store.snapshots.some((s) => s.chainId === OP)).toBe(false);
+        expect(store.snapshots.map((s) => s.address)).toEqual([
+          LISK_USDT,
+          LISK_WETH,
+          XVELO,
+        ]);
       });
     });
 

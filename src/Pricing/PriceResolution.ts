@@ -14,31 +14,33 @@ import {
  *
  * - `override`: operator blacklist (src/PriceOverrides.ts) → price 0
  * - `pinned`: tier-0 token → exactly $1
- * - `pool`: the deepest qualifying pool set the price
- * - `rebind`: no local pool qualified; copied the cross-chain source's price
+ * - `pool`: the deepest qualifying candidate was a local pool (`sourceId` = pool id)
+ * - `canonical`: the deepest qualifying candidate was the same asset's price on
+ *   its canonical chain (`sourceId` = source token id)
  * - `none`: nothing qualified
  */
 export type PriceResolution =
   | { readonly kind: "override" }
   | { readonly kind: "pinned" }
   | {
-      readonly kind: "pool";
+      readonly kind: "pool" | "canonical";
       readonly priceUSD: bigint;
-      readonly poolId: string;
+      readonly sourceId: string;
       readonly depthUSD: bigint;
     }
-  | { readonly kind: "rebind"; readonly priceUSD: bigint }
   | { readonly kind: "none" };
 
 /** The token write and snapshot provenance a resolution produces. */
 export interface AppliedPrice {
-  /** The token with price + clocks updated (not yet persisted). */
+  /** The token with price, depth and clocks updated (not yet persisted). */
   readonly token: Token;
   /** Provenance tag for the TokenPriceSnapshot. */
   readonly priceSource: PriceSource;
-  /** Pool the price came through (pool resolutions only). */
+  /** Pool the price came through (`pool` resolutions only). */
   readonly pricingPoolId?: string;
-  /** Counterparty depth of that pool, USD 1e18-base (pool resolutions only). */
+  /** Canonical source token whose price was used (`canonical` resolutions only). */
+  readonly pricingSourceTokenId?: string;
+  /** Depth of the winning candidate, USD 1e18-base (`pool` / `canonical` only). */
   readonly pricingDepthUSD?: bigint;
 }
 
@@ -70,7 +72,12 @@ export function isPriceRefreshDue(
  *
  * - `lastUpdatedTimestamp` advances on every refresh, whatever the outcome.
  * - `lastSuccessfulPriceTimestamp` advances only on a successful price
- *   (`pinned`, `pool`, `rebind`).
+ *   (`pinned`, `pool`, `canonical`).
+ *
+ * `Token.pricingDepthUSD` records the depth behind the stored price, so this
+ * token can itself serve as a canonical source compared by depth on other
+ * chains: the winning candidate's depth on `pool` / `canonical`, kept while a
+ * price is carried, cleared when the price is pinned, overridden or dropped.
  *
  * When nothing qualifies (`none`), the last price is carried while the last
  * success is under {@link PRICE_CARRY_WINDOW_MS} old, so missing data never
@@ -91,9 +98,13 @@ export function applyPriceResolution(
   blockTimestampMs: number,
 ): AppliedPrice {
   const now = new Date(blockTimestampMs);
-  const success = (priceUSD: bigint): Token => ({
+  const success = (
+    priceUSD: bigint,
+    pricingDepthUSD: bigint | undefined,
+  ): Token => ({
     ...token,
     pricePerUSDNew: priceUSD,
+    pricingDepthUSD,
     lastUpdatedTimestamp: now,
     lastSuccessfulPriceTimestamp: now,
   });
@@ -101,22 +112,32 @@ export function applyPriceResolution(
   switch (resolution.kind) {
     case "override":
       return {
-        token: { ...token, pricePerUSDNew: 0n, lastUpdatedTimestamp: now },
+        token: {
+          ...token,
+          pricePerUSDNew: 0n,
+          pricingDepthUSD: undefined,
+          lastUpdatedTimestamp: now,
+        },
         priceSource: PRICE_SOURCE.OVERRIDE,
       };
     case "pinned":
-      return { token: success(ONE_USD), priceSource: PRICE_SOURCE.PINNED };
+      return {
+        token: success(ONE_USD, undefined),
+        priceSource: PRICE_SOURCE.PINNED,
+      };
     case "pool":
       return {
-        token: success(resolution.priceUSD),
+        token: success(resolution.priceUSD, resolution.depthUSD),
         priceSource: PRICE_SOURCE.POOL,
-        pricingPoolId: resolution.poolId,
+        pricingPoolId: resolution.sourceId,
         pricingDepthUSD: resolution.depthUSD,
       };
-    case "rebind":
+    case "canonical":
       return {
-        token: success(resolution.priceUSD),
-        priceSource: PRICE_SOURCE.REBIND,
+        token: success(resolution.priceUSD, resolution.depthUSD),
+        priceSource: PRICE_SOURCE.CANONICAL,
+        pricingSourceTokenId: resolution.sourceId,
+        pricingDepthUSD: resolution.depthUSD,
       };
     case "none": {
       const lastSuccess = token.lastSuccessfulPriceTimestamp;
@@ -128,6 +149,7 @@ export function applyPriceResolution(
         token: {
           ...token,
           pricePerUSDNew: carry ? token.pricePerUSDNew : 0n,
+          pricingDepthUSD: carry ? token.pricingDepthUSD : undefined,
           lastUpdatedTimestamp: now,
         },
         priceSource: carry ? PRICE_SOURCE.CARRIED : PRICE_SOURCE.UNPRICED,

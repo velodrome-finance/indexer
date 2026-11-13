@@ -75,6 +75,7 @@ export function setupCommon() {
     isWhitelisted: true,
     lastUpdatedTimestamp: new Date(),
     lastSuccessfulPriceTimestamp: new Date(),
+    pricingDepthUSD: undefined,
     priceTrustOutcome: PRICE_TRUST_OUTCOME.TRUSTED,
     priceTrustReason: PRICE_TRUST_REASON.WL,
   };
@@ -90,6 +91,7 @@ export function setupCommon() {
     isWhitelisted: true,
     lastUpdatedTimestamp: new Date(),
     lastSuccessfulPriceTimestamp: new Date(),
+    pricingDepthUSD: undefined,
     priceTrustOutcome: PRICE_TRUST_OUTCOME.TRUSTED,
     priceTrustReason: PRICE_TRUST_REASON.WL,
   };
