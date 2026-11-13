@@ -5,7 +5,7 @@ import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
 import { type MockPool, setupCommon } from "../Pool/common";
 
 describe("CLGaugeFactoryV3 Event Handlers", () => {
-  const { mockLiquidityPoolData, createMockPool } = setupCommon();
+  const { createMockPool } = setupCommon();
   const chainId = 8453 as const; // Base — where V3 is deployed
   const v2FactoryAddress = toChecksumAddress(
     "0xB630227a79707D517320b6c0f885806389dFcbB3",
@@ -144,6 +144,7 @@ describe("CLGaugeFactoryV3 Event Handlers", () => {
 
     beforeEach(() => {
       mockPoolWithGauge = createMockPool({
+        chainId,
         gaugeAddress: mockGaugeAddress,
         gaugeEmissionsCap: 0n,
       });
@@ -177,7 +178,7 @@ describe("CLGaugeFactoryV3 Event Handlers", () => {
         },
       });
 
-      const rawPool = await indexer.Pool.get(mockLiquidityPoolData.id);
+      const rawPool = await indexer.Pool.get(mockPoolWithGauge.id);
       const pool = rawPool ? rehydrateTimestamps("Pool", rawPool) : undefined;
       expect(pool).toBeDefined();
       if (!pool) return;
@@ -214,10 +215,75 @@ describe("CLGaugeFactoryV3 Event Handlers", () => {
         },
       });
 
-      const pool = await indexer.Pool.get(mockLiquidityPoolData.id);
+      const pool = await indexer.Pool.get(mockPoolWithGauge.id);
       expect(pool).toBeDefined();
       if (!pool) return;
       expect(pool.gaugeEmissionsCap).toBe(0n);
+    });
+  });
+
+  describe("SetEmissionCap with a gauge address shared across leaf chains", () => {
+    // CLGaugeFactoryV3 sits at one address on every superchain leaf chain.
+    const leafFactoryAddress = toChecksumAddress(
+      "0x21dd3D2fe97ACD3bD4E597b515e572373f1C895D",
+    );
+    const soneium = 1868 as const;
+    const ink = 57073 as const;
+    const sharedGauge = toChecksumAddress(
+      "0xdddddddddddddddddddddddddddddddddddddddd",
+    );
+    const soneiumPool = createMockPool({
+      chainId: soneium,
+      gaugeAddress: sharedGauge,
+      gaugeEmissionsCap: 11n,
+    });
+    const inkPool = createMockPool({
+      chainId: ink,
+      gaugeAddress: sharedGauge,
+      gaugeEmissionsCap: 22n,
+    });
+    const setEmissionCapOnInk = {
+      contract: "CLGaugeFactoryV3" as const,
+      event: "SetEmissionCap" as const,
+      srcAddress: leafFactoryAddress,
+      logIndex: 1,
+      block: {
+        timestamp: 3_000_000,
+        number: 3,
+        hash: "0x3333333333333333333333333333333333333333333333333333333333333333",
+      },
+      params: { _gauge: sharedGauge, _newEmissionCap: mockEmissionCap },
+    };
+
+    it("does not touch another chain's pool when the event chain has no match", async () => {
+      indexer.Pool.set(soneiumPool);
+
+      await indexer.process({
+        chains: { [ink]: { simulate: [setEmissionCapOnInk] } },
+      });
+
+      const untouched = await indexer.Pool.get(soneiumPool.id);
+      expect(untouched?.gaugeEmissionsCap).toBe(11n);
+      expect(untouched?.lastUpdatedTimestamp).toEqual(
+        soneiumPool.lastUpdatedTimestamp,
+      );
+    });
+
+    it("updates only the event chain's pool when both chains have one", async () => {
+      // Soneium seeded first so an unfiltered query would return it first.
+      indexer.Pool.set(soneiumPool);
+      indexer.Pool.set(inkPool);
+
+      await indexer.process({
+        chains: { [ink]: { simulate: [setEmissionCapOnInk] } },
+      });
+
+      expect((await indexer.Pool.get(inkPool.id))?.gaugeEmissionsCap).toBe(
+        mockEmissionCap,
+      );
+      expect((await indexer.Pool.get(soneiumPool.id))?.gaugeEmissionsCap).toBe(
+        11n,
+      );
     });
   });
 

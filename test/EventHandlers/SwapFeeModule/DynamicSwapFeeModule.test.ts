@@ -1,5 +1,6 @@
 import { createTestIndexer } from "envio";
 import { toChecksumAddress } from "../../../src/Constants";
+import { DynamicFeeGlobalConfigId } from "../../../src/EventHandlers/SwapFeeModule/DynamicFeeGlobalConfigSharedLogic";
 import { setupCommon } from "../Pool/common";
 
 describe("DynamicSwapFeeModule Events", () => {
@@ -42,11 +43,52 @@ describe("DynamicSwapFeeModule Events", () => {
 
       // Assert
       const config = await indexer.DynamicFeeGlobalConfig.get(
-        toChecksumAddress(moduleAddress),
+        DynamicFeeGlobalConfigId(chainId, moduleAddress),
       );
       expect(config).toBeDefined();
-      expect(config?.id).toBe(toChecksumAddress(moduleAddress));
+      expect(config?.id).toBe(`${chainId}-${moduleAddress}`);
+      expect(config?.chainId).toBe(chainId);
       expect(config?.secondsAgo).toBe(secondsAgo);
+    });
+
+    it("keeps one row per chain for a module address shared across leaf chains", async () => {
+      // DynamicSwapFeeModule 0xbA3a…41Ca is deployed on Soneium, Ink, Metal
+      // and Superseed.
+      const sharedModule = toChecksumAddress(
+        "0xbA3aEe516399388C779463183d00bB579f5041Ca",
+      );
+      const secondsAgoSet = (secondsAgo: bigint) => ({
+        contract: "DynamicSwapFeeModule" as const,
+        event: "SecondsAgoSet" as const,
+        srcAddress: sharedModule,
+        logIndex: 1,
+        block: {
+          timestamp: 1000000,
+          number: 123456,
+          hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+        },
+        params: { secondsAgo },
+      });
+      const indexer = createTestIndexer();
+
+      await indexer.process({
+        chains: { 1868: { simulate: [secondsAgoSet(300n)] } },
+      });
+      await indexer.process({
+        chains: { 57073: { simulate: [secondsAgoSet(600n)] } },
+      });
+
+      const soneium = await indexer.DynamicFeeGlobalConfig.get(
+        DynamicFeeGlobalConfigId(1868, sharedModule),
+      );
+      const ink = await indexer.DynamicFeeGlobalConfig.get(
+        DynamicFeeGlobalConfigId(57073, sharedModule),
+      );
+      expect(soneium?.chainId).toBe(1868);
+      expect(soneium?.secondsAgo).toBe(300n);
+      expect(ink?.chainId).toBe(57073);
+      expect(ink?.secondsAgo).toBe(600n);
+      expect(await indexer.DynamicFeeGlobalConfig.getAll()).toHaveLength(2);
     });
   });
 

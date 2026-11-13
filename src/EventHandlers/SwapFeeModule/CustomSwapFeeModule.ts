@@ -5,6 +5,7 @@ import { PoolId } from "../../Constants";
 import { getRehydrated } from "../../EntityTimestamps";
 import type { Pool } from "../../EntityTypes";
 import { resolveCustomSwapFee } from "./CustomSwapFeeSharedLogic";
+import { DynamicFeeGlobalConfigId } from "./DynamicFeeGlobalConfigSharedLogic";
 
 indexer.onEvent(
   { contract: "CustomSwapFeeModule", event: "SetCustomFee" },
@@ -43,7 +44,7 @@ indexer.onEvent(
       );
     }
 
-    const configId = event.srcAddress;
+    const configId = DynamicFeeGlobalConfigId(event.chainId, event.srcAddress);
 
     const config: DynamicFeeGlobalConfig = {
       id: configId,

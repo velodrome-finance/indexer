@@ -204,6 +204,11 @@ export async function isRootGauge(
   gaugeAddress: string,
   context: handlerContext,
 ): Promise<boolean> {
+  // Deliberately not scoped to the event's chain (#548): a superchain leaf
+  // gauge has the same address as its root gauge on Optimism, and the events
+  // to silence arrive on the leaf chain while the RootGauge_RootPool row is
+  // keyed by the root chain. This is an existence check only; no row is
+  // selected or updated from the result.
   const mappings = await context.RootGauge_RootPool.getWhere({
     rootGaugeAddress: { _eq: gaugeAddress },
   });
