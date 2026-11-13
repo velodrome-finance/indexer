@@ -140,77 +140,112 @@ export async function checkStores(
   const tables = await sharedTables(idx);
   const perTable: string[] = [];
   for (const t of tables) {
-    const pgRows = await idx.pg.query(`select * from ${idx.tbl(t)}`);
-    const pgById = new Map(pgRows.map((r) => [r.id as string, r]));
-    const chRows = await chLatest(idx.ch, t, cp);
+    // Large tables are compared in partitions (last id character, which is
+    // hex for every id that ends in an address) so neither side is held whole.
+    const total = Number(
+      (await idx.pg.query(`select count(*) as n from ${idx.tbl(t)}`))[0]?.n ??
+        0,
+    );
+    const parts = total > 100_000 ? [..."0123456789abcdef"] : [null];
+    let pgCount = 0;
     let live = 0;
     let diffs = 0;
-    const seen = new Set<string>();
-    for (const r of chRows) {
-      const id = r.id as string;
-      const p = pgById.get(id);
-      if (r.envio_change === "DELETE") {
-        if (p) {
+    for (const part of parts) {
+      const pgRows = await idx.pg.query(
+        `select * from ${idx.tbl(t)}${part === null ? "" : ` where lower(right(id, 1)) = '${part}'`}`,
+      );
+      pgCount += pgRows.length;
+      const pgById = new Map(pgRows.map((r) => [r.id as string, r]));
+      const chRows = await chLatest(
+        idx.ch,
+        t,
+        cp,
+        part === null ? "1" : `lower(right(id, 1)) = '${part}'`,
+      );
+      const seen = new Set<string>();
+      for (const r of chRows) {
+        const id = r.id as string;
+        const p = pgById.get(id);
+        if (r.envio_change === "DELETE") {
+          if (p) {
+            diffs++;
+            c.add(
+              {
+                key: `${t}:${id}`,
+                indexed: "deleted in ClickHouse",
+                truth: "present in Postgres",
+              },
+              5,
+            );
+          }
+          continue;
+        }
+        live++;
+        seen.add(id);
+        if (!p) {
           diffs++;
           c.add(
             {
               key: `${t}:${id}`,
-              indexed: "deleted in ClickHouse",
+              indexed: "only in ClickHouse",
+              truth: "missing in Postgres",
+            },
+            5,
+          );
+          continue;
+        }
+        for (const [col, v] of Object.entries(r)) {
+          if (col.startsWith("envio_") || !(col in p)) continue;
+          c.compared++;
+          const a = normValue(v);
+          const b = normValue(p[col]);
+          if (a !== b) {
+            diffs++;
+            c.add(
+              {
+                key: `${t}:${id}.${col}`,
+                indexed: `ClickHouse ${a}`,
+                truth: `Postgres ${b}`,
+              },
+              2,
+            );
+          }
+        }
+      }
+      for (const id of pgById.keys()) {
+        if (!seen.has(id)) {
+          diffs++;
+          c.add(
+            {
+              key: `${t}:${id}`,
+              indexed: "missing in ClickHouse",
               truth: "present in Postgres",
             },
             5,
           );
         }
-        continue;
-      }
-      live++;
-      seen.add(id);
-      if (!p) {
-        diffs++;
-        c.add(
-          {
-            key: `${t}:${id}`,
-            indexed: "only in ClickHouse",
-            truth: "missing in Postgres",
-          },
-          5,
-        );
-        continue;
-      }
-      for (const [col, v] of Object.entries(r)) {
-        if (col.startsWith("envio_") || !(col in p)) continue;
-        c.compared++;
-        const a = normValue(v);
-        const b = normValue(p[col]);
-        if (a !== b) {
-          diffs++;
-          c.add(
-            {
-              key: `${t}:${id}.${col}`,
-              indexed: `ClickHouse ${a}`,
-              truth: `Postgres ${b}`,
-            },
-            2,
-          );
-        }
       }
     }
-    for (const id of pgById.keys()) {
-      if (!seen.has(id)) {
-        diffs++;
+    if (parts.length > 1) {
+      // Ids whose last character is not hex (none expected) would be skipped by the partitions.
+      const rest = Number(
+        (
+          await idx.pg.query(
+            `select count(*) as n from ${idx.tbl(t)} where lower(right(id, 1)) !~ '[0-9a-f]'`,
+          )
+        )[0]?.n ?? 0,
+      );
+      if (rest > 0)
         c.add(
           {
-            key: `${t}:${id}`,
-            indexed: "missing in ClickHouse",
-            truth: "present in Postgres",
+            key: `${t}: ${rest} ids not partitioned`,
+            indexed: "not compared",
+            truth: "-",
           },
-          5,
+          1,
         );
-      }
     }
-    perTable.push(
-      `${t} ${pgRows.length}/${live}${diffs ? ` (${diffs} diffs)` : ""}`,
-    );
+    perTable.push(`${t} ${pgCount}/${live}${diffs ? ` (${diffs} diffs)` : ""}`);
   }
   c.stats.tables = tables.length;
   out.push(c.done(`checkpoint ${cp}; rows PG/CH: ${perTable.join(", ")}`));

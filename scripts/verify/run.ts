@@ -123,7 +123,23 @@ async function main(): Promise<number> {
   };
   const truthCounts = new Map<number, Map<string, number>>();
 
-  for (const chainId of requested) {
+  const chainGroups = [
+    "completeness",
+    "pool",
+    "gauge",
+    "rewards",
+    "user",
+    "position",
+    "alm",
+    "token",
+    "price",
+    "snapshot",
+    "usd",
+  ];
+  const anyChainCheck = chainGroups.some(
+    (g) => !only || only.some((p) => g.startsWith(p.split(".")[0])),
+  );
+  for (const chainId of anyChainCheck ? requested : []) {
     const pr = progress.find((p) => p.chainId === chainId);
     const chain = cfg.chains.get(chainId);
     if (!pr || !chain) {
