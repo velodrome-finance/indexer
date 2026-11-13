@@ -52,7 +52,7 @@ export interface GaugeEventData {
  * @returns Staked liquidity diff fields plus the resulting staked edge list
  *   (for the hasStakes latch), or an empty object if the position is not found
  */
-async function computeCLStakedReservesOnGaugeEvent(
+export async function computeCLStakedReservesOnGaugeEvent(
   data: GaugeEventData,
   liquidityPoolAggregator: Pool,
   poolData: PoolData,
@@ -168,7 +168,7 @@ async function computeCLStakedReservesOnGaugeEvent(
  * @param context - The handler context
  * @returns The staked USD, or undefined if valuation is unavailable
  */
-function computeNonCLStakedUSDIfAvailable(
+export function computeNonCLStakedUSDIfAvailable(
   stakeAmount: bigint,
   liquidityPoolAggregator: Pool,
   poolData: PoolData,

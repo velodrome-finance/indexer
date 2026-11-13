@@ -2,7 +2,8 @@
 
 - **Status:** Accepted (2026-11-13). Phase 1 of 3 of the Aero integration
   (pools, swaps, liquidity, positions, prices). Gauges and emissions (phase 2)
-  and governance (phase 3) are not indexed yet.
+  and governance (phase 3) are in ADR 0006, which sets `gaugeAddress`,
+  `gaugeIsAlive`, the staking fields and `unstakedFee` on AERO pools.
 
 ## Context
 
