@@ -8,6 +8,7 @@ import {
   SUPERCHAIN_LEAF_VOTER_NONCL_POOLS_FACTORY_LIST,
   VOTER_CLPOOLS_FACTORY_LIST,
   VOTER_NONCL_POOLS_FACTORY_LIST,
+  getLegacyConstants,
   nfpmForCLPool,
   toChecksumAddress,
 } from "../src/Constants";
@@ -135,20 +136,20 @@ describe("nfpmForCLPool", () => {
   });
 });
 
-describe("oracle.v1v2ConnectorBlacklist (#688)", () => {
+describe("legacy.oracle.v1v2ConnectorBlacklist (#688)", () => {
   // Empirically determined connectors that revert V1/V2
   // `getManyRatesWithConnectors`. Casing matches price_connectors.json so the
   // case-sensitive filter in src/Effects/RpcGateway.ts strikes them.
   const OUSDT = "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189";
 
   it("populates the OP V1/V2 poison set", () => {
-    const set = CHAIN_CONSTANTS[10].oracle.v1v2ConnectorBlacklist;
+    const set = getLegacyConstants(10).oracle.v1v2ConnectorBlacklist;
     expect(set.has("0x01bFF41798a0BcF287b996046Ca68b395DbC1071")).toBe(true);
     expect(set.has(OUSDT)).toBe(true);
   });
 
   it("populates the Base V1/V2 poison set", () => {
-    const set = CHAIN_CONSTANTS[8453].oracle.v1v2ConnectorBlacklist;
+    const set = getLegacyConstants(8453).oracle.v1v2ConnectorBlacklist;
     expect(set.has(OUSDT)).toBe(true);
     // 0x5d3a1Ff... is in the priceConnectors list but works individually on
     // both V1 and V2 — the discriminator probe shows dropping oUSDT alone is
@@ -158,7 +159,7 @@ describe("oracle.v1v2ConnectorBlacklist (#688)", () => {
 
   it("populates the Mode V2 poison set with oUSDT", () => {
     expect(
-      CHAIN_CONSTANTS[34443].oracle.v1v2ConnectorBlacklist.has(OUSDT),
+      getLegacyConstants(34443).oracle.v1v2ConnectorBlacklist.has(OUSDT),
     ).toBe(true);
   });
 
@@ -166,20 +167,18 @@ describe("oracle.v1v2ConnectorBlacklist (#688)", () => {
     // Fraxtal no longer lists 0x1217… as a price connector — the contract at
     // that address on Fraxtal is not canonical oUSDT — so there is nothing
     // for the V1/V2 blacklist to strip.
-    expect(CHAIN_CONSTANTS[252].oracle.v1v2ConnectorBlacklist.size).toBe(0);
+    expect(getLegacyConstants(252).oracle.v1v2ConnectorBlacklist.size).toBe(0);
     expect(
-      CHAIN_CONSTANTS[252].oracle.priceConnectors.some(
-        (c) => c.address === OUSDT,
-      ),
+      CHAIN_CONSTANTS[252].priceConnectors.some((c) => c.address === OUSDT),
     ).toBe(false);
   });
 
   it("leaves V3-only chains with an empty blacklist", () => {
     // Celo, Soneium, Unichain, Ink, Metal, Swell, Superseed never call V1/V2.
     for (const chainId of [42220, 1868, 130, 57073, 1750, 1923, 5330]) {
-      expect(CHAIN_CONSTANTS[chainId].oracle.v1v2ConnectorBlacklist.size).toBe(
-        0,
-      );
+      expect(
+        getLegacyConstants(chainId).oracle.v1v2ConnectorBlacklist.size,
+      ).toBe(0);
     }
   });
 
@@ -188,15 +187,16 @@ describe("oracle.v1v2ConnectorBlacklist (#688)", () => {
     // entry must be present verbatim in priceConnectors to actually filter.
     for (const chainId of [10, 8453, 34443, 252]) {
       const chain = CHAIN_CONSTANTS[chainId];
-      const known = new Set(chain.oracle.priceConnectors.map((c) => c.address));
-      for (const a of chain.oracle.v1v2ConnectorBlacklist) {
+      const known = new Set(chain.priceConnectors.map((c) => c.address));
+      for (const a of getLegacyConstants(chainId).oracle
+        .v1v2ConnectorBlacklist) {
         expect(known.has(a)).toBe(true);
       }
     }
   });
 });
 
-describe("oracle.startBlock (#821)", () => {
+describe("legacy.oracle.startBlock (#821)", () => {
   // Drift guard for the Soneium V3 oracle deploy block, mirroring the
   // price_connectors.json createdBlock snapshot in test/PriceConnectors.test.ts
   // (#764/#768). startBlock floors every Soneium token price to 0n below it
@@ -206,7 +206,7 @@ describe("oracle.startBlock (#821)", () => {
   // (code absent @1863997, present @1863998; deployed 2025-01-14). Any edit to
   // the constant must update this expectation rather than regress to a TODO.
   it("pins the Soneium oracle to its RPC-verified deploy block", () => {
-    expect(CHAIN_CONSTANTS[1868].oracle.startBlock).toBe(1863998);
+    expect(getLegacyConstants(1868).oracle.startBlock).toBe(1863998);
   });
 });
 

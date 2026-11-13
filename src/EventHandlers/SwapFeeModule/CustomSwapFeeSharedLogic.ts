@@ -25,8 +25,13 @@ export const ZERO_FEE_INDICATOR = 420n;
  *   - 420 (`ZERO_FEE_INDICATOR`) → 0.
  *   - 0 → the default: V2 the factory's stable / volatile fee
  *     (`DEFAULT_SAMM_FEE_BPS` / `DEFAULT_VAMM_FEE_BPS`, the same defaults
- *     PoolCreated stamps); CL the chain's `FeeToTickSpacingMapping` fee for the
- *     pool's tick spacing (`tickSpacingToFee`).
+ *     PoolCreated stamps); CL the pool's factory's `FeeToTickSpacingMapping`
+ *     fee for its tick spacing (`tickSpacingToFee`).
+ *
+ * Also used for the Aero V2 CustomFeeModules, whose `ZERO_FEE_INDICATOR()` is
+ * 420 too and whose factories' default fees are 5 / 30 bps (SetDefaultFee at
+ * deployment on every chain). The Aero CL DynamicSwapFeeHook has different
+ * sentinels: see `resolveHookBaseFee` in DynamicSwapFeeHook.ts.
  *   - anything else → the value, lifted to FEE_SCALE (`toCanonicalFeeScale`).
  *
  * For a dynamic-fee pool the result is the base fee; the module adds a
@@ -62,14 +67,38 @@ export async function resolveCustomSwapFee(
       false,
     );
   }
-  const mapping = await getRehydrated(
-    context.FeeToTickSpacingMapping,
-    "FeeToTickSpacingMapping",
-    FeeToTickSpacingMappingId(pool.chainId, pool.tickSpacing),
-  );
+  return getTickSpacingDefaultFee(pool, context, "resolveCustomSwapFee");
+}
+
+/**
+ * The default fee of a CL pool's tick spacing on the CLFactory that created it
+ * (`tickSpacingToFee`, stored as `FeeToTickSpacingMapping` keyed by factory).
+ *
+ * @param pool - CL pool (uses `factoryAddress` and `tickSpacing`)
+ * @param context - Handler context, used to read the mapping
+ * @param caller - Log prefix of the caller
+ * @returns The fee in FEE_SCALE, or undefined (with a warning) when the pool
+ *   has no factory or the factory never enabled the tick spacing
+ */
+export async function getTickSpacingDefaultFee(
+  pool: Pool,
+  context: handlerContext,
+  caller: string,
+): Promise<bigint | undefined> {
+  const mapping = pool.factoryAddress
+    ? await getRehydrated(
+        context.FeeToTickSpacingMapping,
+        "FeeToTickSpacingMapping",
+        FeeToTickSpacingMappingId(
+          pool.chainId,
+          pool.factoryAddress,
+          pool.tickSpacing,
+        ),
+      )
+    : undefined;
   if (!mapping) {
     context.log.warn(
-      `[resolveCustomSwapFee] Custom fee reset to default for pool ${pool.poolAddress} on chain ${pool.chainId}, but no FeeToTickSpacingMapping exists for tick spacing ${pool.tickSpacing}; keeping the previous fee.`,
+      `[${caller}] Fee reset to the tick-spacing default for pool ${pool.poolAddress} on chain ${pool.chainId}, but factory ${pool.factoryAddress} has no FeeToTickSpacingMapping for tick spacing ${pool.tickSpacing}; keeping the previous fee.`,
     );
     return undefined;
   }

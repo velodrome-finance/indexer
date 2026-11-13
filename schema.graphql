@@ -9,6 +9,13 @@ type Pool {
   token1_address: String! # token1 address
   isStable: Boolean! # whether the pool is a stable AMM or a volatile AMM
   isCL: Boolean! # whether the pool is a CL pool
+  # Which deployment created the pool (docs/adr/0005-one-data-model-for-legacy-and-aero-pools.md):
+  # VELODROME (Velodrome V2 / Slipstream on Optimism and the superchain leaves), AERODROME
+  # (Aerodrome V2 / Slipstream on Base) or AERO (the Aero / MetaDEX deployment launched
+  # 2026-10-21, every chain). Set once at PoolCreated from the factory contract that emitted it.
+  # Values pinned by POOL_DEPLOYMENT in src/Constants.ts. Fields that do not apply to AERO pools
+  # are documented per field below.
+  deployment: String! @index
   createdBlockNumber: BigInt! @config(precision: 76) # Block number at which PoolCreated fired (#759); creation-time metadata
   tickSpacing: BigInt! @config(precision: 24) # Tick spacing of the pool; 0 for non-CL pools
   reserve0: BigInt! @config(precision: 76) # reserve of token0 in token units
@@ -31,8 +38,8 @@ type Pool {
   numberOfSwapFeeFallbacks: BigInt! @config(precision: 76) # CL only: swaps whose fee could not be derived from the swap (tick-map walk disagreed with the event's liquidity, or the derived fee was negative or above 10% of the input) and were valued with the stored currentFee instead. Should stay 0 on a from-creation sync
   token0Price: BigInt! @config(precision: 76) # price of token0 relative to token1
   token1Price: BigInt! @config(precision: 76) # price of token1 relative to token0
-  totalVotesDeposited: BigInt! @config(precision: 76) # total votes deposited in veToken units
-  totalVotesDepositedUSD: BigInt! @config(precision: 76) # total votes deposited in USD
+  totalVotesDeposited: BigInt! @config(precision: 76) # total votes deposited in veToken units (legacy weekly Voter votes; 0 on AERO pools: Aero has no weekly votes and sAERO allocations are not indexed)
+  totalVotesDepositedUSD: BigInt! @config(precision: 76) # total votes deposited in USD (0 on AERO pools, see totalVotesDeposited)
   totalEmissions: BigInt! @config(precision: 76) # total emissions for the pool in reward token units (VELO form Optimism and AERO for Base); 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813)
   # Cumulative across all DistributeReward events using the reward token's price at
   # each event's block (incrementalTotalEmissionsUSD = amount × pricePerUSDNew, see
@@ -41,7 +48,7 @@ type Pool {
   # 2024-06-14, VELO/OP pre 2024-01-10), this cumulative will be permanently $0
   # even when totalEmissions > 0 — affects 188 legacy pools (143 Base + 45 OP).
   # See issue #738 for context.
-  totalEmissionsUSD: BigInt! @config(precision: 76) # total emissions for the pool in USD
+  totalEmissionsUSD: BigInt! @config(precision: 76) # total emissions for the pool in USD. totalEmissions* are legacy-gauge emissions; 0 on AERO pools until Aero gauges are indexed
   totalEmissionsRedistributed: BigInt! @config(precision: 76) # cumulative reward tokens this pool's gauge received from the Redistributor (Redistributed events); AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813)
   totalEmissionsForfeited: BigInt! @config(precision: 76) # cumulative reward tokens this pool's gauge forwarded to the Redistributor or minter because it was over its cap (Deposited events); AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813)
 
@@ -78,10 +85,10 @@ type Pool {
   numberOfFlashLoans: BigInt @config(precision: 76) # total number of flash loans
 
   # Gauge fields
-  gaugeIsAlive: Boolean! # whether the gauge is alive
+  gaugeIsAlive: Boolean! # whether the gauge is alive. Gauge fields describe the legacy gauge; on AERO pools they keep their creation defaults (false / "" / 0) until Aero gauges are indexed
   gaugeAddress: String @index # address of the gauge for this pool
-  gaugeEmissionsCap: BigInt @config(precision: 76) # Emissions cap for gauge. If not specified in an SetEmissionsCap event, set to defaultEmissionsCap as per CLGaugeConfig. If CLGaugeConfig doesn't exist, there's no emissions cap
-  minStakeTime: BigInt! @config(precision: 24) # Per-pool LP stake lockup (seconds). Seeded from CLGaugeConfig.defaultMinStakeTime at pool creation; overridden by CLGaugeFactoryV3.SetPoolMinStakeTime. 0 before V3.
+  gaugeEmissionsCap: BigInt @config(precision: 76) # Emissions cap for gauge. If not specified in an SetEmissionsCap event, set to defaultEmissionsCap as per CLGaugeConfig. If CLGaugeConfig doesn't exist, there's no emissions cap. Null on AERO pools (CLGaugeConfig is the legacy CLGaugeFactory's)
+  minStakeTime: BigInt! @config(precision: 24) # Per-pool LP stake lockup (seconds). Seeded from CLGaugeConfig.defaultMinStakeTime at pool creation; overridden by CLGaugeFactoryV3.SetPoolMinStakeTime. 0 before V3. 0 on AERO pools (legacy CLGaugeFactory setting)
   numberOfGaugeDeposits: BigInt! @config(precision: 76) # number of gauge deposits (staking)
   numberOfGaugeWithdrawals: BigInt! @config(precision: 76) # number of gauge withdrawals (unstaking)
   numberOfGaugeRewardClaims: BigInt! @config(precision: 76) # number of gauge reward claims
@@ -95,22 +102,23 @@ type Pool {
   totalBribeClaimedUSD: BigInt! @config(precision: 76) # total bribes claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — bribes are arbitrary heterogeneous tokens)
   feeVotingRewardAddress: String @index # address of the fee voting reward contract for this pool
   totalFeeRewardClaimedUSD: BigInt! @config(precision: 76) # total fee rewards claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens)
-  veNFTamountStaked: BigInt! @config(precision: 76) # total amount of veNFT staked for this pool
+  veNFTamountStaked: BigInt! @config(precision: 76) # total amount of veNFT staked for this pool (legacy voting rewards; 0 on AERO pools)
 
   # Dynamic Fee fields
   baseFee: BigInt! @config(precision: 24) # Configured (nominal) fee, FEE_SCALE 1e6 (hundredths of a basis point; single divisor across V2 & CL, issue #812). V2: factory default or SetCustomFee. CL: tick-spacing default, CustomSwapFeeModule fee, or DynamicSwapFeeModule custom base fee (a dynamic pool charges this plus a TWAP-volatility part, up to feeCap). Custom-fee sentinels resolved as the contracts do: 420 = 0%, 0 = default (ADR 0001)
   feeCap: BigInt @config(precision: 76) # Current fee cap for pool
   scalingFactor: BigInt @config(precision: 76) # Current scaling factor for pool
-  currentFee: BigInt! @config(precision: 76) # Fee rate charged, FEE_SCALE 1e6 (issue #812). V2: the configured fee (= baseFee). CL: effective rate of the latest swap with input >= 1e7 raw units, derived from the swap itself ((amountIn - principal) / amountIn, rounded to nearest); seeded from baseFee at creation and on CustomSwapFeeModule.SetCustomFee; also the fallback rate for a swap whose fee cannot be derived (ADR 0001)
+  currentFee: BigInt! @config(precision: 76) # Fee rate charged, FEE_SCALE 1e6 (issue #812). AERO pools: as V2 / CL; the CL base fee comes from the DynamicSwapFeeHook (CustomFeeSet; 0 and the hook's zero-fee indicator both mean the static tick-spacing fee), feeCap / scalingFactor from its FeeCapSet / ScalingFactorSet; the V2 custom fee from the Aero CustomFeeModules. V2: the configured fee (= baseFee). CL: effective rate of the latest swap with input >= 1e7 raw units, derived from the swap itself ((amountIn - principal) / amountIn, rounded to nearest); seeded from baseFee at creation and on CustomSwapFeeModule.SetCustomFee; also the fallback rate for a swap whose fee cannot be derived (ADR 0001)
 
   # Unstaked Fee fields
   # Raw customFee value last emitted by an UnstakedFeeModule for this pool (CL pools only).
   # 0 = no override (factory default applies), 420 = explicit 0% fee (ZERO_FEE_INDICATOR),
   # else fee rate with 6-decimal precision (e.g. 500_000 = 50%). Null = never set.
+  # Null on AERO pools: Aero's CustomUnstakedFeeModule is not indexed yet.
   unstakedFee: BigInt @config(precision: 24)
 
   # Pool Launcher relationship
-  poolLauncherPoolId: String # ID of the PoolLauncherPool entity if this pool was launched via Pool Launcher
+  poolLauncherPoolId: String # ID of the PoolLauncherPool entity if this pool was launched via Pool Launcher (legacy launchers only)
 
   # Address of the factory that created this pool (e.g. CLFactory for CL pools, set from PoolCreated event)
   factoryAddress: String
@@ -123,7 +131,9 @@ type Pool {
   # RootPool matching - only relevant for non-OP and non-Base pools
   # For each superChain pool there's a unique rootPool
   # This is because the rootPool is created through a hash of these 4 quantities and they are a unique combination (enforced by smart contract)
-  rootPoolMatchingHash: String! @index # {chainId}_{token0_address}_{token1_address}_{tickSpacing}
+  # Null on AERO pools: Aero has no Optimism root pools, so an Aero pool on a leaf chain must never
+  # match a RootPoolCreated (ADR 0005).
+  rootPoolMatchingHash: String @index # {chainId}_{token0_address}_{token1_address}_{tickSpacing}
 }
 
 # Snapshot of the LiquidityPool entity
@@ -138,6 +148,7 @@ type PoolSnapshot @storage(postgres: false, clickhouse: true) {
   token1_address: String! # token1 address
   isStable: Boolean! # whether the pool is a stable AMM or a volatile AMM
   isCL: Boolean! # whether the pool is a CL pool
+  deployment: String! # Pool.deployment (VELODROME / AERODROME / AERO), copied so snapshots can be filtered by deployment
   reserve0: BigInt! @config(precision: 76) # reserve of token0 in token units
   reserve1: BigInt! @config(precision: 76) # reserve of token1 in token units
   totalLPTokenSupply: BigInt! @config(precision: 76) # total supply of LP tokens (tracked from Transfer events)
@@ -778,9 +789,12 @@ type PendingDistribution {
 # It allows to initialise currentFee field for all CLPools
 # CLPool fees can then be modified by either CustomSwapFeeModule or DynamicSwapFeeModule
 # The same tick spacing can be enabled multiple times (to update the fee), so this entity is updated, not created new
+# Keyed per CLFactory: a chain can have several CLFactories with different fees for the same
+# tick spacing (on Arc, tick spacing 50 is 0.05% on the lite-launch CLFactory, 0.30% on the Aero one).
 type FeeToTickSpacingMapping {
-  id: ID! # Format: {chainId}-{tickSpacing} (FeeToTickSpacingMappingId)
+  id: ID! # Format: {chainId}-{factoryAddress}-{tickSpacing} (FeeToTickSpacingMappingId)
   chainId: Int! @index # chain id
+  factoryAddress: String! @index # CLFactory (legacy CLFactory or AeroCLFactory) that emitted TickSpacingEnabled
   tickSpacing: BigInt! @config(precision: 24) @index # Tick spacing value
   fee: BigInt! @config(precision: 24) # Fee value for this tick spacing
   lastUpdatedTimestamp: Timestamp! # Timestamp when this mapping was last updated

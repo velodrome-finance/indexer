@@ -6,7 +6,7 @@
  */
 import { HttpRequestError } from "viem";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { CHAIN_CONSTANTS, toChecksumAddress } from "../../src/Constants";
+import { getLegacyConstants, toChecksumAddress } from "../../src/Constants";
 import { getRootPoolAddress } from "../../src/Effects/RootPool";
 import { getSwapFee } from "../../src/Effects/SwapFee";
 import { getTokensDeposited } from "../../src/Effects/Voter";
@@ -135,7 +135,7 @@ it("getRootPoolAddress reads the chain's LpHelper", async () => {
     await runEffect(getRootPoolAddress, cases[0].input);
     expect(readContract.mock.calls[0]).toEqual([
       expect.objectContaining({
-        address: CHAIN_CONSTANTS[1135].lpHelperAddress,
+        address: getLegacyConstants(1135).lpHelperAddress,
         functionName: "root_lp_address",
       }),
     ]);

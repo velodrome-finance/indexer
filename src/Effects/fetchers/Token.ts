@@ -1,7 +1,7 @@
 import type { PublicClient } from "viem";
 import SpotPriceAggregatorABI from "../../../abis/SpotPriceAggregator.json";
 import PriceOracleABI from "../../../abis/VeloPriceOracleABI.json";
-import { CHAIN_CONSTANTS, PriceOracleType } from "../../Constants";
+import { PriceOracleType, getLegacyConstants } from "../../Constants";
 
 /**
  * Fetches token price in USD from the chain's price oracle (V2, V3, or V4).
@@ -28,9 +28,9 @@ export async function fetchTokenPrice(
   blockNumber: number,
   ethClient: PublicClient,
 ): Promise<{ pricePerUSDNew: bigint; priceOracleType: string }> {
-  const priceOracleType = CHAIN_CONSTANTS[chainId].oracle.getType(blockNumber);
-  const priceOracleAddress =
-    CHAIN_CONSTANTS[chainId].oracle.getAddress(priceOracleType);
+  const { oracle } = getLegacyConstants(chainId);
+  const priceOracleType = oracle.getType(blockNumber);
+  const priceOracleAddress = oracle.getAddress(priceOracleType);
 
   if (
     priceOracleType === PriceOracleType.V3 ||

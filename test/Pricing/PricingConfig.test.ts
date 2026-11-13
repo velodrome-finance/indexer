@@ -1,4 +1,8 @@
-import { CHAIN_CONSTANTS, toChecksumAddress } from "../../src/Constants";
+import {
+  CHAIN_CONSTANTS,
+  getLegacyConstants,
+  toChecksumAddress,
+} from "../../src/Constants";
 import {
   ONE_USD,
   PRICING_TIER,
@@ -40,7 +44,7 @@ describe("PricingConfig", () => {
     });
 
     it("includes every reward token a chain has had (Optimism VELO v1)", () => {
-      const veloV1 = CHAIN_CONSTANTS[OP].rewardToken(0);
+      const veloV1 = getLegacyConstants(OP).rewardToken(0);
       expect(veloV1).not.toBe(OP_VELO);
       expect(getPricingTier(OP, veloV1)).toBe(PRICING_TIER.CONNECTOR);
     });
@@ -79,7 +83,7 @@ describe("PricingConfig", () => {
 
     it("keeps every connector in tier 0, 1 or 2", () => {
       for (const [chainId, constants] of Object.entries(CHAIN_CONSTANTS)) {
-        for (const connector of constants.oracle.priceConnectors) {
+        for (const connector of constants.priceConnectors) {
           expect(
             getPricingTier(Number(chainId), connector.address),
           ).toBeLessThanOrEqual(PRICING_TIER.CONNECTOR);

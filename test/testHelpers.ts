@@ -7,6 +7,21 @@ import type { Pool } from "../src/EntityTypes";
 export const asAddress = (s: string): `0x${string}` => s as `0x${string}`;
 
 /**
+ * A copy of a chain's constants whose legacy reward-token lookup is replaced.
+ *
+ * @param constants - The chain's CHAIN_CONSTANTS entry (must have a legacy deployment)
+ * @param rewardToken - Replacement `legacy.rewardToken`
+ * @returns The patched copy, to assign back into CHAIN_CONSTANTS
+ */
+export function withLegacyRewardToken(
+  constants: (typeof CHAIN_CONSTANTS)[number],
+  rewardToken: (blockNumber: number) => string,
+): (typeof CHAIN_CONSTANTS)[number] {
+  if (!constants.legacy) throw new Error("chain has no legacy deployment");
+  return { ...constants, legacy: { ...constants.legacy, rewardToken } };
+}
+
+/**
  * Mutates CHAIN_CONSTANTS for a specific chainId and returns the original value
  * along with a cleanup function to restore it.
  *
@@ -16,16 +31,17 @@ export const asAddress = (s: string): `0x${string}` => s as `0x${string}`;
  */
 export function mutateChainConstants(
   chainId: number,
-  value: { eth_client: PublicClient; lpHelperAddress: string },
+  value: { eth_client: PublicClient; legacy: { lpHelperAddress: string } },
 ): {
   originalValue:
-    | { eth_client: PublicClient; lpHelperAddress: string }
+    | { eth_client: PublicClient; legacy: { lpHelperAddress: string } }
     | undefined;
   cleanup: () => void;
 } {
-  const chainConstants = CHAIN_CONSTANTS as Record<
+  const chainConstants = CHAIN_CONSTANTS as unknown as Record<
     number,
-    { eth_client: PublicClient; lpHelperAddress: string } | undefined
+    | { eth_client: PublicClient; legacy: { lpHelperAddress: string } }
+    | undefined
   >;
   const originalValue = chainConstants[chainId];
   chainConstants[chainId] = value;

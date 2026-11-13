@@ -20,13 +20,20 @@ describe("RPC_CHAINS", () => {
         .map(Number)
         .sort((a, b) => a - b),
     ).toEqual([
-      10, 130, 252, 1135, 1750, 1868, 1923, 5330, 8453, 34443, 42220, 57073,
+      1, 10, 130, 252, 1135, 1750, 1868, 1923, 4663, 5042, 5330, 8453, 34443,
+      42161, 42220, 57073,
     ]);
   });
 
   it("uses the dRPC network slugs verified against eth_chainId", () => {
     expect(RPC_CHAINS[1750].drpcNetwork).toBe("metall2");
     expect(RPC_CHAINS[5330].envKey).toBe("ENVIO_SUPERSEED_RPC_URL");
+    expect(RPC_CHAINS[1].drpcNetwork).toBe("ethereum");
+    expect(RPC_CHAINS[42161].drpcNetwork).toBe("arbitrum");
+    expect(RPC_CHAINS[4663].drpcNetwork).toBe("robinhood");
+    expect(RPC_CHAINS[5042].drpcNetwork).toBe("arc");
+    expect(RPC_CHAINS[4663].viemChain.id).toBe(4663);
+    expect(RPC_CHAINS[5042].viemChain.id).toBe(5042);
   });
 
   it("has no dead defaults from the old DefaultRPC table", () => {
@@ -122,7 +129,7 @@ describe("resolveRpcEndpoints", () => {
   });
 
   it("throws for an unknown chain", () => {
-    expect(() => resolveRpcEndpoints(1, {})).toThrow(/No RPC configuration/);
+    expect(() => resolveRpcEndpoints(999, {})).toThrow(/No RPC configuration/);
   });
 });
 
@@ -131,7 +138,7 @@ describe("validateRpcConfig / assertRpcConfigAtStartup", () => {
     const { errors } = validateRpcConfig({
       ENVIO_BASE_RPC_URL: "https://b.example",
     });
-    expect(errors).toHaveLength(11);
+    expect(errors).toHaveLength(15);
     expect(errors.join("\n")).toContain("ENVIO_OPTIMISM_RPC_URL");
     expect(errors.join("\n")).not.toContain("ENVIO_BASE_RPC_URL or");
   });
@@ -142,7 +149,7 @@ describe("validateRpcConfig / assertRpcConfigAtStartup", () => {
 
   it("throws outside tests and is a no-op under vitest or with the skip flag", () => {
     expect(() => assertRpcConfigAtStartup({})).toThrow(
-      /Invalid RPC configuration \(12 problem/,
+      /Invalid RPC configuration \(16 problem/,
     );
     expect(assertRpcConfigAtStartup({ VITEST: "true" })).toEqual([]);
     expect(

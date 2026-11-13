@@ -2,7 +2,9 @@ import type { EvmEvent } from "envio";
 import type { CLGaugeConfig, FeeToTickSpacingMapping, Token } from "envio";
 import { createPoolEntity } from "../../Aggregators/Pool";
 import {
+  type PoolDeployment,
   RootPoolLeafPoolId,
+  legacyPoolDeployment,
   nfpmForCLPool,
   rootPoolMatchingHash,
 } from "../../Constants";
@@ -11,6 +13,11 @@ import type { handlerContext } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
 import { createTokenEntity } from "../../PriceOracle";
 import { flushPendingVotesAndDistributionsForRootPool } from "../Voter/CrossChainPendingResolution";
+
+/** PoolCreated from a legacy CLFactory or an AeroCLFactory (same ABI). */
+export type CLFactoryPoolCreatedEvent =
+  | EvmEvent<"CLFactory", "PoolCreated">
+  | EvmEvent<"AeroCLFactory", "PoolCreated">;
 
 export interface CLFactoryPoolCreatedResult {
   liquidityPoolAggregator: Pool;
@@ -43,6 +50,8 @@ export interface CLPoolPendingInitializeInput {
  * @param feeToTickSpacingMapping - FeeToTickSpacingMapping for this pool's tick spacing
  * @param context - The handler context
  * @param pendingInitialize - Optional opening price buffered by CLPool.Initialize
+ * @param deployment - Deployment of the emitting factory (defaults to the
+ *   chain's legacy deployment)
  * @returns The constructed aggregator. The pool is persisted even when a token
  *   side fails the #677 bytecode gate (#865, mirroring the V2 PoolFactory fix
  *   #864/#880): that side is left with an empty symbol and no Token row rather
@@ -50,7 +59,7 @@ export interface CLPoolPendingInitializeInput {
  *   (snapshots, user-stats, gauge/vote state).
  */
 export async function processCLFactoryPoolCreated(
-  event: EvmEvent<"CLFactory", "PoolCreated">,
+  event: CLFactoryPoolCreatedEvent,
   factoryAddress: string,
   poolToken0: Token | undefined,
   poolToken1: Token | undefined,
@@ -58,6 +67,7 @@ export async function processCLFactoryPoolCreated(
   feeToTickSpacingMapping: FeeToTickSpacingMapping,
   context: handlerContext,
   pendingInitialize?: CLPoolPendingInitializeInput,
+  deployment: PoolDeployment = legacyPoolDeployment(event.chainId),
 ): Promise<CLFactoryPoolCreatedResult> {
   try {
     const poolTokenSymbols: string[] = [];
@@ -114,6 +124,7 @@ export async function processCLFactoryPoolCreated(
     const baseAggregator = createPoolEntity({
       poolAddress: event.params.pool,
       chainId: event.chainId,
+      deployment,
       isCL: true,
       isStable: false,
       token0Address: event.params.token0,

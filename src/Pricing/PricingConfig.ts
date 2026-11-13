@@ -110,12 +110,32 @@ export function getMinPricingDepthUSD(chainId: number): bigint {
 }
 
 /**
- * Highest block number any reward-token lookup needs to cover. `rewardToken`
- * is block-dependent on Optimism (VELO v1 before the v2 migration), so the tier
- * map takes both ends of the range to include every reward token a chain has
- * ever had.
+ * Highest block number any reward-token lookup needs to cover. The legacy
+ * `rewardToken` is block-dependent on Optimism (VELO v1 before the v2
+ * migration), so the tier map takes both ends of the range to include every
+ * legacy reward token a chain has ever had.
  */
 const LATEST_BLOCK = Number.MAX_SAFE_INTEGER;
+
+/**
+ * Every reward token a chain has ever had, lowercased: the legacy deployment's
+ * (both ends of its block range) and the Aero deployment's. On Base both AERO
+ * tokens are listed: AERO v1 (legacy gauges) and the Aero AERO.
+ *
+ * @param c - The chain's constants
+ * @returns Lowercased reward-token addresses (possibly empty)
+ */
+function rewardTokensOf(c: (typeof CHAIN_CONSTANTS)[number]): string[] {
+  const out: string[] = [];
+  if (c.legacy) {
+    out.push(
+      c.legacy.rewardToken(0).toLowerCase(),
+      c.legacy.rewardToken(LATEST_BLOCK).toLowerCase(),
+    );
+  }
+  if (c.aero) out.push(c.aero.rewardToken.toLowerCase());
+  return out;
+}
 
 interface ChainTierSets {
   readonly pinned: ReadonlySet<string>;
@@ -139,9 +159,8 @@ const TIER_SETS: ReadonlyMap<number, ChainTierSets> = new Map(
       ]),
       weth: c.weth.toLowerCase(),
       connectors: new Set([
-        ...c.oracle.priceConnectors.map((p) => p.address.toLowerCase()),
-        c.rewardToken(0).toLowerCase(),
-        c.rewardToken(LATEST_BLOCK).toLowerCase(),
+        ...c.priceConnectors.map((p) => p.address.toLowerCase()),
+        ...rewardTokensOf(c),
       ]),
     },
   ]),

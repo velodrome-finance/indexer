@@ -83,22 +83,26 @@ describe("GaugeSharedLogic", () => {
         number,
         {
           eth_client?: PublicClient;
-          rewardToken?: (blockNumber: number) => string;
-          oracle?: {
-            getType: (blockNumber: number) => string;
-            getAddress: (priceOracleType: string) => string;
-            startBlock: number;
-            priceConnectors: unknown[];
+          priceConnectors: unknown[];
+          legacy: {
+            rewardToken?: (blockNumber: number) => string;
+            oracle?: {
+              getType: (blockNumber: number) => string;
+              getAddress: (priceOracleType: string) => string;
+              startBlock: number;
+            };
           };
         }
       >
     )[mockChainId] = {
-      rewardToken: () => "0x940181a94A35A4569E4529A3CDfB74e38FD98631", // AERO on Base
-      oracle: {
-        getType: () => "v3", // Mock oracle type
-        getAddress: () => "0x1234567890123456789012345678901234567890", // Mock oracle address
-        startBlock: 0, // Mock start block
-        priceConnectors: [], // Mock connectors
+      priceConnectors: [], // Mock connectors
+      legacy: {
+        rewardToken: () => "0x940181a94A35A4569E4529A3CDfB74e38FD98631", // AERO on Base
+        oracle: {
+          getType: () => "v3", // Mock oracle type
+          getAddress: () => "0x1234567890123456789012345678901234567890", // Mock oracle address
+          startBlock: 0, // Mock start block
+        },
       },
     };
 

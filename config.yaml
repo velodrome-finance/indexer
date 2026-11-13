@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=./node_modules/envio/evm.schema.json
 name: Velodrome_v2
-description: Multi-chain indexer for Velodrome V2 on Optimism and Aerodrome on Base
+description: Multi-chain indexer for Velodrome V2, Aerodrome and Aero (MetaDEX) pools
 rollback_on_reorg: true
 raw_events: false
 # Docs: https://docs.envio.dev/docs/HyperIndex/configuration-file#storage
@@ -83,9 +83,42 @@ contracts:
       - event: Burn
       - event: Fees
       - event: Claim
+      # Aero V2 pools emit Claim with the account whose fees are claimed (the
+      # legacy Claim has only sender and recipient). Distinct topic0.
+      - event: "Claim(address indexed caller, address indexed account, address indexed recipient, uint256 amount0, uint256 amount1)"
+        name: ClaimWithAccount
       - event: Swap
       - event: Sync
       - event: Transfer
+  # --- Aero (MetaDEX) deployment, launched 2026-10-21 (ADR 0005) ---
+  # Pools from these factories are registered into the shared Pool / CLPool
+  # contracts and carry Pool.deployment = AERO. Event signatures are written
+  # from the MIT/GPL interface files of the public metadex repos.
+  - name: AeroCLFactory
+    abi_file_path: abis/CLFactory.json
+    handler: src/EventHandlers/CLFactory.ts
+    events:
+      - event: PoolCreated
+      - event: TickSpacingEnabled
+  - name: AeroStablePoolFactory
+    handler: src/EventHandlers/AeroPoolFactory.ts
+    events:
+      - event: "PoolCreated(address indexed token0, address indexed token1, address pool, uint256 poolCount)"
+  - name: AeroVolatilePoolFactory
+    handler: src/EventHandlers/AeroPoolFactory.ts
+    events:
+      - event: "PoolCreated(address indexed token0, address indexed token1, address pool, uint256 poolCount)"
+  - name: DynamicSwapFeeHook
+    handler: src/EventHandlers/SwapFeeModule/DynamicSwapFeeHook.ts
+    events:
+      - event: "CustomFeeSet(address indexed pool, uint24 fee)"
+      - event: "FeeCapSet(address indexed pool, uint256 feeCap)"
+      - event: "ScalingFactorSet(address indexed pool, uint256 scalingFactor)"
+      - event: "DynamicFeeReset(address indexed pool)"
+  - name: AeroCustomFeeModule
+    handler: src/EventHandlers/SwapFeeModule/AeroCustomFeeModule.ts
+    events:
+      - event: "SetCustomFee(address indexed pool, uint256 indexed fee)"
   - name: Voter
     abi_file_path: abis/VoterV2.json
     handler: src/EventHandlers/Voter/Voter.ts
@@ -255,6 +288,23 @@ chains:
         for: fallback
     start_block: 0
     contracts:
+      # Aero (MetaDEX): deployment-addresses/{cl,pools,leaf}-<chain>.json
+      - name: AeroCLFactory
+        address:
+          - 0xfeaB42D90055db3a0616249f76B6002D72266778
+      - name: AeroStablePoolFactory
+        address:
+          - 0x78589E876edcEbdce72ee3436ab3c9AD3a7cEF2D
+      - name: AeroVolatilePoolFactory
+        address:
+          - 0x8E6a9FCd1d638CC760Ffba397605Fe3355dE76D2
+      - name: DynamicSwapFeeHook
+        address:
+          - 0xC0ed888AfE87ed1AcF01D9f19bB850159e3ce434
+      - name: AeroCustomFeeModule
+        address:
+          - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
+          - 0x7949DE8d67E4F6b8509Bdbb43FF0503aF1247a7A # volatile pools
       - name: DynamicSwapFeeModule
         address:
           - 0xd9eE4FBeE92970509ec795062cA759F8B52d6720
@@ -347,6 +397,23 @@ chains:
         for: fallback
     start_block: 0
     contracts:
+      # Aero (MetaDEX): deployment-addresses/{cl,pools,leaf}-<chain>.json
+      - name: AeroCLFactory
+        address:
+          - 0x9CB220581b91b0C83223012FE69688b92aD07a76
+      - name: AeroStablePoolFactory
+        address:
+          - 0x78589E876edcEbdce72ee3436ab3c9AD3a7cEF2D
+      - name: AeroVolatilePoolFactory
+        address:
+          - 0x8E6a9FCd1d638CC760Ffba397605Fe3355dE76D2
+      - name: DynamicSwapFeeHook
+        address:
+          - 0xC0ed888AfE87ed1AcF01D9f19bB850159e3ce434
+      - name: AeroCustomFeeModule
+        address:
+          - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
+          - 0x7949DE8d67E4F6b8509Bdbb43FF0503aF1247a7A # volatile pools
       - name: DynamicSwapFeeModule
         address:
           - 0xDB45818A6db280ecfeB33cbeBd445423d0216b5D # previously tracked
@@ -580,6 +647,23 @@ chains:
       url: https://ink.hypersync.xyz
     start_block: 0
     contracts:
+      # Aero (MetaDEX): deployment-addresses/{cl,pools,leaf}-<chain>.json
+      - name: AeroCLFactory
+        address:
+          - 0x7660BF2aDefC687C22906112ca323d60A00358cF
+      - name: AeroStablePoolFactory
+        address:
+          - 0x78589E876edcEbdce72ee3436ab3c9AD3a7cEF2D
+      - name: AeroVolatilePoolFactory
+        address:
+          - 0x8E6a9FCd1d638CC760Ffba397605Fe3355dE76D2
+      - name: DynamicSwapFeeHook
+        address:
+          - 0xC0ed888AfE87ed1AcF01D9f19bB850159e3ce434
+      - name: AeroCustomFeeModule
+        address:
+          - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
+          - 0x7949DE8d67E4F6b8509Bdbb43FF0503aF1247a7A # volatile pools
       - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
@@ -1068,3 +1152,129 @@ chains:
       - name: Mailbox
         address:
           - 0x3a464f746D23Ab22155710f44dB16dcA53e0775E
+  - id: 1 # Ethereum (Aero only)
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_ETHEREUM_RPC_URL:-}
+        for: fallback
+    start_block: 26237985 # first Aero contract (VolatilePoolFactory deploy, eth_getCode-verified)
+    contracts:
+      # Aero (MetaDEX): deployment-addresses/{cl,pools,leaf}-<chain>.json
+      - name: AeroCLFactory
+        address:
+          - 0xF4Fd2E6c5B60c5b365cd1B96DD6245E6D60414c2
+      - name: AeroStablePoolFactory
+        address:
+          - 0x78589E876edcEbdce72ee3436ab3c9AD3a7cEF2D
+      - name: AeroVolatilePoolFactory
+        address:
+          - 0x8E6a9FCd1d638CC760Ffba397605Fe3355dE76D2
+      - name: DynamicSwapFeeHook
+        address:
+          - 0xC0ed888AfE87ed1AcF01D9f19bB850159e3ce434
+      - name: AeroCustomFeeModule
+        address:
+          - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
+          - 0x7949DE8d67E4F6b8509Bdbb43FF0503aF1247a7A # volatile pools
+      - name: Pool
+        address:
+      - name: CLPool
+        address:
+  - id: 42161 # Arbitrum (Aero only)
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_ARBITRUM_RPC_URL:-}
+        for: fallback
+    start_block: 516786506 # first Aero contract (VolatilePoolFactory deploy, eth_getCode-verified)
+    contracts:
+      # Aero (MetaDEX): deployment-addresses/{cl,pools,leaf}-<chain>.json
+      - name: AeroCLFactory
+        address:
+          - 0x88a60ee77392577c355C0acb2A8d476D5a4EC03a
+      - name: AeroStablePoolFactory
+        address:
+          - 0x78589E876edcEbdce72ee3436ab3c9AD3a7cEF2D
+      - name: AeroVolatilePoolFactory
+        address:
+          - 0x8E6a9FCd1d638CC760Ffba397605Fe3355dE76D2
+      - name: DynamicSwapFeeHook
+        address:
+          - 0xC0ed888AfE87ed1AcF01D9f19bB850159e3ce434
+      - name: AeroCustomFeeModule
+        address:
+          - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
+          - 0x7949DE8d67E4F6b8509Bdbb43FF0503aF1247a7A # volatile pools
+      - name: Pool
+        address:
+      - name: CLPool
+        address:
+  - id: 4663 # Robinhood Chain (Aero only)
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_ROBINHOOD_RPC_URL:-}
+        for: fallback
+    hypersync_config:
+      url: https://4663.hypersync.xyz
+    start_block: 93947396 # first Aero contract (VolatilePoolFactory deploy, eth_getCode-verified)
+    contracts:
+      # Aero (MetaDEX): deployment-addresses/{cl,pools,leaf}-<chain>.json
+      - name: AeroCLFactory
+        address:
+          - 0xc63d7338c178e805c544B8f897066bD3BBcBE136
+      - name: AeroStablePoolFactory
+        address:
+          - 0x78589E876edcEbdce72ee3436ab3c9AD3a7cEF2D
+      - name: AeroVolatilePoolFactory
+        address:
+          - 0x8E6a9FCd1d638CC760Ffba397605Fe3355dE76D2
+      - name: DynamicSwapFeeHook
+        address:
+          - 0xC0ed888AfE87ed1AcF01D9f19bB850159e3ce434
+      - name: AeroCustomFeeModule
+        address:
+          - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
+          - 0x7949DE8d67E4F6b8509Bdbb43FF0503aF1247a7A # volatile pools
+      - name: Pool
+        address:
+      - name: CLPool
+        address:
+  - id: 5042 # Arc (Aero only)
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_ARC_RPC_URL:-}
+        for: fallback
+    hypersync_config:
+      url: https://5042.hypersync.xyz
+    start_block: 20964951 # first Aero contract (lite-launch VolatilePoolFactory deploy, eth_getCode-verified)
+    contracts:
+      # Aero (MetaDEX): deployment-addresses/{cl,pools,leaf}-<chain>.json and the earlier lite launch (*litelaunch-arc.json)
+      - name: AeroCLFactory
+        address:
+          - 0x7F83235643181E440433400a027618Cd50879751
+          - 0xb89Df768aF2CFE637ceB352c587Fe8edAf491d03 # lite launch
+      - name: AeroStablePoolFactory
+        address:
+          - 0x78589E876edcEbdce72ee3436ab3c9AD3a7cEF2D
+          - 0xaEd253F1aD84d99f2165256D701b2b481DD4CC16 # lite launch
+      - name: AeroVolatilePoolFactory
+        address:
+          - 0x8E6a9FCd1d638CC760Ffba397605Fe3355dE76D2
+          - 0x9bc8b3F60D349d687Fb44A018967025E3741F9a5 # lite launch
+      - name: DynamicSwapFeeHook
+        address:
+          - 0xC0ed888AfE87ed1AcF01D9f19bB850159e3ce434
+          - 0xaAf164008441F112eB2858d9F7A2dB1B84b1E415 # lite launch
+      - name: AeroCustomFeeModule
+        address:
+          - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
+          - 0x7949DE8d67E4F6b8509Bdbb43FF0503aF1247a7A # volatile pools
+          - 0x39CF8E719bae01C9ab6F9eA5b97DC7D74C76e422 # lite launch, stable pools
+          - 0xEc4b9100C60B54579d44eA38165a152865840597 # lite launch, volatile pools
+      - name: Pool
+        address:
+      - name: CLPool
+        address:

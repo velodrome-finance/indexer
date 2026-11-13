@@ -754,6 +754,41 @@ const CANONICAL_SOURCES: ReadonlyArray<{
       address: toChecksumAddress("0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81"),
     })),
   },
+  {
+    // WETH on the Aero-only chains -> Optimism WETH. All four are ETH 1:1:
+    // the canonical WETH9 on Ethereum and Arbitrum, the WETH of Robinhood
+    // Chain (an Arbitrum Orbit chain with native ETH) and the bridged WETH on
+    // Arc. Their local Aero pools are new and mostly thin; the canonical
+    // candidate competes on depth like any other (ADR 0004).
+    source: {
+      chainId: 10,
+      address: toChecksumAddress("0x4200000000000000000000000000000000000006"),
+    },
+    targets: [
+      { chainId: 1, address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" },
+      { chainId: 42161, address: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1" },
+      { chainId: 4663, address: "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73" },
+      { chainId: 5042, address: "0x128cC466B61f542da60c70e3aA11c10e19B84EDB" },
+    ].map((t) => ({ ...t, address: toChecksumAddress(t.address) })),
+  },
+  {
+    // xAERO (each Aero leaf chain's emission receipt token, redeemable 1:1 for
+    // AERO on Base; `receiptToken` in deployment-addresses/leaf-<chain>.json)
+    // -> AERO on Base. Ethereum, Ink and Robinhood share one address.
+    source: {
+      chainId: 8453,
+      address: toChecksumAddress("0x3f5bF3EdAc59d650D8fDf9657a71F2f904A3a4Ee"),
+    },
+    targets: [
+      { chainId: 10, address: "0xbdEaeA5205d16f34Cb40038052d91235D87B4C54" },
+      { chainId: 42161, address: "0x436a085B2751cB87db270FFa66f8d698F87bEC82" },
+      { chainId: 5042, address: "0x20077cC0d5E385A0Fe9C91bbC7DC744f51559307" },
+      ...([1, 57073, 4663] as const).map((chainId) => ({
+        chainId,
+        address: "0x9e148C5716b5aAdCFD3B71cEAE9EE7a9e22C29E2",
+      })),
+    ].map((t) => ({ ...t, address: toChecksumAddress(t.address) })),
+  },
 ];
 
 const CANONICAL_SOURCE_BY_TARGET: ReadonlyMap<string, CanonicalSource> =

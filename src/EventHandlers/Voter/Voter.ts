@@ -17,13 +17,13 @@ import {
 } from "../../Aggregators/VeNFTPoolVote";
 import { loadVeNFTState } from "../../Aggregators/VeNFTState";
 import {
-  CHAIN_CONSTANTS,
   PendingDistributionId,
   PoolId,
   RootGaugeRootPoolId,
   TokenId,
   VOTER_CLPOOLS_FACTORY_LIST,
   VOTER_NONCL_POOLS_FACTORY_LIST,
+  getLegacyConstants,
   isKnownSinkRootPool,
 } from "../../Constants";
 import { getTokenDetails, hasContractBytecode } from "../../Effects/Index";
@@ -302,7 +302,7 @@ indexer.onEvent(
   { contract: "Voter", event: "DistributeReward" },
   async ({ event, context }) => {
     const eventChainId = event.chainId;
-    const rewardTokenAddress = CHAIN_CONSTANTS[eventChainId].rewardToken(
+    const rewardTokenAddress = getLegacyConstants(eventChainId).rewardToken(
       event.block.number,
     );
 

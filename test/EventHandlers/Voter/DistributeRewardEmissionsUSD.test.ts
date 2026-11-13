@@ -5,8 +5,10 @@ import {
   CHAIN_CONSTANTS,
   PoolId,
   TokenId,
+  getLegacyConstants,
   toChecksumAddress,
 } from "../../../src/Constants";
+import { withLegacyRewardToken } from "../../testHelpers";
 import { setupCommon } from "../Pool/common";
 
 /**
@@ -37,16 +39,17 @@ describe("Voter.DistributeReward → totalEmissionsUSD regression (#673)", () =>
   );
   const blockNumber = 128357873;
   const blockTimestamp = 1_700_000_000;
-  const rewardTokenAddress = CHAIN_CONSTANTS[chainId].rewardToken(blockNumber);
+  const rewardTokenAddress =
+    getLegacyConstants(chainId).rewardToken(blockNumber);
 
   let originalChainConstants: (typeof CHAIN_CONSTANTS)[typeof chainId];
 
   beforeEach(() => {
     originalChainConstants = CHAIN_CONSTANTS[chainId];
-    CHAIN_CONSTANTS[chainId] = {
-      ...originalChainConstants,
-      rewardToken: vi.fn().mockReturnValue(rewardTokenAddress),
-    };
+    CHAIN_CONSTANTS[chainId] = withLegacyRewardToken(
+      originalChainConstants,
+      vi.fn().mockReturnValue(rewardTokenAddress),
+    );
   });
 
   afterEach(() => {

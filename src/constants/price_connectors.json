@@ -63,6 +63,10 @@
     {
       "address": "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
       "createdBlock": 132196375
+    },
+    {
+      "address": "0xbdEaeA5205d16f34Cb40038052d91235D87B4C54",
+      "createdBlock": 158285158
     }
   ],
   "base": [
@@ -109,6 +113,18 @@
     {
       "address": "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
       "createdBlock": 15768548
+    },
+    {
+      "address": "0x3f5bF3EdAc59d650D8fDf9657a71F2f904A3a4Ee",
+      "createdBlock": 52688124
+    },
+    {
+      "address": "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf",
+      "createdBlock": 18688094
+    },
+    {
+      "address": "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
+      "createdBlock": 12044917
     }
   ],
   "mode": [
@@ -227,6 +243,22 @@
     {
       "address": "0x2D270e6886d130D724215A266106e6832161EAEd",
       "createdBlock": 22300765
+    },
+    {
+      "address": "0x0200C29006150606B650577BBE7B6248F58470c1",
+      "createdBlock": 2405993
+    },
+    {
+      "address": "0xe343167631d89B6Ffc58B88d6b7fB0228795491D",
+      "createdBlock": 11327836
+    },
+    {
+      "address": "0x73E0C0d45E048D25Fc26Fa3159b0aA04BfA4Db98",
+      "createdBlock": 8454881
+    },
+    {
+      "address": "0x9e148C5716b5aAdCFD3B71cEAE9EE7a9e22C29E2",
+      "createdBlock": 58673465
     }
   ],
   "metal": [
@@ -337,6 +369,86 @@
     {
       "address": "0x9ab96A4668456896d45c301Bc3A15Cee76AA7B8D",
       "createdBlock": 5112321
+    }
+  ],
+  "ethereum": [
+    {
+      "address": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+    },
+    {
+      "address": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+    },
+    {
+      "address": "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+    },
+    {
+      "address": "0x6B175474E89094C44Da98b954EedeAC495271d0F"
+    },
+    {
+      "address": "0xdC035D45d973E3EC169d2276DDab16f1e407384F"
+    },
+    {
+      "address": "0x4c9EDD5852cd905f086C759E8383e09bff1E68B3"
+    },
+    {
+      "address": "0xe343167631d89B6Ffc58B88d6b7fB0228795491D"
+    },
+    {
+      "address": "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599"
+    },
+    {
+      "address": "0x9e148C5716b5aAdCFD3B71cEAE9EE7a9e22C29E2"
+    }
+  ],
+  "arbitrum": [
+    {
+      "address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
+    },
+    {
+      "address": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1"
+    },
+    {
+      "address": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9"
+    },
+    {
+      "address": "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8"
+    },
+    {
+      "address": "0x004B506865409877C9fA29bfb1ebA929984B9bbC"
+    },
+    {
+      "address": "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f"
+    },
+    {
+      "address": "0x912CE59144191C1204E64559FE8253a0e49E6548"
+    },
+    {
+      "address": "0x436a085B2751cB87db270FFa66f8d698F87bEC82"
+    }
+  ],
+  "robinhood": [
+    {
+      "address": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168"
+    },
+    {
+      "address": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+    },
+    {
+      "address": "0x9e148C5716b5aAdCFD3B71cEAE9EE7a9e22C29E2"
+    }
+  ],
+  "arc": [
+    {
+      "address": "0x3600000000000000000000000000000000000000"
+    },
+    {
+      "address": "0x128cC466B61f542da60c70e3aA11c10e19B84EDB"
+    },
+    {
+      "address": "0x171A4217b86A807A64eB94757Db6849fb4bDbAA0"
+    },
+    {
+      "address": "0x20077cC0d5E385A0Fe9C91bbC7DC744f51559307"
     }
   ]
 }

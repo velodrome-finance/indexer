@@ -1,10 +1,12 @@
-import type { Chain } from "viem";
+import { type Chain, defineChain } from "viem";
 import {
+  arbitrum,
   base,
   celo,
   fraxtal,
   ink,
   lisk,
+  mainnet,
   metalL2,
   mode,
   optimism,
@@ -13,6 +15,31 @@ import {
   swellchain,
   unichain,
 } from "viem/chains";
+
+/**
+ * Robinhood Chain (Arbitrum Orbit, native ETH); not in viem 2.24's chain list.
+ * Values from chainid.network (chain id 4663).
+ */
+const robinhood = defineChain({
+  id: 4663,
+  name: "Robinhood Chain",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: {
+    default: { http: ["https://rpc.mainnet.chain.robinhood.com"] },
+  },
+});
+
+/**
+ * Arc (Circle); not in viem 2.24's chain list. The native gas token is USDC
+ * (18 decimals natively; its ERC-20 interface at 0x3600…0000 has 6). Values
+ * from chainid.network (chain id 5042).
+ */
+const arc = defineChain({
+  id: 5042,
+  name: "Arc",
+  nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
+  rpcUrls: { default: { http: ["https://rpc.mainnet.arc.io"] } },
+});
 
 /**
  * Single source of truth for where each chain's RPC traffic goes.
@@ -191,6 +218,43 @@ export const RPC_CHAINS: Readonly<Record<number, RpcChainConfig>> = {
     "https://swell.drpc.org",
     10,
   ),
+  // Aero-only chains. Handlers only read token metadata (cached, at the head),
+  // so a small budget is enough and a fallback need not be archive. Checked
+  // with scripts/check-rpc.ts on 2026-11-13 (chain id + three eth_calls from
+  // the Aero start block to the head): Ethereum tenderly 3/3; Arc official
+  // 3/3; Arbitrum and Robinhood official endpoints answer at the head only
+  // (pruned history). Rejected: eth.llamarpc.com (HTTP 525), 1rpc.io (403 /
+  // pruned), every publicnode.com (403), cloudflare-eth.com (-32046),
+  // eth.merkle.io (429), arbitrum.drpc.org (400). robinhood.drpc.org and
+  // arc.drpc.org pass but are the primary's provider.
+  1: chain(
+    1,
+    "ethereum",
+    "ETHEREUM",
+    mainnet,
+    "ethereum",
+    "https://mainnet.gateway.tenderly.co",
+    10,
+  ),
+  42161: chain(
+    42161,
+    "arbitrum",
+    "ARBITRUM",
+    arbitrum,
+    "arbitrum",
+    "https://arb1.arbitrum.io/rpc",
+    10,
+  ),
+  4663: chain(
+    4663,
+    "robinhood",
+    "ROBINHOOD",
+    robinhood,
+    "robinhood",
+    "https://rpc.mainnet.chain.robinhood.com",
+    10,
+  ),
+  5042: chain(5042, "arc", "ARC", arc, "arc", "https://rpc.mainnet.arc.io", 10),
 };
 
 /** Thrown when a chain's RPC endpoint cannot be resolved from the environment. */

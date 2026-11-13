@@ -37,9 +37,12 @@ export const getRootPoolAddress = createRpcEffect(
     cache: true,
   },
   ({ input, context }) => {
-    const chain = CHAIN_CONSTANTS[input.chainId];
-    if (!chain) {
-      throw new RpcConfigError(`Unsupported chainId: ${input.chainId}`);
+    // Only the legacy deployment has an LpHelper (leaf V2 pool -> root pool).
+    const legacy = CHAIN_CONSTANTS[input.chainId]?.legacy;
+    if (!legacy) {
+      throw new RpcConfigError(
+        `No legacy LpHelper on chainId: ${input.chainId}`,
+      );
     }
     return executeRpc(
       context,
@@ -57,7 +60,7 @@ export const getRootPoolAddress = createRpcEffect(
       (client) =>
         fetchRootPoolAddress(
           client,
-          chain.lpHelperAddress,
+          legacy.lpHelperAddress,
           input.factory,
           input.token0,
           input.token1,

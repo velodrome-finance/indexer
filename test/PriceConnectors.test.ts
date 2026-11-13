@@ -3,7 +3,7 @@ import priceConnectorsJson from "../src/constants/price_connectors.json" with {
   type: "json",
 };
 
-type PriceConnector = { address: string; createdBlock: number };
+type PriceConnector = { address: string; createdBlock?: number };
 const connectors = priceConnectorsJson as Record<string, PriceConnector[]>;
 
 // OP-Stack and Frax pre-deploys live at the chain's genesis block. The audit
@@ -62,6 +62,7 @@ const EXPECTED_CREATED_BLOCKS: Record<string, Record<string, number>> = {
     "0x68f180fcCe6836688e9084f035309E29Bf0A2095": 1,
     "0x01bFF41798a0BcF287b996046Ca68b395DbC1071": 133193269,
     "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189": 132196375,
+    "0xbdEaeA5205d16f34Cb40038052d91235D87B4C54": 158285158, // xAERO (Aero)
   },
   base: {
     "0x940181a94A35A4569E4529A3CDfB74e38FD98631": 3200550,
@@ -75,6 +76,10 @@ const EXPECTED_CREATED_BLOCKS: Record<string, Record<string, number>> = {
     "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913": 2797221,
     "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189": 26601141,
     "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34": 15768548,
+    // Aero additions (2026-11-13, eth_getCode binary search on Base)
+    "0x3f5bF3EdAc59d650D8fDf9657a71F2f904A3a4Ee": 52688124, // AERO (Aero)
+    "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf": 18688094, // cbBTC
+    "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2": 12044917, // USDT
   },
   mode: {
     "0x4200000000000000000000000000000000000006": 1,
@@ -114,6 +119,11 @@ const EXPECTED_CREATED_BLOCKS: Record<string, Record<string, number>> = {
     "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189": 6493397,
     "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34": 28067776,
     "0x2D270e6886d130D724215A266106e6832161EAEd": 22300765,
+    // Aero additions (2026-11-13, eth_getCode binary search on Ink)
+    "0x0200C29006150606B650577BBE7B6248F58470c1": 2405993, // USD₮0
+    "0xe343167631d89B6Ffc58B88d6b7fB0228795491D": 11327836, // USDG
+    "0x73E0C0d45E048D25Fc26Fa3159b0aA04BfA4Db98": 8454881, // kBTC
+    "0x9e148C5716b5aAdCFD3B71cEAE9EE7a9e22C29E2": 58673465, // xAERO
   },
   metal: {
     "0xb91CFCcA485C6E40E3bC622f9BFA02a8ACdEeBab": 78221,
@@ -152,9 +162,25 @@ const EXPECTED_CREATED_BLOCKS: Record<string, Record<string, number>> = {
   },
 };
 
+/**
+ * Aero-only chains: no legacy on-chain oracle, so `createdBlock` (read only by
+ * the oracle effect) is omitted rather than filled with a placeholder.
+ */
+const NO_ORACLE_CHAINS = new Set(["ethereum", "arbitrum", "robinhood", "arc"]);
+
 describe("price_connectors.json createdBlock snapshot (#764)", () => {
+  it("omits createdBlock on chains without a legacy oracle", () => {
+    for (const chain of NO_ORACLE_CHAINS) {
+      expect(connectors[chain]?.length).toBeGreaterThan(0);
+      for (const entry of connectors[chain]) {
+        expect(entry.createdBlock, `${chain} ${entry.address}`).toBeUndefined();
+      }
+    }
+  });
+
   it("matches the expected createdBlock for every (chain, address)", () => {
     for (const [chain, list] of Object.entries(connectors)) {
+      if (NO_ORACLE_CHAINS.has(chain)) continue;
       const expected = EXPECTED_CREATED_BLOCKS[chain];
       expect(
         expected,

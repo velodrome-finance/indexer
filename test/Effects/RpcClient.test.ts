@@ -61,6 +61,6 @@ describe("RpcClient under a test runner", () => {
   });
 
   it("rejects unknown chains", () => {
-    expect(() => createPrimaryRpcClient(1)).toThrow(/No RPC configuration/);
+    expect(() => createPrimaryRpcClient(999)).toThrow(/No RPC configuration/);
   });
 });

@@ -1,4 +1,4 @@
-import { indexer } from "envio";
+import { type EvmEvent, indexer } from "envio";
 
 import { createOUSDTSwapEntity } from "../Aggregators/OUSDTSwaps";
 import { loadPoolData, updatePool } from "../Aggregators/Pool";
@@ -8,6 +8,7 @@ import {
   updateUserStatsPerPool,
 } from "../Aggregators/UserStatsPerPool";
 import { OUSDT_ADDRESS } from "../Constants";
+import type { handlerContext } from "../EntityTypes";
 import {
   processPoolLiquidityEvent,
   processPoolMintWithRecipient,
@@ -373,59 +374,83 @@ indexer.onEvent(
   },
 );
 
+/**
+ * Credits a V2 fee claim to the pool and to the account whose fees were claimed.
+ *
+ * @param event - Legacy Claim or Aero ClaimWithAccount
+ * @param claimant - Whose fees were claimed (legacy `sender`, Aero `account`)
+ * @param context - Handler context
+ * @returns Promise that resolves once the pool and user updates are staged
+ */
+async function handlePoolClaim(
+  event: EvmEvent<"Pool", "Claim"> | EvmEvent<"Pool", "ClaimWithAccount">,
+  claimant: string,
+  context: handlerContext,
+): Promise<void> {
+  const [poolData, userData] = await Promise.all([
+    loadPoolData(
+      event.srcAddress,
+      event.chainId,
+      context,
+      event.block.number,
+      event.block.timestamp,
+    ),
+    loadOrCreateUserData(
+      claimant,
+      event.srcAddress,
+      event.chainId,
+      context,
+      new Date(event.block.timestamp * 1000),
+    ),
+  ]);
+
+  if (!poolData) {
+    return;
+  }
+
+  const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
+
+  const result = processPoolClaim(
+    event,
+    claimant,
+    liquidityPoolAggregator.gaugeAddress ?? "",
+    token0Instance,
+    token1Instance,
+  );
+
+  const timestamp = result.poolDiff.lastUpdatedTimestamp as Date;
+
+  await Promise.all([
+    updatePool(
+      result.poolDiff,
+      liquidityPoolAggregator,
+      timestamp,
+      context,
+      event.chainId,
+      event.block.number,
+    ),
+    updateUserStatsPerPool(
+      result.userDiff,
+      userData,
+      context,
+      timestamp,
+      poolData,
+    ),
+  ]);
+}
+
+// Aero V2 pools: Claim(caller, account, recipient, …). The fees belong to
+// `account` (an operator may claim on its behalf), so credit the account.
+indexer.onEvent(
+  { contract: "Pool", event: "ClaimWithAccount" },
+  async ({ event, context }) => {
+    await handlePoolClaim(event, event.params.account, context);
+  },
+);
+
 indexer.onEvent(
   { contract: "Pool", event: "Claim" },
   async ({ event, context }) => {
-    const [poolData, userData] = await Promise.all([
-      loadPoolData(
-        event.srcAddress,
-        event.chainId,
-        context,
-        event.block.number,
-        event.block.timestamp,
-      ),
-      loadOrCreateUserData(
-        event.params.sender,
-        event.srcAddress,
-        event.chainId,
-        context,
-        new Date(event.block.timestamp * 1000),
-      ),
-    ]);
-
-    if (!poolData) {
-      return;
-    }
-
-    const { liquidityPoolAggregator, token0Instance, token1Instance } =
-      poolData;
-
-    const result = processPoolClaim(
-      event,
-      event.params.sender,
-      liquidityPoolAggregator.gaugeAddress ?? "",
-      token0Instance,
-      token1Instance,
-    );
-
-    const timestamp = result.poolDiff.lastUpdatedTimestamp as Date;
-
-    await Promise.all([
-      updatePool(
-        result.poolDiff,
-        liquidityPoolAggregator,
-        timestamp,
-        context,
-        event.chainId,
-        event.block.number,
-      ),
-      updateUserStatsPerPool(
-        result.userDiff,
-        userData,
-        context,
-        timestamp,
-        poolData,
-      ),
-    ]);
+    await handlePoolClaim(event, event.params.sender, context);
   },
 );

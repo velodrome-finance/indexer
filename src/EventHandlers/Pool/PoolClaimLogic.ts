@@ -12,9 +12,18 @@ export interface PoolClaimResult {
  * Process claim event for fees collected from the pool
  * This matches CLPoolCollectFeesLogic and CLPoolCollectLogic pattern
  * Distinguishes between staked fees (claimed by gauge) and unstaked fees (claimed by regular users directly)
+ *
+ * @param event - Legacy `Claim(sender, recipient, …)` or Aero
+ *   `ClaimWithAccount(caller, account, recipient, …)`; only the amounts and
+ *   the block timestamp are read
+ * @param sender - Whose fees were claimed: the legacy `sender`, the Aero `account`
+ * @param gaugeAddress - The pool's gauge ("" when it has none)
+ * @param token0Instance - Token0 for USD valuation
+ * @param token1Instance - Token1 for USD valuation
+ * @returns Pool and user diffs (staked fields when `sender` is the gauge)
  */
 export function processPoolClaim(
-  event: EvmEvent<"Pool", "Claim">,
+  event: EvmEvent<"Pool", "Claim"> | EvmEvent<"Pool", "ClaimWithAccount">,
   sender: string,
   gaugeAddress: string,
   token0Instance: Token | undefined,

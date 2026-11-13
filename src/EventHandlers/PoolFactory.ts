@@ -1,21 +1,15 @@
-import type { Token } from "envio";
 import { indexer } from "envio";
-import { createPoolEntity, updatePool } from "../Aggregators/Pool";
+import { updatePool } from "../Aggregators/Pool";
 import {
-  DEFAULT_SAMM_FEE_BPS,
-  DEFAULT_VAMM_FEE_BPS,
   PoolId,
   ROOT_POOL_FACTORY_ADDRESS_OPTIMISM,
   RootPoolLeafPoolId,
-  TokenId,
-  toCanonicalFeeScale,
+  legacyPoolDeployment,
 } from "../Constants";
 import { getRootPoolAddress } from "../Effects/RootPool";
 import { getRehydrated } from "../EntityTimestamps";
 import type { Pool } from "../EntityTypes";
-import { createTokenEntity } from "../PriceOracle";
-import { registerPricingPool } from "../Pricing/PoolRoute";
-import type { TokenEntityMapping } from "./../CustomTypes";
+import { createV2PoolFromFactory } from "./PoolFactory/PoolFactoryPoolCreatedLogic";
 import { resolveCustomSwapFee } from "./SwapFeeModule/CustomSwapFeeSharedLogic";
 import { flushPendingVotesAndDistributionsForRootPool } from "./Voter/CrossChainPendingResolution";
 
@@ -29,112 +23,21 @@ indexer.contractRegister(
 indexer.onEvent(
   { contract: "PoolFactory", event: "PoolCreated" },
   async ({ event, context }) => {
-    // Load token instances efficiently
-    const [poolToken0, poolToken1] = await Promise.all([
-      getRehydrated(
-        context.Token,
-        "Token",
-        TokenId(event.chainId, event.params.token0),
-      ),
-      getRehydrated(
-        context.Token,
-        "Token",
-        TokenId(event.chainId, event.params.token1),
-      ),
-    ]);
-
-    const poolTokenSymbols: string[] = [];
-    const poolTokenAddressMappings: TokenEntityMapping[] = [
-      { address: event.params.token0, tokenInstance: poolToken0 },
-      { address: event.params.token1, tokenInstance: poolToken1 },
-    ];
-
-    // Collect missing tokens and create them in parallel for better performance
-    const missingTokenMappings = poolTokenAddressMappings.filter(
-      (mapping) => mapping.tokenInstance === undefined,
-    );
-
-    if (missingTokenMappings.length > 0) {
-      // createTokenEntity returns `null` only when the bytecode gate confirms
-      // the address is a non-contract (issue #677). Distinguish that from a
-      // thrown error (transient RPC failure) which `.catch` maps to `undefined`
-      // — only the former triggers the pool-boundary skip below.
-      const createTokenPromises = missingTokenMappings.map(
-        (mapping): Promise<Token | null | undefined> =>
-          createTokenEntity(
-            mapping.address,
-            event.chainId,
-            event.block.number,
-            context,
-            event.block.timestamp,
-          ).catch((error) => {
-            context.log.error(
-              `Error in pool factory fetching token details for ${mapping.address} on chain ${event.chainId}: ${error}`,
-            );
-            return undefined;
-          }),
-      );
-
-      const createdTokens = await Promise.all(createTokenPromises);
-
-      for (let i = 0; i < missingTokenMappings.length; i++) {
-        const created = createdTokens[i];
-        if (created === null) {
-          // Bytecode gate (#677) rejected the token side: skip the Token row but
-          // STILL create the Pool — the factory has authoritatively registered
-          // it (closes #864). Dropping the pool here orphans every downstream
-          // entity (snapshots, user-stats) for an on-chain reality.
-          context.log.warn(
-            `[PoolFactory.PoolCreated] Pool ${event.params.pool} on chain ${event.chainId} has non-contract token side ${missingTokenMappings[i].address}; persisting Pool with empty symbol on that side`,
-          );
-        } else if (created !== undefined) {
-          missingTokenMappings[i].tokenInstance = created;
-        }
-      }
-    }
-
-    // Build symbol array — index-based so a missing token instance does not
-    // shift the other token's symbol into the wrong slot (#864).
-    for (let i = 0; i < poolTokenAddressMappings.length; i++) {
-      poolTokenSymbols[i] =
-        poolTokenAddressMappings[i].tokenInstance?.symbol ?? "";
-    }
-
-    // V2 PoolFactory reports fees in basis points; lift to canonical FEE_SCALE
-    // (1e6) so V2 and CL share one stored scale + divisor (issue #812).
-    const fee = toCanonicalFeeScale(
-      event.params.stable ? DEFAULT_SAMM_FEE_BPS : DEFAULT_VAMM_FEE_BPS,
-      false,
-    );
-
-    const pool = createPoolEntity({
-      poolAddress: event.params.pool,
-      chainId: event.chainId,
-      isCL: false,
-      isStable: event.params.stable,
-      token0Address: event.params.token0,
-      token1Address: event.params.token1,
-      token0Symbol: poolTokenSymbols[0],
-      token1Symbol: poolTokenSymbols[1],
-      timestamp: new Date(event.block.timestamp * 1000),
-      factoryAddress: event.srcAddress,
-      baseFee: fee,
-      currentFee: fee,
-      createdBlockNumber: BigInt(event.block.number),
-    });
-
-    // For new pool creation, set the entity directly (updatePool is for updates, not creation)
-    context.Pool.set(pool);
-
-    // Record the pool as a pricing candidate for whichever side sits in the
-    // higher pricing tier (ADR 0003). Done before the leaf-chain root-pool
-    // lookup below, whose failure paths return early.
-    await registerPricingPool(
+    // Pool + pricing registration, shared with the Aero factories. Done before
+    // the leaf-chain root-pool lookup below, whose failure paths return early.
+    await createV2PoolFromFactory(
+      {
+        chainId: event.chainId,
+        factoryAddress: event.srcAddress,
+        pool: event.params.pool,
+        token0: event.params.token0,
+        token1: event.params.token1,
+        isStable: event.params.stable,
+        blockNumber: event.block.number,
+        blockTimestamp: event.block.timestamp,
+        deployment: legacyPoolDeployment(event.chainId),
+      },
       context,
-      event.chainId,
-      event.params.pool,
-      event.params.token0,
-      event.params.token1,
     );
 
     // For non-Optimism and non-Base pools, set the RootPool_LeafPool entity

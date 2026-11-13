@@ -52,9 +52,7 @@ export interface PriceTrustDecision {
 const CONNECTOR_SETS: ReadonlyMap<number, ReadonlySet<string>> = new Map(
   Object.entries(CHAIN_CONSTANTS).map(([chainId, constants]) => [
     Number(chainId),
-    new Set(
-      constants.oracle.priceConnectors.map((c) => c.address.toLowerCase()),
-    ),
+    new Set(constants.priceConnectors.map((c) => c.address.toLowerCase())),
   ]),
 );
 
@@ -62,7 +60,7 @@ const CONNECTOR_SETS: ReadonlyMap<number, ReadonlySet<string>> = new Map(
  * Whether `address` is one of `chainId`'s configured price connectors — the
  * canonical base assets (WETH, USDC, the chain's gov token, …) every other
  * token's price is derived through (src/constants/price_connectors.json,
- * surfaced as `CHAIN_CONSTANTS[chainId].oracle.priceConnectors`; tiers 0–2 of
+ * surfaced as `CHAIN_CONSTANTS[chainId].priceConnectors`; tiers 0–2 of
  * the pool-derived pricing in docs/adr/0003-pool-derived-token-prices.md).
  *
  * A token the indexer trusts enough to *derive* prices from is, by the same

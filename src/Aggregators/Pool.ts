@@ -1,5 +1,7 @@
 import type { CLGaugeConfig, Token } from "envio";
 import {
+  POOL_DEPLOYMENT,
+  type PoolDeployment,
   PoolId,
   TEN_TO_THE_18_BI,
   TokenId,
@@ -946,13 +948,21 @@ export async function findPoolByGaugeAddress(
 }
 
 /**
- * Creates a new Pool entity with default values
+ * Creates a new Pool entity with default values.
+ *
+ * `deployment` decides the fields that only exist on legacy pools: an AERO
+ * pool gets no `rootPoolMatchingHash` (Aero has no Optimism root pools, so it
+ * must never match a RootPoolCreated). Callers creating AERO pools pass no
+ * `CLGaugeConfig` (that config belongs to the legacy CLGaugeFactory).
+ *
  * @param params - Parameters for creating the pool entity
  * @returns A new Pool entity
  */
 export function createPoolEntity(params: {
   poolAddress: string;
   chainId: number;
+  // Deployment that created the pool (POOL_DEPLOYMENT); see Pool.deployment.
+  deployment: PoolDeployment;
   isCL: boolean;
   isStable: boolean;
   token0Address: string;
@@ -976,6 +986,7 @@ export function createPoolEntity(params: {
   const {
     poolAddress,
     chainId,
+    deployment,
     isCL,
     isStable,
     token0Address,
@@ -996,6 +1007,7 @@ export function createPoolEntity(params: {
     id: PoolId(chainId, poolAddress),
     poolAddress: poolAddress,
     chainId: chainId,
+    deployment: deployment,
     isCL: isCL,
     name: generatePoolName(
       token0Symbol,
@@ -1095,6 +1107,9 @@ export function createPoolEntity(params: {
     currentFee: currentFee,
     // Unstaked Fee fields - populated by UnstakedFeeModule / CustomUnstakedFeeModule events.
     unstakedFee: undefined,
-    rootPoolMatchingHash: `${chainId}_${token0Address}_${token1Address}_${(tickSpacing ? BigInt(tickSpacing) : 0n).toString()}`,
+    rootPoolMatchingHash:
+      deployment === POOL_DEPLOYMENT.AERO
+        ? undefined
+        : `${chainId}_${token0Address}_${token1Address}_${(tickSpacing ? BigInt(tickSpacing) : 0n).toString()}`,
   };
 }

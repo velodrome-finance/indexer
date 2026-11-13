@@ -24,9 +24,9 @@ import {
 } from "../../Aggregators/VeNFTPoolVote";
 import { loadVeNFTState } from "../../Aggregators/VeNFTState";
 import {
-  CHAIN_CONSTANTS,
   CrossChainPendingResolutionLogPrefix,
   TokenId,
+  getLegacyConstants,
 } from "../../Constants";
 import { getRehydrated, getWhereRehydrated } from "../../EntityTimestamps";
 import type { handlerContext } from "../../EntityTypes";
@@ -326,7 +326,7 @@ export async function processPendingDistribution(
   );
 
   const rewardTokenAddress =
-    CHAIN_CONSTANTS[rootChainId].rewardToken(blockNumber);
+    getLegacyConstants(rootChainId).rewardToken(blockNumber);
   const rewardToken = await getRehydrated(
     context.Token,
     "Token",

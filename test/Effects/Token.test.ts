@@ -1,6 +1,10 @@
 import { HttpRequestError } from "viem";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { CHAIN_CONSTANTS, toChecksumAddress } from "../../src/Constants";
+import {
+  CHAIN_CONSTANTS,
+  getLegacyConstants,
+  toChecksumAddress,
+} from "../../src/Constants";
 import {
   getTokenDetails,
   getTokenPrice,
@@ -101,7 +105,8 @@ describe("getTokenPrice", () => {
   let restore: () => void = () => {};
   afterEach(() => restore());
   const chain = CHAIN_CONSTANTS[CHAIN];
-  const block = chain.oracle.startBlock + 50_000_000;
+  const oracle = getLegacyConstants(CHAIN).oracle;
+  const block = oracle.startBlock + 50_000_000;
 
   it("prices the destination token at 1 without RPC", async () => {
     const readContract = vi.fn();
@@ -121,7 +126,7 @@ describe("getTokenPrice", () => {
     const { output, context } = await runEffect(getTokenPrice, {
       tokenAddress: TOKEN,
       chainId: CHAIN,
-      blockNumber: chain.oracle.startBlock - 1,
+      blockNumber: oracle.startBlock - 1,
     });
     expect(output).toMatchObject({ pricePerUSDNew: 0n });
     expect(context.cache).toBe(true);

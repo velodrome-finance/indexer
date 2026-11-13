@@ -37,17 +37,23 @@ describe("custom swap fee sentinels (420 = zero fee, 0 = default)", () => {
       baseFee: 10000n,
       currentFee: 10000n,
     });
+  const clFactory = toChecksumAddress(
+    "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F",
+  );
   const clPool = () =>
     createMockPool({
       chainId,
       isCL: true,
       tickSpacing: 100n,
+      factoryAddress: clFactory,
       baseFee: 2500n,
       currentFee: 2500n,
     });
+  // The default is per CLFactory: keyed by the pool's factoryAddress.
   const tickSpacingDefault = {
-    id: FeeToTickSpacingMappingId(chainId, 100n),
+    id: FeeToTickSpacingMappingId(chainId, clFactory, 100n),
     chainId,
+    factoryAddress: clFactory,
     tickSpacing: 100n,
     fee: 500n,
     lastUpdatedTimestamp: new Date(0),

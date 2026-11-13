@@ -138,7 +138,12 @@ export const getTokenPrice = createRpcEffect(
     const { tokenAddress, chainId, blockNumber, tokenDecimals } = input;
     const chain = CHAIN_CONSTANTS[chainId];
     if (!chain) throw new RpcConfigError(`Unsupported chainId: ${chainId}`);
-    const oracleType = chain.oracle.getType(blockNumber);
+    // Only legacy deployments have an on-chain price oracle.
+    if (!chain.legacy) {
+      throw new RpcConfigError(`Chain ${chainId} has no legacy price oracle`);
+    }
+    const legacy = chain.legacy;
+    const oracleType = legacy.oracle.getType(blockNumber);
     const real = (pricePerUSDNew: bigint) => ({
       value: { pricePerUSDNew, priceOracleType: oracleType.toString() },
       usedDefault: false,
@@ -152,7 +157,7 @@ export const getTokenPrice = createRpcEffect(
       return real(10n ** 18n);
     }
     // Pre-deploy zero is a real answer (the oracle does not exist yet).
-    if (chain.oracle.startBlock > blockNumber) return real(0n);
+    if (legacy.oracle.startBlock > blockNumber) return real(0n);
 
     let sourceDecimals = tokenDecimals;
     let decimalsErrorClass: ReturnType<typeof mostCacheBlockingErrorClass>;
@@ -185,10 +190,10 @@ export const getTokenPrice = createRpcEffect(
     }
 
     const WETH_ADDRESS = chain.weth;
-    const SYSTEM_TOKEN_ADDRESS = chain.rewardToken(blockNumber);
+    const SYSTEM_TOKEN_ADDRESS = legacy.rewardToken(blockNumber);
     const DESTINATION = chain.destinationToken;
-    let connectors = chain.oracle.priceConnectors
-      .filter((c) => c.createdBlock <= blockNumber)
+    let connectors = chain.priceConnectors
+      .filter((c) => (c.createdBlock ?? 0) <= blockNumber)
       .map((c) => c.address)
       .filter(
         (a) =>
@@ -202,7 +207,7 @@ export const getTokenPrice = createRpcEffect(
       oracleType === PriceOracleType.V1 ||
       oracleType === PriceOracleType.V2
     ) {
-      const blacklist = chain.oracle.v1v2ConnectorBlacklist;
+      const blacklist = legacy.oracle.v1v2ConnectorBlacklist;
       if (blacklist.size > 0) {
         connectors = connectors.filter((a) => !blacklist.has(a));
       }

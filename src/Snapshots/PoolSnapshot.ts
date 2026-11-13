@@ -37,6 +37,7 @@ export function createPoolSnapshot(
     token1_address: entity.token1_address,
     isStable: entity.isStable,
     isCL: entity.isCL,
+    deployment: entity.deployment,
     reserve0: entity.reserve0,
     reserve1: entity.reserve1,
     totalLPTokenSupply: entity.totalLPTokenSupply,

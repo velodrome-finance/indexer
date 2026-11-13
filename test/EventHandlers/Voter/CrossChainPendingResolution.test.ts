@@ -19,6 +19,7 @@ import {
   RootPoolLeafPoolId,
   TokenId,
   VeNFTId,
+  getLegacyConstants,
   toChecksumAddress,
 } from "../../../src/Constants";
 import type { handlerContext } from "../../../src/EntityTypes";
@@ -1046,7 +1047,7 @@ describe("CrossChainPendingResolution", () => {
         blockNumber: 106000000n,
         blockTimestamp: new Date(1700000000 * 1000),
       });
-      const rewardTokenAddress = CHAIN_CONSTANTS[rootChainId].rewardToken(
+      const rewardTokenAddress = getLegacyConstants(rootChainId).rewardToken(
         Number(pending.blockNumber),
       );
       const tokenGet = vi.fn().mockResolvedValue(undefined);
@@ -1069,7 +1070,7 @@ describe("CrossChainPendingResolution", () => {
 
     it("should return false when leaf pool data is not found", async () => {
       const pending = makePendingDistribution();
-      const rewardTokenAddress = CHAIN_CONSTANTS[rootChainId].rewardToken(
+      const rewardTokenAddress = getLegacyConstants(rootChainId).rewardToken(
         Number(pending.blockNumber),
       );
       const mockToken = {
@@ -1110,7 +1111,7 @@ describe("CrossChainPendingResolution", () => {
     it("should apply LP diff when reward token and leaf pool data exist", async () => {
       const { createMockPool, mockToken0Data, mockToken1Data } = common;
       const pending = makePendingDistribution();
-      const rewardTokenAddress = CHAIN_CONSTANTS[rootChainId].rewardToken(
+      const rewardTokenAddress = getLegacyConstants(rootChainId).rewardToken(
         Number(pending.blockNumber),
       );
       const mockRewardToken = {
@@ -1294,7 +1295,7 @@ describe("CrossChainPendingResolution", () => {
         token0Instance: mockToken0Data,
         token1Instance: mockToken1Data,
       };
-      const rewardTokenAddress = CHAIN_CONSTANTS[rootChainId].rewardToken(
+      const rewardTokenAddress = getLegacyConstants(rootChainId).rewardToken(
         Number(pending.blockNumber),
       );
       const mockRewardToken = {
@@ -1418,7 +1419,7 @@ describe("CrossChainPendingResolution", () => {
         token1Instance: mockToken1Data,
       };
       const rewardTokenAddress =
-        CHAIN_CONSTANTS[rootChainId].rewardToken(106000000);
+        getLegacyConstants(rootChainId).rewardToken(106000000);
       const mockRewardToken = {
         id: TokenId(rootChainId, rewardTokenAddress),
         address: rewardTokenAddress as `0x${string}`,
@@ -1502,7 +1503,7 @@ describe("CrossChainPendingResolution", () => {
         token0Instance: mockToken0Data,
         token1Instance: mockToken1Data,
       };
-      const rewardTokenAddress = CHAIN_CONSTANTS[rootChainId].rewardToken(
+      const rewardTokenAddress = getLegacyConstants(rootChainId).rewardToken(
         Number(pending.blockNumber),
       );
       const mockRewardToken = {

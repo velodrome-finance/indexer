@@ -98,6 +98,10 @@ const CONNECTOR_CHAIN_IDS: Record<string, number> = {
   celo: 42220,
   superseed: 5330,
   swellchain: 1923,
+  ethereum: 1,
+  arbitrum: 42161,
+  robinhood: 4663,
+  arc: 5042,
 };
 
 function makeToken(overrides: Partial<Token> = {}): Token {

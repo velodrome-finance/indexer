@@ -22,6 +22,11 @@ import {
 } from "../../../src/PriceTrust";
 import { setupCommon } from "../Pool/common";
 
+// Factory of the mock PoolCreated events (their srcAddress).
+const MOCK_CL_FACTORY = toChecksumAddress(
+  "0x1111111111111111111111111111111111111111",
+);
+
 describe("CLFactoryPoolCreatedLogic", () => {
   const { mockToken0Data, mockToken1Data } = setupCommon();
 
@@ -81,8 +86,9 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
   // Mock FeeToTickSpacingMapping
   const mockFeeToTickSpacingMapping: FeeToTickSpacingMapping = {
-    id: FeeToTickSpacingMappingId(CHAIN_ID, TICK_SPACING),
+    id: FeeToTickSpacingMappingId(CHAIN_ID, MOCK_CL_FACTORY, TICK_SPACING),
     chainId: CHAIN_ID,
+    factoryAddress: MOCK_CL_FACTORY,
     tickSpacing: TICK_SPACING,
     fee: FEE,
     lastUpdatedTimestamp: new Date(1000000 * 1000),
@@ -232,8 +238,9 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
       // For different tick spacing, use a different mapping
       const mappingForTickSpacing200: FeeToTickSpacingMapping = {
-        id: FeeToTickSpacingMappingId(CHAIN_ID, 200),
+        id: FeeToTickSpacingMappingId(CHAIN_ID, MOCK_CL_FACTORY, 200),
         chainId: CHAIN_ID,
+        factoryAddress: MOCK_CL_FACTORY,
         tickSpacing: 200n,
         fee: 300n,
         lastUpdatedTimestamp: new Date(1000000 * 1000),
@@ -332,8 +339,9 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
       // For different chain ID, use a different mapping
       const mappingForBase: FeeToTickSpacingMapping = {
-        id: FeeToTickSpacingMappingId(8453, TICK_SPACING),
+        id: FeeToTickSpacingMappingId(8453, MOCK_CL_FACTORY, TICK_SPACING),
         chainId: 8453,
+        factoryAddress: MOCK_CL_FACTORY,
         tickSpacing: TICK_SPACING,
         fee: 400n,
         lastUpdatedTimestamp: new Date(1000000 * 1000),
@@ -665,8 +673,9 @@ describe("CLFactoryPoolCreatedLogic", () => {
         } as unknown as EvmEvent<"CLFactory", "PoolCreated">;
 
         const mapping: FeeToTickSpacingMapping = {
-          id: FeeToTickSpacingMappingId(CHAIN_ID, tickSpacing),
+          id: FeeToTickSpacingMappingId(CHAIN_ID, MOCK_CL_FACTORY, tickSpacing),
           chainId: CHAIN_ID,
+          factoryAddress: MOCK_CL_FACTORY,
           tickSpacing,
           fee,
           lastUpdatedTimestamp: new Date(1000000 * 1000),

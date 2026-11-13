@@ -14,9 +14,9 @@ import {
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
 import {
-  CHAIN_CONSTANTS,
   NonFungiblePositionId,
   TokenId,
+  getLegacyConstants,
 } from "../../Constants";
 import { getRehydrated } from "../../EntityTimestamps";
 import type { handlerContext } from "../../EntityTypes";
@@ -511,7 +511,7 @@ export async function processGaugeClaimRewards(
   const timestamp = new Date(data.timestamp * 1000);
 
   // Get reward token address
-  const rewardTokenAddress = CHAIN_CONSTANTS[data.chainId].rewardToken(
+  const rewardTokenAddress = getLegacyConstants(data.chainId).rewardToken(
     data.blockNumber,
   );
 

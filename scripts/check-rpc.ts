@@ -82,9 +82,15 @@ const ABI = parseAbi(["function totalSupply() view returns (uint256)"]);
  * Contract read for the archive probe: `totalSupply()` (a state read) on a
  * token that exists from genesis, so every sampled block must succeed on an
  * archive node: the WETH predeploy on OP-stack chains, the CELO token on Celo.
+ * Chains not listed use their `weth` constant, which on the Aero-only chains
+ * existed before the first sampled block (the Aero start block).
  */
 const ARCHIVE_PROBE_TARGET: Record<number, `0x${string}`> = {
   42220: "0x471EcE3750Da237f93B8E339c536989b8978a438",
+  1: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+  42161: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+  4663: "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+  5042: "0x3600000000000000000000000000000000000000",
 };
 const WETH_PREDEPLOY = "0x4200000000000000000000000000000000000006";
 let requestCount = 0;
@@ -96,7 +102,7 @@ const timed = async <T>(fn: () => Promise<T>) => {
   return { value, ms: Math.round(performance.now() - t0) };
 };
 
-/** Blocks from the oracle deploy block to ~1000 blocks below head. */
+/** Blocks from the first block the indexer reads to ~1000 blocks below head. */
 function sampleBlocks(start: number, head: number, n: number): number[] {
   const end = Math.max(start, head - 1000);
   if (n <= 1) return [start];
@@ -142,12 +148,12 @@ async function probe(
     result.fatal = `${getErrorType(e)}: ${describeRpcError(e)}`;
     return result;
   }
+  // First block an archive read can be needed at: the legacy oracle deploy
+  // block, or the Aero start block on an Aero-only chain.
   const constants = CHAIN_CONSTANTS[chainId];
-  for (const block of sampleBlocks(
-    constants.oracle.startBlock,
-    result.head ?? 0,
-    CALLS,
-  )) {
+  const firstBlock =
+    constants.legacy?.oracle.startBlock ?? constants.aero?.startBlock ?? 0;
+  for (const block of sampleBlocks(firstBlock, result.head ?? 0, CALLS)) {
     result.total++;
     try {
       const r = await timed(() =>

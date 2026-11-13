@@ -13,6 +13,7 @@ import {
   UserStatsPerPoolId,
   VeNFTId,
   VeNFTPoolVoteId,
+  getLegacyConstants,
   rootPoolMatchingHash,
   toChecksumAddress,
 } from "../../../src/Constants";
@@ -22,6 +23,7 @@ import {
   PRICE_TRUST_OUTCOME,
   PRICE_TRUST_REASON,
 } from "../../../src/PriceTrust";
+import { withLegacyRewardToken } from "../../testHelpers";
 import { type MockPool, setupCommon } from "../Pool/common";
 
 type MockUserStatsPerPool = ReturnType<
@@ -65,10 +67,10 @@ function setupDistributeRewardMocks(
   options?: { getTokensDepositedValue?: bigint; timestampSeconds?: number },
 ): { rewardToken: Token; cleanup: () => void } {
   const original = CHAIN_CONSTANTS[chainId];
-  CHAIN_CONSTANTS[chainId] = {
-    ...original,
-    rewardToken: vi.fn().mockReturnValue(rewardTokenAddress),
-  };
+  CHAIN_CONSTANTS[chainId] = withLegacyRewardToken(
+    original,
+    vi.fn().mockReturnValue(rewardTokenAddress),
+  );
 
   let spy: ReturnType<typeof vi.spyOn> | undefined;
   if (options?.getTokensDepositedValue !== undefined) {
@@ -2537,7 +2539,7 @@ describe("Voter Events", () => {
     };
 
     const rewardTokenAddress =
-      CHAIN_CONSTANTS[chainId].rewardToken(blockNumber);
+      getLegacyConstants(chainId).rewardToken(blockNumber);
 
     describe("when reward token and liquidity pool exist", () => {
       let indexer: ReturnType<typeof createTestIndexer>;
@@ -2648,10 +2650,10 @@ describe("Voter Events", () => {
           ).mockImplementation(async () => 500n * 10n ** 18n);
 
           originalChainConstantsAlive = CHAIN_CONSTANTS[chainId];
-          CHAIN_CONSTANTS[chainId] = {
-            ...originalChainConstantsAlive,
-            rewardToken: vi.fn().mockReturnValue(rewardTokenAddress),
-          };
+          CHAIN_CONSTANTS[chainId] = withLegacyRewardToken(
+            originalChainConstantsAlive,
+            vi.fn().mockReturnValue(rewardTokenAddress),
+          );
 
           aliveIndexer = createTestIndexer();
           aliveIndexer.Token.set(rewardToken);
@@ -2681,10 +2683,10 @@ describe("Voter Events", () => {
       it("should return early when pool does not exist and no RootGauge_RootPool mapping", async () => {
         // Mock CHAIN_CONSTANTS rewardToken function
         originalChainConstantsForPoolTest = CHAIN_CONSTANTS[chainId];
-        CHAIN_CONSTANTS[chainId] = {
-          ...originalChainConstantsForPoolTest,
-          rewardToken: vi.fn().mockReturnValue(rewardTokenAddress),
-        };
+        CHAIN_CONSTANTS[chainId] = withLegacyRewardToken(
+          originalChainConstantsForPoolTest,
+          vi.fn().mockReturnValue(rewardTokenAddress),
+        );
 
         // Mock findPoolByGaugeAddress to return null (root gauge, no local pool)
         vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(null);
@@ -2726,10 +2728,10 @@ describe("Voter Events", () => {
 
       it("should create RootGauge_RootPool and PendingDistribution when processEvents RootPoolCreated, GaugeCreated, DistributeReward with no leaf", async () => {
         originalChainConstantsDeferred = CHAIN_CONSTANTS[chainId];
-        CHAIN_CONSTANTS[chainId] = {
-          ...originalChainConstantsDeferred,
-          rewardToken: vi.fn().mockReturnValue(rewardTokenAddress),
-        };
+        CHAIN_CONSTANTS[chainId] = withLegacyRewardToken(
+          originalChainConstantsDeferred,
+          vi.fn().mockReturnValue(rewardTokenAddress),
+        );
 
         vi.spyOn(
           getTokensDeposited as unknown as EffectWithHandler<
@@ -2860,10 +2862,10 @@ describe("Voter Events", () => {
 
       it("should create PendingDistribution when root gauge has ambiguous RootPool_LeafPool mapping (length > 1)", async () => {
         originalChainConstantsDeferred = CHAIN_CONSTANTS[chainId];
-        CHAIN_CONSTANTS[chainId] = {
-          ...originalChainConstantsDeferred,
-          rewardToken: vi.fn().mockReturnValue(rewardTokenAddress),
-        };
+        CHAIN_CONSTANTS[chainId] = withLegacyRewardToken(
+          originalChainConstantsDeferred,
+          vi.fn().mockReturnValue(rewardTokenAddress),
+        );
 
         vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(null);
 
@@ -3056,10 +3058,10 @@ describe("Voter Events", () => {
 
         // Mock CHAIN_CONSTANTS rewardToken function
         originalChainConstantsForRewardTest = CHAIN_CONSTANTS[chainId];
-        CHAIN_CONSTANTS[chainId] = {
-          ...originalChainConstantsForRewardTest,
-          rewardToken: vi.fn().mockReturnValue(rewardTokenAddress),
-        };
+        CHAIN_CONSTANTS[chainId] = withLegacyRewardToken(
+          originalChainConstantsForRewardTest,
+          vi.fn().mockReturnValue(rewardTokenAddress),
+        );
 
         // Mock findPoolByGaugeAddress to return the pool
         vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(

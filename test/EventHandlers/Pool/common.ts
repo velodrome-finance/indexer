@@ -153,6 +153,7 @@ export function setupCommon() {
     totalEmissionsForfeited: 0n,
     gaugeIsAlive: true,
     isCL: false,
+    deployment: "VELODROME",
     lastUpdatedTimestamp: new Date(),
     lastSnapshotTimestamp: new Date(),
     name: "",
@@ -205,7 +206,7 @@ export function setupCommon() {
     currentFee: 0n,
     // Unstaked Fee fields
     unstakedFee: undefined,
-    rootPoolMatchingHash: "",
+    rootPoolMatchingHash: "" as string | undefined,
     tickSpacing: 0n,
   };
 

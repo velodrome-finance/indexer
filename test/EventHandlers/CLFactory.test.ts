@@ -42,8 +42,13 @@ describe("CLFactory Events", () => {
   const TICK_SPACING = 60n;
   const FEE = 500n;
   const createFeeToTickSpacingMapping = () => ({
-    id: FeeToTickSpacingMappingId(chainId, TICK_SPACING),
+    id: FeeToTickSpacingMappingId(
+      chainId,
+      CL_FACTORY_ADDRESS_BY_CHAIN[chainId],
+      TICK_SPACING,
+    ),
     chainId: chainId,
+    factoryAddress: CL_FACTORY_ADDRESS_BY_CHAIN[chainId],
     tickSpacing: TICK_SPACING,
     fee: FEE,
     lastUpdatedTimestamp: new Date(1000000 * 1000),
@@ -194,7 +199,11 @@ describe("CLFactory Events", () => {
       setupIndexerWithEntities(preloadIndexer);
 
       // Verify the mapping exists before processing (using the same key format as the handler)
-      const mappingKey = FeeToTickSpacingMappingId(chainId, TICK_SPACING);
+      const mappingKey = FeeToTickSpacingMappingId(
+        chainId,
+        CL_FACTORY_ADDRESS_BY_CHAIN[chainId],
+        TICK_SPACING,
+      );
       const mappingBefore =
         await preloadIndexer.FeeToTickSpacingMapping.get(mappingKey);
       expect(mappingBefore).toBeDefined(); // Verify mapping exists before processing
@@ -579,8 +588,13 @@ describe("CLFactory Events", () => {
         } satisfies CLGaugeConfig;
         idx.CLGaugeConfig.set(clGaugeConfig);
         const feeToTickSpacingMapping = {
-          id: FeeToTickSpacingMappingId(leafChain, tickSpacing),
+          id: FeeToTickSpacingMappingId(
+            leafChain,
+            CL_FACTORY_ADDRESS_BY_CHAIN[leafChain],
+            tickSpacing,
+          ),
           chainId: leafChain,
+          factoryAddress: CL_FACTORY_ADDRESS_BY_CHAIN[leafChain],
           tickSpacing,
           fee,
           lastUpdatedTimestamp: new Date(1000000 * 1000),
@@ -949,7 +963,11 @@ describe("CLFactory Events", () => {
     });
 
     it("should create a new mapping when it doesn't exist", async () => {
-      const mappingId = FeeToTickSpacingMappingId(CHAIN_ID, TICK_SPACING);
+      const mappingId = FeeToTickSpacingMappingId(
+        CHAIN_ID,
+        CL_FACTORY_ADDRESS_BY_CHAIN[CHAIN_ID],
+        TICK_SPACING,
+      );
 
       await indexer.process({
         chains: {
@@ -992,7 +1010,11 @@ describe("CLFactory Events", () => {
     });
 
     it("should update existing mapping when it already exists", async () => {
-      const mappingId = FeeToTickSpacingMappingId(CHAIN_ID, TICK_SPACING);
+      const mappingId = FeeToTickSpacingMappingId(
+        CHAIN_ID,
+        CL_FACTORY_ADDRESS_BY_CHAIN[CHAIN_ID],
+        TICK_SPACING,
+      );
       const oldFee = 400n;
       const newFee = 600n;
       const oldTimestamp = 500000;
@@ -1002,6 +1024,7 @@ describe("CLFactory Events", () => {
       const existingMapping = {
         id: mappingId,
         chainId: CHAIN_ID,
+        factoryAddress: CL_FACTORY_ADDRESS_BY_CHAIN[CHAIN_ID],
         tickSpacing: TICK_SPACING,
         fee: oldFee,
         lastUpdatedTimestamp: new Date(oldTimestamp * 1000),
@@ -1085,6 +1108,7 @@ describe("CLFactory Events", () => {
         for (const mapping of mappings) {
           const mappingId = FeeToTickSpacingMappingId(
             mapping.chainId,
+            CL_FACTORY_ADDRESS_BY_CHAIN[mapping.chainId],
             mapping.tickSpacing,
           );
           expectedMappings.push({
@@ -1175,8 +1199,13 @@ describe("CLFactory.PoolCreated ↔ CLPoolPendingInitialize buffer", () => {
       lastUpdatedTimestamp: new Date(1000000 * 1000),
     } satisfies CLGaugeConfig);
     idx.FeeToTickSpacingMapping.set({
-      id: FeeToTickSpacingMappingId(chainId, TICK_SPACING),
+      id: FeeToTickSpacingMappingId(
+        chainId,
+        CL_FACTORY_ADDRESS_BY_CHAIN[chainId],
+        TICK_SPACING,
+      ),
       chainId,
+      factoryAddress: CL_FACTORY_ADDRESS_BY_CHAIN[chainId],
       tickSpacing: TICK_SPACING,
       fee: FEE,
       lastUpdatedTimestamp: new Date(1000000 * 1000),
