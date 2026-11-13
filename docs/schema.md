@@ -6,7 +6,7 @@
 
 # Entity & field reference
 
-Generated from [`schema.graphql`](../schema.graphql). The schema defines **48 entity types**; each becomes a queryable table in the indexer's database.
+Generated from [`schema.graphql`](../schema.graphql). The schema defines **75 entity types**; each becomes a queryable table in the indexer's database.
 
 ## Reading this reference
 
@@ -23,7 +23,9 @@ Generated from [`schema.graphql`](../schema.graphql). The schema defines **48 en
 - **Config & registry** — [FactoryRegistryConfig](#factoryregistryconfig), [DynamicFeeGlobalConfig](#dynamicfeeglobalconfig), [CLGaugeConfig](#clgaugeconfig), [FeeToTickSpacingMapping](#feetotickspacingmapping), [PoolFactoryDefaultFee](#poolfactorydefaultfee), [RedistributorConfig](#redistributorconfig), [RootPool_LeafPool](#rootpool_leafpool), [RootGauge_RootPool](#rootgauge_rootpool)
 - **Pool launcher** — [PoolLauncherPool](#poollauncherpool), [PoolLauncherConfig](#poollauncherconfig)
 - **Cross-chain superswaps (Hyperlane)** — [SuperSwap](#superswap), [OUSDTBridgedTransaction](#ousdtbridgedtransaction), [OUSDTSwaps](#ousdtswaps), [DispatchId_event](#dispatchid_event), [ProcessId_event](#processid_event), [TxDispatchIdRegistry](#txdispatchidregistry), [TxOUSDTSwapRegistry](#txousdtswapregistry)
-- **Internal buffers & deferred state** — [PendingVote](#pendingvote), [CLPoolPendingInitialize](#clpoolpendinginitialize), [PendingRootPoolMapping](#pendingrootpoolmapping), [PendingDistribution](#pendingdistribution), [PoolTickMap](#pooltickmap), [CLPoolMintEvent](#clpoolmintevent), [CLPositionPendingPrincipal](#clpositionpendingprincipal), [TxCLPoolMintRegistry](#txclpoolmintregistry), [AeroNFPMMintPool](#aeronfpmmintpool), [AeroNFPMPendingMint](#aeronfpmpendingmint), [NFPMPositionPendingPrincipal](#nfpmpositionpendingprincipal), [V2SwapFeesInTx](#v2swapfeesintx), [TokenPricingPools](#tokenpricingpools), [TxPoolTransferRegistry](#txpooltransferregistry), [PoolTransferInTx](#pooltransferintx), [ALMLPWrapperTransferInTx](#almlpwrappertransferintx), [ALM_TotalSupplyLimitUpdated_event](#alm_totalsupplylimitupdated_event)
+- **Aero gauges, staking & emissions** — [AeroGauge](#aerogauge), [AeroGaugeFactory](#aerogaugefactory), [AeroLeafVoterState](#aeroleafvoterstate), [AeroVotingRewardsManager](#aerovotingrewardsmanager), [AeroIncentiveProgram](#aeroincentiveprogram), [AeroGaugeSnapshot](#aerogaugesnapshot), [AeroLeafVoterStateSnapshot](#aeroleafvoterstatesnapshot), [AeroGaugeStakeEvent](#aerogaugestakeevent), [AeroEmissionsEvent](#aeroemissionsevent), [AeroRedemptionEvent](#aeroredemptionevent), [AeroVotingRewardsEvent](#aerovotingrewardsevent)
+- **Aero governance** — [SAeroPosition](#saeroposition), [SAeroEscrowState](#saeroescrowstate), [SAeroEscrowStateSnapshot](#saeroescrowstatesnapshot), [SAeroPositionEvent](#saeropositionevent), [AeroRootAllocation](#aerorootallocation), [AeroRootGaugeVote](#aerorootgaugevote), [AeroRootChainState](#aerorootchainstate), [AeroLeafTokenState](#aeroleaftokenstate), [AeroLeafAllocation](#aeroleafallocation), [AeroAllocationEvent](#aeroallocationevent), [AeroMinterState](#aerominterstate), [AeroMinterSnapshot](#aeromintersnapshot), [AeroMinterEvent](#aerominterevent), [AeroMigrationTotals](#aeromigrationtotals), [AeroMigrationEvent](#aeromigrationevent)
+- **Internal buffers & deferred state** — [PendingVote](#pendingvote), [CLPoolPendingInitialize](#clpoolpendinginitialize), [PendingRootPoolMapping](#pendingrootpoolmapping), [PendingDistribution](#pendingdistribution), [PoolTickMap](#pooltickmap), [CLPoolMintEvent](#clpoolmintevent), [CLPositionPendingPrincipal](#clpositionpendingprincipal), [TxCLPoolMintRegistry](#txclpoolmintregistry), [AeroNFPMMintPool](#aeronfpmmintpool), [AeroNFPMPendingMint](#aeronfpmpendingmint), [AeroGaugePendingReferral](#aerogaugependingreferral), [NFPMPositionPendingPrincipal](#nfpmpositionpendingprincipal), [V2SwapFeesInTx](#v2swapfeesintx), [TokenPricingPools](#tokenpricingpools), [TxPoolTransferRegistry](#txpooltransferregistry), [PoolTransferInTx](#pooltransferintx), [ALMLPWrapperTransferInTx](#almlpwrappertransferintx), [ALM_TotalSupplyLimitUpdated_event](#alm_totalsupplylimitupdated_event)
 
 ## Core aggregates
 
@@ -66,10 +68,10 @@ Latest-state entities that hold the headline metrics most consumers query.
 | `numberOfSwapFeeFallbacks` | `BigInt!` | CL only: swaps whose fee could not be derived from the swap (tick-map walk disagreed with the event's liquidity, or the derived fee was negative or above 10% of the input) and were valued with the stored currentFee instead. Should stay 0 on a from-creation sync |
 | `token0Price` | `BigInt!` | price of token0 relative to token1 |
 | `token1Price` | `BigInt!` | price of token1 relative to token0 |
-| `totalVotesDeposited` | `BigInt!` | total votes deposited in veToken units (legacy weekly Voter votes; 0 on AERO pools: Aero has no weekly votes and sAERO allocations are not indexed) |
+| `totalVotesDeposited` | `BigInt!` | total votes deposited in veToken units (legacy weekly Voter votes; 0 on AERO pools: Aero has no weekly votes; sAERO allocations are in AeroLeafAllocation / AeroGauge.totalAllocated) |
 | `totalVotesDepositedUSD` | `BigInt!` | total votes deposited in USD (0 on AERO pools, see totalVotesDeposited) |
 | `totalEmissions` | `BigInt!` | total emissions for the pool in reward token units (VELO form Optimism and AERO for Base); 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
-| `totalEmissionsUSD` | `BigInt!` | total emissions for the pool in USD. totalEmissions* are legacy-gauge emissions; 0 on AERO pools until Aero gauges are indexed |
+| `totalEmissionsUSD` | `BigInt!` | total emissions for the pool in USD. totalEmissions* are legacy-gauge emissions; 0 on AERO pools (Aero emissions are minted on claim: see AeroGauge, ADR 0006) |
 | `totalEmissionsRedistributed` | `BigInt!` | cumulative reward tokens this pool's gauge received from the Redistributor (Redistributed events); AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
 | `totalEmissionsForfeited` | `BigInt!` | cumulative reward tokens this pool's gauge forwarded to the Redistributor or minter because it was over its cap (Deposited events); AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
 | `lastUpdatedTimestamp` | `Timestamp!` | timestamp of last update |
@@ -89,7 +91,7 @@ Latest-state entities that hold the headline metrics most consumers query.
 | `totalFlashLoanFeesUSD` | `BigInt` | total flash loan fees collected in USD |
 | `totalFlashLoanVolumeUSD` | `BigInt` | total flash loan volume in USD |
 | `numberOfFlashLoans` | `BigInt` | total number of flash loans |
-| `gaugeIsAlive` | `Boolean!` | whether the gauge is alive. Gauge fields describe the legacy gauge; on AERO pools they keep their creation defaults (false / "" / 0) until Aero gauges are indexed |
+| `gaugeIsAlive` | `Boolean!` | whether the gauge is alive. On AERO pools: the Aero gauge is activated on its LeafVoter and its emission cap is not 0 (ADR 0006). Of the gauge fields below, gaugeAddress, the deposit / withdrawal counts and currentLiquidityStaked* apply to AERO pools; gaugeEmissionsCap, minStakeTime and the reward-claim / emission fields are legacy-only (see AeroGauge) |
 | `gaugeAddress` | `String` | address of the gauge for this pool _(indexed)_ |
 | `gaugeEmissionsCap` | `BigInt` | Emissions cap for gauge. If not specified in an SetEmissionsCap event, set to defaultEmissionsCap as per CLGaugeConfig. If CLGaugeConfig doesn't exist, there's no emissions cap. Null on AERO pools (CLGaugeConfig is the legacy CLGaugeFactory's) |
 | `minStakeTime` | `BigInt!` | Per-pool LP stake lockup (seconds). Seeded from CLGaugeConfig.defaultMinStakeTime at pool creation; overridden by CLGaugeFactoryV3.SetPoolMinStakeTime. 0 before V3. 0 on AERO pools (legacy CLGaugeFactory setting) |
@@ -109,7 +111,7 @@ Latest-state entities that hold the headline metrics most consumers query.
 | `feeCap` | `BigInt` | Current fee cap for pool |
 | `scalingFactor` | `BigInt` | Current scaling factor for pool |
 | `currentFee` | `BigInt!` | Fee rate charged, FEE_SCALE 1e6 (issue #812). AERO pools: as V2 / CL; the CL base fee comes from the DynamicSwapFeeHook (CustomFeeSet; 0 and the hook's zero-fee indicator both mean the static tick-spacing fee), feeCap / scalingFactor from its FeeCapSet / ScalingFactorSet; the V2 custom fee from the V2 CustomFeeModules. V2: effective rate of the latest swap with input >= 1e7 raw units, from the swap's own Fees amount (fee / amountIn, rounded to the nearest basis point); seeded from baseFee at creation and on SetCustomFee. CL: effective rate of the latest swap with input >= 1e7 raw units, derived from the swap itself ((amountIn - principal) / amountIn, rounded to nearest); seeded from baseFee at creation and on CustomSwapFeeModule.SetCustomFee; also the fallback rate for a swap whose fee cannot be derived (ADR 0001) |
-| `unstakedFee` | `BigInt` | Raw customFee value last emitted by an UnstakedFeeModule for this pool (CL pools only). 0 = no override (factory default applies), 420 = explicit 0% fee (ZERO_FEE_INDICATOR), else fee rate with 6-decimal precision (e.g. 500_000 = 50%). Null = never set. Null on AERO pools: Aero's CustomUnstakedFeeModule is not indexed yet. |
+| `unstakedFee` | `BigInt` | Raw customFee value last emitted by an UnstakedFeeModule for this pool (CL pools only). 0 = no override (factory default applies), 420 = explicit 0% fee (ZERO_FEE_INDICATOR), else fee rate with 6-decimal precision (e.g. 500_000 = 50%). Null = never set. On AERO pools set by Aero's CustomUnstakedFeeModule (same semantics; AeroUnstakedFeeModule). |
 | `poolLauncherPoolId` | `String` | ID of the PoolLauncherPool entity if this pool was launched via Pool Launcher (legacy launchers only) |
 | `factoryAddress` | `String` | Address of the factory that created this pool (e.g. CLFactory for CL pools, set from PoolCreated event) |
 | `nfpmAddress` | `String` | Address of the NFPM contract that mints positions for this CL pool. Null for V2 (non-CL) pools. Resolved from (chainId, factoryAddress) via nfpmForCLPool in Constants.ts. Used by downstream consumers (gauges, user-stats, NFPM handlers) to derive the correct NFPM without a separate scan. _(indexed)_ |
@@ -207,7 +209,7 @@ Tracks relevant data for each NFT minted: each NFT represents a concentrated pos
 | `mintLogIndex` | `Int!` | Log index of the CLPool.Mint the position was created from (legacy NFPMs: matched at NFPM.Transfer; Aero NFPM: matched at IncreaseLiquidity by range, liquidity and amounts) |
 | `lastUpdatedTimestamp` | `Timestamp!` | Timestamp of last update |
 | `lastSnapshotTimestamp` | `Timestamp` | nullable - null means never snapshotted |
-| `isStakedInGauge` | `Boolean!` | Set from NFPM.Transfer to/from the pool's gauge; owner is not updated on gauge transfers so we need this to know staked vs not. Always false on Aero positions until Aero gauges are indexed (an Aero position staked in a gauge is owned by the gauge until then) |
+| `isStakedInGauge` | `Boolean!` | Set from NFPM.Transfer to/from the pool's gauge; owner is not updated on gauge transfers so we need this to know staked vs not. Works the same for Aero positions: Pool.gaugeAddress is set from the Aero gauge factory (ADR 0006) |
 
 ### VeNFTState
 
@@ -713,6 +715,566 @@ The first oUSDT swap recorded in a transaction, so the SuperSwap stitching resol
 | `amountIn` | `BigInt!` | Copy of OUSDTSwaps.amountIn |
 | `amountOut` | `BigInt!` | Copy of OUSDTSwaps.amountOut |
 
+## Aero gauges, staking & emissions
+
+Aero (MetaDEX) gauges on every Aero chain: gauge state, the LeafVoter's emission ledger, rewards managers, and append-only stake / emissions / redemption / rewards rows (ADR 0006). Staked liquidity itself is on Pool / UserStatsPerPool / NonFungiblePosition.
+
+### AeroGauge
+
+One Aero gauge (CL or V2) on one chain. Created when the gauge factory emits GaugeCreated, completed by GaugeManager.GaugeCreated (rewards manager, module, creator) and the LeafVoter's GaugeRegistered / GaugeActivated. The gauge's pool gets Pool.gaugeAddress, so staking flows through the shared Pool / UserStatsPerPool / NonFungiblePosition staking fields. Emission counters mirror the LeafVoter's per-gauge state (`gaugeStates(gauge)`): totalEmissionsCredited = ceiling, totalEmissionsMinted = claimed, totalEmissionsForfeited = surplus. credited - minted - forfeited is what the gauge can still pay out.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{gaugeAddress} (AeroGaugeId) |
+| `chainId` | `Int!` | chain id _(indexed)_ |
+| `gaugeAddress` | `String!` | gauge contract _(indexed)_ |
+| `pool_id` | `String!` | Pool id ({chainId}-{poolAddress}) of the gauge's target; the Pool row exists when the target is an indexed Aero pool _(indexed)_ |
+| `poolAddress` | `String!` | the gauge's target (pool) address _(indexed)_ |
+| `isCL` | `Boolean!` | true when created by the CL gauge factory (positions are NFPM NFTs), false for V2 gauges (LP tokens) |
+| `isPool` | `Boolean!` | gauge factory's isPool flag (false for a gauge on a non-pool staking token) |
+| `gaugeFactory` | `String!` | gauge factory that deployed the gauge _(indexed)_ |
+| `votingRewardsManager` | `String` | VotingRewardsManager (fees and incentives for allocators); set by GaugeManager.GaugeCreated _(indexed)_ |
+| `creationModule` | `String` | GaugeManager module that requested the gauge |
+| `creator` | `String` | informational creator the module reported |
+| `rewardToken` | `String!` | token the gauge's LPs receive (AERO on Base, xAERO elsewhere) |
+| `createdBlockNumber` | `BigInt!` | block of the factory GaugeCreated |
+| `createdTimestamp` | `Timestamp!` | block time of the factory GaugeCreated |
+| `createdTransactionHash` | `String!` | creation transaction |
+| `isRegistered` | `Boolean!` | LeafVoter.GaugeRegistered seen (the LeafVoter settles and pays it) |
+| `isActivated` | `Boolean!` | LeafVoter.GaugeActivated seen: allocations route to it (before activation they park on the zero gauge and earn nothing) |
+| `activatedTimestamp` | `Timestamp` | block time of activation |
+| `emissionCap` | `BigInt` | Per-second emission cap in reward-token wei (EmissionCapSet, refreshed from every GaugeCapSettled). Null until the first EmissionCapSet / GaugeCapSettled: the factory's default cap applies, which is never 0. 0 = deactivated: the gauge earns nothing, allocations to it park idle, its accrual goes to surplus and its fees are not collected. Aero gauges have no other kill / deactivate mechanism. |
+| `emissionCapUpdatedTimestamp` | `Timestamp` | block time of the last cap change |
+| `minStakeBlocks` | `BigInt` | per-gauge minimum stake (blocks) override (MinStakeBlocksSet); null = the factory's AeroGaugeFactory.minStakeBlocks |
+| `referral` | `String` | referral that receives `referralShare` of every LP claim (ReferralConfigSet); null when none |
+| `referralShare` | `BigInt` | referral share in pips (1e6 = 100%); null when none |
+| `lastGaugeWeight` | `BigInt!` | voting power (decayed sAERO weight, 18 decimals) on the gauge at its last LeafVoter settlement (GaugeCapSettled.gaugeWeight) |
+| `lastSettlementTimestamp` | `Timestamp` | block time of the last GaugeCapSettled |
+| `totalAllocated` | `BigInt!` | sum of sAERO allocations booked on this gauge by this chain's LeafVoter, in AERO (undecayed nominal amounts; phase 3, see AeroLeafAllocation) |
+| `totalEmissionsCredited` | `BigInt!` | sum of GaugeCapSettled.effectiveShare: emissions the LeafVoter credited to the gauge (= gaugeStates.ceiling) |
+| `totalCapSurplus` | `BigInt!` | sum of GaugeCapSettled.surplusDelta: accrual above the cap, sent to the chain surplus instead of the gauge |
+| `totalEmissionsForfeited` | `BigInt!` | sum of LeafVoter.EmissionsForfeited: credited emissions the gauge returned (accrued while no staked liquidity was in range, early-withdraw penalties) (= gaugeStates.surplus) |
+| `totalEmissionsMinted` | `BigInt!` | sum of LeafVoter.EmissionsMinted: emissions minted on claim (= gaugeStates.claimed); equals LP claims + deferred claims + referral claims |
+| `totalEmissionsMintedUSD` | `BigInt!` | USD (1e18) of totalEmissionsMinted at each mint's block |
+| `totalEmissionsClaimed` | `BigInt!` | LP claims paid at once (EmissionsClaimed) |
+| `totalDeferredEmissionsClaimed` | `BigInt!` | earlier deferred LP emissions paid out (DeferredEmissionsClaimed) |
+| `totalEmissionsDeferred` | `BigInt!` | LP emissions stored because the mint failed during a withdrawal (EmissionsDeferred) |
+| `totalReferralEmissionsDeferred` | `BigInt!` | referral cut stored for the referral (ReferralEmissionsDeferred) |
+| `totalReferralEmissionsClaimed` | `BigInt!` | referral emissions paid out (ReferralEmissionsClaimed) |
+| `totalEarlyWithdrawPenalty` | `BigInt!` | emissions forfeited by LPs who claimed or withdrew inside the minimum stake window (EarlyWithdrawPenalty); part of totalEmissionsForfeited |
+| `numberOfClaims` | `BigInt!` | EmissionsClaimed events |
+| `numberOfDeposits` | `BigInt!` | Deposit events |
+| `numberOfWithdrawals` | `BigInt!` | Withdraw and EmergencyWithdraw events |
+| `totalFeesClaimed0` | `BigInt!` | staked-liquidity pool fees (token0, raw units) the gauge sent to its VotingRewardsManager (gauge ClaimFees) |
+| `totalFeesClaimed1` | `BigInt!` | as totalFeesClaimed0, token1 |
+| `totalFeesClaimedUSD` | `BigInt!` | USD (1e18) of totalFeesClaimed0/1 at each claim's block (trusted prices only) |
+| `lastUpdatedTimestamp` | `Timestamp!` | block time of the last change |
+| `lastSnapshotTimestamp` | `Timestamp` | epoch of the last AeroGaugeSnapshot; null = never snapshotted |
+
+### AeroGaugeFactory
+
+Configuration of one Aero gauge factory (CL or V2) on one chain, from its own events. The default cap is not emitted at deployment, so defaultCap is null until a DefaultCapSet.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{factoryAddress} |
+| `chainId` | `Int!` | chain id _(indexed)_ |
+| `factoryAddress` | `String!` | gauge factory |
+| `isCL` | `Boolean!` | CL gauge factory (true) or V2 gauge factory (false) |
+| `defaultCap` | `BigInt` | per-second cap new gauges start with (DefaultCapSet); null = never emitted (set at deployment) |
+| `operatorMinCap` | `BigInt` | lowest cap the cap operator may set (OperatorCapRangeSet) |
+| `operatorMaxCap` | `BigInt` | highest cap the cap operator may set (OperatorCapRangeSet) |
+| `minStakeBlocks` | `BigInt` | default minimum stake in blocks before a claim or withdrawal is penalty-free (PenaltyConfigSet) |
+| `penaltyRate` | `BigInt` | early-withdraw penalty in pips (1e6 = 100%) of the accrued emissions (PenaltyConfigSet); 0 = no penalty |
+| `maxShareCap` | `BigInt` | ceiling on per-gauge referral shares, pips (MaxShareCapSet) |
+| `emergencyWithdrawEnabled` | `Boolean!` | EmergencyWithdrawEnabledSet; while true LPs can exit without touching the LeafVoter (losing unsettled emissions) |
+| `numberOfGauges` | `Int!` | gauges this factory created |
+| `lastUpdatedTimestamp` | `Timestamp!` | block time of the last change |
+
+### AeroLeafVoterState
+
+The Aero LeafVoter of one chain (same address on every chain, Base included): its configuration and chain-level emission totals. Phase 3 adds the allocation fields.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId} |
+| `chainId` | `Int!` | chain id |
+| `leafVoter` | `String!` | LeafVoter address |
+| `rewardToken` | `String!` | token claims pay (AERO on Base, xAERO elsewhere) |
+| `chainStatus` | `Int` | LeafVoter ChainStatusSet: 1 Active, 2 Paused, 3 Suspended, 4 Sunset; null = never set (Active since construction) |
+| `totalEmissionsCredited` | `BigInt!` | sum of GaugeCapSettled.effectiveShare over real gauges |
+| `totalCapSurplus` | `BigInt!` | sum of GaugeCapSettled.surplusDelta, the zero gauge (idle allocations) included |
+| `totalIdleSurplus` | `BigInt!` | the part of totalCapSurplus settled on the zero gauge: emissions of allocations parked idle or on unroutable gauges |
+| `totalEmissionsForfeited` | `BigInt!` | sum of EmissionsForfeited (gauges) |
+| `totalEmissionsMinted` | `BigInt!` | sum of EmissionsMinted: receipt tokens minted on claims (on Base redeemed to AERO in the same transaction) |
+| `totalEmissionsMintedUSD` | `BigInt!` | USD (1e18) of totalEmissionsMinted at each mint |
+| `totalRedeemed` | `BigInt!` | sum of Redeemed: receipt tokens burned to redeem AERO on Base |
+| `numberOfRedemptions` | `BigInt!` | Redeemed events |
+| `receiptTokenSupply` | `BigInt!` | totalEmissionsMinted - totalRedeemed: xAERO outstanding (on Base: xAERO whose redemption the RootEmissionsHandler deferred) |
+| `emissionsPerVP` | `BigInt` | emissions per unit of voting power, 1e18-scaled, as of the last ChainAllocated / GaugesAllocated (0 while Suspended or Sunset) |
+| `totalChainAllocation` | `BigInt!` | sum of AeroLeafTokenState.chainAllocation: sAERO budget sent to this chain |
+| `totalBookedAllocation` | `BigInt!` | sum of booked gauge allocations (= sum of AeroGauge.totalAllocated); the rest of totalChainAllocation is idle |
+| `allocationCooldown` | `BigInt` | AllocationCooldownSet (seconds); null = deployment value (169,200 s, 47 hours, in the constructor) |
+| `maxGauges` | `BigInt` | MaxGaugesSet; null = deployment value (20) |
+| `minIncentiveDuration` | `BigInt` | MinIncentiveDurationSet (seconds); null = deployment value (172,800 s) |
+| `localVotingEnabled` | `Boolean` | LocalVotingEnabledSet; null = deployment value (false) |
+| `lastUpdatedTimestamp` | `Timestamp!` | block time of the last change |
+| `lastSnapshotTimestamp` | `Timestamp` | epoch of the last AeroLeafVoterStateSnapshot |
+
+### AeroVotingRewardsManager
+
+The VotingRewardsManager of one Aero gauge: the pool fees its gauge collects from staked liquidity, the incentive programs funded for allocators, and what sAERO allocators claim.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{votingRewardsManagerAddress} |
+| `chainId` | `Int!` | chain id _(indexed)_ |
+| `address` | `String!` | VotingRewardsManager _(indexed)_ |
+| `gaugeAddress` | `String!` | its gauge _(indexed)_ |
+| `poolAddress` | `String!` | the gauge's pool _(indexed)_ |
+| `totalFeesCollectedUSD` | `BigInt!` | USD (1e18) of FeesCollected (pool fees pulled from the gauge), trusted prices at each block |
+| `numberOfFeeCollections` | `BigInt!` | FeesCollected events (one per token) |
+| `totalFeesClaimedUSD` | `BigInt!` | USD (1e18) of fees allocators claimed (ClaimFees, per token), trusted prices at each block |
+| `numberOfFeeClaims` | `BigInt!` | ClaimFees events |
+| `totalIncentivesFundedUSD` | `BigInt!` | USD (1e18) of incentive programs funded (IncentiveCreated), trusted prices at creation |
+| `numberOfIncentivePrograms` | `BigInt!` | IncentiveCreated events |
+| `totalIncentivesClaimedUSD` | `BigInt!` | USD (1e18) of incentives allocators claimed (ClaimIncentives), trusted prices at each block |
+| `numberOfIncentiveClaims` | `BigInt!` | ClaimIncentives events |
+| `lastUpdatedTimestamp` | `Timestamp!` | block time of the last change |
+
+### AeroIncentiveProgram
+
+An incentive program funded on a gauge's VotingRewardsManager, streamed to its allocators.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{votingRewardsManager}-{programId} |
+| `chainId` | `Int!` | chain id _(indexed)_ |
+| `votingRewardsManager` | `String!` | rewards manager _(indexed)_ |
+| `gaugeAddress` | `String!` | its gauge _(indexed)_ |
+| `poolAddress` | `String!` | the gauge's pool |
+| `programId` | `BigInt!` | program id within the manager |
+| `token` | `String!` | incentive token _(indexed)_ |
+| `creator` | `String!` | funder _(indexed)_ |
+| `amount` | `BigInt!` | raw amount funded |
+| `amountUSD` | `BigInt!` | USD (1e18) at creation (trusted prices only) |
+| `start` | `Timestamp!` | stream start |
+| `end` | `Timestamp!` | stream end (start + duration) |
+| `totalClaimed` | `BigInt!` | raw amount claimed by allocators (ClaimIncentives) |
+| `totalSwept` | `BigInt!` | raw unclaimable remainder returned to the creator (IncentiveSwept) |
+| `createdTimestamp` | `Timestamp!` | block time of IncentiveCreated |
+| `transactionHash` | `String!` | funding transaction |
+
+### AeroGaugeSnapshot
+
+Hourly snapshot of AeroGauge (written at the first change in each hour, after the change), for emissions, weight and cap time series. ClickHouse only.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{gaugeAddress}-{epochMs} |
+| `chainId` | `Int!` | chain id |
+| `gaugeAddress` | `String!` | gauge _(indexed)_ |
+| `poolAddress` | `String!` | the gauge's pool _(indexed)_ |
+| `isCL` | `Boolean!` | CL or V2 gauge |
+| `timestamp` | `Timestamp!` | snapshot epoch (hour) _(indexed)_ |
+| `isActivated` | `Boolean!` | see AeroGauge |
+| `emissionCap` | `BigInt` | see AeroGauge |
+| `lastGaugeWeight` | `BigInt!` | see AeroGauge |
+| `totalAllocated` | `BigInt!` | see AeroGauge |
+| `totalEmissionsCredited` | `BigInt!` | see AeroGauge |
+| `totalCapSurplus` | `BigInt!` | see AeroGauge |
+| `totalEmissionsForfeited` | `BigInt!` | see AeroGauge |
+| `totalEmissionsMinted` | `BigInt!` | see AeroGauge |
+| `totalEmissionsMintedUSD` | `BigInt!` | see AeroGauge |
+| `totalEarlyWithdrawPenalty` | `BigInt!` | see AeroGauge |
+| `totalFeesClaimed0` | `BigInt!` | see AeroGauge |
+| `totalFeesClaimed1` | `BigInt!` | see AeroGauge |
+| `totalFeesClaimedUSD` | `BigInt!` | see AeroGauge |
+
+### AeroLeafVoterStateSnapshot
+
+Hourly snapshot of AeroLeafVoterState (chain-level emission totals). ClickHouse only.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{epochMs} |
+| `chainId` | `Int!` | chain id _(indexed)_ |
+| `timestamp` | `Timestamp!` | snapshot epoch (hour) _(indexed)_ |
+| `totalEmissionsCredited` | `BigInt!` | see AeroLeafVoterState |
+| `totalCapSurplus` | `BigInt!` | see AeroLeafVoterState |
+| `totalIdleSurplus` | `BigInt!` | see AeroLeafVoterState |
+| `totalEmissionsForfeited` | `BigInt!` | see AeroLeafVoterState |
+| `totalEmissionsMinted` | `BigInt!` | see AeroLeafVoterState |
+| `totalEmissionsMintedUSD` | `BigInt!` | see AeroLeafVoterState |
+| `totalRedeemed` | `BigInt!` | see AeroLeafVoterState |
+| `receiptTokenSupply` | `BigInt!` | see AeroLeafVoterState |
+| `emissionsPerVP` | `BigInt` | see AeroLeafVoterState |
+| `totalChainAllocation` | `BigInt!` | see AeroLeafVoterState |
+| `totalBookedAllocation` | `BigInt!` | see AeroLeafVoterState |
+
+### AeroGaugeStakeEvent
+
+One row per Aero gauge Deposit, Withdraw or EmergencyWithdraw. ClickHouse only.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{txHash}-{logIndex} |
+| `chainId` | `Int!` | chain id |
+| `kind` | `String!` | DEPOSIT \| WITHDRAW \| EMERGENCY_WITHDRAW (values pinned by AERO_STAKE_EVENT_KIND) |
+| `gaugeAddress` | `String!` | gauge _(indexed)_ |
+| `poolAddress` | `String!` | the gauge's pool _(indexed)_ |
+| `isCL` | `Boolean!` | CL (amount = liquidity L, tokenId set) or V2 (amount = LP tokens) |
+| `account` | `String!` | staked owner (CL _user / V2 _account) _(indexed)_ |
+| `caller` | `String` | transaction-level caller (Deposit / Withdraw _caller); null on EmergencyWithdraw |
+| `tokenId` | `BigInt` | CL position NFT; null on V2 gauges |
+| `amount` | `BigInt!` | liquidity (CL) or LP tokens (V2) staked or unstaked |
+| `blockNumber` | `BigInt!` | block number |
+| `timestamp` | `Timestamp!` | block time _(indexed)_ |
+| `transactionHash` | `String!` | transaction |
+
+### AeroEmissionsEvent
+
+One row per Aero gauge emissions event per LP: claims, deferrals, referral legs, early-withdraw penalties. Mints, forfeits and settlements are per gauge on AeroGauge / AeroGaugeSnapshot. ClickHouse only.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{txHash}-{logIndex} |
+| `chainId` | `Int!` | chain id |
+| `kind` | `String!` | CLAIMED (EmissionsClaimed: paid to recipient), DEFERRED (EmissionsDeferred: stored after a failed mint), DEFERRED_CLAIMED (DeferredEmissionsClaimed), REFERRAL_DEFERRED (ReferralEmissionsDeferred: the referral's cut of an LP claim), REFERRAL_CLAIMED (ReferralEmissionsClaimed), EARLY_WITHDRAW_PENALTY (EarlyWithdrawPenalty: forfeited by the LP). Pinned by AERO_EMISSIONS_EVENT_KIND. |
+| `gaugeAddress` | `String!` | gauge _(indexed)_ |
+| `poolAddress` | `String!` | the gauge's pool _(indexed)_ |
+| `account` | `String!` | LP staker (REFERRAL_DEFERRED: the LP whose claim paid the referral; REFERRAL_CLAIMED: the referral) _(indexed)_ |
+| `recipient` | `String` | recipient of a paid amount (CLAIMED, DEFERRED_CLAIMED, REFERRAL_CLAIMED) |
+| `referral` | `String` | referral address (REFERRAL_DEFERRED) |
+| `tokenId` | `BigInt` | CL position NFT (per-position CL events); null otherwise |
+| `amount` | `BigInt!` | reward-token amount (18 decimals) |
+| `amountUSD` | `BigInt!` | USD (1e18) at the reward token's stored price |
+| `rewardToken` | `String!` | AERO (Base) or xAERO |
+| `blockNumber` | `BigInt!` | block number |
+| `timestamp` | `Timestamp!` | block time _(indexed)_ |
+| `transactionHash` | `String!` | transaction |
+
+### AeroRedemptionEvent
+
+One row per redemption step. Phase 2: INITIATED (LeafVoter.Redeemed: xAERO burned on a leaf chain for AERO on Base). On Base the RootEmissionsHandler redeems every claim automatically; those internal redemptions are counted on AeroLeafVoterState but get no row. Phase 3 adds the root side. ClickHouse only.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{txHash}-{logIndex} |
+| `chainId` | `Int!` | chain the event was emitted on |
+| `kind` | `String!` | INITIATED \| PROCESSED \| DEFERRED \| BUFFER_DRAWN \| DONATED \| SURPLUS_SPENT (pinned by AERO_REDEMPTION_EVENT_KIND) |
+| `sourceChainId` | `Int!` | chain whose receipt tokens are redeemed (INITIATED: the emitting chain; root kinds: the event's chain id) |
+| `redeemer` | `String` | address whose xAERO was burned (INITIATED) |
+| `recipient` | `String` | AERO recipient on Base _(indexed)_ |
+| `amount` | `BigInt!` | 18-decimal amount (xAERO burned / AERO minted or paid) |
+| `surplusReported` | `BigInt` | PROCESSED: the chain's reported surplus high-water mark after the redeem |
+| `blockNumber` | `BigInt!` | block number |
+| `timestamp` | `Timestamp!` | block time _(indexed)_ |
+| `transactionHash` | `String!` | transaction |
+
+### AeroVotingRewardsEvent
+
+One row per VotingRewardsManager flow. Phase 2: FEES_COLLECTED (pool fees of staked liquidity pulled from the gauge into the manager, per token). Phase 3 adds the allocator side. ClickHouse only.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{txHash}-{logIndex} |
+| `chainId` | `Int!` | chain id |
+| `kind` | `String!` | FEES_COLLECTED \| FEES_CLAIMED \| INCENTIVE_CREATED \| INCENTIVE_CLAIMED \| INCENTIVE_SWEPT (pinned by AERO_VOTING_REWARDS_EVENT_KIND) |
+| `votingRewardsManager` | `String!` | VotingRewardsManager _(indexed)_ |
+| `gaugeAddress` | `String!` | its gauge _(indexed)_ |
+| `poolAddress` | `String!` | the gauge's pool _(indexed)_ |
+| `tokenId` | `BigInt` | sAERO position (claims) |
+| `recipient` | `String` | claim recipient (claims) _(indexed)_ |
+| `token` | `String` | token moved; null on INCENTIVE_CLAIMED / INCENTIVE_SWEPT rows whose program is unknown |
+| `programId` | `BigInt` | incentive program (INCENTIVE_*) |
+| `amount` | `BigInt!` | raw token amount |
+| `amountUSD` | `BigInt!` | USD (1e18) at the token's stored price on this chain; 0 when the token is untrusted or not indexed |
+| `blockNumber` | `BigInt!` | block number |
+| `timestamp` | `Timestamp!` | block time _(indexed)_ |
+| `transactionHash` | `String!` | transaction |
+
+## Aero governance
+
+sAERO positions (VotingEscrow, Base), the root Voter's per-chain allocation ledger (Base) and each LeafVoter's booked gauge allocations, the Minter and the legacy-to-Aero migration (ADR 0006).
+
+### SAeroPosition
+
+One sAERO position (VotingEscrow NFT) on Base. tokenId 0 is the protocol accumulator (fees the VoterPaymentsModule charges, permanently staked, burned through Burn); it has no NFT and no owner.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{tokenId} (SAeroPositionId) |
+| `chainId` | `Int!` | chain id (Base) |
+| `tokenId` | `BigInt!` | VotingEscrow tokenId _(indexed)_ |
+| `owner` | `String!` | current NFT owner (zero address for the accumulator) _(indexed)_ |
+| `amount` | `BigInt!` | AERO staked (18 decimals) |
+| `stakeEnd` | `BigInt!` | unlock time (unix seconds, week-aligned); 0 for a permanent stake or an empty position |
+| `isPermanent` | `Boolean!` | permanent stake: no decay, voting power = amount |
+| `createdVia` | `String!` | MINT_PENDING (NFT minted, stake not seen yet), CREATE_STAKE (createStake), REBALANCE (minted by a VoterPaymentsModule split / merge), ACCUMULATOR (tokenId 0) |
+| `totalDeposited` | `BigInt!` | AERO deposited by createStake / reviveStake / increaseStakeAmount |
+| `totalWithdrawn` | `BigInt!` | AERO withdrawn after expiry (Withdraw) |
+| `totalRebalancedIn` | `BigInt!` | AERO moved in by VotingEscrow.Rebalance (VoterPaymentsModule deposits, splits, merges) |
+| `totalRebalancedOut` | `BigInt!` | AERO moved out by VotingEscrow.Rebalance |
+| `createdTimestamp` | `Timestamp!` | block time of the mint (or first touch for the accumulator) |
+| `createdTransactionHash` | `String!` | mint transaction |
+| `lastUpdatedTimestamp` | `Timestamp!` | block time of the last change |
+
+### SAeroEscrowState
+
+The VotingEscrow (sAERO) on Base: supply and position counts.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId} |
+| `chainId` | `Int!` | chain id (Base) |
+| `supply` | `BigInt!` | total AERO staked (Supply event; = sum of SAeroPosition.amount) |
+| `permanentStakeBalance` | `BigInt!` | AERO in permanent positions (accumulator included), tracked from position changes |
+| `accumulatorAmount` | `BigInt!` | AERO held by the tokenId-0 protocol accumulator |
+| `totalBurned` | `BigInt!` | accumulator AERO burned (Burn) |
+| `numberOfPositions` | `Int!` | sAERO NFTs minted |
+| `lastTokenId` | `BigInt!` | highest tokenId minted |
+| `lastUpdatedTimestamp` | `Timestamp!` | block time of the last change |
+| `lastSnapshotTimestamp` | `Timestamp` | epoch of the last SAeroEscrowStateSnapshot |
+
+### SAeroEscrowStateSnapshot
+
+Hourly snapshot of SAeroEscrowState. ClickHouse only.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{epochMs} |
+| `chainId` | `Int!` | chain id |
+| `timestamp` | `Timestamp!` | snapshot epoch (hour) _(indexed)_ |
+| `supply` | `BigInt!` | see SAeroEscrowState |
+| `permanentStakeBalance` | `BigInt!` | see SAeroEscrowState |
+| `accumulatorAmount` | `BigInt!` | see SAeroEscrowState |
+| `numberOfPositions` | `Int!` | see SAeroEscrowState |
+
+### SAeroPositionEvent
+
+One row per change to an sAERO position. ClickHouse only.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{txHash}-{logIndex}[-{leg}] (a Rebalance writes one row per leg) |
+| `chainId` | `Int!` | chain id (Base) |
+| `kind` | `String!` | MINT (NFT minted), TRANSFER (owner change), CREATE_STAKE / INCREASE_AMOUNT / INCREASE_PERIOD / REVIVE_STAKE (Deposit by type), WITHDRAW, UPGRADE_PERMANENT, DOWNGRADE_PERMANENT, REBALANCE_OUT / REBALANCE_IN (one row per VotingEscrow.Rebalance leg), BURN (accumulator). Pinned by SAERO_EVENT_KIND. |
+| `tokenId` | `BigInt!` | position _(indexed)_ |
+| `owner` | `String` | owner after the change _(indexed)_ |
+| `counterparty` | `String` | TRANSFER: previous owner; Deposit: provider |
+| `amount` | `BigInt!` | AERO moved by this change (0 for owner, period and mode changes) |
+| `amountAfter` | `BigInt!` | position amount after the change |
+| `stakeEndAfter` | `BigInt!` | unlock time after the change (0 = permanent or empty) |
+| `isPermanentAfter` | `Boolean!` | permanent after the change |
+| `supplyAfter` | `BigInt` | VotingEscrow supply after the change (the transaction's Supply event; null when the change emits none) |
+| `blockNumber` | `BigInt!` | block number |
+| `timestamp` | `Timestamp!` | block time _(indexed)_ |
+| `transactionHash` | `String!` | transaction |
+
+### AeroRootAllocation
+
+Root Voter (Base): voting power a position has booked on one chain. targetChainId 0 is CHAIN0, the idle pool new stake parks on and every allocation draws from; ChainsAllocated moves power from CHAIN0 to a chain, a confirmed leaf deallocation moves it back. Mirrors Voter.allocationChainAmounts.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{tokenId}-{targetChainId} |
+| `chainId` | `Int!` | chain of the root Voter (Base) |
+| `tokenId` | `BigInt!` | sAERO position _(indexed)_ |
+| `targetChainId` | `Int!` | chain the power is booked on; 0 = CHAIN0 (idle, earns nothing) _(indexed)_ |
+| `amount` | `BigInt!` | AERO booked (undecayed) |
+| `lastUpdatedTimestamp` | `Timestamp!` | block time of the last change |
+
+### AeroRootGaugeVote
+
+Root Voter (Base): the gauge split a position last dispatched to one chain (GaugesAllocated on the root Voter). Requested, not applied: the leaf may reject or redirect parts of it.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{tokenId}-{targetChainId} |
+| `chainId` | `Int!` | chain of the root Voter (Base) |
+| `tokenId` | `BigInt!` | sAERO position _(indexed)_ |
+| `targetChainId` | `Int!` | chain the split was dispatched to _(indexed)_ |
+| `gauges` | `[String!]!` | gauge addresses (the zero address = park idle; the dealloc sentinel = return to CHAIN0) |
+| `amounts` | `[BigInt!]!` | AERO per gauge, parallel to gauges |
+| `lastDispatchedTimestamp` | `Timestamp!` | block time of the dispatch |
+| `transactionHash` | `String!` | dispatch transaction |
+
+### AeroRootChainState
+
+Root Voter (Base): per-chain ledger. targetChainId 0 is CHAIN0 (idle power; also counts the accumulator power burned through Burned).
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{targetChainId} |
+| `chainId` | `Int!` | chain of the root Voter (Base) |
+| `targetChainId` | `Int!` | chain (0 = CHAIN0) _(indexed)_ |
+| `isRegistered` | `Boolean!` | ChainRegistered seen (chains registered at deployment emit nothing and are marked on first use) |
+| `status` | `Int` | ChainStatusSet: 1 Active, 2 Paused, 3 Suspended, 4 Sunset; null = never set |
+| `emergencyDeallocationAllowed` | `Boolean!` | EmergencyDeallocationAllowedSet |
+| `totalAllocated` | `BigInt!` | AERO booked on the chain over all positions (sum of AeroRootAllocation.amount) |
+| `totalRedeemed` | `BigInt!` | AERO paid out for the chain's redemptions (RedeemProcessed) |
+| `numberOfRedemptions` | `BigInt!` | RedeemProcessed events |
+| `reportedSurplus` | `BigInt!` | surplus high-water mark the chain reported (latest RedeemProcessed) |
+| `totalDonated` | `BigInt!` | AERO donated into the chain's redeem buffer (Donated) |
+| `totalBufferDrawn` | `BigInt!` | buffer AERO paid out past the chain's ceiling (BufferDrawn) |
+| `totalSurplusSpent` | `BigInt!` | surplus governance minted (SurplusSpent) |
+| `totalBurned` | `BigInt!` | CHAIN0 only: accumulator power burned (Burned) |
+| `lastUpdatedTimestamp` | `Timestamp!` | block time of the last change |
+
+### AeroLeafTokenState
+
+LeafVoter (every chain): a position's state on this chain. chainAllocation is the budget the root Voter sent; gauges / allocations are the split this LeafVoter booked (only registered, activated gauges with a non-zero cap, unless the position may vote for zero-cap gauges); the rest of the budget is parked idle on the zero gauge and earns nothing.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{tokenId} |
+| `chainId` | `Int!` | chain id _(indexed)_ |
+| `tokenId` | `BigInt!` | sAERO position (lives on Base) _(indexed)_ |
+| `chainAllocation` | `BigInt!` | budget on this chain (ChainAllocated; less dealloc returns) |
+| `gauges` | `[String!]!` | gauges the budget is booked on |
+| `allocations` | `[BigInt!]!` | AERO booked per gauge, parallel to gauges |
+| `idleAllocation` | `BigInt!` | chainAllocation minus the booked total: parked on the zero gauge |
+| `operator` | `String` | address allowed to re-split locally and claim rewards here (OperatorSet) |
+| `canVoteForZeroCapGauges` | `Boolean!` | CanVoteForZeroCapGaugesSet: may book weight on activated gauges with a 0 cap |
+| `lastAllocatedTimestamp` | `Timestamp` | block time of the last applied gauge split (the 47-hour cooldown counts from here) |
+| `lastUpdatedTimestamp` | `Timestamp!` | block time of the last change |
+
+### AeroLeafAllocation
+
+LeafVoter (every chain): a position's booked allocation on one gauge. 0 once removed (the row is kept). Sum over tokenIds = AeroGauge.totalAllocated.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{tokenId}-{gaugeAddress} |
+| `chainId` | `Int!` | chain id _(indexed)_ |
+| `tokenId` | `BigInt!` | sAERO position _(indexed)_ |
+| `gaugeAddress` | `String!` | gauge _(indexed)_ |
+| `poolAddress` | `String` | the gauge's pool (null if the gauge is not indexed) |
+| `allocated` | `BigInt!` | AERO booked (undecayed); 0 = no longer allocated |
+| `lastUpdatedTimestamp` | `Timestamp!` | block time of the last change |
+
+### AeroAllocationEvent
+
+One row per allocation change: root ledger moves (PARKED, CHAIN_ALLOCATED, DEALLOCATION_PROCESSED, EMERGENCY_DEALLOCATED, TOKEN_CLEARED, CHAIN0_REBALANCED, BURNED, GAUGES_DISPATCHED: one row per dispatched gauge) and leaf changes (CHAIN_ALLOCATED, GAUGE_ALLOCATED: one row per listed or removed gauge, DEALLOCATED, EMERGENCY_DEALLOCATION_APPLIED). Pinned by AERO_ALLOCATION_EVENT_KIND. ClickHouse only.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{txHash}-{logIndex}[-{leg}] |
+| `chainId` | `Int!` | chain the event was emitted on |
+| `level` | `String!` | ROOT (root Voter, Base) \| LEAF (LeafVoter) |
+| `kind` | `String!` | see above |
+| `tokenId` | `BigInt!` | sAERO position (0 for TOKEN0 burns) _(indexed)_ |
+| `targetChainId` | `Int` | ROOT: the chain the power moved to or from (0 = CHAIN0); LEAF: the emitting chain |
+| `gaugeAddress` | `String` | gauge (GAUGES_DISPATCHED, GAUGE_ALLOCATED) _(indexed)_ |
+| `amount` | `BigInt!` | AERO moved or requested (signed for ledger moves: negative = removed) |
+| `bookedAmount` | `BigInt` | GAUGE_ALLOCATED: AERO this LeafVoter booked on the gauge after the change |
+| `chainAllocationAfter` | `BigInt` | LEAF: the position's budget on the chain after the change |
+| `emissionsPerVP` | `BigInt` | LEAF CHAIN_ALLOCATED / GAUGE_ALLOCATED: the LeafVoter's emissions-per-voting-power scalar (1e18-scaled) |
+| `blockNumber` | `BigInt!` | block number |
+| `timestamp` | `Timestamp!` | block time _(indexed)_ |
+| `transactionHash` | `String!` | transaction |
+
+### AeroMinterState
+
+The Minter on Base. It mints AERO only when a redemption is processed (and the team share to the Splitter with it), so totalMinted grows with claims, not with time. Rates are null until their setter emits (the deployment values are constructor arguments).
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{minterAddress} |
+| `chainId` | `Int!` | chain id (Base) |
+| `minter` | `String!` | Minter address |
+| `baseRate` | `BigInt` | BaseRateSet: base emission rate (AERO wei per second) |
+| `dynamicRate` | `BigInt` | DynamicRateSet: dynamic rate target (raw, clamped to the band on read) |
+| `teamRate` | `BigInt` | TeamRateSet: team share in pips |
+| `bandFloorPips` | `BigInt` | RateBandSet: maximum downward move from the base rate |
+| `bandCeilingPips` | `BigInt` | RateBandSet: maximum upward move from the base rate |
+| `maxBaseRateChangePips` | `BigInt` | MaxBaseRateChangePipsSet |
+| `baseRateUpdateCooldown` | `BigInt` | BaseRateUpdateCooldownSet (seconds) |
+| `operator` | `String` | OperatorSet |
+| `fed` | `String` | FEDSet |
+| `dynamicRateModule` | `String` | DynamicRateModuleSet |
+| `totalMinted` | `BigInt!` | AERO minted to redemption recipients (Minted.amount) |
+| `totalSplitterShare` | `BigInt!` | AERO minted to the Splitter (Minted.splitterShare) |
+| `numberOfMints` | `BigInt!` | Minted events |
+| `lastUpdatedTimestamp` | `Timestamp!` | block time of the last change |
+| `lastSnapshotTimestamp` | `Timestamp` | epoch of the last AeroMinterSnapshot |
+
+### AeroMinterSnapshot
+
+Hourly snapshot of AeroMinterState (mint totals and rates). ClickHouse only.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{minterAddress}-{epochMs} |
+| `chainId` | `Int!` | chain id |
+| `timestamp` | `Timestamp!` | snapshot epoch (hour) _(indexed)_ |
+| `baseRate` | `BigInt` | see AeroMinterState |
+| `dynamicRate` | `BigInt` | see AeroMinterState |
+| `teamRate` | `BigInt` | see AeroMinterState |
+| `totalMinted` | `BigInt!` | see AeroMinterState |
+| `totalSplitterShare` | `BigInt!` | see AeroMinterState |
+| `numberOfMints` | `BigInt!` | see AeroMinterState |
+
+### AeroMinterEvent
+
+One row per Minter configuration change (rates, band, operator, FED, module). ClickHouse only.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{txHash}-{logIndex} |
+| `chainId` | `Int!` | chain id |
+| `kind` | `String!` | BASE_RATE_SET \| DYNAMIC_RATE_SET \| TEAM_RATE_SET \| RATE_BAND_SET \| MAX_BASE_RATE_CHANGE_PIPS_SET \| BASE_RATE_UPDATE_COOLDOWN_SET \| OPERATOR_SET \| FED_SET \| DYNAMIC_RATE_MODULE_SET |
+| `value` | `BigInt` | new numeric value (RATE_BAND_SET: the floor) |
+| `value2` | `BigInt` | RATE_BAND_SET: the ceiling |
+| `address` | `String` | new address (OPERATOR_SET, FED_SET, DYNAMIC_RATE_MODULE_SET) |
+| `blockNumber` | `BigInt!` | block number |
+| `timestamp` | `Timestamp!` | block time _(indexed)_ |
+| `transactionHash` | `String!` | transaction |
+
+### AeroMigrationTotals
+
+Totals of one migration contract.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{migrationContract} |
+| `chainId` | `Int!` | chain id |
+| `migrationContract` | `String!` | migration contract |
+| `legacyToken` | `String!` | AERO_V1 or VELO (SETTLED totals: VELO) |
+| `numberOfVeNFTs` | `BigInt!` | veNFTs migrated (VeNFTMigrated) |
+| `veNFTAmountIn` | `BigInt!` | legacy locked amount migrated |
+| `veNFTAmountOut` | `BigInt!` | new AERO (as sAERO or liquid) for those veNFTs |
+| `numberOfLiquid` | `BigInt!` | liquid migrations (LiquidMigrated) |
+| `liquidAmountIn` | `BigInt!` | legacy liquid tokens migrated |
+| `liquidAmountOut` | `BigInt!` | new AERO for them |
+| `numberOfSettlements` | `BigInt!` | SETTLED (Base entrypoint Migrated) |
+| `settledAmount` | `BigInt!` | AERO settled on Base for Optimism migrations |
+| `lastUpdatedTimestamp` | `Timestamp!` | block time of the last change |
+
+### AeroMigrationEvent
+
+One row per legacy-to-Aero migration: veAERO / AERO v1 on Base (AerodromeMigration), veVELO / VELO on Optimism (VelodromeMigration) and their settlement on Base (VelodromeMigrationEntrypoint). ClickHouse only.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{txHash}-{logIndex} |
+| `chainId` | `Int!` | chain id |
+| `migrationContract` | `String!` | migration contract |
+| `kind` | `String!` | VENFT (veNFT migrated), LIQUID (liquid tokens migrated), SETTLED (Optimism migration settled on Base) |
+| `legacyToken` | `String!` | AERO_V1 (Base) or VELO (Optimism) |
+| `depositor` | `String` | VENFT / LIQUID: legacy holder |
+| `recipient` | `String!` | receiver of the new AERO or sAERO _(indexed)_ |
+| `legacyTokenId` | `BigInt` | VENFT: legacy veNFT id |
+| `amountIn` | `BigInt` | VENFT / LIQUID: legacy amount (18 decimals) |
+| `amountOut` | `BigInt!` | new AERO (VENFT / LIQUID: converted amount; SETTLED: amount settled on Base) |
+| `isPermanent` | `Boolean` | VENFT: the legacy lock was permanent |
+| `isLiquid` | `Boolean` | VENFT: settled as liquid AERO (expired lock); SETTLED: liquid settlement |
+| `nonce` | `BigInt` | SETTLED: Hyperlane migration nonce |
+| `blockNumber` | `BigInt!` | block number |
+| `timestamp` | `Timestamp!` | block time _(indexed)_ |
+| `transactionHash` | `String!` | transaction |
+
 ## Internal buffers & deferred state
 
 Short-lived bookkeeping entities used to correlate events across log indices/blocks. Most are deleted once consumed; not intended for end-user queries.
@@ -848,6 +1410,16 @@ Aero NFPM position creation, step 2 of 2: the recipient of NFPM.Transfer(mint), 
 | `id` | `ID!` | Same as the position's id: {chainId}-{nfpmAddress}-{tokenId} (NonFungiblePositionId) |
 | `owner` | `String!` | recipient of the mint Transfer |
 | `transactionHash` | `String!` | mint transaction |
+
+### AeroGaugePendingReferral
+
+A gauge's referral configured inside its factory's createGauge, whose ReferralConfigSet is emitted before the factory's GaugeCreated. The GaugeCreated reads it by primary key and deletes it.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Same as the gauge's id: {chainId}-{gaugeAddress} (AeroGaugeId) |
+| `referral` | `String!` | referral address |
+| `referralShare` | `BigInt!` | referral share, pips |
 
 ### NFPMPositionPendingPrincipal
 
