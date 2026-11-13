@@ -367,8 +367,8 @@ type Token {
   chainId: Int! @index # chain id
   decimals: BigInt! @config(precision: 76) # number of decimals
   pricePerUSDNew: BigInt! @config(precision: 76) # price of token per USD
-  lastUpdatedTimestamp: Timestamp! # timestamp of last refresh attempt (used by 1-hour throttle)
-  lastSuccessfulPriceTimestamp: Timestamp # timestamp of last non-zero oracle write (used by 7-day fallback staleness window, #694)
+  lastUpdatedTimestamp: Timestamp! # timestamp of last price refresh attempt (drives the once-per-clock-hour throttle; see src/PriceOracle.ts)
+  lastSuccessfulPriceTimestamp: Timestamp # timestamp of last successful price (pinned / pool route / rebind); drives the 7-day carry window (#694, docs/adr/0003)
   isWhitelisted: Boolean! # whether the token is whitelisted
 
   # Price-trust gate per-token decision surface (issue #755 slice 2). Populated
@@ -392,28 +392,38 @@ type Token {
   priceTrustReason: String # Reason code paired with priceTrustOutcome; values pinned by PRICE_TRUST_REASON in src/PriceTrust.ts (see priceTrustOutcome).
 }
 
-# Snapshot of the Token entity
+# Snapshot of the Token entity, written at most once per token per clock hour
+# by the price refresh in src/PriceOracle.ts (docs/adr/0003-pool-derived-token-prices.md).
 type TokenPriceSnapshot @storage(postgres: false, clickhouse: true) {
-  id: ID! # Format: {chainId}-{address}-{blockNumber} (TokenIdByBlock)
+  id: ID! # Format: {chainId}-{address}-{epochMs} (TokenPriceSnapshotId; epochMs = hour bucket of the refresh). Rows written before ADR 0003 used {chainId}-{address}-{blockNumber}.
   address: String! @index # Address of the token
   pricePerUSDNew: BigInt! @config(precision: 76) # price of token per USD
   chainId: Int! # chain id
   isWhitelisted: Boolean! # whether the token is whitelisted
   lastUpdatedTimestamp: Timestamp! @index # Timestamp of the last update
-  # Issue #822: provenance of pricePerUSDNew for this tick — which branch of
-  # refreshTokenPrice produced it: `fresh` (oracle read accepted as-is),
-  # `pool-implied` (first-fetch anchored to the pool-implied hint, not the raw
-  # read), `rebind` (cross-chain copy), `override` (blacklist → 0), or `carried`
-  # (prior price kept on a reject/fallback/error tick).
-  # NOTE for consumers: a row now exists for EVERY non-throttle tick, so the
-  # series includes carried and zeroed prices (override / cold rebind / capped
-  # first-fetch all write 0) that previously left gaps — filter to
-  # `fresh`/`pool-implied`/`rebind` (or pricePerUSDNew > 0) to recover only
-  # freshly-accepted prices.
-  # Nullable: rows written before this field existed have no source. Stored as
-  # String (not an enum) so the set can extend without an Envio schema migration;
-  # the value set is pinned by PRICE_SOURCE in src/Snapshots/TokenPriceSnapshot.ts.
+  # Provenance of pricePerUSDNew for this tick (ADR 0003): `pinned` (stablecoin /
+  # destination token at exactly $1), `pool` (derived from the deepest qualifying
+  # pool; see pricingPoolId / pricingDepthUSD), `rebind` (copied from the
+  # configured cross-chain source token's stored price), `override` (operator
+  # blacklist -> 0), `carried` (no route qualified; prior price kept, last
+  # success < 7 days ago) or `unpriced` (no route qualified and nothing fresh to
+  # carry -> 0). Rows written before ADR 0003 carry the oracle-era tags `fresh` /
+  # `pool-implied`, or no tag at all.
+  # Stored as String (not an enum) so the set can extend without an Envio schema
+  # migration; the value set is pinned by PRICE_SOURCE in src/Snapshots/TokenPriceSnapshot.ts.
   priceSource: String
+  pricingPoolId: String # Pool id ({chainId}-{poolAddress}) the price was derived through; set only when priceSource = `pool`
+  pricingDepthUSD: BigInt @config(precision: 76) # Counterparty-side reserve of pricingPoolId valued in USD (1e18-base) at refresh time; set only when priceSource = `pool`
+}
+
+# Per-token list of pools the token can be priced through (ADR 0003). A pool is
+# appended at creation (V2 PoolFactory / CL CLFactory PoolCreated) for each side
+# whose counterparty sits in a strictly lower pricing tier, so the lists stay
+# small (only connector-side pools qualify) and pricing is acyclic. Handler-only
+# scratch state: never on Token, never in ClickHouse, hidden from the API.
+type TokenPricingPools @storage(postgres: true, clickhouse: false) @internal {
+  id: ID! # Format: {chainId}-{address} (TokenId); the same id as the Token it belongs to
+  pools: [String!]! # Pool ids ({chainId}-{poolAddress}), in creation order
 }
 
 # Tracks relevant data for each NFT minted: each NFT represents a concentrated position in a pool
@@ -716,7 +726,10 @@ type PendingVote {
 # (and at a LOWER log index than) PoolCreated from the factory, so Envio
 # delivers Initialize first. PoolCreated reads this buffer when constructing
 # the new aggregator and deletes the entry afterwards.
-type CLPoolPendingInitialize @storage(postgres: true, clickhouse: false) @internal {
+type CLPoolPendingInitialize
+  @storage(postgres: true, clickhouse: false)
+  @internal
+{
   id: ID! # Format: {chainId}-{poolAddress} (PoolId)
   chainId: Int! # chain id
   poolAddress: String! # address of the CL pool awaiting PoolCreated
@@ -789,7 +802,10 @@ type CLPoolMintEvent @storage(postgres: true, clickhouse: false) @internal {
 #
 # Flow: Burn adds principal here → Collect subtracts it → remainder = fees.
 # Keyed by contract-level position identity (pool + owner + tick range).
-type CLPositionPendingPrincipal @storage(postgres: true, clickhouse: false) @internal {
+type CLPositionPendingPrincipal
+  @storage(postgres: true, clickhouse: false)
+  @internal
+{
   id: ID! # {chainId}-{poolAddress}-{owner}-{tickLower}-{tickUpper}
   # Principal from Burn events not yet drained by Collect.
   # Accumulates across multiple Burns; reduced when Collect fires.
@@ -802,7 +818,10 @@ type CLPositionPendingPrincipal @storage(postgres: true, clickhouse: false) @int
 # The consumer knows chainId + txHash; it reads this row and then PK-gets each event by id.
 # Cleaned up as events are consumed: ids are removed on consumption and the row is deleted
 # when the last id is removed.
-type TxCLPoolMintRegistry @storage(postgres: true, clickhouse: false) @internal {
+type TxCLPoolMintRegistry
+  @storage(postgres: true, clickhouse: false)
+  @internal
+{
   id: ID! # Format: {chainId}-{txHash}
   mintEventIds: [String!]! # CLPoolMintEvent ids produced in this tx, in insertion order
 }
@@ -811,7 +830,10 @@ type TxCLPoolMintRegistry @storage(postgres: true, clickhouse: false) @internal 
 # on PoolTransferInTx.getWhere({ txHash }) in the Pool.Mint / Pool.Burn consumer.
 # The consumer knows chainId + txHash + pool; it reads this row and then PK-gets
 # each transfer by id. Rows are pruned on consumption and deleted when empty.
-type TxPoolTransferRegistry @storage(postgres: true, clickhouse: false) @internal {
+type TxPoolTransferRegistry
+  @storage(postgres: true, clickhouse: false)
+  @internal
+{
   id: ID! # Format: {chainId}-{txHash}-{poolAddress}
   transferIds: [String!]! # PoolTransferInTx ids produced in this (tx, pool), in insertion order
 }
@@ -837,7 +859,10 @@ type PoolTransferInTx @storage(postgres: true, clickhouse: false) @internal {
 # Similar to PoolTransferInTx but for ALM LP Wrapper
 # Only needed for burns (to = 0x0) since Deposit events emit the correct minted amount
 # Needed for LPWrapper V1 Withdraw event handler fix
-type ALMLPWrapperTransferInTx @storage(postgres: true, clickhouse: false) @internal {
+type ALMLPWrapperTransferInTx
+  @storage(postgres: true, clickhouse: false)
+  @internal
+{
   id: ID! # Format: {chainId}-{txHash}-{wrapperAddress}-{logIndex}
   chainId: Int! @index # chain id
   txHash: String! @index # transaction hash containing the transfer

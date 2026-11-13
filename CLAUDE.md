@@ -33,10 +33,11 @@ pnpm envio stop           # Stop the indexer
 - **`src/EventHandlers/`** - Event handler registrations and business logic. Top-level files (e.g. `Pool.ts`, `CLPool.ts`) register handlers; subdirectories contain the actual logic (e.g. `Pool/PoolSwapLogic.ts`, `CLPool/CLPoolSwapLogic.ts`).
 - **`src/Aggregators/`** - Derived entity computations. `Pool.ts` is the central aggregator (~24KB) that computes pool-level metrics (TVL, volume, fees, votes, emissions). Other aggregators: `UserStatsPerPool.ts`, `NonFungiblePosition.ts`, `VeNFTState.ts`, `VeNFTPoolVote.ts`, `ALMLPWrapper.ts`.
 - **`src/Snapshots/`** - Hourly snapshot creation for all aggregated entities. Uses `Shared.ts` for common epoch-alignment logic.
-- **`src/Effects/`** - External calls (RPC, API) wrapped in Envio's Effect API for preload compatibility. `RpcGateway.ts` handles multi-chain RPC calls, `Token.ts` fetches token details/prices.
+- **`src/Effects/`** - External calls (RPC, API) wrapped in Envio's Effect API for preload compatibility. `RpcGateway.ts` handles multi-chain RPC calls, `Token.ts` fetches token details (its `getTokenPrice` oracle effect is kept for scripts only — handlers never call it).
 - **`src/Constants.ts`** - Chain-specific constants, factory addresses, price connectors, RPC client setup. Exports `toChecksumAddress()`, chain constants map (`CHAIN_CONSTANTS`), and precision constants.
 - **`src/Helpers.ts`** - Shared utilities (error handling, CL position calculations using Uniswap v3 SDK, USD conversions).
-- **`src/PriceOracle.ts`** - Token price fetching with hourly refresh intervals.
+- **`src/PriceOracle.ts`** - Hourly token price refresh from indexed pool state (see Pricing below), token creation, metadata heal.
+- **`src/Pricing/`** - Pool-derived pricing building blocks: tiers + thresholds (`PricingConfig.ts`), candidate pools + deepest-pool selection (`PoolRoute.ts`), throttle / carry / 7-day expiry (`PriceResolution.ts`).
 - **`.envio/types.d.ts`** - Auto-generated types from `pnpm envio codegen` (gitignored), surfaced through the `envio` package. Never edit manually. (Envio v3.0.2 emits no `generated/` directory.)
 
 ### Contract Domains
@@ -52,6 +53,16 @@ The indexer tracks these protocol domains, each with its own event handlers:
 - **Pool Launcher**: `CLPoolLauncher`, `V2PoolLauncher` for emerging token launches
 - **Superswaps/Hyperlane**: Cross-chain swap tracking (`VelodromeUniversalRouter`, `Mailbox`)
 - **Swap Fee Modules**: `DynamicSwapFeeModule`, `CustomSwapFeeModule`
+
+### Pricing
+
+Token USD prices (`Token.pricePerUSDNew`, 1e18-scaled) are derived from indexed pool state — no RPC (ADR `docs/adr/0003-pool-derived-token-prices.md`).
+
+- **Tiers** (`getPricingTier`): 0 = destination token + stablecoins, pinned at exactly $1; 1 = the chain's WETH; 2 = other price connectors (`src/constants/price_connectors.json`) and the reward token; 3 = everything else. A token is only ever priced through a counterparty in a strictly lower tier, so pricing is acyclic and recursion is at most three deep.
+- **Candidates**: `TokenPricingPools` (Postgres-only, internal) lists, per token, the pools it may be priced through. `registerPricingPool` appends at V2 `PoolFactory` / CL `CLFactory` `PoolCreated` when the counterparty is in a lower tier.
+- **Refresh** (`refreshTokenPrice`): at most once per token per clock hour, no bypasses. Order: blacklist → 0; tier 0 → $1; else refresh due counterparties, then take the deepest candidate (price = pool ratio × counterparty price) that passes the per-chain depth floor, the 1000× value-imbalance bound and the $1M ceiling; else the rebind source's stored price (`PriceOverrides.ts`); else carry the last price, dropping to 0 once the last success is 7 days old.
+- **Ratios** (`src/PoolPriceRatio.ts`): CL from `sqrtPriceX96`, V2 volatile from the reserve ratio, V2 stable from the `x³y + xy³` curve's marginal price; decimals are folded in exactly (0-decimal tokens included).
+- Every refresh writes one `TokenPriceSnapshot` (id keyed by the hour) tagged with `priceSource` and, for pool prices, `pricingPoolId` / `pricingDepthUSD`.
 
 ### Entity ID Conventions
 

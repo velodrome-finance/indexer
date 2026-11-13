@@ -2,6 +2,7 @@ import { indexer } from "envio";
 import { updateFeeToTickSpacingMapping } from "../Aggregators/FeeToTickSpacingMapping";
 import { FeeToTickSpacingMappingId, PoolId, TokenId } from "../Constants";
 import { getRehydrated } from "../EntityTimestamps";
+import { registerPricingPool } from "../Pricing/PoolRoute";
 import {
   flushPendingRootPoolMappingAndVotes,
   processCLFactoryPoolCreated,
@@ -88,6 +89,16 @@ indexer.onEvent(
     // #677 bytecode gate (#865): processCLFactoryPoolCreated now carries the
     // aggregator with an empty symbol on that side instead of dropping the pool.
     context.Pool.set(result.liquidityPoolAggregator);
+
+    // Record the pool as a pricing candidate for whichever side sits in the
+    // higher pricing tier (ADR 0003).
+    await registerPricingPool(
+      context,
+      event.chainId,
+      event.params.pool,
+      event.params.token0,
+      event.params.token1,
+    );
 
     await flushPendingRootPoolMappingAndVotes(
       context,

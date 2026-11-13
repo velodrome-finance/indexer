@@ -6,6 +6,17 @@ export interface RebindTarget {
 }
 
 /**
+ * Operator blacklist: tokens forced to price 0 on every refresh, ahead of any
+ * pool route (docs/adr/0003-pool-derived-token-prices.md), and marked
+ * untrusted by the price-trust gate. A blacklisted token is also never a
+ * usable counterparty, since its price is 0.
+ *
+ * Every entry below was added in the oracle era, against oracle reads; the
+ * history is kept because it explains each entry. Several (e.g. the #786
+ * frozen-route tokens and #901 DEUS) were blacklisted only because the oracle
+ * froze on a wrong value while their pools priced them correctly, so they are
+ * candidates for removal now that prices come from pools. Original rationale:
+ *
  * Tokens whose on-chain price oracle is structurally unusable: every read either
  * returns a value derived from a broken DEX pool (no real off-chain market exists
  * to disagree) or is silent except for transient swap-time spikes that contaminate
@@ -612,9 +623,16 @@ const SUPERCHAINS = [
 ] as const;
 
 /**
- * Tokens whose price should be copied verbatim from another (already-priced)
- * Token entity, bypassing the on-chain oracle entirely. Each entry declares a
- * canonical `source` and every `target` (chain + address) that mirrors it.
+ * Tokens that may copy their price from another (already-priced) Token entity
+ * on a different chain. Each entry declares a canonical `source` and every
+ * `target` (chain + address) that mirrors it.
+ *
+ * Under pool-derived pricing (docs/adr/0003-pool-derived-token-prices.md) a
+ * rebind is a FALLBACK: the target is priced through its own chain's pools
+ * first, and copies the source's stored price only when no local pool
+ * qualifies and the source was successfully priced within the 7-day carry
+ * window. If neither works, the target carries its last price like any other
+ * token. The on-chain oracle is never consulted.
  *
  * Two patterns:
  *  - Bridged 1:1 superchain tokens (XVELO across all superchains -> canonical
@@ -623,9 +641,8 @@ const SUPERCHAINS = [
  *    wrappers of the same underlying restaked-ETH position; Aerodrome's deep
  *    wrsETH/WETH pool gives a clean Base price)
  *
- * If the source token has not yet been priced (price === 0), the rebind still
- * fires and writes 0 — explicitly NOT falling back to the corrupt on-chain
- * oracle for the target chain, which is the whole point of the rebind.
+ * The entries were added against bad oracle reads on the target chain; the
+ * comments below describe that history.
  */
 const REBINDS: ReadonlyArray<{
   source: RebindTarget;
@@ -736,7 +753,7 @@ const PRICE_REBIND: ReadonlyMap<string, RebindTarget> = new Map(
 );
 
 /**
- * Whether this token's price should be forced to 0, bypassing the oracle entirely.
+ * Whether this token's price should be forced to 0, ahead of any pool route.
  * @param chainId - Chain the token lives on
  * @param address - Token address (must be EIP-55 checksum-cased to match config)
  * @returns true if the token is blacklisted on that chain
@@ -745,7 +762,8 @@ export const isBlacklistedToken = (chainId: number, address: string): boolean =>
   BLACKLIST.has(TokenId(chainId, address));
 
 /**
- * Where this token's price should be copied from, if anywhere.
+ * Where this token's price may be copied from when no local pool route
+ * qualifies, if anywhere.
  * @param chainId - Chain the target token lives on
  * @param address - Target token address (EIP-55 checksum-cased)
  * @returns Source {chainId, address} to read the price from, or undefined if no rebind is configured

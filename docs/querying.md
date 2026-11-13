@@ -190,7 +190,9 @@ query TokenPrice {
   ) {
     lastUpdatedTimestamp
     pricePerUSDNew
-    priceSource            # filter to fresh / pool-implied / rebind for accepted reads
+    priceSource            # pinned / pool / rebind = freshly priced this hour
+    pricingPoolId          # pool the price came through (priceSource = pool)
+    pricingDepthUSD        # that pool's counterparty depth, ÷ 1e18 → USD
   }
 }
 ```
@@ -318,8 +320,15 @@ The following are non-obvious properties of the data rather than defects.
   leaf chains that never whitelisted tokens on-chain (e.g. **Mode**, **Swell**)
   and on WETH-paired pools on **Soneium**/**Metal** — connector legs count even
   when `isWhitelisted` is `false`. On `TokenPriceSnapshot`, filter `priceSource`
-  to `fresh`, `pool-implied`, or `rebind` (or `pricePerUSDNew > 0`) to exclude
-  carried and zeroed ticks.
+  to `pinned`, `pool`, or `rebind` (or `pricePerUSDNew > 0`) to exclude
+  carried and zeroed ticks. There is at most one snapshot per token per clock
+  hour.
+- **Token prices come from indexed pool state, not an on-chain oracle.** Each
+  token is priced once per hour through its deepest qualifying pool against a
+  lower-tier counterparty (stablecoins at $1 → WETH → price connectors and the
+  reward token → everything else). A token with no qualifying pool keeps its
+  last price for up to 7 days, then reads `0`. Rows written before this change
+  (ADR 0003) carry the oracle-era tags `fresh` / `pool-implied`.
 - **Per-user staked-USD is as-of-last-activity, not current.**
   `UserStatsPerPool.currentLiquidityStakedUSD` (CL pools) is revalued only at
   hourly snapshot time, and a snapshot is written only when that user is active.

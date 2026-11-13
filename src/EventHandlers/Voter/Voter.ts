@@ -28,7 +28,11 @@ import {
 } from "../../Constants";
 import { getTokenDetails, hasContractBytecode } from "../../Effects/Index";
 import { getRehydrated } from "../../EntityTimestamps";
-import { healTokenMetadata, refreshTokenPrice } from "../../PriceOracle";
+import {
+  healTokenMetadata,
+  initialTokenPriceFields,
+  refreshTokenPrice,
+} from "../../PriceOracle";
 import { getGateDecisionFromSignals } from "../../PriceTrust";
 import {
   VoterEventType,
@@ -493,13 +497,16 @@ indexer.onEvent(
         id: TokenId(event.chainId, event.params.token),
         name: tokenDetails.name,
         symbol: tokenDetails.symbol,
-        pricePerUSDNew: 0n,
+        ...initialTokenPriceFields(
+          event.chainId,
+          event.params.token,
+          new Date(event.block.timestamp * 1000),
+        ),
         address: event.params.token,
         chainId: event.chainId,
         decimals: BigInt(tokenDetails.decimals),
         isWhitelisted: event.params._bool,
         lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
-        lastSuccessfulPriceTimestamp: undefined,
         priceTrustOutcome: decision.outcome,
         priceTrustReason: decision.reason,
       };
