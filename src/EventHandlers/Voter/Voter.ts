@@ -343,10 +343,12 @@ indexer.onEvent(
           ) {
             return;
           }
-          const rootPoolLeafPools =
+          // Same root-chain-scoped mapping lookup as resolveLeafPoolForRootGauge.
+          const rootPoolLeafPools = (
             (await context.RootPool_LeafPool.getWhere({
               rootPoolAddress: { _eq: rootGaugeMapping.rootPoolAddress },
-            })) ?? [];
+            })) ?? []
+          ).filter((mapping) => mapping.rootChainId === eventChainId);
           if (rootPoolLeafPools.length !== 1) {
             const logIndex = event.logIndex;
             context.PendingDistribution.set({

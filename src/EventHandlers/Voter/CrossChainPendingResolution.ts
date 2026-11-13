@@ -229,7 +229,7 @@ export async function processAllPendingVotesForRootPool(
     return;
   }
 
-  const { leafPoolAddress, leafChainId } = rootPoolLeafPools[0];
+  const { leafPoolAddress, leafChainId, rootChainId } = rootPoolLeafPools[0];
   const leafPoolData = await loadPoolData(
     leafPoolAddress,
     leafChainId,
@@ -242,10 +242,12 @@ export async function processAllPendingVotesForRootPool(
     return;
   }
 
-  const pendingVotes = await getPendingVotesByRootPool(
-    context,
-    rootPoolAddress,
-  );
+  // The mapping is deliberately cross-chain (root pool on the root chain ->
+  // leaf pool on a leaf chain). Pending votes are found by bare root pool
+  // address, so apply only those cast on the mapping's root chain.
+  const pendingVotes = (
+    await getPendingVotesByRootPool(context, rootPoolAddress)
+  ).filter((pendingVote) => pendingVote.chainId === rootChainId);
 
   for (const pendingVote of pendingVotes) {
     // Reload leaf pool data each iteration: processPendingVote updates the pool (e.g. veNFTamountStaked)
@@ -414,11 +416,11 @@ export async function processAllPendingDistributionsForRootPool(
     return;
   }
 
-  const { leafPoolAddress, leafChainId } = rootPoolLeafPools[0];
-  const pendingList = await getPendingDistributionsByRootPool(
-    context,
-    rootPoolAddress,
-  );
+  const { leafPoolAddress, leafChainId, rootChainId } = rootPoolLeafPools[0];
+  // As for votes: apply only distributions recorded on the mapping's root chain.
+  const pendingList = (
+    await getPendingDistributionsByRootPool(context, rootPoolAddress)
+  ).filter((pending) => pending.rootChainId === rootChainId);
 
   for (const pending of pendingList) {
     await tryProcessAndDeletePending(

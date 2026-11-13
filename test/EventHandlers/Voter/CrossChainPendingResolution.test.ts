@@ -643,6 +643,60 @@ describe("CrossChainPendingResolution", () => {
       expect(deleteUnsafe).not.toHaveBeenCalled();
     });
 
+    it("should only apply pending votes cast on the mapping's root chain", async () => {
+      const { createMockPool, mockToken0Data, mockToken1Data } = common;
+      const otherChainId = 8453;
+      const mapping: RootPool_LeafPool = {
+        id: RootPoolLeafPoolId(
+          rootChainId,
+          leafChainId,
+          rootPoolAddress,
+          leafPoolAddress,
+        ),
+        rootChainId,
+        rootPoolAddress,
+        leafChainId,
+        leafPoolAddress,
+      };
+      const leafPool = createMockPool({
+        id: PoolId(leafChainId, leafPoolAddress),
+        chainId: leafChainId,
+        poolAddress: leafPoolAddress,
+      });
+      vi.spyOn(PoolModule, "loadPoolData").mockResolvedValue({
+        liquidityPoolAggregator: leafPool,
+        token0Instance: mockToken0Data,
+        token1Instance: mockToken1Data,
+      });
+      // A vote recorded on another chain for a pool with the same address.
+      const otherChainVote = makePendingVote({
+        id: PendingVoteId(otherChainId, rootPoolAddress, 7n, "0xother", 1),
+        chainId: otherChainId,
+        tokenId: 7n,
+      });
+      const rootChainVote = makePendingVote();
+      const loadVeNFTStateSpy = vi
+        .spyOn(VeNFTStateModule, "loadVeNFTState")
+        .mockResolvedValue(undefined);
+      const context = {
+        RootPool_LeafPool: { getWhere: vi.fn().mockResolvedValue([mapping]) },
+        PendingVote: {
+          getWhere: vi.fn().mockResolvedValue([otherChainVote, rootChainVote]),
+          deleteUnsafe: vi.fn(),
+        },
+        log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      } as unknown as handlerContext;
+
+      await processAllPendingVotesForRootPool(context, rootPoolAddress);
+
+      expect(loadVeNFTStateSpy).toHaveBeenCalledTimes(1);
+      expect(loadVeNFTStateSpy).toHaveBeenCalledWith(
+        rootChainId,
+        tokenId,
+        context,
+      );
+    });
+
     it("should continue processing remaining pending votes and log error when processPendingVote throws for one vote", async () => {
       const { createMockPool, mockToken0Data, mockToken1Data } = common;
       const mockVeNFTState = common.createMockVeNFTState({
@@ -1339,6 +1393,53 @@ describe("CrossChainPendingResolution", () => {
       });
       expect(deleteUnsafe).toHaveBeenCalledTimes(1);
       expect(deleteUnsafe).toHaveBeenCalledWith(pending.id);
+    });
+
+    it("should only apply pending distributions recorded on the mapping's root chain", async () => {
+      const otherChainId = 8453;
+      const mapping = {
+        id: RootPoolLeafPoolId(
+          rootChainId,
+          leafChainId,
+          rootPoolAddress,
+          leafPoolAddress,
+        ),
+        rootChainId,
+        rootPoolAddress,
+        leafChainId,
+        leafPoolAddress,
+      };
+      const otherChainPending = makePendingDistribution({
+        id: PendingDistributionId(otherChainId, rootPoolAddress, 106000000, 0),
+        rootChainId: otherChainId,
+      });
+      const rootChainPending = makePendingDistribution();
+      // Reward token lookups are keyed by the pending row's chain, so they
+      // show which rows were processed.
+      const tokenGet = vi.fn().mockResolvedValue(undefined);
+      const context = {
+        RootPool_LeafPool: { getWhere: vi.fn().mockResolvedValue([mapping]) },
+        PendingDistribution: {
+          getWhere: vi
+            .fn()
+            .mockResolvedValue([otherChainPending, rootChainPending]),
+          deleteUnsafe: vi.fn(),
+        },
+        Token: { get: tokenGet },
+        log: { warn: vi.fn(), error: vi.fn() },
+      } as unknown as handlerContext;
+
+      await processAllPendingDistributionsForRootPool(context, rootPoolAddress);
+
+      expect(tokenGet).toHaveBeenCalledTimes(1);
+      expect(tokenGet).toHaveBeenCalledWith(
+        TokenId(
+          rootChainId,
+          CHAIN_CONSTANTS[rootChainId].rewardToken(
+            Number(rootChainPending.blockNumber),
+          ),
+        ),
+      );
     });
 
     it("should not call deleteUnsafe when processPendingDistribution returns false (e.g. reward token not found)", async () => {
