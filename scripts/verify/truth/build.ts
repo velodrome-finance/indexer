@@ -653,8 +653,9 @@ export async function buildChainTruth(
         const u = user(truth, lp, p.address);
         u.removed0 += d.amount0 as bigint;
         u.removed1 += d.amount1 as bigint;
-      } else if (e === "Claim") {
-        const sender = d.sender as string;
+      } else if (e === "Claim" || e === "ClaimWithAccount") {
+        // Legacy Claim(sender, recipient, ...); Aero Claim(caller, account, recipient, ...): the fees are the account's.
+        const sender = (d.account ?? d.sender) as string;
         const isGauge = (gaugeOfPool.get(p.address) ?? []).some(
           (g) => g.address === sender && g.created.block <= l.block_number,
         );
