@@ -14,13 +14,24 @@ use the indexer's code. It uses three sources:
 - **External price references.** Production's old oracle export (a TSV per
   chain) and DefiLlama's keyless coins API.
 
-The harness reads `config.yaml` itself, so chains and contracts added there
+The harness reads the instance's own `config.yaml` (for a `--velo` target,
+the instance checkout; otherwise this repository's, or `--repo <checkout>`),
+so chains and contracts added there
 (Ethereum, Arbitrum, the Aero deployment) are picked up with no harness
-change. The registration rules are keyed by contract name (PoolFactory →
-Pool, CLFactory → CLPool, Voter / SuperchainLeafVoter → gauges and voting
-rewards, ALM factories → wrappers). A new deployment that reuses those
-contract names needs nothing. A new contract type needs a rule in
-`truth/build.ts`, plus the matching checks. A new chain needs a DefiLlama
+change. The registration rules are keyed by contract-name patterns
+(`ROLE` in `lib/config.ts`). `*PoolFactory` → Pool, and its stability comes
+from the `stable` param or a `Stable` in the name. `*CLFactory` → CLPool.
+`*NFPM` → positions. `Voter` / `*LeafVoter` → gauges and voting rewards.
+`*TokenRegistry` (ListingSet) → trust. ALM factories → wrappers. Contracts
+that config.yaml declares with event signatures only (no ABI file, like the
+Aero ones) are decoded from those signatures. The Aero (MetaDEX) contracts on
+Arc, Ethereum, Arbitrum and Robinhood are therefore covered: Aero factories,
+AeroNFPM, the token registry, and `Pool.deployment` (AERO exactly for pools
+of `Aero*` factories). Another new contract type needs a rule in
+`truth/build.ts`, plus the matching checks.
+RPC: the chain's config.yaml variable, then `VERIFY_RPC_<chainId>`, then
+dRPC from `ENVIO_DRPC_API_KEY` for chains without a variable (Arc,
+Ethereum, Arbitrum). A new chain needs a DefiLlama
 slug in `checks/tokens.ts` (`LLAMA_SLUG`) for the DefiLlama price check;
 without one, that check is skipped.
 
@@ -94,10 +105,10 @@ All amounts are compared in integers. "Exact" means equal.
 ### Completeness
 | id | what | tolerance |
 |---|---|---|
-| `completeness.pools` | Pool rows equal the PoolCreated logs of the configured factories (none missing, none extra); tokens, type, tick spacing, factory, creation block | exact |
+| `completeness.pools` | Pool rows equal the PoolCreated logs of the configured factories (none missing, none extra); tokens, type, tick spacing, factory, creation block, and deployment = AERO exactly for Aero factories | exact |
 | `completeness.registrations` | `envio_addresses` holds every pool, gauge, voting reward and ALM wrapper the factories created, under the right contract and at the creation block. Gauges of unknown pool factories are listed, because they can never be indexed | exact |
 | `completeness.gauge-links` | Pool.gaugeAddress, fee/bribe reward addresses and gaugeIsAlive equal the latest GaugeCreated / Killed / Revived | exact |
-| `completeness.tick-spacing-fees` | FeeToTickSpacingMapping equals the TickSpacingEnabled logs | exact |
+| `completeness.tick-spacing-fees` | FeeToTickSpacingMapping equals the TickSpacingEnabled logs (per chain, or per CL factory when ids carry the factory) | exact |
 | `completeness.events-processed` | `envio_chains.events_processed` equals the number of logs of configured events from all indexed addresses up to the pinned block | exact; the count persists across restarts |
 | `completeness.event-counters` | per event type, on-chain count equals Σ of the indexer's counters (numberOfSwaps, numberOfFlashLoans, gauge counters) | exact |
 | `completeness.handler-metrics` | `envio_processing_handler_total` per contract and event equals the on-chain counts | exact, but informational: needs a running process that never restarted and whose chains were all verified |
@@ -150,7 +161,7 @@ All amounts are compared in integers. "Exact" means equal.
 | id | what | tolerance |
 |---|---|---|
 | `token.metadata` | every pool token has a Token row with decimals and symbol = `decimals()` / `symbol()` (bytes32 symbols decoded) | exact |
-| `token.whitelist` | isWhitelisted = last WhitelistToken | exact |
+| `token.whitelist` | isWhitelisted = last WhitelistToken; isListedOnAero = last token-registry ListingSet | exact |
 | `price.coverage` | share of token-hours with pool activity that have a positive price; tokens with ≥ $10k of priced counterparty liquidity but no price now | informational (unpriced below the $1,000 depth floor is by design) |
 | `price.vs-prod-oracle` | hourly prices vs production's oracle export (before 2026-11-03), per token with ≥ 24 shared hours | median relative error ≤ 5% |
 | `price.vs-defillama` | daily DefiLlama prices vs the indexed price of the same hour | median ≤ 5% |
