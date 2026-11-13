@@ -270,6 +270,7 @@ export async function buildChainTruth(
     users: new Map(),
     tokens: new Set(),
     whitelist: new Map(),
+    whitelistHistory: new Map(),
     eventCounts: new Map(),
     unregisteredEventCounts: new Map(),
     tickSpacingFees: new Map(),
@@ -414,10 +415,11 @@ export async function buildChainTruth(
         const g = truth.gauges.get((d.gauge as string).toLowerCase());
         if (g) g.alive = e === "GaugeRevived";
       } else if (ROLE.voter(c) && e === "WhitelistToken") {
-        truth.whitelist.set(
-          (d.token as string).toLowerCase(),
-          d._bool as boolean,
-        );
+        const tok = (d.token as string).toLowerCase();
+        truth.whitelist.set(tok, d._bool as boolean);
+        const h = truth.whitelistHistory.get(tok) ?? [];
+        h.push({ block: l.block_number, value: d._bool as boolean });
+        truth.whitelistHistory.set(tok, h);
       } else if (
         (c === "ALMDeployFactoryV1" || c === "ALMDeployFactoryV2") &&
         e === "StrategyCreated"

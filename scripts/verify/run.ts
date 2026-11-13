@@ -231,6 +231,9 @@ async function main(): Promise<number> {
     report.results.push(...ctx.results);
     const fails = ctx.results.filter((r) => r.status === "fail").length;
     log(`chain ${chainId}: ${ctx.results.length} results, ${fails} failing`);
+    // Partial report after each chain, so a crash later keeps what was done.
+    report.finishedAt = `(partial, after chain ${chainId})`;
+    writeReport(out, report);
   }
 
   if (want("store")) {

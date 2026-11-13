@@ -195,6 +195,8 @@ export interface ChainTruth {
   users: Map<string, UserPoolTruth>;
   tokens: Set<Addr>;
   whitelist: Map<Addr, boolean>;
+  /** Every WhitelistToken change, in order. */
+  whitelistHistory: Map<Addr, { block: number; value: boolean }[]>;
   /** `${contract}.${event}` -> on-chain logs the indexer should have handled (configured events, indexed addresses). */
   eventCounts: Map<string, number>;
   /** `${contract}.${event}` -> logs from addresses the config-derived rules would NOT register (e.g. gauges of unknown pool factories). */

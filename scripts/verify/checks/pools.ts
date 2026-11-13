@@ -331,7 +331,7 @@ export async function checkCLPools(ctx: CheckContext): Promise<void> {
   const ratios = new Check(
     "pool.cl.price-ratio",
     ctx.chainId,
-    "CL Pool.token0Price / token1Price equal (sqrtPriceX96/2^96)² in whole-token units with on-chain decimals, 1e18-scaled.",
+    "CL Pool.token0Price / token1Price equal (sqrtPriceX96/2^96)² in whole-token units with on-chain decimals, 1e18-scaled (pools with at least one swap: the handler sets the ratio on Swap only, not on Initialize).",
     "Relative 1e-9.",
   );
   const reserves = new Check(
@@ -344,7 +344,7 @@ export async function checkCLPools(ctx: CheckContext): Promise<void> {
     "pool.cl.fees",
     ctx.chainId,
     "CL Pool.totalFeesGenerated0/1 (1e18-normalised) equal the swap fees implied by the logs: Σ Mint − Σ Burn + Σ Swap (signed, into the pool) − principal held now, per token. Pool.numberOfSwapFeeFallbacks must be 0 on a from-creation sync.",
-    "Absolute 3 raw units per Swap plus 1 per position (same rounding as reserves), or relative 1e-6.",
+    "Absolute 3 raw units per Mint/Burn/Swap plus 1 per position (same rounding as reserves), or relative 1e-6.",
   );
   const collected = new Check(
     "pool.cl.fees-collected",
@@ -394,7 +394,7 @@ export async function checkCLPools(ctx: CheckContext): Promise<void> {
     );
     const d0 = decimalsOf(ctx, p.token0);
     const d1 = decimalsOf(ctx, p.token1);
-    if (p.sqrtPriceX96 > 0n) {
+    if (p.sqrtPriceX96 > 0n && p.swaps > 0) {
       const [t0, t1] = ratioPair(
         p.sqrtPriceX96 * p.sqrtPriceX96 * 10n ** BigInt(d0),
         (1n << 192n) * 10n ** BigInt(d1),
@@ -440,10 +440,8 @@ export async function checkCLPools(ctx: CheckContext): Promise<void> {
     );
     const fee0 = p.sumMint0 - p.sumBurn0 + p.sumSwap0 - held.amount0;
     const fee1 = p.sumMint1 - p.sumBurn1 + p.sumSwap1 - held.amount1;
-    const tolF = {
-      abs: 3n * BigInt(p.swaps) + BigInt(held.positions),
-      rel: 1e-6,
-    };
+    // Same rounding sources as the reserves: every Mint/Burn/Swap rounds by a unit or two.
+    const tolF = { abs: 3n * nEv + BigInt(held.positions), rel: 1e-6 };
     const idxFee0 = big(r.totalFeesGenerated0);
     const idxFee1 = big(r.totalFeesGenerated1);
     // Compare in raw units when the 1e18 scaling is an exact multiplication.

@@ -4,7 +4,10 @@
  * trust gating, min-of-legs, fee rate) from the price itself, which the price
  * checks cover.
  */
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { decodeLog } from "../lib/abi";
+import { REPO_ROOT } from "../lib/env";
 import {
   LOG_FIELDS,
   hypersyncStream,
@@ -15,8 +18,30 @@ import { Check } from "../lib/report";
 import { big, sample } from "../lib/util";
 import type { PoolTruth } from "../truth/types";
 import type { CheckContext } from "./context";
+import { LLAMA_SLUG } from "./tokens";
 
 const E18 = 10n ** 18n;
+
+/**
+ * Configured price connectors of a chain (src/constants/price_connectors.json, a data file).
+ * @param chainId - Chain
+ * @returns Lowercase addresses
+ */
+function connectorSet(chainId: number): Set<string> {
+  const file = path.join(
+    REPO_ROOT,
+    "src",
+    "constants",
+    "price_connectors.json",
+  );
+  const slug = LLAMA_SLUG[chainId];
+  if (!slug || !existsSync(file)) return new Set();
+  const all = JSON.parse(readFileSync(file, "utf8")) as Record<
+    string,
+    { address: string }[]
+  >;
+  return new Set((all[slug] ?? []).map((c) => c.address.toLowerCase()));
+}
 
 function usd(amount: bigint, decimals: number, price: bigint): bigint {
   const norm =
@@ -83,8 +108,19 @@ export async function checkUsdAggregates(
     }
     return m;
   };
-  const trusted = (t: string) =>
-    ctx.tokens.get(t)?.priceTrustOutcome === "TRUSTED";
+  // Trust as the handler applies it at swap time: whitelisted (as of that block)
+  // or a configured price connector, unless blacklisted (src/PriceTrust.ts, ADR 0002).
+  const connectors = connectorSet(ctx.chainId);
+  const trusted = (t: string, block: number) => {
+    if (ctx.tokens.get(t)?.priceTrustReason === "BLACKLISTED") return false;
+    if (connectors.has(t)) return true;
+    let wl = false;
+    for (const h of ctx.truth.whitelistHistory.get(t) ?? []) {
+      if (h.block > block) break;
+      wl = h.value;
+    }
+    return wl;
+  };
   const dec = (t: string) => Number(ctx.tokens.get(t)?.decimals ?? 18);
   for (const p of chosen) {
     const r = ctx.pools.get(p.address);
@@ -132,8 +168,8 @@ export async function checkUsdAggregates(
           if (!def) continue;
           const d = decodeLog(def, l);
           const ts = bts.get(l.block_number) ?? 0;
-          const pr0 = trusted(p.token0) ? priceAt(p0, ts) : 0n;
-          const pr1 = trusted(p.token1) ? priceAt(p1, ts) : 0n;
+          const pr0 = trusted(p.token0, l.block_number) ? priceAt(p0, ts) : 0n;
+          const pr1 = trusted(p.token1, l.block_number) ? priceAt(p1, ts) : 0n;
           if (def.name === "Fees") {
             lastFees = {
               tx: l.transaction_hash ?? "",
