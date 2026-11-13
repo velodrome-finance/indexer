@@ -19,9 +19,8 @@ export interface AttributionResult {
 }
 
 /**
- * Fetch mint/burn transfers for a (tx, pool) via the per-(tx, pool) registry,
- * then PK-get each transfer by id. Replaces the old
- * `PoolTransferInTx.getWhere({ txHash })` index scan.
+ * Load every staged PoolTransferInTx of a (tx, pool) via the per-(tx, pool)
+ * registry: one PK read on the registry, then a PK get per transfer id.
  *
  * Registry rows may contain ids whose entities were deleted by a prior
  * consumption in the same tx; those get filtered out. The chainId/pool filter
@@ -30,15 +29,13 @@ export interface AttributionResult {
  * @param txHash - Transaction hash
  * @param chainId - Chain ID
  * @param poolAddress - Pool address
- * @param isMint - Whether this is a Mint event (true) or Burn event (false)
  * @param context - Handler context
- * @returns Filtered transfers for the (chainId, tx, pool) event type
+ * @returns The staged transfers of the (chainId, tx, pool), of every kind
  */
-export async function getTransfersInTx(
+async function loadTransfersInTx(
   txHash: string,
   chainId: number,
   poolAddress: string,
-  isMint: boolean,
   context: handlerContext,
 ): Promise<PoolTransferInTx[]> {
   const registryId = TxPoolTransferRegistryId(chainId, txHash, poolAddress);
@@ -56,11 +53,85 @@ export async function getTransfersInTx(
   ).filter((t): t is PoolTransferInTx => t !== undefined);
 
   return transfers.filter(
-    (t) =>
-      t.chainId === chainId &&
-      t.pool === poolAddress &&
-      (isMint ? t.isMint === true : t.isBurn === true),
+    (t) => t.chainId === chainId && t.pool === poolAddress,
   );
+}
+
+/**
+ * Fetch mint/burn transfers for a (tx, pool) via the per-(tx, pool) registry,
+ * then PK-get each transfer by id. Replaces the old
+ * `PoolTransferInTx.getWhere({ txHash })` index scan.
+ *
+ * @param txHash - Transaction hash
+ * @param chainId - Chain ID
+ * @param poolAddress - Pool address
+ * @param isMint - Whether this is a Mint event (true) or Burn event (false)
+ * @param context - Handler context
+ * @returns Filtered transfers for the (chainId, tx, pool) event type
+ */
+export async function getTransfersInTx(
+  txHash: string,
+  chainId: number,
+  poolAddress: string,
+  isMint: boolean,
+  context: handlerContext,
+): Promise<PoolTransferInTx[]> {
+  const transfers = await loadTransfersInTx(
+    txHash,
+    chainId,
+    poolAddress,
+    context,
+  );
+  return transfers.filter((t) =>
+    isMint ? t.isMint === true : t.isBurn === true,
+  );
+}
+
+/**
+ * Fetch the LP returns of a (tx, pool): plain LP Transfers into the pool
+ * (`to` = the pool, `from` != 0x0), which `storeTransferForMatching` stages so
+ * that a Burn can be credited to the account whose LP was burned.
+ *
+ * @param txHash - Transaction hash
+ * @param chainId - Chain ID
+ * @param poolAddress - Pool address
+ * @param context - Handler context
+ * @returns The unconsumed LP returns staged for the (chainId, tx, pool)
+ */
+export async function getLpReturnsInTx(
+  txHash: string,
+  chainId: number,
+  poolAddress: string,
+  context: handlerContext,
+): Promise<PoolTransferInTx[]> {
+  const transfers = await loadTransfersInTx(
+    txHash,
+    chainId,
+    poolAddress,
+    context,
+  );
+  return transfers.filter((t) => !t.isMint && !t.isBurn);
+}
+
+/**
+ * Pick the LP return a V2 burn consumed: the closest LP Transfer into the
+ * pool that precedes the pool's burn Transfer. Routers move the holder's LP
+ * with `transferFrom(holder, pool)`, so its `from` is the holder.
+ *
+ * @param lpReturns - Unconsumed LP returns of the (tx, pool)
+ * @param burnTransferLogIndex - Log index of the pool's burn Transfer (pool -> 0x0)
+ * @returns The matching LP return, or undefined if none precedes the burn
+ */
+export function findBurnedLpReturn(
+  lpReturns: PoolTransferInTx[],
+  burnTransferLogIndex: number,
+): PoolTransferInTx | undefined {
+  const preceding = lpReturns.filter(
+    (t) => t.logIndex < burnTransferLogIndex && t.value > 0n,
+  );
+  return preceding.length > 0
+    ? findClosestPrecedingTransfer(preceding)
+    : undefined;
 }
 
 /**
@@ -216,20 +287,40 @@ export async function findTransferAndAttribute(
   let matchedTransfer = findClosestPrecedingTransfer(precedingTransfers);
 
   // Extract recipient address, handling address(1) edge case for mints
-  const { recipient, matchedTransfer: finalMatchedTransfer } =
-    extractRecipientAddress(matchedTransfer, precedingTransfers, isMint);
-  matchedTransfer = finalMatchedTransfer;
+  const extracted = extractRecipientAddress(
+    matchedTransfer,
+    precedingTransfers,
+    isMint,
+  );
+  let recipient = extracted.recipient;
+  matchedTransfer = extracted.matchedTransfer;
 
   // Consume the matched transfer: delete it and prune its id from the
   // per-(tx, pool) registry. Symmetric with the CL mint registry cleanup path
   // (#628) — avoids accumulating stale PoolTransferInTx rows since this file
   // is the only reader (grep-verified in #629).
+  const registryId = TxPoolTransferRegistryId(chainId, txHash, poolAddress);
   context.PoolTransferInTx.deleteUnsafe(matchedTransfer.id);
-  await pruneRegistryOnConsume(
-    TxPoolTransferRegistryId(chainId, txHash, poolAddress),
-    matchedTransfer.id,
-    context,
-  );
+  await pruneRegistryOnConsume(registryId, matchedTransfer.id, context);
+
+  // A V2 pool burns its own balance, so the burn Transfer's `from` is the
+  // pool, not the liquidity provider (#911). Credit the account that sent the
+  // LP into the pool before that burn instead.
+  if (!isMint && recipient.toLowerCase() === poolAddress.toLowerCase()) {
+    const lpReturn = findBurnedLpReturn(
+      await getLpReturnsInTx(txHash, chainId, poolAddress, context),
+      matchedTransfer.logIndex,
+    );
+    if (lpReturn) {
+      recipient = lpReturn.from;
+      context.PoolTransferInTx.deleteUnsafe(lpReturn.id);
+      await pruneRegistryOnConsume(registryId, lpReturn.id, context);
+    } else {
+      // The LP reached the pool in an earlier tx, so the burning tx does not
+      // say whose it was: credit the payee the Burn names.
+      recipient = (event as EvmEvent<"Pool", "Burn">).params.to;
+    }
+  }
 
   // Calculate USD value
   const totalLiquidityUSD = calculateTotalUSD(

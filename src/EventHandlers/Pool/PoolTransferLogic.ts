@@ -204,8 +204,11 @@ export async function updateUserLpBalances(
 
 /**
  * Store mint/burn transfer in PoolTransferInTx entity for later Mint/Burn event matching.
- * Only stores mint/burn transfers (not regular transfers) to reduce storage; regular
- * transfers are a no-op.
+ * Stores mint and burn transfers, and LP returns (a plain transfer whose `to` is
+ * the pool itself, stored with isMint = isBurn = false): the pool burns its own
+ * balance, so the Burn handler credits the LP return's `from` (#911). Other
+ * transfers are a no-op. An LP return with no Burn later in its tx is never
+ * consumed (LP donated to the pool); that is rare and bounded by such transfers.
  *
  * Side effects (in order):
  *   1. Upserts PoolTransferInTx keyed by {chainId}-{txHash}-{poolAddress}-{logIndex}.
@@ -243,8 +246,10 @@ export async function storeTransferForMatching(
   timestamp: Date,
   context: handlerContext,
 ): Promise<void> {
-  // Only store mint/burn transfers (not regular transfers) to reduce storage
-  if (isMint || isBurn) {
+  // Only store mint/burn transfers and LP returns (LP sent into the pool, which
+  // the next burn consumes; #911), not other transfers, to reduce storage
+  const isLpReturn = !isMint && to.toLowerCase() === poolAddress.toLowerCase();
+  if (isMint || isBurn || isLpReturn) {
     const transferId = PoolTransferInTxId(
       chainId,
       txHash,

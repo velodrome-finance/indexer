@@ -956,7 +956,8 @@ type TxPoolTransferRegistry
 }
 
 # Temporary entity for matching Mint/Burn with Transfer events
-# Only stores mint/burn transfers (isMint || isBurn) to reduce storage
+# Only stores mint/burn transfers (isMint || isBurn) and LP returns (LP sent into
+# the pool, both flags false; the Burn credits their `from`, #911) to reduce storage
 type PoolTransferInTx @storage(postgres: true, clickhouse: false) @internal {
   id: ID! # Format: {chainId}-{txHash}-{poolAddress}-{logIndex}
   chainId: Int! @index # chain id
