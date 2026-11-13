@@ -77,7 +77,8 @@ export async function checkUsdAggregates(
          WHERE chainId = ${ctx.chainId} AND lower(address) = '${token}' AND envio_checkpoint_id <= ${cp} AND envio_change = 'SET'
          ORDER BY id, envio_checkpoint_id DESC LIMIT 1 BY id`,
       );
-      for (const r of rows) m.set(Math.floor(Number(r.ts) / 3600), big(r.p));
+      for (const r of rows ?? [])
+        m.set(Math.floor(Number(r.ts) / 3600), big(r.p));
       priceCache.set(token, m);
     }
     return m;
