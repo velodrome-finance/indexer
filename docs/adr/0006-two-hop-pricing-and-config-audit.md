@@ -71,6 +71,31 @@ block fields, or a refresh hooked onto a frequent event) is left for later.
 `refreshTokenPrice` refuses (and logs) a call whose `chainId` differs from the
 token's chain, so no handler can stamp a token with another chain's block time.
 
+### Per-chain configuration audit
+
+Every pool of every configured chain (16) was discovered over HyperSync
+(legacy V2 / CL and Aero factories, lifetime swap counts on all but Optimism,
+Base and four small leaf chains) and checked against the pinned set, WETH and
+the connectors. Changes: Metal's bridged USDC.e is pinned and a connector (it
+is Metal's most-traded stable; WETH / USDC.e alone has 57,852 swaps), Lisk's
+USD₮0 (Stargate-bridged USDT0, 477K swaps) is pinned. Kept after checking:
+Fraxtal's `0x1217…` OpenUSDT, which has traded within 0.11% of frxUSD over its
+whole life. Unichain's USDT (`0x588C…`) and Celo's OpenUSDT are pinned but
+have no pool yet. `test/Pricing/ChainPricingConfig.test.ts` fails when a chain
+has no pinned stablecoin, when WETH has no pinned counterparty with real
+volume, or when a pinned token has no pool and is not explicitly acknowledged,
+against `test/Pricing/fixtures/chain_pairings.json`.
+
 ## Consequences
 
-- See the round-3 report for the coverage table per chain.
+- Tokens whose only markets are against other non-connector tokens (Mode BMX
+  through wMLT) are priced; most remaining gaps against the oracle are tokens
+  whose markets never held the depth floor (Mode BEAST, WBTC, uniBTC; Fraxtal
+  DKDEFI, dUSD), where the oracle priced from pools too thin to trust.
+- Two oracle failures the old guards could not catch were traced to the same
+  mechanism: the oracle's one-token quote through a drained pool returns at
+  most that pool's counterparty reserve (Fraxtal FXB20291231 at 4.85e-16 USD,
+  Mode STONE at about a third of ETH). The depth floor rejects such pools.
+- A tier-2 connector cannot use a tier-3 peer (Fraxtal sfrxETH's deepest market
+  is against ezETH), so such tokens stay unpriced while their lower-tier pools
+  are thin.
