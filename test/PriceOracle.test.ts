@@ -656,6 +656,120 @@ describe("PriceOracle", () => {
       });
     });
 
+    describe("canonical seed fallback (ADR 0008)", () => {
+      // 2025-10-09 00:30 UTC: inside the committed seed, where Optimism WETH's
+      // hour is $4,438.642991 and Optimism VELO's $0.045575.
+      const SEED_HOUR = 1_759_996_800;
+      const T = SEED_HOUR + 1800;
+      const SEED_WETH = 4_438_642_991n * 10n ** 12n;
+      const LISK_WETH = OP_WETH;
+      const P_WETH_USDT = addr(0xc1);
+
+      function seedStore(opts: {
+        sourceAt?: number; // undefined = no Optimism WETH row at all
+        pool?: boolean; // a $1,300 USDT / 0.5 WETH pool (qualifies on Lisk)
+        at?: number;
+      }) {
+        const at = opts.at ?? T;
+        return createPricingStore({
+          tokens: [
+            makeToken(LISK, LISK_USDT, 6n, USD(1), at - DAY_S),
+            makeToken(LISK, LISK_WETH, 18n, USD(2_000), at - 2 * DAY_S),
+            ...(opts.sourceAt === undefined
+              ? []
+              : [
+                  makeToken(OP, OP_WETH, 18n, USD(2_500), opts.sourceAt, {
+                    pricingDepthUSD: USD(9_000_000),
+                  }),
+                ]),
+          ],
+          pools: opts.pool
+            ? [
+                makePool(LISK, P_WETH_USDT, LISK_USDT, LISK_WETH, {
+                  reserve0: 1_300n * 10n ** 6n,
+                  reserve1: E18 / 2n,
+                }),
+              ]
+            : [],
+          pricingPools: opts.pool
+            ? { [TokenId(LISK, LISK_WETH)]: [PoolId(LISK, P_WETH_USDT)] }
+            : {},
+        });
+      }
+
+      it.each([
+        ["months ahead (backfill)", T + 90 * DAY_S],
+        ["behind", T - 3 * HOUR_S],
+        ["missing", undefined],
+      ])(
+        "takes the seed's hour when the live source is %s and nothing local qualifies",
+        async (_, sourceAt) => {
+          const store = seedStore({ sourceAt });
+          const weth = await refresh(store, LISK, LISK_WETH, T);
+          expect(weth.pricePerUSDNew).toBe(SEED_WETH);
+          expect(weth.pricingDepthUSD).toBeUndefined();
+          expect(weth.lastSuccessfulPriceTimestamp).toEqual(new Date(T * 1000));
+          expect(store.snapshots.at(-1)).toMatchObject({
+            priceSource: "canonical-seed",
+            pricingSourceTokenId: TokenId(OP, OP_WETH),
+            pricingSeedHour: new Date(SEED_HOUR * 1000),
+            pricingPoolId: undefined,
+            pricingDepthUSD: undefined,
+          });
+          expect(store.effectCalls).toEqual([]);
+        },
+      );
+
+      it("live canonical inside the window beats the seed", async () => {
+        const store = seedStore({ sourceAt: T - 30 * 60 });
+        const weth = await refresh(store, LISK, LISK_WETH, T);
+        expect(weth.pricePerUSDNew).toBe(USD(2_500));
+        expect(store.snapshots.at(-1)).toMatchObject({
+          priceSource: "canonical",
+          pricingSeedHour: undefined,
+        });
+      });
+
+      it("a qualifying local pool beats the seed", async () => {
+        const store = seedStore({ sourceAt: T + 90 * DAY_S, pool: true });
+        const weth = await refresh(store, LISK, LISK_WETH, T);
+        expect(weth.pricePerUSDNew).toBe(USD(2_600));
+        expect(store.snapshots.at(-1)?.priceSource).toBe("pool");
+      });
+
+      it("outside the seed's range behaves as before (carry)", async () => {
+        const at = 1_700_000_000; // 2023-11, before the seed starts
+        const store = seedStore({ sourceAt: at + 90 * DAY_S, at });
+        const weth = await refresh(store, LISK, LISK_WETH, at);
+        expect(weth.pricePerUSDNew).toBe(USD(2_000));
+        expect(store.snapshots.at(-1)?.priceSource).toBe("carried");
+      });
+
+      it("leaves tokens without a canonical source untouched", async () => {
+        const store = createPricingStore({
+          tokens: [makeToken(OP, OP_TOKEN_X, 18n, USD(7), T - DAY_S)],
+        });
+        const x = await refresh(store, OP, OP_TOKEN_X, T);
+        expect(x.pricePerUSDNew).toBe(USD(7));
+        expect(store.snapshots.at(-1)).toMatchObject({
+          priceSource: "carried",
+          pricingSeedHour: undefined,
+        });
+      });
+
+      it("XVELO takes Optimism VELO's seed price", async () => {
+        const store = createPricingStore({
+          tokens: [makeToken(LISK, XVELO, 18n, 0n, T - DAY_S)],
+        });
+        const xvelo = await refresh(store, LISK, XVELO, T);
+        expect(xvelo.pricePerUSDNew).toBe(45_575_000_000_000_000n);
+        expect(store.snapshots.at(-1)).toMatchObject({
+          priceSource: "canonical-seed",
+          pricingSourceTokenId: TokenId(OP, OP_VELO),
+        });
+      });
+    });
+
     it("heals empty metadata even when the price refresh is throttled (#735)", async () => {
       const store = opStore({
         tokens: [
