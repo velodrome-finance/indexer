@@ -767,13 +767,34 @@ const CANONICAL_SOURCE_BY_TARGET: ReadonlyMap<string, CanonicalSource> =
   );
 
 /**
+ * {@link BLACKLIST} split per chain, so the hot-path check is a Map + Set
+ * lookup on the address the caller already holds instead of building a
+ * `{chainId}-{address}` string per call. Same membership: a TokenId is
+ * `{chainId}-{address}` and an address never contains `-`.
+ */
+const BLACKLIST_BY_CHAIN: ReadonlyMap<number, ReadonlySet<string>> = (() => {
+  const byChain = new Map<number, Set<string>>();
+  for (const tokenId of BLACKLIST) {
+    const dash = tokenId.indexOf("-");
+    const chainId = Number(tokenId.slice(0, dash));
+    let addresses = byChain.get(chainId);
+    if (!addresses) {
+      addresses = new Set();
+      byChain.set(chainId, addresses);
+    }
+    addresses.add(tokenId.slice(dash + 1));
+  }
+  return byChain;
+})();
+
+/**
  * Whether this token's price should be forced to 0, ahead of any pool route.
  * @param chainId - Chain the token lives on
  * @param address - Token address (must be EIP-55 checksum-cased to match config)
  * @returns true if the token is blacklisted on that chain
  */
 export const isBlacklistedToken = (chainId: number, address: string): boolean =>
-  BLACKLIST.has(TokenId(chainId, address));
+  BLACKLIST_BY_CHAIN.get(chainId)?.has(address) ?? false;
 
 /**
  * The canonical source of the same asset on another chain, if one is
