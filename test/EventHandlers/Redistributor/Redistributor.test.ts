@@ -246,6 +246,75 @@ describe("Redistributor Event Handlers", () => {
     });
   });
 
+  describe("gauge address shared with another chain", () => {
+    // A pool on another chain whose gauge has the same address as the Base
+    // gauge the event names.
+    const otherChainId = 10;
+    const seedOtherChainPool = (): MockPool =>
+      createMockPool({
+        chainId: otherChainId,
+        gaugeAddress,
+        totalEmissionsForfeited: 5n,
+        totalEmissionsRedistributed: 7n,
+      });
+
+    const redistributed = (amount: bigint) => {
+      const eventData = buildMockEventData({
+        blockNumber: 987800,
+        timestamp: 1_700_000_300,
+        blockHash:
+          "0xblockhashblockhashblockhashblockhashblockhashblockhashblockhash4",
+        logIndex: 3,
+      });
+      return {
+        contract: "Redistributor" as const,
+        event: "Redistributed" as const,
+        srcAddress: redistributorAddress,
+        logIndex: eventData.logIndex,
+        block: eventData.block,
+        transaction: eventData.transaction,
+        params: { sender: senderAddress, gauge: gaugeAddress, amount },
+      };
+    };
+
+    it("does not update another chain's pool when the event chain has no match", async () => {
+      const otherPool = seedOtherChainPool();
+      const indexer = createTestIndexer();
+      indexer.Pool.set(otherPool);
+
+      await indexer.process({
+        chains: { [chainId]: { simulate: [redistributed(100n)] } },
+      });
+
+      const untouched = await indexer.Pool.get(otherPool.id);
+      expect(untouched?.totalEmissionsRedistributed).toBe(7n);
+      expect(untouched?.totalEmissionsForfeited).toBe(5n);
+      expect(untouched?.lastUpdatedTimestamp).toEqual(
+        otherPool.lastUpdatedTimestamp,
+      );
+    });
+
+    it("updates only the event chain's pool when both chains have one", async () => {
+      const otherPool = seedOtherChainPool();
+      const basePool = seedPool(0n, 3n);
+      const indexer = createTestIndexer();
+      // Other chain seeded first so an unfiltered query would return it first.
+      indexer.Pool.set(otherPool);
+      indexer.Pool.set(basePool);
+
+      await indexer.process({
+        chains: { [chainId]: { simulate: [redistributed(100n)] } },
+      });
+
+      expect(
+        (await indexer.Pool.get(basePool.id))?.totalEmissionsRedistributed,
+      ).toBe(103n);
+      expect(
+        (await indexer.Pool.get(otherPool.id))?.totalEmissionsRedistributed,
+      ).toBe(7n);
+    });
+  });
+
   describe("SetKeeper / SetUpkeepManager", () => {
     it("SetKeeper creates a RedistributorConfig with keeper set and upkeepManager empty", async () => {
       const indexer = createTestIndexer();

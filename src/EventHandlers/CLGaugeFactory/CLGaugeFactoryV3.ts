@@ -24,6 +24,7 @@ indexer.onEvent(
   { contract: "CLGaugeFactoryV3", event: "SetEmissionCap" },
   async ({ event, context }) => {
     await applySetEmissionCap(
+      event.chainId,
       event.params._gauge,
       event.params._newEmissionCap,
       event.block.timestamp,

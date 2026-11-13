@@ -1,5 +1,6 @@
 import type { CLGaugeConfig } from "envio";
-import { getRehydrated, getWhereRehydrated } from "../../EntityTimestamps";
+import { findPoolByGaugeAddress } from "../../Aggregators/Pool";
+import { getRehydrated } from "../../EntityTimestamps";
 import type { handlerContext } from "../../EntityTypes";
 
 /**
@@ -122,38 +123,37 @@ export async function applySetPenaltyRate(
 }
 
 /**
- * Apply a per-gauge emission cap to the matching Pool.
+ * Apply a per-gauge emission cap to the Pool on the event's chain whose gauge it is.
  * Shared by CLGaugeFactoryV2 and CLGaugeFactoryV3.
+ *
+ * The CL gauge factory sits at one address on every superchain leaf chain and
+ * deploys gauges deterministically, so the same gauge address can belong to
+ * pools on several chains. The pool is therefore looked up on the event's
+ * chain only; a gauge with no pool on that chain is logged and skipped.
+ * @param chainId - Chain the SetEmissionCap event fired on
  * @param gauge - Gauge address from the event payload
  * @param newEmissionCap - New emissions cap for the gauge's pool
  * @param blockTimestampSeconds - Block timestamp (seconds) used for lastUpdatedTimestamp
- * @param factoryLogPrefix - Identifier used when warning about duplicate gauge matches (e.g. "CLGaugeFactoryV2")
+ * @param factoryLogPrefix - Identifier used in the not-found log line (e.g. "CLGaugeFactoryV2")
  * @param context - Handler context for entity access
- * @returns Promise that resolves once the update is staged, or no-ops if no pool matches
+ * @returns Promise that resolves once the update is staged, or no-ops if no pool on the chain matches
  */
 export async function applySetEmissionCap(
+  chainId: number,
   gauge: string,
   newEmissionCap: bigint,
   blockTimestampSeconds: number,
   factoryLogPrefix: string,
   context: handlerContext,
 ): Promise<void> {
-  const poolEntityList = await getWhereRehydrated(context.Pool, "Pool", {
-    gaugeAddress: { _eq: gauge },
-  });
+  const poolEntity = await findPoolByGaugeAddress(gauge, chainId, context);
 
-  if (!poolEntityList || poolEntityList.length === 0) {
-    context.log.error(`Pool entity not found for gauge ${gauge}`);
+  if (!poolEntity) {
+    context.log.error(
+      `[${factoryLogPrefix}] Pool entity not found for gauge ${gauge} on chain ${chainId}`,
+    );
     return;
   }
-
-  if (poolEntityList.length > 1) {
-    context.log.warn(
-      `[${factoryLogPrefix}] Multiple pools found for gauge ${gauge}, using first match`,
-    );
-  }
-
-  const poolEntity = poolEntityList[0];
 
   context.Pool.set({
     ...poolEntity,
