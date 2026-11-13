@@ -133,6 +133,25 @@ const snapshotsFor = (
 
 describe("PriceOracle", () => {
   describe("refreshTokenPrice", () => {
+    it("refuses to stamp a token with another chain's block time", async () => {
+      const store = opStore();
+      const before = store.tokens.get(TokenId(OP, OP_WETH));
+      if (!before) throw new Error("missing WETH");
+      const result = await PriceOracle.refreshTokenPrice(
+        before,
+        1,
+        NOW,
+        LISK,
+        store.context,
+      );
+      expect(result).toBe(before);
+      expect(store.context.Token.set).not.toHaveBeenCalled();
+      expect(store.snapshots).toHaveLength(0);
+      expect(store.context.log.error).toHaveBeenCalledWith(
+        expect.stringContaining("Refusing to refresh"),
+      );
+    });
+
     describe("strict hourly throttle", () => {
       it("does nothing when the token was already refreshed this clock hour", async () => {
         const store = opStore({
@@ -384,6 +403,44 @@ describe("PriceOracle", () => {
         expect(snapshotsFor(store, OP_TOKEN_X)[0]).toMatchObject({
           priceSource: "unpriced",
           pricePerUSDNew: 0n,
+        });
+      });
+
+      it("keeps the chain's WETH (tier 1) at its last price however old, with the age on the snapshot", async () => {
+        const lastSuccess = NOW - 60 * DAY_S;
+        const store = opStore({
+          tokens: [makeToken(OP, OP_WETH, 18n, USD(2_400), lastSuccess)],
+          pricingPools: { [TokenId(OP, OP_WETH)]: [] },
+        });
+        const weth = await refresh(store, OP, OP_WETH);
+        expect(weth.pricePerUSDNew).toBe(USD(2_400));
+        expect(snapshotsFor(store, OP_WETH)[0]).toMatchObject({
+          priceSource: "carried",
+          pricePerUSDNew: USD(2_400),
+          lastSuccessfulPriceTimestamp: new Date(lastSuccess * 1000),
+        });
+      });
+
+      it("keeps a connector (tier 2) at its last price however old", async () => {
+        const lastSuccess = NOW - 45 * DAY_S;
+        const store = opStore({
+          tokens: [makeToken(OP, OP_VELO, 18n, USD(1) / 10n, lastSuccess)],
+          pricingPools: { [TokenId(OP, OP_VELO)]: [] },
+        });
+        const velo = await refresh(store, OP, OP_VELO);
+        expect(velo.pricePerUSDNew).toBe(USD(1) / 10n);
+        expect(snapshotsFor(store, OP_VELO)[0]).toMatchObject({
+          priceSource: "carried",
+          lastSuccessfulPriceTimestamp: new Date(lastSuccess * 1000),
+        });
+      });
+
+      it("records the success time on a fresh snapshot", async () => {
+        const store = opStore();
+        await refresh(store, OP, OP_WETH);
+        expect(snapshotsFor(store, OP_WETH)[0]).toMatchObject({
+          priceSource: "pool",
+          lastSuccessfulPriceTimestamp: new Date(NOW * 1000),
         });
       });
 
@@ -695,6 +752,76 @@ describe("PriceOracle", () => {
         ).toBe(callsFirstHour * 2);
       });
     });
+  });
+
+  describe("isTokenRefreshNoop (lets loadPoolData skip the async call)", () => {
+    // Every combination of the conditions refreshTokenPrice branches on:
+    // chain, metadata, and the throttle clock (same hour, earlier hour, never),
+    // for a pinned, a WETH, a connector and a tier-3 token, priced or not.
+    const clocks = {
+      sameHour: NOW - 60,
+      earlierHour: NOW - 2 * HOUR_S,
+      later: NOW + 2 * HOUR_S,
+    };
+    const cases: Array<{ label: string; token: Token; chainId: number }> = [];
+    for (const address of [OP_USDC, OP_WETH, OP_VELO, OP_TOKEN_X]) {
+      for (const [clockName, refreshedAt] of Object.entries(clocks)) {
+        for (const metadata of ["complete", "noSymbol", "noName"] as const) {
+          for (const price of [0n, USD(3)]) {
+            for (const chainId of [OP, LISK]) {
+              const token = makeToken(OP, address, 18n, price, refreshedAt, {
+                symbol: metadata === "noSymbol" ? "" : "TKN",
+                name: metadata === "noName" ? "" : "Token",
+              });
+              cases.push({
+                label: `${address.slice(0, 8)} ${clockName} ${metadata} ${price} chain ${chainId}`,
+                token,
+                chainId,
+              });
+            }
+          }
+        }
+      }
+      cases.push({
+        label: `${address.slice(0, 8)} never refreshed`,
+        token: makeToken(OP, address, 18n, 0n, NOW, {
+          lastUpdatedTimestamp: undefined,
+        }),
+        chainId: OP,
+      });
+    }
+
+    it.each(cases)(
+      "$label: true exactly when refreshTokenPrice returns its input with no read or write",
+      async ({ token, chainId }) => {
+        const store = opStore({ tokens: [token] });
+        const noop = PriceOracle.isTokenRefreshNoop(token, NOW, chainId);
+        const result = await PriceOracle.refreshTokenPrice(
+          token,
+          123,
+          NOW,
+          chainId,
+          store.context,
+        );
+        const touched =
+          result !== token ||
+          vi.mocked(store.context.Token.set).mock.calls.length > 0 ||
+          vi.mocked(store.context.Token.get).mock.calls.length > 0 ||
+          vi.mocked(store.context.TokenPricingPools.get).mock.calls.length >
+            0 ||
+          store.snapshots.length > 0 ||
+          store.effectCalls.length > 0;
+        if (noop) {
+          expect(touched).toBe(false);
+        } else {
+          // The only non-no-op that leaves everything untouched is the
+          // cross-chain refusal, which still logs.
+          expect(
+            touched || vi.mocked(store.context.log.error).mock.calls.length > 0,
+          ).toBe(true);
+        }
+      },
+    );
   });
 
   describe("createTokenEntity", () => {

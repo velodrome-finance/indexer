@@ -11,7 +11,7 @@ import { getRehydrated, getWhereRehydrated } from "../EntityTimestamps";
 import type { handlerContext } from "../EntityTypes";
 import type { Pool } from "../EntityTypes";
 import { calculateTotalUSD, generatePoolName } from "../Helpers";
-import { refreshTokenPrice } from "../PriceOracle";
+import { isTokenRefreshNoop, refreshTokenPrice } from "../PriceOracle";
 import { getTrustedUSD } from "../PriceTrust";
 import {
   getSnapshotEpoch,
@@ -779,7 +779,16 @@ export async function loadPoolData(
   // pool state (no RPC; see docs/adr/0003-pool-derived-token-prices.md).
   let updatedToken0 = token0Instance;
   let updatedToken1 = token1Instance;
-  if (blockNumber !== undefined && blockTimestamp !== undefined) {
+  if (
+    blockNumber !== undefined &&
+    blockTimestamp !== undefined &&
+    // Skip the async calls when both would return their input unchanged (the
+    // common case: most pool events land in an hour already refreshed).
+    !(
+      isTokenRefreshNoop(token0Instance, blockTimestamp, chainId) &&
+      isTokenRefreshNoop(token1Instance, blockTimestamp, chainId)
+    )
+  ) {
     // Wrap each refresh in a promise that catches errors individually
     const token0Refresh = refreshTokenPrice(
       token0Instance,

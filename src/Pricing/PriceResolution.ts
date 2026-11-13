@@ -27,6 +27,12 @@ export type PriceResolution =
       readonly priceUSD: bigint;
       readonly sourceId: string;
       readonly depthUSD: bigint;
+      /** 2 for a two-hop pool route (ADR 0007); absent = 1. */
+      readonly hops?: 1 | 2;
+      /** Two-hop only: the peer token the price went through. */
+      readonly viaTokenId?: string;
+      /** Two-hop only: the pool that priced the peer. */
+      readonly viaPoolId?: string;
     }
   | { readonly kind: "none" };
 
@@ -42,6 +48,12 @@ export interface AppliedPrice {
   readonly pricingSourceTokenId?: string;
   /** Depth of the winning candidate, USD 1e18-base (`pool` / `canonical` only). */
   readonly pricingDepthUSD?: bigint;
+  /** Route length: 1 for a direct pool or canonical price, 2 for a two-hop pool route. */
+  readonly pricingHops?: number;
+  /** Two-hop only: the peer token the price went through. */
+  readonly pricingViaTokenId?: string;
+  /** Two-hop only: the pool that priced the peer. */
+  readonly pricingViaPoolId?: string;
 }
 
 /**
@@ -82,20 +94,23 @@ export function isPriceRefreshDue(
  * When nothing qualifies (`none`), the last price is carried while the last
  * success is under {@link PRICE_CARRY_WINDOW_MS} old, so missing data never
  * zeroes a good price; past the window it drops to 0 (`unpriced`) so a token
- * whose liquidity has left stops inflating TVL. `override` zeroes the price
- * without touching the success clock.
+ * whose liquidity has left stops inflating TVL. With `carryWithoutExpiry`
+ * (tiers 1 and 2, see `carriesWithoutExpiry`) a positive price is carried however old
+ * it is. `override` zeroes the price without touching the success clock.
  *
  * Pure: no reads, no writes.
  *
  * @param token - The token being refreshed
  * @param resolution - What the refresh found
  * @param blockTimestampMs - Current block timestamp in milliseconds
+ * @param carryWithoutExpiry - Carry a positive price past the 7-day window
  * @returns The updated token plus snapshot provenance
  */
 export function applyPriceResolution(
   token: Token,
   resolution: PriceResolution,
   blockTimestampMs: number,
+  carryWithoutExpiry = false,
 ): AppliedPrice {
   const now = new Date(blockTimestampMs);
   const success = (
@@ -131,6 +146,9 @@ export function applyPriceResolution(
         priceSource: PRICE_SOURCE.POOL,
         pricingPoolId: resolution.sourceId,
         pricingDepthUSD: resolution.depthUSD,
+        pricingHops: resolution.hops ?? 1,
+        pricingViaTokenId: resolution.viaTokenId,
+        pricingViaPoolId: resolution.viaPoolId,
       };
     case "canonical":
       return {
@@ -138,13 +156,15 @@ export function applyPriceResolution(
         priceSource: PRICE_SOURCE.CANONICAL,
         pricingSourceTokenId: resolution.sourceId,
         pricingDepthUSD: resolution.depthUSD,
+        pricingHops: 1,
       };
     case "none": {
       const lastSuccess = token.lastSuccessfulPriceTimestamp;
       const carry =
         token.pricePerUSDNew > 0n &&
         lastSuccess !== undefined &&
-        blockTimestampMs - lastSuccess.getTime() < PRICE_CARRY_WINDOW_MS;
+        (carryWithoutExpiry ||
+          blockTimestampMs - lastSuccess.getTime() < PRICE_CARRY_WINDOW_MS);
       return {
         token: {
           ...token,

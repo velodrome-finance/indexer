@@ -2,7 +2,11 @@ import {
   applyPriceResolution,
   isPriceRefreshDue,
 } from "../../src/Pricing/PriceResolution";
-import { ONE_USD } from "../../src/Pricing/PricingConfig";
+import {
+  ONE_USD,
+  PRICING_TIER,
+  carriesWithoutExpiry,
+} from "../../src/Pricing/PricingConfig";
 import {
   DAY_S,
   HOUR_S,
@@ -183,6 +187,55 @@ describe("PriceResolution", () => {
       const applied = applyPriceResolution(token, { kind: "none" }, nowMs);
       expect(applied.token.pricePerUSDNew).toBe(0n);
       expect(applied.priceSource).toBe("unpriced");
+    });
+
+    it("none without expiry (tiers 1–2): carries a price of any age, depth and success clock kept", () => {
+      const lastSuccess = now - 90 * DAY_S;
+      const token = {
+        ...makeToken(OP, OP_TOKEN_X, 18n, USD(2400), lastSuccess),
+        pricingDepthUSD: USD(2150),
+      };
+      const applied = applyPriceResolution(
+        token,
+        { kind: "none" },
+        nowMs,
+        true,
+      );
+      expect(applied.token.pricePerUSDNew).toBe(USD(2400));
+      expect(applied.token.pricingDepthUSD).toBe(USD(2150));
+      expect(applied.token.lastSuccessfulPriceTimestamp).toEqual(
+        at(lastSuccess),
+      );
+      expect(applied.token.lastUpdatedTimestamp).toEqual(at(now));
+      expect(applied.priceSource).toBe("carried");
+    });
+
+    it("none without expiry still never invents a price", () => {
+      const never = makeToken(OP, OP_TOKEN_X, 18n, 0n, now - HOUR_S);
+      expect(
+        applyPriceResolution(never, { kind: "none" }, nowMs, true).priceSource,
+      ).toBe("unpriced");
+      const unstamped = { ...priced, lastSuccessfulPriceTimestamp: undefined };
+      expect(
+        applyPriceResolution(unstamped, { kind: "none" }, nowMs, true).token
+          .pricePerUSDNew,
+      ).toBe(0n);
+    });
+
+    it("without expiry, an override still zeroes the price", () => {
+      expect(
+        applyPriceResolution(priced, { kind: "override" }, nowMs, true).token
+          .pricePerUSDNew,
+      ).toBe(0n);
+    });
+  });
+
+  describe("carriesWithoutExpiry", () => {
+    it("is tiers 1 and 2 (WETH, connectors, reward tokens); tier 3 keeps the 7-day rule", () => {
+      expect(carriesWithoutExpiry(PRICING_TIER.PINNED)).toBe(false);
+      expect(carriesWithoutExpiry(PRICING_TIER.WETH)).toBe(true);
+      expect(carriesWithoutExpiry(PRICING_TIER.CONNECTOR)).toBe(true);
+      expect(carriesWithoutExpiry(PRICING_TIER.OTHER)).toBe(false);
     });
   });
 });
