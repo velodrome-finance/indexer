@@ -1,4 +1,4 @@
-# ADR 0006: Two-hop pricing through a tier-3 peer, and an hourly anchor refresh
+# ADR 0006: Two-hop pricing through a tier-3 peer; per-chain config audit
 
 - **Status:** Accepted (2026-11-13). Amends ADR 0003 (tier rule) and ADR 0004
   (canonical sources' freshness).
@@ -51,15 +51,20 @@ lower tier, or canonical source) may be priced through a tier-3 peer C:
 
 The recursion is bounded: T → (peer C, direct only) → tiers 2 → 1 → 0.
 
-### An hourly, time-driven refresh of anchor tokens
+### No time-driven anchor refresh (measured, rejected)
 
-`src/handlers/PriceAnchorRefresh.ts` (`indexer.onBlock`) refreshes, every
-`getAnchorRefreshBlockInterval(chainId)` blocks, each chain's anchor tokens:
-WETH, connectors, reward tokens and the canonical sources that live on the
-chain (pinned tokens excluded). The interval is about one hour of blocks at the
-chain's fastest block time (1,800 on 2 s chains, Base included; 3,600 on 1 s
-chains; 300 on Ethereum; 14,400 on Arbitrum / Robinhood; 7,200 on Arc). The
-refresh keeps its once-per-clock-hour throttle, so extra calls are no-ops.
+An `indexer.onBlock` handler that refreshed each chain's anchor tokens (WETH,
+connectors, reward tokens, canonical sources on the chain) every ~hour of
+blocks (`_every` 1,800 on 2 s chains, with `fields: { block: ["timestamp"] }`
+for the refresh time) was built and measured on a Mode single-chain sync
+against the identical commit without it. With the handler the sync took about
+10 minutes to reach block 3.96M, the indexer's main thread was saturated
+(112% CPU, 4.7 GB RSS, metrics server unresponsive) and only ~2,200 events had
+been processed; without it the same sync passed block 7.45M within 40 s. The
+early, event-sparse part of every chain is dominated by block-handler work,
+so the cost is not proportional to the benefit, and the handler was removed.
+Prices stay event-driven. A cheaper trigger (a block handler that needs no
+block fields, or a refresh hooked onto a frequent event) is left for later.
 
 ### A token's price clock only advances with its own chain's time
 
