@@ -166,8 +166,9 @@ export async function createTokenEntity(
  *    itself-two-hop C cannot extend a chain. The weaker of the two hops sets
  *    the depth for the floor, the imbalance bound and the comparison
  *    (`pool`, `pricingHops = 2`).
- * 5. Nothing qualified: carry the last price while its last success is under
- *    7 days old (`carried`), else 0 (`unpriced`).
+ * 5. Nothing qualified: carry the last price (`carried`) — for tiers 1–2
+ *    however old it is, for tier 3 while its last success is under 7 days
+ *    old — else 0 (`unpriced`).
  *
  * Two clocks (#694): `lastUpdatedTimestamp` advances on every due refresh
  * (it is the throttle); `lastSuccessfulPriceTimestamp` only on steps 2–3.
@@ -241,6 +242,30 @@ export async function refreshTokenPrice(
   );
   preloadRefreshes.set(key, refresh);
   return refresh;
+}
+
+/**
+ * Whether {@link refreshTokenPrice} would return `token` unchanged without any
+ * read or write: the token belongs to `chainId`, its metadata is complete (so
+ * the heal is skipped) and its price is not due this clock hour. Exact by
+ * construction — these are the conditions under which `refreshTokenPrice`
+ * returns its input — so a caller may skip the async call when it holds.
+ *
+ * @param token - The token as loaded by the caller
+ * @param blockTimestamp - Block timestamp in seconds
+ * @param chainId - Chain of the triggering event
+ * @returns true when calling `refreshTokenPrice` would be a no-op
+ */
+export function isTokenRefreshNoop(
+  token: Token,
+  blockTimestamp: number,
+  chainId: number,
+): boolean {
+  return (
+    token.chainId === chainId &&
+    Boolean(token.symbol && token.name) &&
+    !isPriceRefreshDue(token.lastUpdatedTimestamp, blockTimestamp * 1000)
+  );
 }
 
 /**

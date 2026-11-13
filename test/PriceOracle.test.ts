@@ -754,6 +754,76 @@ describe("PriceOracle", () => {
     });
   });
 
+  describe("isTokenRefreshNoop (lets loadPoolData skip the async call)", () => {
+    // Every combination of the conditions refreshTokenPrice branches on:
+    // chain, metadata, and the throttle clock (same hour, earlier hour, never),
+    // for a pinned, a WETH, a connector and a tier-3 token, priced or not.
+    const clocks = {
+      sameHour: NOW - 60,
+      earlierHour: NOW - 2 * HOUR_S,
+      later: NOW + 2 * HOUR_S,
+    };
+    const cases: Array<{ label: string; token: Token; chainId: number }> = [];
+    for (const address of [OP_USDC, OP_WETH, OP_VELO, OP_TOKEN_X]) {
+      for (const [clockName, refreshedAt] of Object.entries(clocks)) {
+        for (const metadata of ["complete", "noSymbol", "noName"] as const) {
+          for (const price of [0n, USD(3)]) {
+            for (const chainId of [OP, LISK]) {
+              const token = makeToken(OP, address, 18n, price, refreshedAt, {
+                symbol: metadata === "noSymbol" ? "" : "TKN",
+                name: metadata === "noName" ? "" : "Token",
+              });
+              cases.push({
+                label: `${address.slice(0, 8)} ${clockName} ${metadata} ${price} chain ${chainId}`,
+                token,
+                chainId,
+              });
+            }
+          }
+        }
+      }
+      cases.push({
+        label: `${address.slice(0, 8)} never refreshed`,
+        token: makeToken(OP, address, 18n, 0n, NOW, {
+          lastUpdatedTimestamp: undefined,
+        }),
+        chainId: OP,
+      });
+    }
+
+    it.each(cases)(
+      "$label: true exactly when refreshTokenPrice returns its input with no read or write",
+      async ({ token, chainId }) => {
+        const store = opStore({ tokens: [token] });
+        const noop = PriceOracle.isTokenRefreshNoop(token, NOW, chainId);
+        const result = await PriceOracle.refreshTokenPrice(
+          token,
+          123,
+          NOW,
+          chainId,
+          store.context,
+        );
+        const touched =
+          result !== token ||
+          vi.mocked(store.context.Token.set).mock.calls.length > 0 ||
+          vi.mocked(store.context.Token.get).mock.calls.length > 0 ||
+          vi.mocked(store.context.TokenPricingPools.get).mock.calls.length >
+            0 ||
+          store.snapshots.length > 0 ||
+          store.effectCalls.length > 0;
+        if (noop) {
+          expect(touched).toBe(false);
+        } else {
+          // The only non-no-op that leaves everything untouched is the
+          // cross-chain refusal, which still logs.
+          expect(
+            touched || vi.mocked(store.context.log.error).mock.calls.length > 0,
+          ).toBe(true);
+        }
+      },
+    );
+  });
+
   describe("createTokenEntity", () => {
     const blockTimestamp = HOUR_START_S + 600;
 
