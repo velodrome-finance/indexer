@@ -95,7 +95,7 @@ export function isPriceRefreshDue(
  * success is under {@link PRICE_CARRY_WINDOW_MS} old, so missing data never
  * zeroes a good price; past the window it drops to 0 (`unpriced`) so a token
  * whose liquidity has left stops inflating TVL. With `carryWithoutExpiry`
- * (tier 1, see `carriesWithoutExpiry`) a positive price is carried however old
+ * (tiers 1 and 2, see `carriesWithoutExpiry`) a positive price is carried however old
  * it is. `override` zeroes the price without touching the success clock.
  *
  * Pure: no reads, no writes.

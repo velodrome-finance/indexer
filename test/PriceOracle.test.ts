@@ -421,6 +421,20 @@ describe("PriceOracle", () => {
         });
       });
 
+      it("keeps a connector (tier 2) at its last price however old", async () => {
+        const lastSuccess = NOW - 45 * DAY_S;
+        const store = opStore({
+          tokens: [makeToken(OP, OP_VELO, 18n, USD(1) / 10n, lastSuccess)],
+          pricingPools: { [TokenId(OP, OP_VELO)]: [] },
+        });
+        const velo = await refresh(store, OP, OP_VELO);
+        expect(velo.pricePerUSDNew).toBe(USD(1) / 10n);
+        expect(snapshotsFor(store, OP_VELO)[0]).toMatchObject({
+          priceSource: "carried",
+          lastSuccessfulPriceTimestamp: new Date(lastSuccess * 1000),
+        });
+      });
+
       it("records the success time on a fresh snapshot", async () => {
         const store = opStore();
         await refresh(store, OP, OP_WETH);

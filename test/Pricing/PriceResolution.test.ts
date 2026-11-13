@@ -189,7 +189,7 @@ describe("PriceResolution", () => {
       expect(applied.priceSource).toBe("unpriced");
     });
 
-    it("none without expiry (tier 1): carries a price of any age, depth and success clock kept", () => {
+    it("none without expiry (tiers 1–2): carries a price of any age, depth and success clock kept", () => {
       const lastSuccess = now - 90 * DAY_S;
       const token = {
         ...makeToken(OP, OP_TOKEN_X, 18n, USD(2400), lastSuccess),
@@ -231,10 +231,10 @@ describe("PriceResolution", () => {
   });
 
   describe("carriesWithoutExpiry", () => {
-    it("is tier 1 (the chain's WETH) only", () => {
+    it("is tiers 1 and 2 (WETH, connectors, reward tokens); tier 3 keeps the 7-day rule", () => {
       expect(carriesWithoutExpiry(PRICING_TIER.PINNED)).toBe(false);
       expect(carriesWithoutExpiry(PRICING_TIER.WETH)).toBe(true);
-      expect(carriesWithoutExpiry(PRICING_TIER.CONNECTOR)).toBe(false);
+      expect(carriesWithoutExpiry(PRICING_TIER.CONNECTOR)).toBe(true);
       expect(carriesWithoutExpiry(PRICING_TIER.OTHER)).toBe(false);
     });
   });

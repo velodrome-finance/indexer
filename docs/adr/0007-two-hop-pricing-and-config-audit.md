@@ -127,10 +127,11 @@ all chains move together and it works.
 
 ### Decision
 
-- **Tier 1 carries without expiry** (`carriesWithoutExpiry`). With no
-  qualifying route, the chain's WETH keeps its last price indefinitely as
-  `carried`; `TokenPriceSnapshot.lastSuccessfulPriceTimestamp` (new) shows how
-  old it is. Tiers 2 and 3 keep the seven-day rule; tier 0 is pinned.
+- **Tiers 1 and 2 carry without expiry** (`carriesWithoutExpiry`). With no
+  qualifying route, the chain's WETH, price connectors and reward tokens keep
+  their last price indefinitely as `carried`;
+  `TokenPriceSnapshot.lastSuccessfulPriceTimestamp` (new) shows how old it is.
+  Tier 3 keeps the seven-day rule; tier 0 is pinned.
 - **Unpinned stablecoins pinned** where they trade at the peg in the pools'
   own history (1st–99th percentile of pool prices within 0.2–0.6% of $1):
   USD₮0 on Unichain, Soneium, Swell and Mode; Soneium's bridged USDT; Celo's
@@ -145,21 +146,25 @@ all chains move together and it works.
   price today). At the head the single Optimism source already works. Not
   adopted; an hourly source-price table plus several sources is the follow-up
   if leaf history after the Aero launch must be exact.
-- **Unlimited carry for tiers 0–2.** Tier 0 never needs it. Tier 2 holds
-  volatile connectors (MODE, LSK, CELO, VELO / XVELO) whose stale price can be
-  wrong by an order of magnitude after weeks; dropping them to 0 after seven
-  days is the lesser error.
+- **Unlimited carry for tier 1 only.** Tier 2 holds volatile connectors
+  (MODE, LSK, CELO, VELO / XVELO) whose stale price can drift far over weeks,
+  which argued for keeping their seven-day rule. Rejected: every tier-3 price
+  on the chain is built on them, so a 0 there zeroes far more TVL than a stale
+  price misstates, and the staleness is visible.
 
 ### Trade-offs
 
-- *Staleness.* A carried WETH price is off by ETH's move since the last
-  success (Mode WETH: $1,923 carried from 2026-08-19). The alternative, 0,
-  removes half the TVL of every WETH pair and the USD of every token priced
-  through WETH. Staleness is visible per row and per token.
+- *Staleness.* A carried price is off by the asset's move since the last
+  success (Mode WETH: $1,923 carried from 2026-08-19; ETH-like assets move tens
+  of percent over months, a connector alt can lose most of its value). The
+  alternative, 0, removes half the TVL of each of their pairs and the USD of
+  every token priced through them. Staleness is visible per row and per token.
 - *Manipulation.* None added: a carried price is the last price that passed
   the floor, the 1000× bound and the ceiling; nothing new can set it.
-- *Dead assets.* A chain whose WETH market dies for good keeps its last price
-  forever. For ETH 1:1 assets that is the right direction of error.
+- *Dead assets.* A connector whose markets die for good keeps its last price
+  forever, so its pairs keep a TVL its market no longer supports. Removing it
+  from `price_connectors.json` (it then becomes tier 3 and expires after
+  seven days) is the operator's remedy.
 
 ## Base: depth measure and floor kept (2026-11-13)
 
