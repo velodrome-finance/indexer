@@ -1,17 +1,12 @@
 import type { Token } from "envio";
 import { createPoolEntity } from "../../Aggregators/Pool";
-import {
-  DEFAULT_SAMM_FEE_BPS,
-  DEFAULT_VAMM_FEE_BPS,
-  type PoolDeployment,
-  TokenId,
-  toCanonicalFeeScale,
-} from "../../Constants";
+import { type PoolDeployment, TokenId } from "../../Constants";
 import type { TokenEntityMapping } from "../../CustomTypes";
 import { getRehydrated } from "../../EntityTimestamps";
 import type { handlerContext } from "../../EntityTypes";
 import { createTokenEntity } from "../../PriceOracle";
 import { registerPricingPool } from "../../Pricing/PoolRoute";
+import { getV2DefaultFee } from "../SwapFeeModule/CustomSwapFeeSharedLogic";
 
 /** What a V2 PoolCreated tells us, whichever factory emitted it. */
 export interface V2PoolCreatedInput {
@@ -37,9 +32,9 @@ export interface V2PoolCreatedInput {
  * Missing Token rows are created first (cached metadata RPC). A token side the
  * bytecode gate rejects (#677) gets no Token row but the Pool is still created
  * with an empty symbol on that side (#864): the factory has registered it.
- * The configured fee starts at the factory default, 5 bps stable / 30 bps
- * volatile, lifted to FEE_SCALE (ADR 0001); the Aero factories emitted the same
- * defaults (SetDefaultFee at deployment) on every chain.
+ * The configured fee starts at the factory default for the pool type
+ * (`getV2DefaultFee`: the factory's SetDefaultFee, else 5 / 30 bps), in
+ * FEE_SCALE (ADR 0001).
  *
  * @param input - The PoolCreated data
  * @param context - Handler context
@@ -103,9 +98,11 @@ export async function createV2PoolFromFactory(
     (m) => m.tokenInstance?.symbol ?? "",
   );
 
-  const fee = toCanonicalFeeScale(
-    input.isStable ? DEFAULT_SAMM_FEE_BPS : DEFAULT_VAMM_FEE_BPS,
-    false,
+  const fee = await getV2DefaultFee(
+    chainId,
+    input.factoryAddress,
+    input.isStable,
+    context,
   );
 
   context.Pool.set(

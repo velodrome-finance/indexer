@@ -75,7 +75,7 @@ describe("Aero deployment configuration (ADR 0005)", () => {
         "AeroStablePoolFactory",
         "AeroVolatilePoolFactory",
         "DynamicSwapFeeHook",
-        "AeroCustomFeeModule",
+        "V2CustomFeeModule",
       ]) {
         expect(contracts.get(chainId)?.get(name)?.length).toBeGreaterThan(0);
       }
@@ -99,7 +99,12 @@ describe("Aero deployment configuration (ADR 0005)", () => {
       for (const name of contracts.get(chainId)?.keys() ?? []) {
         expect(
           name.startsWith("Aero") ||
-            ["DynamicSwapFeeHook", "Pool", "CLPool"].includes(name),
+            [
+              "DynamicSwapFeeHook",
+              "V2CustomFeeModule",
+              "Pool",
+              "CLPool",
+            ].includes(name),
           `${name} on Aero-only chain ${chainId}`,
         ).toBe(true);
       }

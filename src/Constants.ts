@@ -1320,6 +1320,31 @@ export const AeroNFPMMintPoolId = (
 ) =>
   `${chainId}-${txHash}-${nfpmAddress}-${tickLower}-${tickUpper}-${liquidity}-${amount0}-${amount1}`;
 
+/** Entity ID for V2SwapFeesInTx: the pending fee of a V2 swap, handed from
+ * its Fees events to its Swap. Format: {chainId}-{txHash}-{poolAddress}
+ * @param chainId - Chain ID of the tx
+ * @param txHash - Transaction hash
+ * @param poolAddress - V2 pool (EIP-55 checksummed)
+ * @returns string Combined ID.
+ */
+export const V2SwapFeesInTxId = (
+  chainId: number,
+  txHash: string,
+  poolAddress: string,
+) => `${chainId}-${txHash}-${poolAddress}`;
+
+/** Entity ID for PoolFactoryDefaultFee. Format: {chainId}-{factoryAddress}-{stable|volatile}
+ * @param chainId - Chain ID of the factory
+ * @param factoryAddress - V2 pool factory (EIP-55 checksummed)
+ * @param isStable - Pool type the default fee applies to
+ * @returns string Combined ID.
+ */
+export const PoolFactoryDefaultFeeId = (
+  chainId: number,
+  factoryAddress: string,
+  isStable: boolean,
+) => `${chainId}-${factoryAddress}-${isStable ? "stable" : "volatile"}`;
+
 /** Entity ID for TxCLPoolMintRegistry. Format: {chainId}-{txHash}.
  * Keyed by transaction (not pool) because the NFPM.Transfer(mint) consumer only
  * knows chainId + txHash at lookup time; filtering by pool/logIndex happens on

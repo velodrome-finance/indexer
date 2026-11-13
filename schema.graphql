@@ -105,10 +105,10 @@ type Pool {
   veNFTamountStaked: BigInt! @config(precision: 76) # total amount of veNFT staked for this pool (legacy voting rewards; 0 on AERO pools)
 
   # Dynamic Fee fields
-  baseFee: BigInt! @config(precision: 24) # Configured (nominal) fee, FEE_SCALE 1e6 (hundredths of a basis point; single divisor across V2 & CL, issue #812). V2: factory default or SetCustomFee. CL: tick-spacing default, CustomSwapFeeModule fee, or DynamicSwapFeeModule custom base fee (a dynamic pool charges this plus a TWAP-volatility part, up to feeCap). Custom-fee sentinels resolved as the contracts do: 420 = 0%, 0 = default (ADR 0001)
+  baseFee: BigInt! @config(precision: 24) # Configured (nominal) fee, FEE_SCALE 1e6 (hundredths of a basis point; single divisor across V2 & CL, issue #812). V2: factory default (PoolFactoryDefaultFee) or SetCustomFee (factory or V2 CustomFeeModule). CL: tick-spacing default, CustomSwapFeeModule fee, or DynamicSwapFeeModule custom base fee (a dynamic pool charges this plus a TWAP-volatility part, up to feeCap). Custom-fee sentinels resolved as the contracts do: 420 = 0%, 0 = default (ADR 0001)
   feeCap: BigInt @config(precision: 76) # Current fee cap for pool
   scalingFactor: BigInt @config(precision: 76) # Current scaling factor for pool
-  currentFee: BigInt! @config(precision: 76) # Fee rate charged, FEE_SCALE 1e6 (issue #812). AERO pools: as V2 / CL; the CL base fee comes from the DynamicSwapFeeHook (CustomFeeSet; 0 and the hook's zero-fee indicator both mean the static tick-spacing fee), feeCap / scalingFactor from its FeeCapSet / ScalingFactorSet; the V2 custom fee from the Aero CustomFeeModules. V2: the configured fee (= baseFee). CL: effective rate of the latest swap with input >= 1e7 raw units, derived from the swap itself ((amountIn - principal) / amountIn, rounded to nearest); seeded from baseFee at creation and on CustomSwapFeeModule.SetCustomFee; also the fallback rate for a swap whose fee cannot be derived (ADR 0001)
+  currentFee: BigInt! @config(precision: 76) # Fee rate charged, FEE_SCALE 1e6 (issue #812). AERO pools: as V2 / CL; the CL base fee comes from the DynamicSwapFeeHook (CustomFeeSet; 0 and the hook's zero-fee indicator both mean the static tick-spacing fee), feeCap / scalingFactor from its FeeCapSet / ScalingFactorSet; the V2 custom fee from the V2 CustomFeeModules. V2: effective rate of the latest swap with input >= 1e7 raw units, from the swap's own Fees amount (fee / amountIn, rounded to the nearest basis point); seeded from baseFee at creation and on SetCustomFee. CL: effective rate of the latest swap with input >= 1e7 raw units, derived from the swap itself ((amountIn - principal) / amountIn, rounded to nearest); seeded from baseFee at creation and on CustomSwapFeeModule.SetCustomFee; also the fallback rate for a swap whose fee cannot be derived (ADR 0001)
 
   # Unstaked Fee fields
   # Raw customFee value last emitted by an UnstakedFeeModule for this pool (CL pools only).
@@ -219,10 +219,10 @@ type PoolSnapshot @storage(postgres: false, clickhouse: true) {
   veNFTamountStaked: BigInt! @config(precision: 76) # total amount of veNFT staked for this pool
 
   # Dynamic Fee fields
-  baseFee: BigInt! @config(precision: 24) # Configured (nominal) fee, FEE_SCALE 1e6 (hundredths of a basis point; single divisor across V2 & CL, issue #812). V2: factory default or SetCustomFee. CL: tick-spacing default, CustomSwapFeeModule fee, or DynamicSwapFeeModule custom base fee (a dynamic pool charges this plus a TWAP-volatility part, up to feeCap). Custom-fee sentinels resolved as the contracts do: 420 = 0%, 0 = default (ADR 0001)
+  baseFee: BigInt! @config(precision: 24) # Configured (nominal) fee, FEE_SCALE 1e6 (hundredths of a basis point; single divisor across V2 & CL, issue #812). V2: factory default (PoolFactoryDefaultFee) or SetCustomFee (factory or V2 CustomFeeModule). CL: tick-spacing default, CustomSwapFeeModule fee, or DynamicSwapFeeModule custom base fee (a dynamic pool charges this plus a TWAP-volatility part, up to feeCap). Custom-fee sentinels resolved as the contracts do: 420 = 0%, 0 = default (ADR 0001)
   feeCap: BigInt @config(precision: 76) # Current fee cap for pool
   scalingFactor: BigInt @config(precision: 76) # Current scaling factor for pool
-  currentFee: BigInt! @config(precision: 76) # Fee rate charged, FEE_SCALE 1e6 (issue #812). V2: the configured fee (= baseFee). CL: effective rate of the latest swap with input >= 1e7 raw units, derived from the swap itself ((amountIn - principal) / amountIn, rounded to nearest); seeded from baseFee at creation and on CustomSwapFeeModule.SetCustomFee; also the fallback rate for a swap whose fee cannot be derived (ADR 0001)
+  currentFee: BigInt! @config(precision: 76) # Fee rate charged, FEE_SCALE 1e6 (issue #812). V2: effective rate of the latest swap with input >= 1e7 raw units, from the swap's own Fees amount (fee / amountIn, rounded to the nearest basis point); seeded from baseFee at creation and on SetCustomFee. CL: effective rate of the latest swap with input >= 1e7 raw units, derived from the swap itself ((amountIn - principal) / amountIn, rounded to nearest); seeded from baseFee at creation and on CustomSwapFeeModule.SetCustomFee; also the fallback rate for a swap whose fee cannot be derived (ADR 0001)
 
   # Unstaked Fee fields
   unstakedFee: BigInt @config(precision: 24) # Raw customFee value last emitted by an UnstakedFeeModule for this pool (see Pool for semantics)
@@ -789,6 +789,19 @@ type PendingDistribution {
   logIndex: Int! # Log index for uniqueness within block
 }
 
+# Default fee of a V2 pool factory for one pool type, from its SetDefaultFee events (leaf
+# PoolFactory: SetDefaultFee(bool stable, uint256 fee); Aero stable / volatile factories:
+# SetDefaultFee(uint256)). A pool without a custom fee is charged this. Factories that never
+# emitted one (the Optimism and Base PoolFactory) use the 5 / 30 bps constants.
+type PoolFactoryDefaultFee {
+  id: ID! # Format: {chainId}-{factoryAddress}-{stable|volatile} (PoolFactoryDefaultFeeId)
+  chainId: Int! # chain id
+  factoryAddress: String! @index # V2 pool factory that emitted SetDefaultFee
+  isStable: Boolean! # pool type the default applies to
+  fee: BigInt! @config(precision: 24) # default fee, FEE_SCALE 1e6 (the event's basis points x 100)
+  lastUpdatedTimestamp: Timestamp! # block time of the latest SetDefaultFee
+}
+
 # Should be updated by TickSpacingEnabled event emitted by CLFactory contract
 # It allows to initialise currentFee field for all CLPools
 # CLPool fees can then be modified by either CustomSwapFeeModule or DynamicSwapFeeModule
@@ -899,6 +912,16 @@ type NFPMPositionPendingPrincipal
   id: ID! # Same as the position's id: {chainId}-{nfpmAddress}-{tokenId} (NonFungiblePositionId)
   pendingPrincipal0: BigInt! @config(precision: 76) # token0 principal awaiting Collect
   pendingPrincipal1: BigInt! @config(precision: 76) # token1 principal awaiting Collect
+}
+
+# V2 swap fee hand-over. A V2 pool emits Fees(sender, amount0, amount1) for the fee it takes
+# on each input token, before the swap's Sync and Swap in the same transaction. The Fees
+# handler adds the amounts here and the Swap handler reads (by primary key) and deletes them,
+# so a swap's fee USD and effective rate come from the fee actually charged. Deleted by the Swap.
+type V2SwapFeesInTx @storage(postgres: true, clickhouse: false) @internal {
+  id: ID! # Format: {chainId}-{txHash}-{poolAddress} (V2SwapFeesInTxId)
+  fee0: BigInt! @config(precision: 76) # raw token0 fee of the pending swap
+  fee1: BigInt! @config(precision: 76) # raw token1 fee of the pending swap
 }
 
 # Per-transaction registry of CLPoolMintEvent IDs, used to skip the index scan

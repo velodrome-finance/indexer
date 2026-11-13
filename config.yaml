@@ -26,6 +26,10 @@ contracts:
     events:
       - event: PoolCreated
       - event: SetCustomFee
+      # Superchain leaf PoolFactory only (not in the Optimism/Base ABI): the
+      # stable / volatile default fee, emitted at deployment.
+      - event: "SetDefaultFee(bool indexed stable, uint256 fee)"
+        name: SetDefaultFee
   - name: RootCLPoolFactory
     abi_file_path: abis/RootCLPoolFactory.json
     handler: src/EventHandlers/RootCLPoolFactory.ts
@@ -104,10 +108,12 @@ contracts:
     handler: src/EventHandlers/AeroPoolFactory.ts
     events:
       - event: "PoolCreated(address indexed token0, address indexed token1, address pool, uint256 poolCount)"
+      - event: "SetDefaultFee(uint256 defaultFee)"
   - name: AeroVolatilePoolFactory
     handler: src/EventHandlers/AeroPoolFactory.ts
     events:
       - event: "PoolCreated(address indexed token0, address indexed token1, address pool, uint256 poolCount)"
+      - event: "SetDefaultFee(uint256 defaultFee)"
   - name: AeroNFPM
     handler: src/EventHandlers/NFPM/AeroNFPM.ts
     events:
@@ -122,8 +128,10 @@ contracts:
       - event: "FeeCapSet(address indexed pool, uint256 feeCap)"
       - event: "ScalingFactorSet(address indexed pool, uint256 scalingFactor)"
       - event: "DynamicFeeReset(address indexed pool)"
-  - name: AeroCustomFeeModule
-    handler: src/EventHandlers/SwapFeeModule/AeroCustomFeeModule.ts
+  # V2 custom-fee modules: each leaf PoolFactory's feeModule() and the Aero
+  # stable / volatile CustomFeeModules.
+  - name: V2CustomFeeModule
+    handler: src/EventHandlers/SwapFeeModule/V2CustomFeeModule.ts
     events:
       - event: "SetCustomFee(address indexed pool, uint256 indexed fee)"
   # Aero's curated token list (successor of the legacy whitelist): a listed
@@ -320,7 +328,7 @@ chains:
       - name: AeroTokenRegistry
         address:
           - 0x564665E023390097f46EA9662a6061a5d700A7E1
-      - name: AeroCustomFeeModule
+      - name: V2CustomFeeModule
         address:
           - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
           - 0x7949DE8d67E4F6b8509Bdbb43FF0503aF1247a7A # volatile pools
@@ -435,7 +443,7 @@ chains:
       - name: AeroTokenRegistry
         address:
           - 0x564665E023390097f46EA9662a6061a5d700A7E1
-      - name: AeroCustomFeeModule
+      - name: V2CustomFeeModule
         address:
           - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
           - 0x7949DE8d67E4F6b8509Bdbb43FF0503aF1247a7A # volatile pools
@@ -544,6 +552,9 @@ chains:
       url: https://celo.hypersync.xyz
     start_block: 31597000 # Velodrome contracts were only deployed on Celo mainnet after this block
     contracts:
+      - name: V2CustomFeeModule
+        address:
+          - 0x8d9c67488c154286B9D4ccaC6c4CBF30589107a7 # leaf PoolFactory.feeModule() (V2 pools)
       - name: CustomSwapFeeModule
         address:
           - 0xbcAE2d4b4E8E34a4100e69E9C73af8214a89572e
@@ -608,6 +619,9 @@ chains:
       url: https://soneium.hypersync.xyz
     start_block: 0
     contracts:
+      - name: V2CustomFeeModule
+        address:
+          - 0x81c5d01AE474040A59d0092a6973F4621E06B362 # leaf PoolFactory.feeModule() (V2 pools)
       - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
@@ -691,10 +705,11 @@ chains:
       - name: AeroTokenRegistry
         address:
           - 0x564665E023390097f46EA9662a6061a5d700A7E1
-      - name: AeroCustomFeeModule
+      - name: V2CustomFeeModule
         address:
           - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
           - 0x7949DE8d67E4F6b8509Bdbb43FF0503aF1247a7A # volatile pools
+          - 0x81c5d01AE474040A59d0092a6973F4621E06B362 # leaf PoolFactory.feeModule() (V2 pools)
       - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
@@ -825,6 +840,9 @@ chains:
     end_block: 39746606
     start_block: 0
     contracts:
+      - name: V2CustomFeeModule
+        address:
+          - 0x44536f7694D2d2f843437AdeD8D95525F797a06B # leaf PoolFactory.feeModule() (V2 pools)
       - name: CustomSwapFeeModule
         address:
           - 0xCB885Aa008031cBDb72447Bed78AF4f87a197126
@@ -889,6 +907,9 @@ chains:
       url: https://unichain.hypersync.xyz
     start_block: 0
     contracts:
+      - name: V2CustomFeeModule
+        address:
+          - 0x81c5d01AE474040A59d0092a6973F4621E06B362 # leaf PoolFactory.feeModule() (V2 pools)
       - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
@@ -953,6 +974,9 @@ chains:
       url: https://fraxtal.hypersync.xyz
     start_block: 0
     contracts:
+      - name: V2CustomFeeModule
+        address:
+          - 0xc60a684e00F2AEC11603348A615cb2B454b62E31 # leaf PoolFactory.feeModule() (V2 pools)
       - name: CustomSwapFeeModule
         address:
           - 0xB0922e747e906B963dBdA37647DE1Aa709B35B2d
@@ -1009,6 +1033,9 @@ chains:
       url: https://1750.hypersync.xyz # Metal L2 hypersync address
     start_block: 0
     contracts:
+      - name: V2CustomFeeModule
+        address:
+          - 0x81c5d01AE474040A59d0092a6973F4621E06B362 # leaf PoolFactory.feeModule() (V2 pools)
       - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
@@ -1065,6 +1092,9 @@ chains:
       url: https://superseed.hypersync.xyz
     start_block: 0
     contracts:
+      - name: V2CustomFeeModule
+        address:
+          - 0x81c5d01AE474040A59d0092a6973F4621E06B362 # leaf PoolFactory.feeModule() (V2 pools)
       - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
@@ -1129,6 +1159,9 @@ chains:
       url: https://swell.hypersync.xyz
     start_block: 3717939
     contracts:
+      - name: V2CustomFeeModule
+        address:
+          - 0x81c5d01AE474040A59d0092a6973F4621E06B362 # leaf PoolFactory.feeModule() (V2 pools)
       - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
@@ -1210,7 +1243,7 @@ chains:
       - name: AeroTokenRegistry
         address:
           - 0x564665E023390097f46EA9662a6061a5d700A7E1
-      - name: AeroCustomFeeModule
+      - name: V2CustomFeeModule
         address:
           - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
           - 0x7949DE8d67E4F6b8509Bdbb43FF0503aF1247a7A # volatile pools
@@ -1245,7 +1278,7 @@ chains:
       - name: AeroTokenRegistry
         address:
           - 0x564665E023390097f46EA9662a6061a5d700A7E1
-      - name: AeroCustomFeeModule
+      - name: V2CustomFeeModule
         address:
           - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
           - 0x7949DE8d67E4F6b8509Bdbb43FF0503aF1247a7A # volatile pools
@@ -1282,7 +1315,7 @@ chains:
       - name: AeroTokenRegistry
         address:
           - 0x564665E023390097f46EA9662a6061a5d700A7E1
-      - name: AeroCustomFeeModule
+      - name: V2CustomFeeModule
         address:
           - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
           - 0x7949DE8d67E4F6b8509Bdbb43FF0503aF1247a7A # volatile pools
@@ -1324,7 +1357,7 @@ chains:
       - name: AeroTokenRegistry
         address:
           - 0x564665E023390097f46EA9662a6061a5d700A7E1
-      - name: AeroCustomFeeModule
+      - name: V2CustomFeeModule
         address:
           - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
           - 0x7949DE8d67E4F6b8509Bdbb43FF0503aF1247a7A # volatile pools

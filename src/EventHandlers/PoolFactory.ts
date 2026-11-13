@@ -10,7 +10,10 @@ import { getRootPoolAddress } from "../Effects/RootPool";
 import { getRehydrated } from "../EntityTimestamps";
 import type { Pool } from "../EntityTypes";
 import { createV2PoolFromFactory } from "./PoolFactory/PoolFactoryPoolCreatedLogic";
-import { resolveCustomSwapFee } from "./SwapFeeModule/CustomSwapFeeSharedLogic";
+import {
+  recordV2DefaultFee,
+  resolveCustomSwapFee,
+} from "./SwapFeeModule/CustomSwapFeeSharedLogic";
 import { flushPendingVotesAndDistributionsForRootPool } from "./Voter/CrossChainPendingResolution";
 
 indexer.contractRegister(
@@ -127,6 +130,26 @@ indexer.onEvent(
       context,
       event.chainId,
       event.block.number,
+    );
+  },
+);
+
+// SetDefaultFee(bool indexed stable, uint256 fee): superchain leaf PoolFactory
+// only; the Optimism / Base PoolFactory hard-codes its 5 / 30 bps defaults.
+// Emitted at deployment on every leaf chain and never since (HyperSync scan,
+// 2026-11-13). Pools created afterwards start at it (getV2DefaultFee); an
+// existing pool on the default keeps its stored fee until its next swap
+// re-derives it from the Fees event.
+indexer.onEvent(
+  { contract: "PoolFactory", event: "SetDefaultFee" },
+  async ({ event, context }) => {
+    recordV2DefaultFee(
+      event.chainId,
+      event.srcAddress,
+      event.params.stable,
+      event.params.fee,
+      event.block.timestamp,
+      context,
     );
   },
 );

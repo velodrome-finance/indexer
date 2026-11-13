@@ -117,11 +117,24 @@ describe("Pool fees collected ≤ generated invariant (#861)", () => {
       chains: {
         [chainId]: {
           simulate: [
+            // On-chain order: the pool emits Fees, then Sync, then Swap.
+            {
+              contract: "Pool",
+              event: "Fees",
+              srcAddress,
+              logIndex: 1,
+              block: { timestamp: 1000000, number: 100, hash: blockHash },
+              params: {
+                sender: lpAddress,
+                amount0: claimedAmount0,
+                amount1: claimedAmount1,
+              },
+            },
             {
               contract: "Pool",
               event: "Swap",
               srcAddress,
-              logIndex: 1,
+              logIndex: 2,
               block: { timestamp: 1000000, number: 100, hash: blockHash },
               params: {
                 sender: lpAddress,
@@ -130,18 +143,6 @@ describe("Pool fees collected ≤ generated invariant (#861)", () => {
                 amount1In: 0n,
                 amount0Out: 0n,
                 amount1Out: swapAmount1Out,
-              },
-            },
-            {
-              contract: "Pool",
-              event: "Fees",
-              srcAddress,
-              logIndex: 2,
-              block: { timestamp: 1000000, number: 100, hash: blockHash },
-              params: {
-                sender: lpAddress,
-                amount0: claimedAmount0,
-                amount1: claimedAmount1,
               },
             },
             {
@@ -244,6 +245,18 @@ describe("Pool fees collected ≤ generated invariant (#861)", () => {
       chains: {
         [chainId]: {
           simulate: [
+            {
+              contract: "Pool",
+              event: "Fees",
+              srcAddress,
+              logIndex: 0,
+              block: { timestamp: 1000000, number: 100, hash: blockHash },
+              params: {
+                sender: lpAddress,
+                amount0: (swapAmount0In * 3000n) / 1_000_000n,
+                amount1: 0n,
+              },
+            },
             {
               contract: "Pool",
               event: "Swap",

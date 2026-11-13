@@ -5,20 +5,21 @@ import { getRehydrated } from "../../EntityTimestamps";
 import type { Pool } from "../../EntityTypes";
 import { resolveCustomSwapFee } from "./CustomSwapFeeSharedLogic";
 
-// Aero V2 pools get custom fees from a per-pool-type CustomFeeModule (one for
-// stable, one for volatile pools; pools-<chain>.json). The fee is in basis
-// points with the legacy sentinels (ZERO_FEE_INDICATOR() = 420 on-chain; 0 =
-// the factory default, 5 bps stable / 30 bps volatile), so it resolves exactly
-// like the legacy V2 PoolFactory.SetCustomFee. The fee a swap pays is taken
-// from the pool's Fees events, so this only sets the configured fee fields.
+// V2 custom-fee modules: the superchain leaf PoolFactory's fee module (its
+// `feeModule()`, set by FeeModuleChanged) and the Aero stable / volatile
+// CustomFeeModules (pools-<chain>.json). All emit SetCustomFee(address indexed
+// pool, uint256 indexed fee) in basis points with the legacy sentinels
+// (ZERO_FEE_INDICATOR() = 420 on-chain; 0 = the factory default), so they
+// resolve like the Optimism / Base PoolFactory.SetCustomFee. The fee a swap
+// pays is taken from the pool's Fees events; this sets the configured fee.
 indexer.onEvent(
-  { contract: "AeroCustomFeeModule", event: "SetCustomFee" },
+  { contract: "V2CustomFeeModule", event: "SetCustomFee" },
   async ({ event, context }) => {
     const poolId = PoolId(event.chainId, event.params.pool);
     const pool = await getRehydrated(context.Pool, "Pool", poolId);
     if (!pool) {
       context.log.warn(
-        `[AeroCustomFeeModule] Pool ${poolId} not found for SetCustomFee`,
+        `[V2CustomFeeModule] Pool ${poolId} not found for SetCustomFee`,
       );
       return;
     }

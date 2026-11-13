@@ -1,6 +1,7 @@
 import { indexer } from "envio";
 import { POOL_DEPLOYMENT } from "../Constants";
 import { createV2PoolFromFactory } from "./PoolFactory/PoolFactoryPoolCreatedLogic";
+import { recordV2DefaultFee } from "./SwapFeeModule/CustomSwapFeeSharedLogic";
 
 // Aero (MetaDEX) V2 pools come from two factories, one per pool type, whose
 // PoolCreated carries no `stable` flag: stability is the emitting factory.
@@ -60,6 +61,37 @@ indexer.onEvent(
         blockTimestamp: event.block.timestamp,
         deployment: POOL_DEPLOYMENT.AERO,
       },
+      context,
+    );
+  },
+);
+
+// SetDefaultFee(uint256): the factory's default fee in basis points, for its
+// one pool type. Emitted at deployment (5 stable / 30 volatile on every chain);
+// pools created afterwards start at it (getV2DefaultFee).
+indexer.onEvent(
+  { contract: "AeroStablePoolFactory", event: "SetDefaultFee" },
+  async ({ event, context }) => {
+    recordV2DefaultFee(
+      event.chainId,
+      event.srcAddress,
+      true,
+      event.params.defaultFee,
+      event.block.timestamp,
+      context,
+    );
+  },
+);
+
+indexer.onEvent(
+  { contract: "AeroVolatilePoolFactory", event: "SetDefaultFee" },
+  async ({ event, context }) => {
+    recordV2DefaultFee(
+      event.chainId,
+      event.srcAddress,
+      false,
+      event.params.defaultFee,
+      event.block.timestamp,
       context,
     );
   },

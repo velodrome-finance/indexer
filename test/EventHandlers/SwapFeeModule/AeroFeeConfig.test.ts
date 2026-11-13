@@ -53,7 +53,7 @@ describe("Aero fee configuration", () => {
 
   async function run(
     item: {
-      contract: "DynamicSwapFeeHook" | "AeroCustomFeeModule";
+      contract: "DynamicSwapFeeHook" | "V2CustomFeeModule";
       event: string;
       srcAddress: string;
       params: Record<string, unknown>;
@@ -149,7 +149,7 @@ describe("Aero fee configuration", () => {
 
   it("V2 CustomFeeModule: bps lifted to FEE_SCALE, 420 = 0%, 0 = factory default", async () => {
     const setFee = (fee: bigint) => ({
-      contract: "AeroCustomFeeModule" as const,
+      contract: "V2CustomFeeModule" as const,
       event: "SetCustomFee",
       srcAddress: volatileModule,
       params: { pool: v2Pool.poolAddress, fee },

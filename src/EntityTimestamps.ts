@@ -36,6 +36,7 @@ export const ENTITY_TIMESTAMP_FIELDS = {
   PendingDistribution: ["blockTimestamp"],
   PendingVote: ["timestamp"],
   Pool: ["lastUpdatedTimestamp", "lastSnapshotTimestamp"],
+  PoolFactoryDefaultFee: ["lastUpdatedTimestamp"],
   PoolLauncherPool: ["createdAt", "lastFlagUpdateAt", "lastMigratedAt"],
   PoolSnapshot: ["timestamp"],
   PoolTransferInTx: ["timestamp"],

@@ -101,3 +101,67 @@ Optimism). The three handlers now store what the contract charges
 (`resolveCustomSwapFee` in `src/EventHandlers/SwapFeeModule/CustomSwapFeeSharedLogic.ts`)
 instead of the raw value. As of 2026-11-13 no indexed chain has ever emitted
 either value, so this changes no current data.
+
+## Amendment (2026-11-13): V2 fees from the pool's Fees events
+
+**Problem.** A V2 swap's fee USD was `input leg USD × (currentFee ?? baseFee)`,
+and the stored rate only followed the Optimism / Base `PoolFactory.SetCustomFee`.
+A superchain leaf `PoolFactory` delegates custom fees to a separate fee module
+(its `feeModule()`, set by `FeeModuleChanged`) that the indexer did not follow,
+so a pool whose fee that module changed kept the 5 / 30 bps default. Example:
+Metal stable pool `0x173c249bd99d8c04ebf65f19039dbc1e94787cd2`, stored 5 bps,
+charges 200 bps (`getFee` on-chain).
+
+**Now.**
+
+1. **Fee USD from the fee charged.** A V2 pool emits `Fees(sender, amount0,
+   amount1)` for the fee it takes on each input token, before the swap's `Sync`
+   and `Swap`, and no `Fees` when the fee is 0. The Fees handler adds the
+   amounts to `V2SwapFeesInTx` (`{chainId}-{txHash}-{pool}`, Postgres-only
+   scratch); the Swap handler reads it by primary key in both passes and deletes
+   it. Pool `totalFeesGeneratedUSD` and the user's `totalFeesContributedUSD`
+   are the fee legs' trusted USD when the input leg is credible, else the
+   min-protected `volumeInUSD × feeIn / amountIn` (the #733 / #797 scam-token
+   defence). Attribution is unchanged (the tx signer, #814). `Fees` keeps
+   writing `totalFeesGenerated0/1` as before.
+2. **`currentFee` is the effective rate**, as on CL pools: `feeIn / amountIn`
+   of the latest swap with `amountIn ≥ 1e7` raw units, rounded to the nearest
+   basis point (the pool floors `amountIn × fee / 10000`). `baseFee` stays the
+   configured fee.
+3. **`baseFee` follows every V2 fee source.** The fee modules are indexed as
+   `V2CustomFeeModule` (`SetCustomFee(address indexed pool, uint256 indexed
+   fee)`, basis points, 420 = 0%, 0 = default), and `SetDefaultFee` is indexed
+   on the leaf `PoolFactory` (`SetDefaultFee(bool indexed stable, uint256)`)
+   and the Aero stable / volatile factories (`SetDefaultFee(uint256)`) into
+   `PoolFactoryDefaultFee`, which `PoolCreated` and a custom-fee reset to 0
+   read. Factories that never emitted one (Optimism, Base) keep the 5 / 30 bps
+   constants.
+
+**Scan (HyperSync, 2026-11-13, every V2 factory on every indexed chain).**
+
+| Chain | Factory `SetDefaultFee` | Fee module (`FeeModuleChanged`) | Module `SetCustomFee` events |
+| --- | --- | --- | --- |
+| Optimism, Base | none (hard-coded defaults; factory's own `SetCustomFee`, already indexed) | none | n/a |
+| Metal | 5 / 30 at deployment only | `0x81c5…B362` | 3 (200, 100, 100 bps) |
+| Fraxtal | 5 / 30 at deployment only | `0xc60a…2E31` | 4 (100, 1, 100, 15 bps) |
+| Lisk | 5 / 30 at deployment only | `0x4453…a06B` | 1 |
+| Swell | 5 / 30 at deployment only | `0x81c5…B362` | 2 |
+| Celo | 5 / 30 at deployment only | `0x8d9c…07a7` | 0 |
+| Soneium, Ink, Unichain, Superseed | 5 / 30 at deployment only | `0x81c5…B362` | 0 |
+| Mode | 5 / 30 at deployment only | none (7 `SetCustomFee` on the factory itself, already indexed) | n/a |
+| Aero factories (all chains) | 5 stable / 30 volatile at deployment only | Aero stable / volatile CustomFeeModules (already indexed) | as indexed |
+
+Each leaf module's `ZERO_FEE_INDICATOR()` is 420 and is the factory's current
+`feeModule()` (checked on Metal, Fraxtal, Lisk and Celo). The `Fees`-based
+valuation does not depend on this list being complete: a module the indexer
+misses leaves `baseFee` stale, but fee USD and `currentFee` stay right.
+
+Field meanings for V2 pools after this amendment:
+
+| Field | V2 pool |
+| --- | --- |
+| `baseFee` | configured fee: factory default (`PoolFactoryDefaultFee`, else 5 / 30 bps) or the latest `SetCustomFee` (factory or `V2CustomFeeModule`) |
+| `currentFee` | effective rate of the latest swap with `amountIn ≥ 1e7` raw units, from its `Fees` amount; seeded from `baseFee` at creation and on `SetCustomFee` |
+
+A `SetDefaultFee` after a pool's creation does not rewrite existing pools'
+`baseFee` (that would need a scan of the factory's pools); none has happened.

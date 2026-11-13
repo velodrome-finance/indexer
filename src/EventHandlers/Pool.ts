@@ -7,7 +7,7 @@ import {
   preloadUserStatsPerPoolUpdate,
   updateUserStatsPerPool,
 } from "../Aggregators/UserStatsPerPool";
-import { OUSDT_ADDRESS } from "../Constants";
+import { OUSDT_ADDRESS, V2SwapFeesInTxId } from "../Constants";
 import type { handlerContext } from "../EntityTypes";
 import {
   processPoolLiquidityEvent,
@@ -152,17 +152,30 @@ indexer.onEvent(
       return;
     }
 
+    // Hand the swap's fee to its Swap event (emitted after this one in the
+    // same tx), which values it with both legs (V2SwapFeesInTx).
+    const pendingFeeId = V2SwapFeesInTxId(
+      event.chainId,
+      event.transaction.hash,
+      event.srcAddress,
+    );
+
     if (context.isPreload) {
       // The rest is arithmetic on rows already loaded plus the user's
       // snapshot-time reads; issue those and skip the arithmetic.
-      await preloadUserStatsPerPoolUpdate(
-        userData,
-        timestamp,
-        context,
-        poolData,
-      );
+      await Promise.all([
+        preloadUserStatsPerPoolUpdate(userData, timestamp, context, poolData),
+        context.V2SwapFeesInTx.get(pendingFeeId),
+      ]);
       return;
     }
+
+    const pendingFee = await context.V2SwapFeesInTx.get(pendingFeeId);
+    context.V2SwapFeesInTx.set({
+      id: pendingFeeId,
+      fee0: (pendingFee?.fee0 ?? 0n) + event.params.amount0,
+      fee1: (pendingFee?.fee1 ?? 0n) + event.params.amount1,
+    });
 
     const { liquidityPoolAggregator, token0Instance, token1Instance } =
       poolData;
@@ -232,12 +245,20 @@ indexer.onEvent(
       token0Instance.address === OUSDT_ADDRESS ||
       token1Instance.address === OUSDT_ADDRESS;
 
+    // The fee this swap paid, from the Fees events it emitted just before.
+    const pendingFeeId = V2SwapFeesInTxId(
+      event.chainId,
+      event.transaction.hash,
+      event.srcAddress,
+    );
+
     if (context.isPreload) {
-      // The rest is arithmetic on rows already loaded plus two reads: the
-      // user's snapshot-time staked positions and the tx's oUSDT swap
-      // registry. Issue those and skip the arithmetic.
+      // The rest is arithmetic on rows already loaded plus three reads: the
+      // user's snapshot-time staked positions, the swap's pending fee and the
+      // tx's oUSDT swap registry. Issue those and skip the arithmetic.
       await Promise.all([
         preloadUserStatsPerPoolUpdate(userData, timestamp, context, poolData),
+        context.V2SwapFeesInTx.get(pendingFeeId),
         isOUSDTPool
           ? context.TxOUSDTSwapRegistry.get(event.transaction.hash)
           : undefined,
@@ -245,12 +266,17 @@ indexer.onEvent(
       return;
     }
 
+    // No row: the swap emitted no Fees event, i.e. it paid no fee.
+    const pendingFee = await context.V2SwapFeesInTx.get(pendingFeeId);
+    if (pendingFee) context.V2SwapFeesInTx.deleteUnsafe(pendingFeeId);
+
     // Process swap event
     const result = processPoolSwap(
       event,
       liquidityPoolAggregator,
       token0Instance,
       token1Instance,
+      { fee0: pendingFee?.fee0 ?? 0n, fee1: pendingFee?.fee1 ?? 0n },
     );
 
     const { liquidityPoolDiff, userSwapDiff } = result;
