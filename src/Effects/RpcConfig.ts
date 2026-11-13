@@ -22,9 +22,8 @@ import {
  *   2. `https://lb.drpc.live/<network>/<ENVIO_DRPC_API_KEY>` when the key is set;
  *   3. otherwise {@link RpcConfigError} naming both variables.
  *
- * There is deliberately no public default for the primary: silently falling
- * back to a dead public URL is how production priced every non-stable token at
- * $0 from 2026-11-03.
+ * There is deliberately no public default for the primary: several of the old
+ * defaults were dead or non-archive, and a missing variable used them silently.
  *
  * The FALLBACK endpoint is `ENVIO_<CHAIN>_FALLBACK_RPC_URL` when set (the value
  * `none` disables it), else a curated public endpoint from a different provider
