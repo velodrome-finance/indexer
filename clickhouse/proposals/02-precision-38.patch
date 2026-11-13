@@ -1,0 +1,314 @@
+--- a/schema.graphql
++++ b/schema.graphql
+@@ -21,25 +21,25 @@
+   reserve0: BigInt! @config(precision: 76) # reserve of token0 in token units
+   reserve1: BigInt! @config(precision: 76) # reserve of token1 in token units
+   totalLPTokenSupply: BigInt! @config(precision: 76) # total supply of LP tokens (tracked from Transfer events)
+-  totalLiquidityUSD: BigInt! @config(precision: 76) # total liquidity of the swap pool in USD
++  totalLiquidityUSD: BigInt! @config(precision: 38) # total liquidity of the swap pool in USD
+   totalVolume0: BigInt! @config(precision: 76) # total swap volume of token0 in token units
+   totalVolume1: BigInt! @config(precision: 76) # total swap volume of token1 in token units
+-  totalVolumeUSD: BigInt! @config(precision: 76) # total swap volume of the pool in USD
++  totalVolumeUSD: BigInt! @config(precision: 38) # total swap volume of the pool in USD
+   totalFeesGenerated0: BigInt! @config(precision: 76) # total swap fees generated of token0, 1e18-normalized token units (same scale on V2 & CL — issue #812)
+   totalFeesGenerated1: BigInt! @config(precision: 76) # total swap fees generated of token1, 1e18-normalized token units (same scale on V2 & CL — issue #812)
+-  totalFeesGeneratedUSD: BigInt! @config(precision: 76) # total swap fees of the pool in USD
++  totalFeesGeneratedUSD: BigInt! @config(precision: 38) # total swap fees of the pool in USD
+   totalUnstakedFeesCollected0: BigInt! @config(precision: 76) # total fees collected from unstaked LPs (Collect events) in token0 units
+   totalUnstakedFeesCollected1: BigInt! @config(precision: 76) # total fees collected from unstaked LPs (Collect events) in token1 units
+   totalStakedFeesCollected0: BigInt! @config(precision: 76) # total fees collected from staked LPs (CollectFees events) in token0 units
+   totalStakedFeesCollected1: BigInt! @config(precision: 76) # total fees collected from staked LPs (CollectFees events) in token1 units
+-  totalUnstakedFeesCollectedUSD: BigInt! @config(precision: 76) # total fees collected from unstaked LPs (Collect events) in USD
+-  totalStakedFeesCollectedUSD: BigInt! @config(precision: 76) # total fees collected from staked LPs (CollectFees events) in USD
+-  numberOfSwaps: BigInt! @config(precision: 76) # total number of swaps in the pool
+-  numberOfSwapFeeFallbacks: BigInt! @config(precision: 76) # CL only: swaps whose fee could not be derived from the swap (tick-map walk disagreed with the event's liquidity, or the derived fee was negative or above 10% of the input) and were valued with the stored currentFee instead. Should stay 0 on a from-creation sync
++  totalUnstakedFeesCollectedUSD: BigInt! @config(precision: 38) # total fees collected from unstaked LPs (Collect events) in USD
++  totalStakedFeesCollectedUSD: BigInt! @config(precision: 38) # total fees collected from staked LPs (CollectFees events) in USD
++  numberOfSwaps: BigInt! @config(precision: 38) # total number of swaps in the pool
++  numberOfSwapFeeFallbacks: BigInt! @config(precision: 38) # CL only: swaps whose fee could not be derived from the swap (tick-map walk disagreed with the event's liquidity, or the derived fee was negative or above 10% of the input) and were valued with the stored currentFee instead. Should stay 0 on a from-creation sync
+   token0Price: BigInt! @config(precision: 76) # price of token0 relative to token1
+   token1Price: BigInt! @config(precision: 76) # price of token1 relative to token0
+   totalVotesDeposited: BigInt! @config(precision: 76) # total votes deposited in veToken units (legacy weekly Voter votes; 0 on AERO pools: Aero has no weekly votes; sAERO allocations are in AeroLeafAllocation / AeroGauge.totalAllocated)
+-  totalVotesDepositedUSD: BigInt! @config(precision: 76) # total votes deposited in USD (0 on AERO pools, see totalVotesDeposited)
++  totalVotesDepositedUSD: BigInt! @config(precision: 38) # total votes deposited in USD (0 on AERO pools, see totalVotesDeposited)
+   totalEmissions: BigInt! @config(precision: 76) # total emissions for the pool in reward token units (VELO form Optimism and AERO for Base); 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813)
+   # Cumulative across all DistributeReward events using the reward token's price at
+   # each event's block (incrementalTotalEmissionsUSD = amount × pricePerUSDNew, see
+@@ -48,7 +48,7 @@
+   # 2024-06-14, VELO/OP pre 2024-01-10), this cumulative will be permanently $0
+   # even when totalEmissions > 0 — affects 188 legacy pools (143 Base + 45 OP).
+   # See issue #738 for context.
+-  totalEmissionsUSD: BigInt! @config(precision: 76) # total emissions for the pool in USD. totalEmissions* are legacy-gauge emissions; 0 on AERO pools (Aero emissions are minted on claim: see AeroGauge, ADR 0006)
++  totalEmissionsUSD: BigInt! @config(precision: 38) # total emissions for the pool in USD. totalEmissions* are legacy-gauge emissions; 0 on AERO pools (Aero emissions are minted on claim: see AeroGauge, ADR 0006)
+   totalEmissionsRedistributed: BigInt! @config(precision: 76) # cumulative reward tokens this pool's gauge received from the Redistributor (Redistributed events); AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813)
+   totalEmissionsForfeited: BigInt! @config(precision: 76) # cumulative reward tokens this pool's gauge forwarded to the Redistributor or minter because it was over its cap (Deposited events); AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813)
+ 
+@@ -80,28 +80,28 @@
+   hasStakes: Boolean!
+   totalFlashLoanFees0: BigInt @config(precision: 76) # total flash loan fees collected in token0
+   totalFlashLoanFees1: BigInt @config(precision: 76) # total flash loan fees collected in token1
+-  totalFlashLoanFeesUSD: BigInt @config(precision: 76) # total flash loan fees collected in USD
+-  totalFlashLoanVolumeUSD: BigInt @config(precision: 76) # total flash loan volume in USD
+-  numberOfFlashLoans: BigInt @config(precision: 76) # total number of flash loans
++  totalFlashLoanFeesUSD: BigInt @config(precision: 38) # total flash loan fees collected in USD
++  totalFlashLoanVolumeUSD: BigInt @config(precision: 38) # total flash loan volume in USD
++  numberOfFlashLoans: BigInt @config(precision: 38) # total number of flash loans
+ 
+   # Gauge fields
+   gaugeIsAlive: Boolean! # whether the gauge is alive. On AERO pools: the Aero gauge is activated on its LeafVoter and its emission cap is not 0 (ADR 0006). Of the gauge fields below, gaugeAddress, the deposit / withdrawal counts and currentLiquidityStaked* apply to AERO pools; gaugeEmissionsCap, minStakeTime and the reward-claim / emission fields are legacy-only (see AeroGauge)
+   gaugeAddress: String @index # address of the gauge for this pool
+   gaugeEmissionsCap: BigInt @config(precision: 76) # Emissions cap for gauge. If not specified in an SetEmissionsCap event, set to defaultEmissionsCap as per CLGaugeConfig. If CLGaugeConfig doesn't exist, there's no emissions cap. Null on AERO pools (CLGaugeConfig is the legacy CLGaugeFactory's)
+   minStakeTime: BigInt! @config(precision: 24) # Per-pool LP stake lockup (seconds). Seeded from CLGaugeConfig.defaultMinStakeTime at pool creation; overridden by CLGaugeFactoryV3.SetPoolMinStakeTime. 0 before V3. 0 on AERO pools (legacy CLGaugeFactory setting)
+-  numberOfGaugeDeposits: BigInt! @config(precision: 76) # number of gauge deposits (staking)
+-  numberOfGaugeWithdrawals: BigInt! @config(precision: 76) # number of gauge withdrawals (unstaking)
+-  numberOfGaugeRewardClaims: BigInt! @config(precision: 76) # number of gauge reward claims
+-  totalGaugeRewardsClaimedUSD: BigInt! @config(precision: 76) # total gauge rewards claimed in USD
++  numberOfGaugeDeposits: BigInt! @config(precision: 38) # number of gauge deposits (staking)
++  numberOfGaugeWithdrawals: BigInt! @config(precision: 38) # number of gauge withdrawals (unstaking)
++  numberOfGaugeRewardClaims: BigInt! @config(precision: 38) # number of gauge reward claims
++  totalGaugeRewardsClaimedUSD: BigInt! @config(precision: 38) # total gauge rewards claimed in USD
+   totalGaugeRewardsClaimed: BigInt! @config(precision: 76) # total gauge rewards claimed in reward-token units — AERO on Base, VELO on Optimism (18-dec); single reward token per chain, coherent within a chain, NOT summable across chains (see #813)
+   currentLiquidityStaked: BigInt! @config(precision: 76) # current liquidity staked in gauge in token units
+-  currentLiquidityStakedUSD: BigInt! @config(precision: 76) # current liquidity staked in gauge in USD
++  currentLiquidityStakedUSD: BigInt! @config(precision: 38) # current liquidity staked in gauge in USD
+ 
+   # Voting Reward fields
+   bribeVotingRewardAddress: String @index # address of the bribe voting reward contract for this pool
+-  totalBribeClaimedUSD: BigInt! @config(precision: 76) # total bribes claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — bribes are arbitrary heterogeneous tokens)
++  totalBribeClaimedUSD: BigInt! @config(precision: 38) # total bribes claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — bribes are arbitrary heterogeneous tokens)
+   feeVotingRewardAddress: String @index # address of the fee voting reward contract for this pool
+-  totalFeeRewardClaimedUSD: BigInt! @config(precision: 76) # total fee rewards claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens)
++  totalFeeRewardClaimedUSD: BigInt! @config(precision: 38) # total fee rewards claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens)
+   veNFTamountStaked: BigInt! @config(precision: 76) # total amount of veNFT staked for this pool (legacy voting rewards; 0 on AERO pools)
+ 
+   # Dynamic Fee fields
+@@ -152,26 +152,26 @@
+   reserve0: BigInt! @config(precision: 76) # reserve of token0 in token units
+   reserve1: BigInt! @config(precision: 76) # reserve of token1 in token units
+   totalLPTokenSupply: BigInt! @config(precision: 76) # total supply of LP tokens (tracked from Transfer events)
+-  totalLiquidityUSD: BigInt! @config(precision: 76) # total liquidity of the swap pool in USD
++  totalLiquidityUSD: BigInt! @config(precision: 38) # total liquidity of the swap pool in USD
+   totalVolume0: BigInt! @config(precision: 76) # total swap volume of token0 in token units
+   totalVolume1: BigInt! @config(precision: 76) # total swap volume of token1 in token units
+-  totalVolumeUSD: BigInt! @config(precision: 76) # total swap volume of the pool in USD
++  totalVolumeUSD: BigInt! @config(precision: 38) # total swap volume of the pool in USD
+   totalFeesGenerated0: BigInt! @config(precision: 76) # total swap fees generated of token0, 1e18-normalized token units (same scale on V2 & CL — issue #812)
+   totalFeesGenerated1: BigInt! @config(precision: 76) # total swap fees generated of token1, 1e18-normalized token units (same scale on V2 & CL — issue #812)
+-  totalFeesGeneratedUSD: BigInt! @config(precision: 76) # total swap fees of the pool in USD
++  totalFeesGeneratedUSD: BigInt! @config(precision: 38) # total swap fees of the pool in USD
+   totalUnstakedFeesCollected0: BigInt! @config(precision: 76) # total fees collected from unstaked LPs (Collect events) in token0 units
+   totalUnstakedFeesCollected1: BigInt! @config(precision: 76) # total fees collected from unstaked LPs (Collect events) in token1 units
+   totalStakedFeesCollected0: BigInt! @config(precision: 76) # total fees collected from staked LPs (CollectFees events) in token0 units
+   totalStakedFeesCollected1: BigInt! @config(precision: 76) # total fees collected from staked LPs (CollectFees events) in token1 units
+-  totalUnstakedFeesCollectedUSD: BigInt! @config(precision: 76) # total fees collected from unstaked LPs (Collect events) in USD
+-  totalStakedFeesCollectedUSD: BigInt! @config(precision: 76) # total fees collected from staked LPs (CollectFees events) in USD
+-  numberOfSwaps: BigInt! @config(precision: 76) # total number of swaps in the pool
++  totalUnstakedFeesCollectedUSD: BigInt! @config(precision: 38) # total fees collected from unstaked LPs (Collect events) in USD
++  totalStakedFeesCollectedUSD: BigInt! @config(precision: 38) # total fees collected from staked LPs (CollectFees events) in USD
++  numberOfSwaps: BigInt! @config(precision: 38) # total number of swaps in the pool
+   token0Price: BigInt! @config(precision: 76) # price of token0 relative to token1
+   token1Price: BigInt! @config(precision: 76) # price of token1 relative to token0
+   totalVotesDeposited: BigInt! @config(precision: 76) # total votes deposited in veToken units
+-  totalVotesDepositedUSD: BigInt! @config(precision: 76) # total votes deposited in USD
++  totalVotesDepositedUSD: BigInt! @config(precision: 38) # total votes deposited in USD
+   totalEmissions: BigInt! @config(precision: 76) # total emissions for the pool in reward token units (VELO form Optimism and AERO for Base); 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813)
+-  totalEmissionsUSD: BigInt! @config(precision: 76) # total emissions for the pool in USD
++  totalEmissionsUSD: BigInt! @config(precision: 38) # total emissions for the pool in USD
+   totalEmissionsRedistributed: BigInt! @config(precision: 76) # cumulative reward tokens this pool's gauge received from the Redistributor at snapshot time; AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813)
+   totalEmissionsForfeited: BigInt! @config(precision: 76) # cumulative reward tokens this pool's gauge forwarded to the Redistributor or minter at snapshot time; AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813)
+ 
+@@ -179,13 +179,13 @@
+   gaugeAddress: String @index # address of the gauge for this pool
+   gaugeEmissionsCap: BigInt @config(precision: 76) # Emissions cap for gauge
+   minStakeTime: BigInt! @config(precision: 24) # Per-pool LP stake lockup (seconds) at snapshot time
+-  numberOfGaugeDeposits: BigInt! @config(precision: 76) # number of gauge deposits (staking)
+-  numberOfGaugeWithdrawals: BigInt! @config(precision: 76) # number of gauge withdrawals (unstaking)
+-  numberOfGaugeRewardClaims: BigInt! @config(precision: 76) # number of gauge reward claims
+-  totalGaugeRewardsClaimedUSD: BigInt! @config(precision: 76) # total gauge rewards claimed in USD
++  numberOfGaugeDeposits: BigInt! @config(precision: 38) # number of gauge deposits (staking)
++  numberOfGaugeWithdrawals: BigInt! @config(precision: 38) # number of gauge withdrawals (unstaking)
++  numberOfGaugeRewardClaims: BigInt! @config(precision: 38) # number of gauge reward claims
++  totalGaugeRewardsClaimedUSD: BigInt! @config(precision: 38) # total gauge rewards claimed in USD
+   totalGaugeRewardsClaimed: BigInt! @config(precision: 76) # total gauge rewards claimed in reward-token units — AERO on Base, VELO on Optimism (18-dec); single reward token per chain, coherent within a chain, NOT summable across chains (see #813)
+   currentLiquidityStaked: BigInt! @config(precision: 76) # current liquidity staked in gauge in token units
+-  currentLiquidityStakedUSD: BigInt! @config(precision: 76) # current liquidity staked in gauge in USD
++  currentLiquidityStakedUSD: BigInt! @config(precision: 38) # current liquidity staked in gauge in USD
+   timestamp: Timestamp! # timestamp of last update
+ 
+   # CL Pool specific fields
+@@ -207,15 +207,15 @@
+   stakedReserve1: BigInt @config(precision: 76) # staked reserves in token1 raw units
+   totalFlashLoanFees0: BigInt @config(precision: 76) # total flash loan fees collected in token0
+   totalFlashLoanFees1: BigInt @config(precision: 76) # total flash loan fees collected in token1
+-  totalFlashLoanFeesUSD: BigInt @config(precision: 76) # total flash loan fees collected in USD
+-  totalFlashLoanVolumeUSD: BigInt @config(precision: 76) # total flash loan volume in USD
+-  numberOfFlashLoans: BigInt @config(precision: 76) # total number of flash loans
++  totalFlashLoanFeesUSD: BigInt @config(precision: 38) # total flash loan fees collected in USD
++  totalFlashLoanVolumeUSD: BigInt @config(precision: 38) # total flash loan volume in USD
++  numberOfFlashLoans: BigInt @config(precision: 38) # total number of flash loans
+ 
+   # Voting Reward fields
+   bribeVotingRewardAddress: String @index # address of the bribe voting reward contract for this pool
+-  totalBribeClaimedUSD: BigInt! @config(precision: 76) # total bribes claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — bribes are arbitrary heterogeneous tokens)
++  totalBribeClaimedUSD: BigInt! @config(precision: 38) # total bribes claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — bribes are arbitrary heterogeneous tokens)
+   feeVotingRewardAddress: String @index # address of the fee voting reward contract for this pool
+-  totalFeeRewardClaimedUSD: BigInt! @config(precision: 76) # total fee rewards claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens)
++  totalFeeRewardClaimedUSD: BigInt! @config(precision: 38) # total fee rewards claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens)
+   veNFTamountStaked: BigInt! @config(precision: 76) # total amount of veNFT staked for this pool
+ 
+   # Dynamic Fee fields
+@@ -237,45 +237,45 @@
+ 
+   # Liquidity metrics
+   lpBalance: BigInt! @config(precision: 76) # user's LP token balance (tracked from Transfer events)
+-  totalLiquidityAddedUSD: BigInt! @config(precision: 76) # cumulative USD value of liquidity added (from IncreaseLiquidity events, V2 Transfer ADD attribution, V2 superchain-leaf 4-arg Mint recipient (#886), and direct non-NFPM CLPool.Mint). Tracks capital contribution, not LP ownership — may diverge from lpBalance for users who receive/send LP tokens via plain Transfer
++  totalLiquidityAddedUSD: BigInt! @config(precision: 38) # cumulative USD value of liquidity added (from IncreaseLiquidity events, V2 Transfer ADD attribution, V2 superchain-leaf 4-arg Mint recipient (#886), and direct non-NFPM CLPool.Mint). Tracks capital contribution, not LP ownership — may diverge from lpBalance for users who receive/send LP tokens via plain Transfer
+   totalLiquidityAddedToken0: BigInt! @config(precision: 76) # cumulative raw token0 amount added (sum of event.params.amount0 from IncreaseLiquidity + V2 Transfer ADD + V2 superchain-leaf 4-arg Mint (#886) + direct non-NFPM CLPool.Mint). May differ from removed due to price movement between deposit and withdrawal
+   totalLiquidityAddedToken1: BigInt! @config(precision: 76) # cumulative raw token1 amount added (sum of event.params.amount1 from IncreaseLiquidity + V2 Transfer ADD + V2 superchain-leaf 4-arg Mint (#886) + direct non-NFPM CLPool.Mint). May differ from removed due to price movement between deposit and withdrawal
+-  totalLiquidityRemovedUSD: BigInt! @config(precision: 76) # cumulative USD value of liquidity removed (from DecreaseLiquidity events, Transfer REMOVE attribution, and direct non-NFPM CLPool.Burn)
++  totalLiquidityRemovedUSD: BigInt! @config(precision: 38) # cumulative USD value of liquidity removed (from DecreaseLiquidity events, Transfer REMOVE attribution, and direct non-NFPM CLPool.Burn)
+   totalLiquidityRemovedToken0: BigInt! @config(precision: 76) # cumulative raw token0 amount removed (sum of event.params.amount0 from DecreaseLiquidity + Transfer REMOVE + direct non-NFPM CLPool.Burn). Can exceed totalLiquidityAddedToken0 due to price movement (impermanent loss rebalancing)
+   totalLiquidityRemovedToken1: BigInt! @config(precision: 76) # cumulative raw token1 amount removed (sum of event.params.amount1 from DecreaseLiquidity + Transfer REMOVE + direct non-NFPM CLPool.Burn). Can exceed totalLiquidityAddedToken1 due to price movement (impermanent loss rebalancing)
+ 
+   # Swap metrics
+-  numberOfSwaps: BigInt! @config(precision: 76) # number of swaps in this pool
++  numberOfSwaps: BigInt! @config(precision: 38) # number of swaps in this pool
+   totalSwapVolumeAmount0: BigInt! @config(precision: 76) # swap volume denominated in token0 in this pool
+   totalSwapVolumeAmount1: BigInt! @config(precision: 76) # swap volume denominated in token1 in this pool
+-  totalSwapVolumeUSD: BigInt! @config(precision: 76) # swap volume in USD in this pool
+-  totalFeesContributedUSD: BigInt! @config(precision: 76) # total fees contributed in USD (from swaps made by the user - essentially fees paid by the user in swaps)
++  totalSwapVolumeUSD: BigInt! @config(precision: 38) # swap volume in USD in this pool
++  totalFeesContributedUSD: BigInt! @config(precision: 38) # total fees contributed in USD (from swaps made by the user - essentially fees paid by the user in swaps)
+   totalFeesContributed0: BigInt! @config(precision: 76) # total fees contributed in token0, 1e18-normalized (fees paid by the user in swaps; same scale on V2 & CL — issue #812)
+   totalFeesContributed1: BigInt! @config(precision: 76) # total fees contributed in token1, 1e18-normalized (fees paid by the user in swaps; same scale on V2 & CL — issue #812)
+ 
+   # Flash swap metrics
+-  numberOfFlashLoans: BigInt! @config(precision: 76) # number of flash loan swaps in this pool
+-  totalFlashLoanVolumeUSD: BigInt! @config(precision: 76) # flash loan swap volume in USD in this pool
++  numberOfFlashLoans: BigInt! @config(precision: 38) # number of flash loan swaps in this pool
++  totalFlashLoanVolumeUSD: BigInt! @config(precision: 38) # flash loan swap volume in USD in this pool
+ 
+   # Gauge metrics
+-  numberOfGaugeDeposits: BigInt! @config(precision: 76) # number of gauge deposits (staking)
+-  numberOfGaugeWithdrawals: BigInt! @config(precision: 76) # number of gauge withdrawals (unstaking)
+-  numberOfGaugeRewardClaims: BigInt! @config(precision: 76) # number of gauge reward claims
+-  totalGaugeRewardsClaimedUSD: BigInt! @config(precision: 76) # total gauge rewards claimed in USD
++  numberOfGaugeDeposits: BigInt! @config(precision: 38) # number of gauge deposits (staking)
++  numberOfGaugeWithdrawals: BigInt! @config(precision: 38) # number of gauge withdrawals (unstaking)
++  numberOfGaugeRewardClaims: BigInt! @config(precision: 38) # number of gauge reward claims
++  totalGaugeRewardsClaimedUSD: BigInt! @config(precision: 38) # total gauge rewards claimed in USD
+   totalGaugeRewardsClaimed: BigInt! @config(precision: 76) # total gauge rewards claimed in reward-token units — AERO on Base, VELO on Optimism (18-dec); single reward token per chain, coherent within a chain, NOT summable across chains (see #813)
+   totalStakedFeesCollected0: BigInt! @config(precision: 76) # pool fees (token0) collected by this user from staked position (CollectFees)
+   totalStakedFeesCollected1: BigInt! @config(precision: 76) # pool fees (token1) collected by this user from staked position (CollectFees)
+-  totalStakedFeesCollectedUSD: BigInt! @config(precision: 76) # pool fees in USD collected by this user from staked position (CollectFees) - position earned vs totalGaugeRewardsClaimed (emissions received)
++  totalStakedFeesCollectedUSD: BigInt! @config(precision: 38) # pool fees in USD collected by this user from staked position (CollectFees) - position earned vs totalGaugeRewardsClaimed (emissions received)
+   totalUnstakedFeesCollected0: BigInt! @config(precision: 76) # pool fees (token0) collected by this user from unstaked position (Collect)
+   totalUnstakedFeesCollected1: BigInt! @config(precision: 76) # pool fees (token1) collected by this user from unstaked position (Collect)
+-  totalUnstakedFeesCollectedUSD: BigInt! @config(precision: 76) # pool fees in USD collected by this user from unstaked position (Collect)
++  totalUnstakedFeesCollectedUSD: BigInt! @config(precision: 38) # pool fees in USD collected by this user from unstaked position (Collect)
+   currentLiquidityStaked: BigInt! @config(precision: 76) # current liquidity staked in gauge in token units
+-  currentLiquidityStakedUSD: BigInt! @config(precision: 76) # current liquidity staked in gauge in USD
++  currentLiquidityStakedUSD: BigInt! @config(precision: 38) # current liquidity staked in gauge in USD
+   stakedCLPositionTokenIds: [BigInt!]! # tokenIds of CL positions currently staked in gauge (maintained on deposit/withdraw, enables O(1) primary-key lookups per position at snapshot time)
+ 
+   # Voting metrics
+-  totalBribeClaimedUSD: BigInt! @config(precision: 76) # total USD value of bribe rewards claimed by this user for this pool (canonical cross-token aggregate; raw token-unit sum dropped in #813 — bribes are arbitrary heterogeneous tokens)
+-  totalFeeRewardClaimedUSD: BigInt! @config(precision: 76) # total USD value of fee rewards claimed by this user for this pool (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens)
++  totalBribeClaimedUSD: BigInt! @config(precision: 38) # total USD value of bribe rewards claimed by this user for this pool (canonical cross-token aggregate; raw token-unit sum dropped in #813 — bribes are arbitrary heterogeneous tokens)
++  totalFeeRewardClaimedUSD: BigInt! @config(precision: 38) # total USD value of fee rewards claimed by this user for this pool (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens)
+   veNFTamountStaked: BigInt! @config(precision: 76) # amount of veNFT staked by this user for this pool
+ 
+   # ALM metrics
+@@ -299,45 +299,45 @@
+ 
+   # Liquidity metrics
+   lpBalance: BigInt! @config(precision: 76) # user's LP token balance at snapshot time
+-  totalLiquidityAddedUSD: BigInt! @config(precision: 76) # cumulative USD value of liquidity added
++  totalLiquidityAddedUSD: BigInt! @config(precision: 38) # cumulative USD value of liquidity added
+   totalLiquidityAddedToken0: BigInt! @config(precision: 76) # cumulative raw token0 amount added
+   totalLiquidityAddedToken1: BigInt! @config(precision: 76) # cumulative raw token1 amount added
+-  totalLiquidityRemovedUSD: BigInt! @config(precision: 76) # cumulative USD value of liquidity removed
++  totalLiquidityRemovedUSD: BigInt! @config(precision: 38) # cumulative USD value of liquidity removed
+   totalLiquidityRemovedToken0: BigInt! @config(precision: 76) # cumulative raw token0 amount removed
+   totalLiquidityRemovedToken1: BigInt! @config(precision: 76) # cumulative raw token1 amount removed
+ 
+   # Swap metrics
+-  numberOfSwaps: BigInt! @config(precision: 76) # number of swaps the user made in this pool
++  numberOfSwaps: BigInt! @config(precision: 38) # number of swaps the user made in this pool
+   totalSwapVolumeAmount0: BigInt! @config(precision: 76) # swap volume denominated in token0 in this pool
+   totalSwapVolumeAmount1: BigInt! @config(precision: 76) # swap volume denominated in token1 in this pool
+-  totalSwapVolumeUSD: BigInt! @config(precision: 76) # swap volume in USD in this pool
+-  totalFeesContributedUSD: BigInt! @config(precision: 76) # total fees contributed in USD (fees paid by the user in swaps)
++  totalSwapVolumeUSD: BigInt! @config(precision: 38) # swap volume in USD in this pool
++  totalFeesContributedUSD: BigInt! @config(precision: 38) # total fees contributed in USD (fees paid by the user in swaps)
+   totalFeesContributed0: BigInt! @config(precision: 76) # total fees contributed in token0, 1e18-normalized (same scale on V2 & CL — issue #812)
+   totalFeesContributed1: BigInt! @config(precision: 76) # total fees contributed in token1, 1e18-normalized (same scale on V2 & CL — issue #812)
+ 
+   # Flash swap metrics
+-  numberOfFlashLoans: BigInt! @config(precision: 76) # number of flash loan swaps in this pool
+-  totalFlashLoanVolumeUSD: BigInt! @config(precision: 76) # flash loan swap volume in USD in this pool
++  numberOfFlashLoans: BigInt! @config(precision: 38) # number of flash loan swaps in this pool
++  totalFlashLoanVolumeUSD: BigInt! @config(precision: 38) # flash loan swap volume in USD in this pool
+ 
+   # Gauge metrics
+-  numberOfGaugeDeposits: BigInt! @config(precision: 76) # number of gauge deposits (staking)
+-  numberOfGaugeWithdrawals: BigInt! @config(precision: 76) # number of gauge withdrawals (unstaking)
+-  numberOfGaugeRewardClaims: BigInt! @config(precision: 76) # number of gauge reward claims
+-  totalGaugeRewardsClaimedUSD: BigInt! @config(precision: 76) # total gauge rewards claimed in USD
++  numberOfGaugeDeposits: BigInt! @config(precision: 38) # number of gauge deposits (staking)
++  numberOfGaugeWithdrawals: BigInt! @config(precision: 38) # number of gauge withdrawals (unstaking)
++  numberOfGaugeRewardClaims: BigInt! @config(precision: 38) # number of gauge reward claims
++  totalGaugeRewardsClaimedUSD: BigInt! @config(precision: 38) # total gauge rewards claimed in USD
+   totalGaugeRewardsClaimed: BigInt! @config(precision: 76) # total gauge rewards claimed in reward-token units — AERO on Base, VELO on Optimism (18-dec); single reward token per chain, coherent within a chain, NOT summable across chains (see #813)
+   totalStakedFeesCollected0: BigInt! @config(precision: 76) # pool fees (token0) collected by this user from staked position (CollectFees)
+   totalStakedFeesCollected1: BigInt! @config(precision: 76) # pool fees (token1) collected by this user from staked position (CollectFees)
+-  totalStakedFeesCollectedUSD: BigInt! @config(precision: 76) # pool fees in USD collected by this user from staked position (CollectFees)
++  totalStakedFeesCollectedUSD: BigInt! @config(precision: 38) # pool fees in USD collected by this user from staked position (CollectFees)
+   totalUnstakedFeesCollected0: BigInt! @config(precision: 76) # pool fees (token0) collected by this user from unstaked position (Collect)
+   totalUnstakedFeesCollected1: BigInt! @config(precision: 76) # pool fees (token1) collected by this user from unstaked position (Collect)
+-  totalUnstakedFeesCollectedUSD: BigInt! @config(precision: 76) # pool fees in USD collected by this user from unstaked position (Collect)
++  totalUnstakedFeesCollectedUSD: BigInt! @config(precision: 38) # pool fees in USD collected by this user from unstaked position (Collect)
+   currentLiquidityStaked: BigInt! @config(precision: 76) # current liquidity staked in gauge in token units
+-  currentLiquidityStakedUSD: BigInt! @config(precision: 76) # current liquidity staked in gauge in USD
++  currentLiquidityStakedUSD: BigInt! @config(precision: 38) # current liquidity staked in gauge in USD
+   stakedCLPositionTokenIds: [BigInt!]! # tokenIds of CL positions staked in gauge at snapshot time
+ 
+   # Voting metrics
+-  totalBribeClaimedUSD: BigInt! @config(precision: 76) # total USD value of bribe rewards claimed by this user for this pool (canonical cross-token aggregate; raw token-unit sum dropped in #813 — bribes are arbitrary heterogeneous tokens)
+-  totalFeeRewardClaimedUSD: BigInt! @config(precision: 76) # total USD value of fee rewards claimed by this user for this pool (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens)
++  totalBribeClaimedUSD: BigInt! @config(precision: 38) # total USD value of bribe rewards claimed by this user for this pool (canonical cross-token aggregate; raw token-unit sum dropped in #813 — bribes are arbitrary heterogeneous tokens)
++  totalFeeRewardClaimedUSD: BigInt! @config(precision: 38) # total USD value of fee rewards claimed by this user for this pool (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens)
+   veNFTamountStaked: BigInt! @config(precision: 76) # amount of veNFT staked by this user for this pool
+ 
+   # ALM metrics
+@@ -356,10 +356,10 @@
+   name: String! # token name
+   chainId: Int! @index # chain id
+   decimals: BigInt! @config(precision: 76) # number of decimals
+-  pricePerUSDNew: BigInt! @config(precision: 76) # price of token per USD
++  pricePerUSDNew: BigInt! @config(precision: 38) # price of token per USD
+   lastUpdatedTimestamp: Timestamp! # timestamp of last price refresh attempt (drives the once-per-clock-hour throttle; see src/PriceOracle.ts)
+   lastSuccessfulPriceTimestamp: Timestamp # timestamp of last successful price (pinned / pool route / canonical source); drives the 7-day carry window (#694, docs/adr/0003)
+-  pricingDepthUSD: BigInt @config(precision: 76) # USD depth (1e18-base) behind pricePerUSDNew: the counterparty-side reserve of the pool that priced it, or the canonical source's own depth; kept while carried, unset when pinned / unpriced / overridden. Lets a cross-chain canonical source be compared with local pools (docs/adr/0004)
++  pricingDepthUSD: BigInt @config(precision: 38) # USD depth (1e18-base) behind pricePerUSDNew: the counterparty-side reserve of the pool that priced it, or the canonical source's own depth; kept while carried, unset when pinned / unpriced / overridden. Lets a cross-chain canonical source be compared with local pools (docs/adr/0004)
+   isWhitelisted: Boolean! # whether the token is whitelisted by the legacy Voter / SuperchainLeafVoter (WhitelistToken)
+   # Aero listing: the latest ListingSet of the chain's Aero TokenRegistry (Aero's curated token list,
+   # the successor of the legacy whitelist). Null when the registry never emitted one for the token.
+@@ -392,7 +392,7 @@
+ type TokenPriceSnapshot @storage(postgres: false, clickhouse: true) {
+   id: ID! # Format: {chainId}-{address}-{epochMs} (TokenPriceSnapshotId; epochMs = hour bucket of the refresh). Rows written before ADR 0003 used {chainId}-{address}-{blockNumber}.
+   address: String! @index # Address of the token
+-  pricePerUSDNew: BigInt! @config(precision: 76) # price of token per USD
++  pricePerUSDNew: BigInt! @config(precision: 38) # price of token per USD
+   chainId: Int! # chain id
+   isWhitelisted: Boolean! # whether the token is whitelisted
+   lastUpdatedTimestamp: Timestamp! @index # Timestamp of the last update
+@@ -409,7 +409,7 @@
+   # migration; the value set is pinned by PRICE_SOURCE in src/Snapshots/TokenPriceSnapshot.ts.
+   priceSource: String
+   pricingPoolId: String # Pool id ({chainId}-{poolAddress}) the price was derived through; set only when priceSource = `pool`
+-  pricingDepthUSD: BigInt @config(precision: 76) # USD depth (1e18-base) of the winning candidate: pricingPoolId's counterparty-side reserve, or the canonical source token's stored depth; set only when priceSource = `pool` or `canonical`
++  pricingDepthUSD: BigInt @config(precision: 38) # USD depth (1e18-base) of the winning candidate: pricingPoolId's counterparty-side reserve, or the canonical source token's stored depth; set only when priceSource = `pool` or `canonical`
+   pricingSourceTokenId: String # Token id ({chainId}-{address}) of the canonical source whose stored price was used; set only when priceSource = `canonical`
+ }
+ 
