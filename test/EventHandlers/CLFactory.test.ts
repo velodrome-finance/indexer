@@ -133,7 +133,7 @@ describe("CLFactory Events", () => {
       expect(pool?.isCL).toBe(true);
     });
 
-    it("registers a tier-3 / tier-3 pool as a peer pool for both sides (ADR 0006)", async () => {
+    it("registers a tier-3 / tier-3 pool as a peer pool for both sides (ADR 0007)", async () => {
       // 0x1111… / 0x2222… are both tier-3 tokens on Base.
       const poolId = PoolId(chainId, poolAddress);
       expect(

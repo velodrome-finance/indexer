@@ -18,7 +18,7 @@ import {
 } from "./pricingHarness";
 
 /**
- * ADR 0006: a tier-3 token with no qualifying direct candidate may be priced
+ * ADR 0007: a tier-3 token with no qualifying direct candidate may be priced
  * through a tier-3 peer whose own price comes from a direct pool route.
  *
  * Address order (token0 < token1): USDC 0x0b2C… < X 0x1111… < Y 0x3333… <
@@ -92,7 +92,7 @@ const peerOnly = () =>
     },
   });
 
-describe("two-hop pricing through a tier-3 peer (ADR 0006)", () => {
+describe("two-hop pricing through a tier-3 peer (ADR 0007)", () => {
   it("prices a token that only trades against a directly priced peer", async () => {
     const s = peerOnly();
     const x = await refresh(s, X);

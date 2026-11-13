@@ -64,7 +64,7 @@ export interface TokenPriceSnapshotInput {
   readonly pricingSourceTokenId?: string;
   /** Depth of the winning candidate in USD, 1e18-base (`pool` / `canonical` ticks only). */
   readonly pricingDepthUSD?: bigint;
-  /** Route length (`pool` / `canonical` ticks): 1 direct, 2 through a tier-3 peer (ADR 0006). */
+  /** Route length (`pool` / `canonical` ticks): 1 direct, 2 through a tier-3 peer (ADR 0007). */
   readonly pricingHops?: number;
   /** Two-hop ticks only: the peer token the price went through. */
   readonly pricingViaTokenId?: string;

@@ -158,7 +158,7 @@ export async function createTokenEntity(
  *    A candidate must pass the chain's depth floor, the 1000× imbalance bound
  *    and the $1M ceiling (`pool` / `canonical`).
  * 4. Tier-3 tokens only, when nothing in step 3 qualified: two-hop routes
- *    (ADR 0006). Each registered pool against another tier-3 token C (a peer
+ *    (ADR 0007). Each registered pool against another tier-3 token C (a peer
  *    pool) offers pool ratio × C's direct price, where C's direct price is
  *    computed now from C's own direct pool candidates (step 3 without peers or
  *    the canonical source). C's stored price is never used, so a carried or
@@ -423,7 +423,7 @@ function counterpartyOf(
 }
 
 /**
- * Two-hop candidates for a tier-3 token T (ADR 0006): one per registered pool
+ * Two-hop candidates for a tier-3 token T (ADR 0007): one per registered pool
  * whose counterparty C is also tier 3, valuing C at its *direct* price,
  * computed now from C's own direct pool candidates (never C's peers, never its
  * canonical source, never its stored price). C's direct route therefore cannot

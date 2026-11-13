@@ -64,7 +64,7 @@ export const PRICE_CARRY_WINDOW_MS = 7 * 24 * MS_IN_AN_HOUR;
 export const PRICE_REFRESH_INTERVAL_MS = MS_IN_AN_HOUR;
 
 /**
- * Most peer pools a two-hop refresh considers (ADR 0006), oldest first in
+ * Most peer pools a two-hop refresh considers (ADR 0007), oldest first in
  * registration order. Each peer costs its own pool and counterparty reads, and
  * on Base a meme token can share pools with hundreds of other tier-3 tokens;
  * the cap bounds that fan-out deterministically. Established markets register

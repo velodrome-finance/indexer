@@ -3,7 +3,7 @@ import { PRICING_TIER, getPricingTier } from "../../src/Pricing/PricingConfig";
 import pairings from "./fixtures/chain_pairings.json" with { type: "json" };
 
 /**
- * Per-chain pricing-config audit (ADR 0006), against
+ * Per-chain pricing-config audit (ADR 0007), against
  * `fixtures/chain_pairings.json`: every pool created by each chain's V2 / CL /
  * Aero factories, discovered over HyperSync on 2026-11-13, reduced to WETH's
  * pairs with configured tokens and each configured token's pool and lifetime

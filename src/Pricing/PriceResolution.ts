@@ -27,7 +27,7 @@ export type PriceResolution =
       readonly priceUSD: bigint;
       readonly sourceId: string;
       readonly depthUSD: bigint;
-      /** 2 for a two-hop pool route (ADR 0006); absent = 1. */
+      /** 2 for a two-hop pool route (ADR 0007); absent = 1. */
       readonly hops?: 1 | 2;
       /** Two-hop only: the peer token the price went through. */
       readonly viaTokenId?: string;

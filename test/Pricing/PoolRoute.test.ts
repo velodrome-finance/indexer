@@ -62,7 +62,7 @@ describe("PoolRoute", () => {
       expect(getPricingPoolTargets(OP, OP_VELO, OP_WBTC)).toEqual([]); // 2/2
     });
 
-    it("registers a tier-3 / tier-3 pool for both sides as a peer pool (ADR 0006)", () => {
+    it("registers a tier-3 / tier-3 pool for both sides as a peer pool (ADR 0007)", () => {
       expect(getPricingPoolTargets(OP, OP_TOKEN_X, OP_TOKEN_ZERO_DEC)).toEqual([
         TokenId(OP, OP_TOKEN_X),
         TokenId(OP, OP_TOKEN_ZERO_DEC),
@@ -444,7 +444,7 @@ describe("PoolRoute", () => {
       ).toBe("pool");
     });
   });
-  describe("combineTwoHopCandidate (weakest link, ADR 0006)", () => {
+  describe("combineTwoHopCandidate (weakest link, ADR 0007)", () => {
     const hop = (depthUSD: bigint, targetSideUSD = depthUSD) => ({
       kind: "pool" as const,
       sourceId: "10-0xPeerPool",

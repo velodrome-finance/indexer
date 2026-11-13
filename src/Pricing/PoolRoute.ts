@@ -238,7 +238,7 @@ export function selectPricingCandidate(
 
 /**
  * Combines a peer pool's candidate with the peer's own direct route into one
- * two-hop candidate for the target (ADR 0006). `hop` must be the candidate the
+ * two-hop candidate for the target (ADR 0007). `hop` must be the candidate the
  * peer pool P2 (target T / peer C) offers when C is valued at `via.priceUSD`;
  * `via` is C's winning direct pool candidate (pool P1, C / lower-tier token).
  *
@@ -278,7 +278,7 @@ export function combineTwoHopCandidate(
  * - each side whose counterparty sits in a strictly lower pricing tier (a
  *   direct route; at most one side, since tiers are strictly ordered);
  * - both sides when both tokens are tier 3 (a peer pool, usable only for a
- *   two-hop route through a peer that has a direct route of its own, ADR 0006).
+ *   two-hop route through a peer that has a direct route of its own, ADR 0007).
  *
  * A pool between two tokens of the same tier 0–2 qualifies for neither.
  *

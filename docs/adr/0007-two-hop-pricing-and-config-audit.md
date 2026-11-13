@@ -1,4 +1,4 @@
-# ADR 0006: Two-hop pricing through a tier-3 peer; per-chain config audit
+# ADR 0007: Two-hop pricing through a tier-3 peer; per-chain config audit
 
 - **Status:** Accepted (2026-11-13). Amends ADR 0003 (tier rule) and ADR 0004
   (canonical sources' freshness).
