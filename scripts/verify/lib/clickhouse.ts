@@ -58,6 +58,16 @@ export class ChClient {
           body: `${sql}\nFORMAT TabSeparatedWithNames`,
           timeoutMs: 600_000,
         });
+        // The server-wide memory cap is shared with indexers that are writing;
+        // a "(total) memory limit" error is transient, so wait and retry.
+        if (
+          res.status !== 200 &&
+          /\(total\) memory limit/.test(res.body.toString("utf8")) &&
+          attempt < 6
+        ) {
+          res = undefined;
+          await new Promise((r) => setTimeout(r, 5000 * 2 ** attempt));
+        }
       } catch (e) {
         // Connection resets happen when the server is busy merging; retry.
         if (attempt >= 4) throw e;
