@@ -48,12 +48,22 @@ REFRESH_EVERY = os.environ.get("ANALYTICS_REFRESH_EVERY", "1 MINUTE")
 # A refresh never takes more than this many checkpoints at once, so a layer that fell far
 # behind (or an indexer in backfill) catches up in bounded steps.
 MAX_CHECKPOINTS_PER_REFRESH = int(os.environ.get("ANALYTICS_MAX_CHECKPOINTS_PER_REFRESH", "500000"))
-BACKFILL_CHUNK_ROWS = int(os.environ.get("ANALYTICS_BACKFILL_CHUNK_ROWS", "20000000"))
+BACKFILL_CHUNK_ROWS = int(os.environ.get("ANALYTICS_BACKFILL_CHUNK_ROWS", "2000000"))
+RETRIES = int(os.environ.get("ANALYTICS_RETRIES", "30"))
 VERIFY_CHUNK_ROWS = int(os.environ.get("ANALYTICS_VERIFY_CHUNK_ROWS", "3000000"))
 QUERY_SETTINGS = {
     "max_memory_usage": os.environ.get("ANALYTICS_MAX_MEMORY", "1200000000"),
     "max_bytes_before_external_group_by": os.environ.get("ANALYTICS_EXTERNAL_GROUP_BY", "400000000"),
     "max_bytes_before_external_sort": os.environ.get("ANALYTICS_EXTERNAL_SORT", "400000000"),
+    "max_threads": os.environ.get("ANALYTICS_MAX_THREADS", "2"),
+}
+# Backfill inserts: few, small blocks so a wide row (80 columns, many Int256) stays cheap.
+BACKFILL_SETTINGS = {
+    "max_threads": "1",
+    "max_insert_threads": "1",
+    "max_block_size": "16384",
+    "min_insert_block_size_rows": "32768",
+    "min_insert_block_size_bytes": "33554432",
 }
 
 
@@ -83,12 +93,22 @@ class CH:
             headers=self.auth,
             method="POST",
         )
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as r:
-                summary = json.loads(r.headers.get("X-ClickHouse-Summary") or "{}")
-                return r.read().decode(), summary
-        except urllib.error.HTTPError as e:
-            raise ClickHouseError(f"{e.code}: {e.read().decode().strip()}\n--- query ---\n{sql[:4000]}") from None
+        for attempt in range(RETRIES + 1):
+            try:
+                with urllib.request.urlopen(req, timeout=timeout) as r:
+                    summary = json.loads(r.headers.get("X-ClickHouse-Summary") or "{}")
+                    return r.read().decode(), summary
+            except urllib.error.HTTPError as e:
+                msg = e.read().decode().strip()
+                # The server-wide memory cap is shared with other users and the indexer's own
+                # merges: wait and retry. Every statement this tool sends is safe to repeat
+                # (inserts go to ReplacingMergeTree tables keyed by version).
+                if "(total) memory limit exceeded" in msg and attempt < RETRIES:
+                    log(f"    server memory is full, retrying in {min(60, 10 * (attempt + 1))}s")
+                    time.sleep(min(60, 10 * (attempt + 1)))
+                    continue
+                raise ClickHouseError(f"{e.code}: {msg}\n--- query ---\n{sql[:4000]}") from None
+        raise AssertionError("unreachable")
 
     def execute(self, sql: str, settings: dict | None = None) -> dict:
         return self.request(sql, settings)[1]
@@ -177,9 +197,7 @@ def ddl(ctx: Ctx, e: Entity) -> str:
         "  `_deleted` UInt8 COMMENT '1 when envio deleted the entity (envio_change = DELETE)'",
         "  `_loaded_at` DateTime DEFAULT now() COMMENT 'when the layer loaded this version'",
     ]
-    if e.extra_ddl:
-        cols += ["  " + x.strip() for x in e.extra_ddl.split(", INDEX ")]
-        cols = [c if c.lstrip().startswith(("`", "INDEX")) else "  INDEX " + c.strip() for c in cols]
+    cols += [f"  INDEX {ix}" for ix in e.indexes]
     partition = f"intDiv(_version, {VERSION_BUCKET})"
     if e.partition_extra:
         partition = f"({e.partition_extra}, {partition})"
@@ -192,29 +210,28 @@ def ddl(ctx: Ctx, e: Entity) -> str:
     )
 
 
-def needed_source_columns(ctx: Ctx, e: Entity) -> list[str]:
+def needed_source_columns(ctx: Ctx, e: Entity, for_verify: bool = False) -> list[str]:
     types = ctx.source_types(e)
     cols = []
     for r in ctx.resolved(e):
-        if r.col.src and r.present and r.col.src not in cols:
-            cols.append(r.col.src)
+        for c in ([r.col.src] if r.col.src and r.present else []) + (r.verify_fields() if for_verify else []):
+            if c in types and c not in cols:
+                cols.append(c)
     for extra in ("chainId", "lastUpdatedTimestamp"):
         if extra in types and extra not in cols:
             cols.append(extra)
     return [c for c in cols if c != "id"]
 
 
-def rows_sql(ctx: Ctx, e: Entity, where: str) -> str:
-    """Source rows for the projection. `where` bounds them (checkpoint window and/or id chunk)."""
+def group_key(e: Entity) -> str:
+    """What one stored row stands for: an id (current state) or an id and a period (series)."""
+    return "id" if e.mode == "latest" else f"id, {e.period_expr}"
+
+
+def rows_select(ctx: Ctx, e: Entity) -> str:
     h = f"{q(ctx.src)}.{q(ctx.hist(e))}"
-    if e.mode == "latest":
-        return where.format(h=h)
-    aggs = ",\n    ".join(f"argMax({q(c)}, envio_checkpoint_id) AS {q(c)}" for c in needed_source_columns(ctx, e))
-    return (
-        f"SELECT id, {e.period_expr} AS _period, max(envio_checkpoint_id) AS envio_checkpoint_id,\n    {aggs}\n"
-        f"  FROM {h}\n  WHERE envio_change = 'SET' AND ({where.format(h=h, series=True)})\n"
-        f"  GROUP BY id, _period"
-    )
+    period = f", {e.period_expr} AS _period" if e.mode != "latest" else ""
+    return f"SELECT *{period} FROM {h}"
 
 
 def projection(ctx: Ctx, e: Entity, rows: str) -> str:
@@ -224,6 +241,11 @@ def projection(ctx: Ctx, e: Entity, rows: str) -> str:
     else:
         exprs += ["_period AS period", "envio_checkpoint_id AS _version", "toUInt8(0) AS _deleted"]
     return "SELECT\n  " + ",\n  ".join(exprs) + f"\nFROM (\n  {rows}\n) AS h"
+
+
+def insert_into(ctx: Ctx, e: Entity) -> str:
+    cols = [r.name for r in ctx.resolved(e)] + (["period"] if e.mode != "latest" else []) + ["_version", "_deleted"]
+    return f"INSERT INTO {q(ctx.db)}.{q(e.table)} (" + ", ".join(q(c) for c in cols) + ")\n"
 
 
 def chunk_pred(lo: str | None, hi: str | None) -> str:
@@ -236,36 +258,37 @@ def chunk_pred(lo: str | None, hi: str | None) -> str:
 
 
 def backfill_rows(ctx: Ctx, e: Entity, chunk: str, frontier: int) -> str:
-    if e.mode == "latest":
-        # Two phases: the latest checkpoint per id reads two columns; the full rows are then
-        # fetched by primary key, so only the granules holding them are read.
-        return rows_sql(
-            ctx,
-            e,
-            "SELECT * FROM {h} WHERE "
-            + chunk
-            + " AND (id, envio_checkpoint_id) IN (SELECT id, max(envio_checkpoint_id) FROM {h} WHERE "
-            + chunk
-            + f" AND envio_checkpoint_id <= {frontier} GROUP BY id)",
-        )
-    return rows_sql(ctx, e, chunk + f" AND envio_checkpoint_id <= {frontier}")
+    """Rows to load: per id (or id and period), the last version at or below the frontier.
+
+    Two phases keep memory flat: the last checkpoint per key reads three narrow columns, and
+    the full rows are then fetched by primary key (id, envio_checkpoint_id), so only the
+    granules holding them are read. Series skip DELETE rows (a pool is never deleted; a
+    rollback that removes one leaves its earlier periods, see docs).
+    """
+    h = f"{q(ctx.src)}.{q(ctx.hist(e))}"
+    only_set = "" if e.mode == "latest" else " AND envio_change = 'SET'"
+    return (
+        f"{rows_select(ctx, e)} WHERE {chunk}{only_set} AND (id, envio_checkpoint_id) IN (\n"
+        f"    SELECT id, max(envio_checkpoint_id) FROM {h} WHERE {chunk}{only_set} AND envio_checkpoint_id <= {frontier}\n"
+        f"    GROUP BY {group_key(e)})"
+    )
 
 
 def watermark_sql(ctx: Ctx, e: Entity) -> str:
     # max(_version) comes from part metadata (see VERSION_BUCKET). Minus one: a refresh that
     # failed half way may have landed part of the rows of its last checkpoint.
-    return f"(SELECT greatest(max(_version), 1) - 1 FROM {q(ctx.db)}.{q(e.table)})"
+    return f"(SELECT toUInt64(greatest(max(_version), 1) - 1) FROM {q(ctx.db)}.{q(e.table)})"
 
 
 def refresh_rows(ctx: Ctx, e: Entity, instance: str) -> str:
     wm = watermark_sql(ctx, e)
     window = (
-        f"envio_checkpoint_id > {wm} AND envio_checkpoint_id <= least({ctx.frontier_sql()}, {wm} + {MAX_CHECKPOINTS_PER_REFRESH})"
+        f"envio_checkpoint_id > {wm} AND envio_checkpoint_id <= least({ctx.frontier_sql()}, {wm} + toUInt64({MAX_CHECKPOINTS_PER_REFRESH}))"
         f" AND (SELECT any(instance) FROM {q(ctx.src)}.envio_info) = {lit(instance)}"
     )
-    if e.mode == "latest":
-        return rows_sql(ctx, e, "SELECT * FROM {h} WHERE " + window + " ORDER BY id, envio_checkpoint_id DESC LIMIT 1 BY id")
-    return rows_sql(ctx, e, window)
+    only_set = "" if e.mode == "latest" else " AND envio_change = 'SET'"
+    key = "id" if e.mode == "latest" else "id, _period"
+    return f"{rows_select(ctx, e)} WHERE {window}{only_set} ORDER BY {key}, envio_checkpoint_id DESC LIMIT 1 BY {key}"
 
 
 def rmv_name(e: Entity) -> str:
@@ -338,11 +361,11 @@ def table_rows(ctx: Ctx, table: str) -> int:
 
 
 def drop_layer_objects(ctx: Ctx, keep_db=True):
-    for t in sorted(existing_tables(ctx)):
-        if t.startswith("_refresh_"):
-            ctx.ch.execute(f"DROP VIEW IF EXISTS {q(ctx.db)}.{q(t)} SYNC")
-    for t in sorted(existing_tables(ctx)):
-        ctx.ch.execute(f"DROP TABLE IF EXISTS {q(ctx.db)}.{q(t)} SYNC")
+    objs = ctx.ch.rows(f"SELECT name, engine FROM system.tables WHERE database = {lit(ctx.db)}")
+    # views first: a table that a view reads cannot be dropped before it
+    for o in sorted(objs, key=lambda o: (o["engine"] not in ("View", "MaterializedView"), o["name"])):
+        kind = "VIEW" if o["engine"] in ("View", "MaterializedView") else "TABLE"
+        ctx.ch.execute(f"DROP {kind} IF EXISTS {q(ctx.db)}.{q(o['name'])} SYNC")
     if not keep_db:
         ctx.ch.execute(f"DROP DATABASE IF EXISTS {q(ctx.db)} SYNC")
 
@@ -352,8 +375,8 @@ def backfill(ctx: Ctx, e: Entity, frontier: int):
     parts = chunks(ctx, e, BACKFILL_CHUNK_ROWS)
     total_read = 0
     for i, chunk in enumerate(parts, 1):
-        sql = f"INSERT INTO {q(ctx.db)}.{q(e.table)}\n" + projection(ctx, e, backfill_rows(ctx, e, chunk, frontier))
-        s = ctx.ch.execute(sql, {"optimize_aggregation_in_order": "1"})
+        sql = insert_into(ctx, e) + projection(ctx, e, backfill_rows(ctx, e, chunk, frontier))
+        s = ctx.ch.execute(sql, BACKFILL_SETTINGS)
         total_read += int(s.get("read_rows", 0))
         log(f"  {e.table}: chunk {i}/{len(parts)} wrote {s.get('written_rows', '?')} rows (read {s.get('read_rows', '?')})")
     log(f"  {e.table}: backfilled up to checkpoint {frontier} in {time.time() - t0:.1f}s ({total_read} source rows read)")
@@ -365,10 +388,11 @@ VIEW_FILES = ["views.sql"]
 def statements(text: str) -> list[str]:
     out, cur = [], []
     for line in text.splitlines():
-        if line.strip().startswith("--") and not cur:
+        is_comment = line.strip().startswith("--")
+        if is_comment and not cur:
             continue
         cur.append(line)
-        if line.rstrip().endswith(";"):
+        if not is_comment and line.rstrip().endswith(";"):
             stmt = "\n".join(cur).strip().rstrip(";").strip()
             if stmt:
                 out.append(stmt)
@@ -410,18 +434,23 @@ def install(ctx: Ctx, force_rebuild=False):
         drop_layer_objects(ctx)
         ch.execute(META_DDL.format(db=q(ctx.db)))
 
-    present = existing_tables(ctx)
     frontier = ctx.frontier()
+    meta = meta_get(ctx)
     log(f"source {ctx.src} instance {instance}, commit frontier checkpoint {frontier}")
     for e in ENTITIES:
         if not ctx.has_source(e):
             log(f"  {e.table}: source {ctx.hist(e)} missing, skipped")
             continue
         ch.execute(ddl(ctx, e))
-        if rmv_name(e) not in present and table_rows(ctx, e.table) == 0:
+        done = meta.get(f"backfilled:{e.table}")
+        if done is None:
+            # Not backfilled to completion (new table, or a run cut off half way): start over.
+            ch.execute(f"DROP VIEW IF EXISTS {q(ctx.db)}.{q(rmv_name(e))} SYNC")
+            ch.execute(f"TRUNCATE TABLE {q(ctx.db)}.{q(e.table)}")
             backfill(ctx, e, frontier)
+            meta_set(ctx, {f"backfilled:{e.table}": str(frontier)})
         else:
-            log(f"  {e.table}: present ({table_rows(ctx, e.table)} rows), refreshed incrementally")
+            log(f"  {e.table}: backfilled at checkpoint {done}, {table_rows(ctx, e.table)} rows; refreshed incrementally")
     for e in ENTITIES:
         if ctx.has_source(e):
             ch.execute(rmv_ddl(ctx, e, instance))
@@ -522,30 +551,28 @@ def verify_entity(ctx: Ctx, e: Entity) -> bool:
     h = f"{q(ctx.src)}.{q(ctx.hist(e))}"
     pairs = [(r.name, r.verify_pair()) for r in ctx.resolved(e)]
     pairs = [(n, p) for n, p in pairs if p]
-    src_cols = needed_source_columns(ctx, e)
+    src_cols = needed_source_columns(ctx, e, for_verify=True)
     if e.mode == "latest":
-        key_e, key_t = "e.id", "t.id"
+        aggs = ", ".join(f"tupleElement(argMax(tuple({q(c)}), envio_checkpoint_id), 1) AS {q('__' + c)}" for c in src_cols)
+        renamed = ", ".join(f"{q('__' + c)} AS {q(c)}" for c in src_cols)
         expected = (
-            "SELECT id, " + ", ".join(f"argMax({q(c)}, envio_checkpoint_id) AS {q(c)}" for c in src_cols)
-            + f", argMax(envio_change, envio_checkpoint_id) AS _change FROM {h} WHERE {{chunk}} AND envio_checkpoint_id <= {f0}"
-            + " GROUP BY id HAVING _change = 'SET'"
+            f"SELECT id, {renamed} FROM (SELECT id, {aggs}, argMax(envio_change, envio_checkpoint_id) AS __change"
+            f" FROM {h} WHERE {{chunk}} AND envio_checkpoint_id <= {f0} GROUP BY id) WHERE __change = 'SET'"
         )
         join_on = "e.id = t.id"
     else:
-        key_e, key_t = "concat(e.id, toString(e._period))", "concat(t.id, toString(t.period))"
+        aggs = ", ".join(f"tupleElement(argMax(tuple({q(c)}), envio_checkpoint_id), 1) AS {q('__' + c)}" for c in src_cols)
+        renamed = ", ".join(f"{q('__' + c)} AS {q(c)}" for c in src_cols)
         expected = (
-            f"SELECT id, {e.period_expr} AS _period, "
-            + ", ".join(f"argMax({q(c)}, envio_checkpoint_id) AS {q(c)}" for c in src_cols)
-            + f" FROM {h} WHERE {{chunk}} AND envio_checkpoint_id <= {f0} AND envio_change = 'SET' GROUP BY id, _period"
+            f"SELECT id, _period, {renamed} FROM (SELECT id, {e.period_expr} AS _period, {aggs}"
+            f" FROM {h} WHERE {{chunk}} AND envio_checkpoint_id <= {f0} AND envio_change = 'SET' GROUP BY id, _period)"
         )
         join_on = "e.id = t.id AND e._period = t.period"
-    mism = ", ".join(f"countIf({p[0]} != {p[1].replace('`', '`', 1)}) AS {q('m_' + n)}" for n, p in pairs)
-    # The envio-side expressions reference the expected subquery's columns: qualify them.
-    mism = re.sub(r"(?<![\w.])`(\w+)`(?!\s+AS)", lambda m: f"e.`{m.group(1)}`" if not m.group(1).startswith("m_") else m.group(0), mism)
+    mism = ", ".join(f"countIf({p[0]} != {p[1]}) AS {q('m_' + n)}" for n, p in pairs)
     totals: dict[str, int] = {}
     for chunk in chunks(ctx, e, VERIFY_CHUNK_ROWS):
         sql = (
-            f"SELECT count() AS compared, countIf({key_t} = '' OR t.id = '') AS missing_in_layer, {mism}\n"
+            f"SELECT count() AS compared, countIf(t.id = '') AS missing_in_layer, {mism}\n"
             f"FROM ({expected.format(chunk=chunk)}) AS e\n"
             f"LEFT JOIN (SELECT * FROM {q(ctx.db)}.{q(e.table)} FINAL WHERE {chunk}) AS t ON {join_on}"
         )
@@ -557,7 +584,6 @@ def verify_entity(ctx: Ctx, e: Entity) -> bool:
         row["extra_in_layer"] = ctx.ch.scalar(extra_sql)
         for k, v in row.items():
             totals[k] = totals.get(k, 0) + int(v)
-    del key_e
     bad = {k: v for k, v in totals.items() if k != "compared" and v}
     log(
         f"  verify {e.table} at checkpoint {f0}: {totals.get('compared', 0)} "
@@ -644,7 +670,7 @@ def main(argv=None):
             if not ctx.has_source(e):
                 continue
             print(ddl(ctx, e) + ";\n")
-            print("-- backfill (one statement per id chunk)\nINSERT INTO " + q(ctx.db) + "." + q(e.table) + "\n"
+            print("-- backfill (one statement per id chunk)\n" + insert_into(ctx, e)
                   + projection(ctx, e, backfill_rows(ctx, e, "1", frontier)) + ";\n")
             print(rmv_ddl(ctx, e, instance) + ";\n")
         for s in view_statements(ctx):

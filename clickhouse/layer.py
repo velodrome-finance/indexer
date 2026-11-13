@@ -21,6 +21,7 @@ Kinds
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 # An Int256 holds every integer below 5.79e76. envio's Postgres column is numeric(76, 0), so a
@@ -37,7 +38,9 @@ class Col:
     src: str | None = None  # envio field; None for kind idpart with a custom expression
     expr: str | None = None  # custom conversion (idpart, optional fields)
     fallback: str | None = None  # expression used when the envio column does not exist (older schema)
-    verify_src: str | None = None  # envio-side text to compare with, when not simply `src`
+    # envio-side value to compare with, when not simply `src`; a template whose {field}s name
+    # envio columns of the expected (argMax) side
+    verify_src: str | None = None
     ch_type: str | None = None  # override of the kind's type
 
 
@@ -62,7 +65,12 @@ def id_part(n: int) -> str:
     return f"splitByChar('-', id)[{n}]"
 
 
-CHAIN_FROM_ID = Col("chain_id", "idpart", expr=f"toInt32OrZero({id_part(1)})", ch_type="Int32", verify_src="toInt32(chainId)")
+def vid(n: int) -> str:
+    """id part inside a verify template ({name} fields are envio columns of the expected side)."""
+    return "splitByChar('-', {id})[" + str(n) + "]"
+
+
+CHAIN_FROM_ID = Col("chain_id", "idpart", expr=f"toInt32OrZero({id_part(1)})", ch_type="Int32", verify_src="toInt32({chainId})")
 
 
 def pool_cols() -> list[Col]:
@@ -71,7 +79,7 @@ def pool_cols() -> list[Col]:
     return [
         Col("id", "str", "id"),
         CHAIN_FROM_ID,
-        Col("pool_address", "idpart", expr=f"lower({id_part(2)})", ch_type="String", verify_src="lower(poolAddress)"),
+        Col("pool_address", "idpart", expr=f"lower({id_part(2)})", ch_type="String", verify_src="lower({poolAddress})"),
         Col("name", "str", "name"),
         Col("token0_address", "addr", "token0_address"),
         Col("token1_address", "addr", "token1_address"),
@@ -177,7 +185,7 @@ def token_cols() -> list[Col]:
     return [
         Col("id", "str", "id"),
         CHAIN_FROM_ID,
-        Col("token_address", "idpart", expr=f"lower({id_part(2)})", ch_type="String", verify_src="lower(address)"),
+        Col("token_address", "idpart", expr=f"lower({id_part(2)})", ch_type="String", verify_src="lower({address})"),
         Col("symbol", "str", "symbol"),
         Col("name", "str", "name"),
         Col("decimals", "count", "decimals", ch_type="UInt8", expr="toUInt8OrZero(decimals)"),
@@ -198,8 +206,8 @@ def user_pool_cols() -> list[Col]:
     return [
         Col("id", "str", "id"),
         CHAIN_FROM_ID,
-        Col("user_address", "idpart", expr=f"lower({id_part(2)})", ch_type="String", verify_src="lower(userAddress)"),
-        Col("pool_address", "idpart", expr=f"lower({id_part(3)})", ch_type="String", verify_src="lower(poolAddress)"),
+        Col("user_address", "idpart", expr=f"lower({id_part(2)})", ch_type="String", verify_src="lower({userAddress})"),
+        Col("pool_address", "idpart", expr=f"lower({id_part(3)})", ch_type="String", verify_src="lower({poolAddress})"),
         b("lp_balance", "lpBalance"),
         b("liquidity_added_usd", "totalLiquidityAddedUSD"),
         b("liquidity_added0", "totalLiquidityAddedToken0"),
@@ -246,8 +254,8 @@ def position_cols() -> list[Col]:
     return [
         Col("id", "str", "id"),
         CHAIN_FROM_ID,
-        Col("nfpm_address", "idpart", expr=f"lower({id_part(2)})", ch_type="String", verify_src="lower(nfpmAddress)"),
-        Col("token_id", "idpart", expr=f"toUInt64OrZero({id_part(3)})", ch_type="UInt64", verify_src="toUInt64(tokenId)"),
+        Col("nfpm_address", "idpart", expr=f"lower({id_part(2)})", ch_type="String", verify_src="lower({nfpmAddress})"),
+        Col("token_id", "idpart", expr=f"toUInt64OrZero({id_part(3)})", ch_type="UInt64", verify_src="toUInt64({tokenId})"),
         Col("owner", "addr", "owner"),
         Col("pool_address", "addr", "pool"),
         Col("tick_lower", "dec", "tickLower"),
@@ -267,7 +275,7 @@ def venft_cols() -> list[Col]:
     return [
         Col("id", "str", "id"),
         CHAIN_FROM_ID,
-        Col("token_id", "idpart", expr=f"toUInt64OrZero({id_part(2)})", ch_type="UInt64", verify_src="toUInt64(tokenId)"),
+        Col("token_id", "idpart", expr=f"toUInt64OrZero({id_part(2)})", ch_type="UInt64", verify_src="toUInt64({tokenId})"),
         Col("owner", "addr", "owner"),
         Col("locktime", "count", "locktime"),
         Col("is_permanent", "bool", "isPermanent"),
@@ -281,8 +289,8 @@ def venft_cols() -> list[Col]:
 def venft_vote_cols() -> list[Col]:
     return [
         Col("id", "str", "id"),
-        Col("chain_id", "idpart", expr=f"toInt32OrZero({id_part(1)})", ch_type="Int32", verify_src=f"toInt32({id_part(1)})"),
-        Col("token_id", "idpart", expr=f"toUInt64OrZero({id_part(2)})", ch_type="UInt64", verify_src=f"toUInt64({id_part(2)})"),
+        Col("chain_id", "idpart", expr=f"toInt32OrZero({id_part(1)})", ch_type="Int32", verify_src=f"toInt32({vid(1)})"),
+        Col("token_id", "idpart", expr=f"toUInt64OrZero({id_part(2)})", ch_type="UInt64", verify_src=f"toUInt64({vid(2)})"),
         Col("pool_address", "addr", "poolAddress"),
         Col("votes", "big", "veNFTamountStaked"),
         Col("venft_id", "str", "veNFTState_id"),
@@ -294,7 +302,7 @@ def alm_cols() -> list[Col]:
     return [
         Col("id", "str", "id"),
         CHAIN_FROM_ID,
-        Col("wrapper_address", "idpart", expr=f"lower({id_part(2)})", ch_type="String", verify_src=f"lower({id_part(2)})"),
+        Col("wrapper_address", "idpart", expr=f"lower({id_part(2)})", ch_type="String", verify_src=f"lower({vid(2)})"),
         Col("pool_address", "addr", "pool"),
         Col("token0_address", "addr", "token0"),
         Col("token1_address", "addr", "token1"),
@@ -322,8 +330,8 @@ def token_price_cols() -> list[Col]:
     return [
         Col("id", "str", "id"),
         CHAIN_FROM_ID,
-        Col("token_address", "idpart", expr=f"lower({id_part(2)})", ch_type="String", verify_src="lower(address)"),
-        Col("snapshot_key", "idpart", expr=f"toUInt64OrZero({id_part(3)})", ch_type="UInt64", verify_src=f"toUInt64({id_part(3)})"),
+        Col("token_address", "idpart", expr=f"lower({id_part(2)})", ch_type="String", verify_src="lower({address})"),
+        Col("snapshot_key", "idpart", expr=f"toUInt64OrZero({id_part(3)})", ch_type="UInt64", verify_src=f"toUInt64({vid(3)})"),
         Col("price_usd", "big", "pricePerUSDNew"),
         Col("is_whitelisted", "bool", "isWhitelisted"),
         Col("refreshed_at", "time", "lastUpdatedTimestamp"),
@@ -358,12 +366,12 @@ ENTITIES: list[Entity] = [
            description="current ALM LP wrappers and their strategy position"),
     Entity("token_price", "_token_price", "TokenPriceSnapshot", "chain_id, token_address, snapshot_key", token_price_cols(),
            description="hourly token price refreshes (TokenPriceSnapshot, typed and keyed per token)",
-           partition_extra="toYYYYMM(refreshed_at)"),
+           partition_extra="toYear(refreshed_at)"),
     Entity("pool_hour", "_pool_hour", "Pool", "chain_id, pool_address, period", series_cols(), mode="hour",
-           period_expr="toStartOfHour(lastUpdatedTimestamp)", partition_extra="toYYYYMM(period)",
+           period_expr="toStartOfHour(lastUpdatedTimestamp)", partition_extra="toYear(period)",
            description="end-of-hour pool state for every hour in which the pool changed (exact, from the per-block history)"),
     Entity("pool_day", "_pool_day", "Pool", "chain_id, pool_address, period", series_cols(), mode="day",
-           period_expr="toStartOfDay(lastUpdatedTimestamp)", partition_extra="toYear(period)",
+           period_expr="toStartOfDay(lastUpdatedTimestamp)",
            description="end-of-day pool state for every day in which the pool changed (exact, from the per-block history)"),
 ]
 
@@ -417,21 +425,37 @@ class Resolved:
             return f"arrayMap(x -> toUInt64OrZero(x), {s})"
         return s
 
-    def verify_pair(self) -> tuple[str, str] | None:
-        """(target text, envio text) over the same row; None when there is nothing to compare."""
+    def verify_fields(self) -> list[str]:
+        """envio columns the verify expression reads."""
+        if not self.present:
+            return []
+        if self.col.verify_src:
+            return re.findall(r"\{(\w+)\}", self.col.verify_src)
+        return [self.col.src] if self.col.src else []
+
+    def verify_pair(self, e: str = "e.", t: str = "t.") -> tuple[str, str] | None:
+        """(stored value as text, envio value as text); None when there is nothing to compare."""
         c = self.col
         if not self.present:
             return None
-        if c.kind == "idpart":
-            if c.verify_src is None:
-                return None
-            return (f"toString(t.`{c.name}`)", f"toString({c.verify_src})")
-        s = f"`{c.src}`"
-        t = f"t.`{c.name}`"
+        tv = f"{t}`{c.name}`"
+        if c.verify_src:
+            sv = c.verify_src.format_map(_Prefixed(e))
+        elif c.src:
+            sv = f"{e}`{c.src}`"
+        else:
+            return None
         if c.kind == "addr":
-            return (f"ifNull({t}, '<null>')", f"ifNull(lower({s}), '<null>')")
-        if c.kind in ("big", "count", "dec", "int32"):
-            return (f"ifNull(toString({t}), '<null>')", f"ifNull(toString({s}), '<null>')")
+            sv = f"lower({sv})"
         if c.kind == "u64list":
-            return (f"toString(arrayMap(x -> toString(x), {t}))", f"toString({s})")
-        return (f"ifNull(toString({t}), '<null>')", f"ifNull(toString({s}), '<null>')")
+            return (f"toString(arrayMap(x -> toString(x), {tv}))", f"toString({sv})")
+        return (f"ifNull(toString({tv}), '<null>')", f"ifNull(toString({sv}), '<null>')")
+
+
+class _Prefixed(dict):
+    def __init__(self, prefix: str):
+        super().__init__()
+        self.prefix = prefix
+
+    def __missing__(self, key: str) -> str:
+        return f"{self.prefix}`{key}`"
