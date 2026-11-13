@@ -155,7 +155,7 @@ All amounts are compared in integers. "Exact" means equal.
 | `user.protocol-addresses` | no row keyed by a pool, NFPM, gauge, voting reward or ALM wrapper carries swap, liquidity or fee-collection amounts | exact (zero) |
 | `user.alm` | almLpAmount = wrapper Transfer replay and `balanceOf()` (sample) | exact |
 | `position.nft` | the live NFTs, with pool, ticks, liquidity, owner (ignoring gauge transfers) and isStakedInGauge; `positions()` / `ownerOf()` (sample) | exact |
-| `alm.wrapper`, `alm.position-link` | wrapper lpAmount = Σ Deposit − Σ Withdraw = `totalSupply()`; ticks and liquidity = the strategy's NFT | exact; liquidity relative 1e-3 |
+| `alm.wrapper`, `alm.position-link` | wrapper lpAmount = `totalSupply()` (Transfer replay and on-chain); ticks and liquidity = the strategy's NFT | exact; liquidity relative 1e-3 |
 
 ### Tokens and prices
 | id | what | tolerance |

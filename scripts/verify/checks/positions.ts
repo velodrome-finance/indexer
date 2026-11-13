@@ -114,7 +114,7 @@ export async function checkAlmWrappers(ctx: CheckContext): Promise<void> {
   const c = new Check(
     "alm.wrapper",
     ctx.chainId,
-    "Each ALM StrategyCreated wrapper has an ALM_LP_Wrapper row for its pool; lpAmount equals Σ Deposit.lpAmount − Σ Withdraw.lpAmount and the wrapper's totalSupply() (Transfer replay; on-chain); tickLower/tickUpper and liquidity equal the strategy's NFT position (tokenId).",
+    "Each ALM StrategyCreated wrapper has an ALM_LP_Wrapper row for its pool; lpAmount equals the wrapper's totalSupply() (Transfer replay, and on-chain; Σ Deposit − Σ Withdraw is reported but excludes the initial supply minted at creation); tickLower/tickUpper and liquidity equal the strategy's NFT position (tokenId).",
     "Exact; liquidity relative 1e-3 (the handler re-derives it from deposit amounts with maxLiquidityForAmounts between rebalances).",
   );
   const liq = new Check(
@@ -156,12 +156,10 @@ export async function checkAlmWrappers(ctx: CheckContext): Promise<void> {
       return;
     }
     c.eq(`${w.address}.pool`, lc(r.pool), w.pool, det);
-    c.cmp(
-      `${w.address}.lpAmount vs deposits − withdrawals`,
-      big(r.lpAmount),
+    // Σ Deposit − Σ Withdraw is not the supply: wrappers mint an initial supply
+    // with no Deposit event. Shown as detail only; the supply is the reference.
+    c.stats[`${w.address} deposits−withdrawals`] = String(
       w.depositLp - w.withdrawLp,
-      {},
-      det,
     );
     c.cmp(
       `${w.address}.lpAmount vs supply (Transfer replay)`,
