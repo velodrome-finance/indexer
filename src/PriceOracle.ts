@@ -191,6 +191,15 @@ export async function refreshTokenPrice(
   chainId: number,
   context: handlerContext,
 ): Promise<Token> {
+  if (token.chainId !== chainId) {
+    // A token's price clock may only advance with its own chain's block time.
+    // The caller's block number / timestamp belong to `chainId`, so refuse
+    // rather than stamp this token with another chain's clock.
+    context.log.error(
+      `[refreshTokenPrice] Refusing to refresh ${token.id} with chain ${chainId}'s block time`,
+    );
+    return token;
+  }
   const healed = await healTokenMetadata(token, chainId, context);
   const blockTimestampMs = blockTimestamp * 1000;
   if (!isPriceRefreshDue(healed.lastUpdatedTimestamp, blockTimestampMs)) {

@@ -133,6 +133,25 @@ const snapshotsFor = (
 
 describe("PriceOracle", () => {
   describe("refreshTokenPrice", () => {
+    it("refuses to stamp a token with another chain's block time", async () => {
+      const store = opStore();
+      const before = store.tokens.get(TokenId(OP, OP_WETH));
+      if (!before) throw new Error("missing WETH");
+      const result = await PriceOracle.refreshTokenPrice(
+        before,
+        1,
+        NOW,
+        LISK,
+        store.context,
+      );
+      expect(result).toBe(before);
+      expect(store.context.Token.set).not.toHaveBeenCalled();
+      expect(store.snapshots).toHaveLength(0);
+      expect(store.context.log.error).toHaveBeenCalledWith(
+        expect.stringContaining("Refusing to refresh"),
+      );
+    });
+
     describe("strict hourly throttle", () => {
       it("does nothing when the token was already refreshed this clock hour", async () => {
         const store = opStore({
