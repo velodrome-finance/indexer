@@ -745,6 +745,10 @@
       }
     },
     "tokenPools": {
+      "0x102d758f688a4c1c5a80b116bd945d4455460282": {
+        "pools": 1,
+        "swaps": 115
+      },
       "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
         "pools": 2,
         "swaps": 714287
