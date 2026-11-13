@@ -61,6 +61,7 @@ Options:
   checks (default 8; half the busiest, half random).
 - `--no-defillama`: skip the DefiLlama price check.
 - `--allow-live`: accept an instance that advanced during the run.
+- `--live`: read entity rows from ClickHouse history at the pinned checkpoint instead of Postgres, so a running instance is checked exactly at the pinned block (`events_processed` from `envio_checkpoints`).
 
 The run writes `report.md` (per chain and per check: pass / fail / warn /
 skip, both sides' numbers, the worst offenders with ids, blocks and tx hashes)
