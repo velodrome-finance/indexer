@@ -422,14 +422,22 @@ export function checkEventCounters(ctx: CheckContext): void {
       ev("CLPool.Flash"),
     ],
     [
-      "Gauge+CLGauge Deposit / Σ numberOfGaugeDeposits",
+      "Gauge deposits (legacy + Aero) / Σ numberOfGaugeDeposits",
       sum("numberOfGaugeDeposits", () => true),
-      ev("Gauge.Deposit") + ev("CLGauge.Deposit"),
+      ev("Gauge.Deposit") +
+        ev("CLGauge.Deposit") +
+        ev("AeroCLGauge.Deposit") +
+        ev("AeroV2Gauge.Deposit"),
     ],
     [
-      "Gauge+CLGauge Withdraw / Σ numberOfGaugeWithdrawals",
+      "Gauge withdrawals (legacy + Aero, incl. EmergencyWithdraw) / Σ numberOfGaugeWithdrawals",
       sum("numberOfGaugeWithdrawals", () => true),
-      ev("Gauge.Withdraw") + ev("CLGauge.Withdraw"),
+      ev("Gauge.Withdraw") +
+        ev("CLGauge.Withdraw") +
+        ev("AeroCLGauge.Withdraw") +
+        ev("AeroV2Gauge.Withdraw") +
+        ev("AeroCLGauge.EmergencyWithdraw") +
+        ev("AeroV2Gauge.EmergencyWithdraw"),
     ],
     [
       "Gauge+CLGauge ClaimRewards / Σ numberOfGaugeRewardClaims",

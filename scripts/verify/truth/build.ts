@@ -823,7 +823,14 @@ export async function buildChainTruth(
         else bump(truth.eventCounts, key);
         bump(g.counts, e);
         const p = truth.pools.get(g.pool);
-        if (p)
+        // Only staking events (and legacy reward claims) update the Pool row; Aero
+        // emission / referral / fee events go to their own entities.
+        const updatesPool =
+          e === "Deposit" ||
+          e === "Withdraw" ||
+          e === "EmergencyWithdraw" ||
+          (!g.aero && e === "ClaimRewards");
+        if (p && updatesPool)
           p.activeHours.add(
             Math.floor((ctx.blockTs.get(l.block_number) ?? 0) / 3600),
           );
