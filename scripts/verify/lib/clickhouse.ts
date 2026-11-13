@@ -49,12 +49,21 @@ export class ChClient {
     const headers: Record<string, string> = { "content-type": "text/plain" };
     if (this.cfg.username) headers["X-ClickHouse-User"] = this.cfg.username;
     if (this.cfg.password) headers["X-ClickHouse-Key"] = this.cfg.password;
-    const res = await httpRequest(u.toString(), {
-      method: "POST",
-      headers,
-      body: `${sql}\nFORMAT TabSeparatedWithNames`,
-      timeoutMs: 600_000,
-    });
+    let res: Awaited<ReturnType<typeof httpRequest>> | undefined;
+    for (let attempt = 0; !res; attempt++) {
+      try {
+        res = await httpRequest(u.toString(), {
+          method: "POST",
+          headers,
+          body: `${sql}\nFORMAT TabSeparatedWithNames`,
+          timeoutMs: 600_000,
+        });
+      } catch (e) {
+        // Connection resets happen when the server is busy merging; retry.
+        if (attempt >= 4) throw e;
+        await new Promise((r) => setTimeout(r, 2000 * 2 ** attempt));
+      }
+    }
     const text = res.body.toString("utf8");
     if (res.status !== 200)
       throw new Error(

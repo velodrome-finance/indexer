@@ -15,7 +15,7 @@ import {
   decodeLog,
 } from "../lib/abi";
 import type { ChainSpec } from "../lib/config";
-import { staticContracts } from "../lib/config";
+import { ROLE, addressesWithRole, staticContracts } from "../lib/config";
 import {
   type HsLog,
   type HsPage,
@@ -306,9 +306,9 @@ export async function buildChainTruth(
     }
     return m;
   };
-  const nfpms = new Set(statics.get("NFPM") ?? []);
-  const clFactories = new Set(chain.contracts.get("CLFactory") ?? []);
-  const v2Factories = new Set(chain.contracts.get("PoolFactory") ?? []);
+  const nfpms = new Set(addressesWithRole(chain, ROLE.nfpm));
+  const clFactories = new Set(addressesWithRole(chain, ROLE.clFactory));
+  const v2Factories = new Set(addressesWithRole(chain, ROLE.v2Factory));
   /** tokenId mints by NFPM: `${nfpm}|${tokenId}` resolved later from CL Mint by tx. */
   const nftFirstIncrease = new Map<
     string,
@@ -326,32 +326,32 @@ export async function buildChainTruth(
         bump(truth.eventCounts, `${def.contract}.${def.name}`);
       const c = def.contract;
       const e = def.name;
-      if ((c === "PoolFactory" || c === "CLFactory") && e === "PoolCreated") {
+      if ((ROLE.v2Factory(c) || ROLE.clFactory(c)) && e === "PoolCreated") {
         const pool = (d.pool as string).toLowerCase();
+        // Factories without a `stable` param (Aero stable / volatile factories) imply it by name.
+        const dd =
+          d.stable === undefined ? { ...d, stable: /Stable/.test(c) } : d;
         const p = newPool(
           pool,
-          c === "CLFactory" ? "cl" : "v2",
-          d,
+          ROLE.clFactory(c) ? "cl" : "v2",
+          dd,
           l.address,
           l,
         );
         truth.pools.set(pool, p);
         truth.tokens.add(p.token0);
         truth.tokens.add(p.token1);
-      } else if (c === "CLFactory" && e === "TickSpacingEnabled") {
+      } else if (ROLE.clFactory(c) && e === "TickSpacingEnabled") {
         truth.tickSpacingFees.set(
           Number(d.tickSpacing as bigint),
           Number(d.fee as bigint),
         );
-      } else if (c === "PoolFactory" && e === "SetCustomFee") {
+      } else if (ROLE.v2Factory(c) && e === "SetCustomFee") {
         truth.v2CustomFees.set(
           (d.pool as string).toLowerCase(),
           d.fee as bigint,
         );
-      } else if (
-        (c === "Voter" || c === "SuperchainLeafVoter") &&
-        e === "GaugeCreated"
-      ) {
+      } else if (ROLE.voter(c) && e === "GaugeCreated") {
         const pf = (d.poolFactory as string).toLowerCase();
         const kind = clFactories.has(pf)
           ? "cl"
@@ -408,15 +408,12 @@ export async function buildChainTruth(
           mk(g.bribeVotingReward, "bribe", bribeContract),
         );
       } else if (
-        (c === "Voter" || c === "SuperchainLeafVoter") &&
+        ROLE.voter(c) &&
         (e === "GaugeKilled" || e === "GaugeRevived")
       ) {
         const g = truth.gauges.get((d.gauge as string).toLowerCase());
         if (g) g.alive = e === "GaugeRevived";
-      } else if (
-        (c === "Voter" || c === "SuperchainLeafVoter") &&
-        e === "WhitelistToken"
-      ) {
+      } else if (ROLE.voter(c) && e === "WhitelistToken") {
         truth.whitelist.set(
           (d.token as string).toLowerCase(),
           d._bool as boolean,
@@ -442,7 +439,7 @@ export async function buildChainTruth(
             counts: new Map(),
           });
         }
-      } else if (c === "NFPM") {
+      } else if (ROLE.nfpm(c)) {
         const id = d.tokenId as bigint;
         const key = `${l.address}|${id}`;
         if (e === "Transfer") {

@@ -133,3 +133,35 @@ export function staticContracts(chain: ChainSpec): Map<string, string[]> {
   }
   return out;
 }
+
+/** Contract roles by config.yaml contract name, so new deployments (e.g. Aero*) are covered. */
+export const ROLE = {
+  /** CL pool factories: PoolCreated(token0, token1, tickSpacing, pool). */
+  clFactory: (name: string): boolean =>
+    /CLFactory$/.test(name) && !/^Root/.test(name),
+  /** V2 pool factories: PoolCreated(token0, token1, [stable,] pool, ...). */
+  v2Factory: (name: string): boolean =>
+    /PoolFactory$/.test(name) &&
+    !/^Root/.test(name) &&
+    !/CLPoolFactory$/.test(name),
+  /** Position managers (NFTs of CL positions). */
+  nfpm: (name: string): boolean => /NFPM$/.test(name),
+  /** Voters emitting GaugeCreated. */
+  voter: (name: string): boolean => name === "Voter" || /LeafVoter$/.test(name),
+};
+
+/**
+ * Static addresses of a chain's contracts that have a role.
+ * @param chain - Chain spec
+ * @param role - Role predicate on the contract name
+ * @returns Lowercase addresses
+ */
+export function addressesWithRole(
+  chain: ChainSpec,
+  role: (name: string) => boolean,
+): string[] {
+  const out: string[] = [];
+  for (const [name, addrs] of chain.contracts)
+    if (role(name)) out.push(...addrs);
+  return out;
+}

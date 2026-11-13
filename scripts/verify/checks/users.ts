@@ -1,6 +1,7 @@
 /**
  * Per-user (UserStatsPerPool) data against attribution recomputed from logs.
  */
+import { ROLE, addressesWithRole } from "../lib/config";
 import { Check } from "../lib/report";
 import { big, lc, sample } from "../lib/util";
 import { ALM_WRAPPER_ABI, V2_GAUGE_ABI, V2_POOL_ABI } from "../lib/viewAbis";
@@ -92,7 +93,7 @@ export async function checkUsers(ctx: CheckContext): Promise<void> {
   const keys = new Set([...idx.keys(), ...ctx.truth.users.keys()]);
   const pools = ctx.truth.pools;
   const gaugeAddrs = new Set(ctx.truth.gauges.keys());
-  const nfpms = new Set(ctx.chain.contracts.get("NFPM") ?? []);
+  const nfpms = new Set(addressesWithRole(ctx.chain, ROLE.nfpm));
   const protocol = new Map<string, string>();
   for (const a of nfpms) protocol.set(a, "NFPM");
   for (const a of gaugeAddrs) protocol.set(a, "gauge");
