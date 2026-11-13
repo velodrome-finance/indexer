@@ -1,6 +1,7 @@
 import { TickMath } from "@uniswap/v3-sdk";
 import {
   createUserStatsPerPoolEntity,
+  preloadUserStatsPerPoolUpdate,
   updateUserStatsPerPool,
 } from "../../src/Aggregators/UserStatsPerPool";
 import {
@@ -333,5 +334,83 @@ describe("UserStatsPerPool CL snapshot USD via direct gets", () => {
       ctx.UserStatsPerPoolSnapshot.set as ReturnType<typeof vi.fn>
     ).mock.calls[0][0];
     expect(snapshotCall.currentLiquidityStakedUSD).toBeGreaterThan(0n);
+  });
+
+  describe("preloadUserStatsPerPoolUpdate", () => {
+    /** Wraps the context's reads so the ids each function asks for can be compared. */
+    function recordReads(ctx: ReturnType<typeof buildMockContext>) {
+      const reads: string[] = [];
+      for (const store of ["Pool", "Token", "NonFungiblePosition"] as const) {
+        const entityStore = ctx[store] as { get: (id: string) => unknown };
+        const original = entityStore.get;
+        entityStore.get = vi.fn(async (id: string) => {
+          reads.push(`${store}:${id}`);
+          return original(id);
+        });
+      }
+      return reads;
+    }
+
+    const positions = [
+      {
+        tokenId: 42n,
+        liquidity: 1000000n,
+        tickLower: -1000n,
+        tickUpper: 1000n,
+      },
+      { tokenId: 99n, liquidity: 2000000n, tickLower: -500n, tickUpper: 500n },
+    ];
+
+    it.each([
+      ["snapshot due, staked CL positions", 3000000n, [42n, 99n], undefined, 5],
+      ["snapshot due, nothing staked", 0n, [], undefined, 0],
+      [
+        "already snapshotted this epoch",
+        3000000n,
+        [42n, 99n],
+        epoch2Timestamp,
+        0,
+      ],
+    ])(
+      "issues the same reads as updateUserStatsPerPool (%s)",
+      async (
+        _label,
+        staked,
+        tokenIds,
+        lastSnapshotTimestamp,
+        expectedReads,
+      ) => {
+        const userStats = common.createMockUserStatsPerPool({
+          userAddress: mockUserAddress,
+          poolAddress: mockPoolAddress,
+          chainId: mockChainId,
+          currentLiquidityStaked: staked,
+          stakedCLPositionTokenIds: tokenIds,
+          firstActivityTimestamp: epoch1Timestamp,
+          lastActivityTimestamp: epoch1Timestamp,
+          lastSnapshotTimestamp,
+        });
+
+        const updateCtx = buildMockContext({ positions });
+        const updateReads = recordReads(updateCtx);
+        await updateUserStatsPerPool(
+          { lastActivityTimestamp: epoch2Timestamp },
+          userStats,
+          updateCtx,
+          epoch2Timestamp,
+        );
+
+        const preloadCtx = buildMockContext({ positions });
+        const preloadReads = recordReads(preloadCtx);
+        await preloadUserStatsPerPoolUpdate(
+          userStats,
+          epoch2Timestamp,
+          preloadCtx,
+        );
+
+        expect(updateReads).toHaveLength(expectedReads);
+        expect(preloadReads.sort()).toEqual(updateReads.sort());
+      },
+    );
   });
 });

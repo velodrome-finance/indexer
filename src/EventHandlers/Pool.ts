@@ -4,6 +4,7 @@ import { createOUSDTSwapEntity } from "../Aggregators/OUSDTSwaps";
 import { loadPoolData, updatePool } from "../Aggregators/Pool";
 import {
   loadOrCreateUserData,
+  preloadUserStatsPerPoolUpdate,
   updateUserStatsPerPool,
 } from "../Aggregators/UserStatsPerPool";
 import { OUSDT_ADDRESS } from "../Constants";
@@ -150,6 +151,18 @@ indexer.onEvent(
       return;
     }
 
+    if (context.isPreload) {
+      // The rest is arithmetic on rows already loaded plus the user's
+      // snapshot-time reads; issue those and skip the arithmetic.
+      await preloadUserStatsPerPoolUpdate(
+        userData,
+        timestamp,
+        context,
+        poolData,
+      );
+      return;
+    }
+
     const { liquidityPoolAggregator, token0Instance, token1Instance } =
       poolData;
 
@@ -214,6 +227,22 @@ indexer.onEvent(
 
     const { liquidityPoolAggregator, token0Instance, token1Instance } =
       poolData;
+    const isOUSDTPool =
+      token0Instance.address === OUSDT_ADDRESS ||
+      token1Instance.address === OUSDT_ADDRESS;
+
+    if (context.isPreload) {
+      // The rest is arithmetic on rows already loaded plus two reads: the
+      // user's snapshot-time staked positions and the tx's oUSDT swap
+      // registry. Issue those and skip the arithmetic.
+      await Promise.all([
+        preloadUserStatsPerPoolUpdate(userData, timestamp, context, poolData),
+        isOUSDTPool
+          ? context.TxOUSDTSwapRegistry.get(event.transaction.hash)
+          : undefined,
+      ]);
+      return;
+    }
 
     // Process swap event
     const result = processPoolSwap(
@@ -245,10 +274,7 @@ indexer.onEvent(
     ]);
 
     // Create OUSDTSwaps entity only if oUSDT is involved
-    if (
-      token0Instance.address === OUSDT_ADDRESS ||
-      token1Instance.address === OUSDT_ADDRESS
-    ) {
+    if (isOUSDTPool) {
       await createOUSDTSwapEntity(
         event.transaction.hash,
         event.chainId,
@@ -280,6 +306,12 @@ indexer.onEvent(
       event.block.timestamp,
     );
     if (!poolData) {
+      return;
+    }
+
+    // The rest is arithmetic on rows already loaded (updatePool only re-reads
+    // this pool's tokens), so the preload pass has nothing left to batch.
+    if (context.isPreload) {
       return;
     }
 

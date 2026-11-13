@@ -185,6 +185,69 @@ export function createUserStatsPerPoolEntity(
 }
 
 /**
+ * Preload-pass stand-in for {@link updateUserStatsPerPool}: issues the reads
+ * it would make, without its arithmetic, so a handler can return early in the
+ * preload pass and still have those reads batched.
+ *
+ * `updateUserStatsPerPool` reads only at a snapshot boundary, and only for a
+ * user with staked liquidity: the staked CL positions (and, without
+ * `preloadedPoolData`, the pool and its tokens). Mirrors those conditions on
+ * `current`, which is exact for diffs that do not move staked liquidity
+ * (swaps, fees, flash loans); for any other diff a miss only costs an
+ * unbatched read in the run proper.
+ *
+ * @param current - The user's stats row as loaded
+ * @param timestamp - Event time
+ * @param context - Handler context
+ * @param preloadedPoolData - The pool data the run proper will pass, if any
+ * @returns Promise that resolves once the reads have completed
+ */
+export async function preloadUserStatsPerPoolUpdate(
+  current: UserStatsPerPool,
+  timestamp: Date,
+  context: handlerContext,
+  preloadedPoolData?: PoolData,
+): Promise<void> {
+  if (
+    !shouldSnapshot(current.lastSnapshotTimestamp, timestamp) ||
+    current.currentLiquidityStaked <= 0n
+  ) {
+    return;
+  }
+  let poolEntity = preloadedPoolData?.liquidityPoolAggregator;
+  if (!poolEntity) {
+    poolEntity = await getRehydrated(
+      context.Pool,
+      "Pool",
+      PoolId(current.chainId, current.poolAddress),
+    );
+    if (!poolEntity) return;
+    await Promise.all([
+      getRehydrated(context.Token, "Token", poolEntity.token0_id),
+      getRehydrated(context.Token, "Token", poolEntity.token1_id),
+    ]);
+  }
+  const nfpmAddress = poolEntity.nfpmAddress;
+  if (
+    poolEntity.isCL &&
+    poolEntity.sqrtPriceX96 &&
+    poolEntity.sqrtPriceX96 !== 0n &&
+    current.stakedCLPositionTokenIds.length > 0 &&
+    nfpmAddress
+  ) {
+    await Promise.all(
+      current.stakedCLPositionTokenIds.map((tokenId) =>
+        getRehydrated(
+          context.NonFungiblePosition,
+          "NonFungiblePosition",
+          NonFungiblePositionId(current.chainId, nfpmAddress, tokenId),
+        ),
+      ),
+    );
+  }
+}
+
+/**
  * Generic function to update UserStatsPerPool with any combination of fields
  * Similar to updatePool pattern.
  * Takes an epoch-aligned snapshot when entering a new snapshot epoch.

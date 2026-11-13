@@ -8,6 +8,7 @@ import { loadPoolData, updatePool } from "../Aggregators/Pool";
 import { loadPoolTickMap, setPoolTickMap } from "../Aggregators/PoolTickMap";
 import {
   loadOrCreateUserData,
+  preloadUserStatsPerPoolUpdate,
   updateUserStatsPerPool,
 } from "../Aggregators/UserStatsPerPool";
 import {
@@ -583,6 +584,23 @@ indexer.onEvent(
       return;
     }
 
+    const isOUSDTPool =
+      poolData.token0Instance.address === OUSDT_ADDRESS ||
+      poolData.token1Instance.address === OUSDT_ADDRESS;
+
+    if (context.isPreload) {
+      // Everything below is arithmetic on rows already loaded, plus two reads:
+      // the user's snapshot-time staked positions and the tx's oUSDT swap
+      // registry. Issue those and skip the arithmetic (preload writes are no-ops).
+      await Promise.all([
+        preloadUserStatsPerPoolUpdate(userData, timestamp, context, poolData),
+        isOUSDTPool
+          ? context.TxOUSDTSwapRegistry.get(event.transaction.hash)
+          : undefined,
+      ]);
+      return;
+    }
+
     const { liquidityPoolAggregator, token0Instance, token1Instance } =
       poolData;
 
@@ -613,11 +631,7 @@ indexer.onEvent(
     ]);
 
     // Create OUSDTSwaps entity
-
-    if (
-      poolData.token0Instance.address === OUSDT_ADDRESS ||
-      poolData.token1Instance.address === OUSDT_ADDRESS
-    ) {
+    if (isOUSDTPool) {
       // Convert CLPool int256 amounts to In/Out format
       const amount0In = event.params.amount0 > 0n ? event.params.amount0 : 0n;
       const amount0Out = event.params.amount0 < 0n ? -event.params.amount0 : 0n;
