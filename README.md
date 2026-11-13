@@ -8,9 +8,10 @@ veNFTs, concentrated-liquidity positions, automated liquidity management, pool
 launchers, and cross-chain swaps, and serves the derived state from a Postgres
 database. Legacy and Aero pools share one data model: `Pool.deployment`
 (`VELODROME` / `AERODROME` / `AERO`) tells them apart
-([ADR 0005](docs/adr/0005-one-data-model-for-legacy-and-aero-pools.md)). For
-Aero, pools, swaps, liquidity, positions and prices are indexed; gauges,
-emissions and governance are not yet.
+([ADR 0005](docs/adr/0005-one-data-model-for-legacy-and-aero-pools.md)). Aero
+gauges, staking, emissions, sAERO, allocations, allocator rewards, the Minter
+and the legacy-to-Aero migration are indexed into their own `Aero*` / `SAero*`
+entities ([ADR 0006](docs/adr/0006-aero-gauges-and-governance.md)).
 
 Built in TypeScript on the [Envio HyperIndex](https://docs.envio.dev/) platform
 (v3.16).
@@ -247,10 +248,17 @@ Subdirectories:
   `V2CustomFeeModule`, `AeroTokenRegistry` (token list, a price-trust
   signal); Aero pools use the shared `Pool` / `CLPool` contracts
   and entities
+- **Aero gauges, emissions and governance** (`src/EventHandlers/Aero/`,
+  ADR 0006) — `AeroGaugeManager`, `AeroCLGaugeFactory`, `AeroV2GaugeFactory`,
+  the dynamic `AeroCLGauge` / `AeroV2Gauge` / `AeroVotingRewardsManager`,
+  `AeroLeafVoter` and `AeroUnstakedFeeModule` on every Aero chain;
+  `AeroVotingEscrow` (sAERO), `AeroVoter`, `AeroMinter`,
+  `AeroRootEmissionsHandler` and `AeroMigration` / `AeroMigrationEntrypoint`
+  on Base (`AeroMigration` also on Optimism)
 
 ## Data model
 
-The database schema is defined in [`schema.graphql`](schema.graphql) (48 entity
+The database schema is defined in [`schema.graphql`](schema.graphql) (75 entity
 types). The full, field-by-field reference — types, nullability, indexes, and
 descriptions for every field — is in
 **[`docs/schema.md`](docs/schema.md)**, which is generated from the schema by
@@ -295,6 +303,11 @@ the GraphQL API, the value-scaling rules, and example queries.
 - **Cross-chain superswaps (Hyperlane)** — oUSDT-bridged swaps and their
   dispatch/process correlation
   ([full list](docs/schema.md#cross-chain-superswaps-hyperlane))
+- **Aero gauges, staking & emissions** and **Aero governance** — Aero gauge
+  state, emission ledger, sAERO positions, root and leaf allocations, allocator
+  rewards, Minter and migration, with append-only event rows in ClickHouse
+  ([gauges](docs/schema.md#aero-gauges-staking--emissions),
+  [governance](docs/schema.md#aero-governance))
 - **Internal buffers & deferred state** — short-lived bookkeeping entities that
   correlate events across log indices/blocks; mostly deleted once consumed
   ([full list](docs/schema.md#internal-buffers--deferred-state))
