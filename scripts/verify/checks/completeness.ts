@@ -4,6 +4,7 @@
  * creation block, and the number of logs the indexer processed matches the
  * chain.
  */
+import { readFileSync } from "node:fs";
 import { httpRequest } from "../lib/http";
 import { Check } from "../lib/report";
 import { big, lc } from "../lib/util";
@@ -406,6 +407,7 @@ export function checkEventCounters(ctx: CheckContext): void {
  * @param metricsUrl - Prometheus endpoint
  * @param truths - Event counts per verified chain
  * @param instanceChains - All chains the instance indexes
+ * @param pinned - Pinned block per verified chain
  * @returns Promise resolving when done
  */
 export async function checkHandlerMetrics(
@@ -413,6 +415,7 @@ export async function checkHandlerMetrics(
   metricsUrl: string | undefined,
   truths: Map<number, Map<string, number>>,
   instanceChains: number[] | undefined,
+  pinned: Map<number, number>,
 ): Promise<void> {
   const c = new Check(
     "completeness.handler-metrics",
@@ -426,8 +429,12 @@ export async function checkHandlerMetrics(
   }
   let text: string;
   try {
-    const res = await httpRequest(metricsUrl, { timeoutMs: 5000 });
-    text = res.body.toString();
+    if (metricsUrl.startsWith("file:")) {
+      text = readFileSync(metricsUrl.slice(5), "utf8");
+    } else {
+      const res = await httpRequest(metricsUrl, { timeoutMs: 5000 });
+      text = res.body.toString();
+    }
   } catch (e) {
     results.push(
       c
@@ -450,6 +457,27 @@ export async function checkHandlerMetrics(
     );
     return;
   }
+  // The scrape must describe the same state as the pinned blocks.
+  for (const [chainId, block] of pinned) {
+    const m = new RegExp(
+      `^envio_progress_block\\{chainId="${chainId}"\\}\\s+(\\d+)`,
+      "m",
+    ).exec(text);
+    if (!m || Number(m[1]) !== block) {
+      results.push(
+        c
+          .skip(
+            `metrics are at block ${m?.[1] ?? "?"} for chain ${chainId}, the run is pinned at ${block}; save a scrape taken right before stopping the instance (--metrics file:<path>)`,
+          )
+          .done(""),
+      );
+      return;
+    }
+  }
+  const start = /^envio_process_start_time_seconds\s+([0-9.e+]+)/m.exec(text);
+  c.stats.processStart = start
+    ? new Date(Number(start[1]) * 1000).toISOString()
+    : "?";
   const want = new Map<string, number>();
   for (const m of truths.values())
     for (const [k, v] of m) want.set(k, (want.get(k) ?? 0) + v);

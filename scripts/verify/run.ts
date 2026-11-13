@@ -253,7 +253,13 @@ async function main(): Promise<number> {
   }
   if (want("completeness.handler-metrics")) {
     const r: CheckResult[] = [];
-    await checkHandlerMetrics(r, target.metricsUrl, truthCounts, target.chains);
+    await checkHandlerMetrics(
+      r,
+      target.metricsUrl,
+      truthCounts,
+      target.chains,
+      new Map(report.chains.map((c) => [c.chainId, c.pinnedBlock])),
+    );
     report.results.push(...r);
   }
 

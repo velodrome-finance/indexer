@@ -80,7 +80,11 @@ export function veloTarget(spec: string): Target {
 export function targetFromOptions(
   o: Record<string, string | undefined>,
 ): Target {
-  if (o.velo) return veloTarget(o.velo);
+  if (o.velo) {
+    const t = veloTarget(o.velo);
+    if (o.metrics) t.metricsUrl = o.metrics;
+    return t;
+  }
   if (!o.pg)
     throw new Error(
       "--pg <postgres://...> or --velo <stack>/<name> is required",
