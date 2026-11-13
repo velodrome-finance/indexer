@@ -26,7 +26,9 @@ function stakedNfts(
 ): NftTruth[] {
   const gs = new Set(gauges.map((g) => g.address));
   return [...ctx.truth.nfts.values()].filter(
-    (n) => !n.burned && n.pool === pool && gs.has(n.owner),
+    // Deposited through the gauge (an NFT sent to the gauge directly is held, not staked).
+    (n) =>
+      !n.burned && n.pool === pool && gs.has(n.owner) && n.stakedIn === n.owner,
   );
 }
 
