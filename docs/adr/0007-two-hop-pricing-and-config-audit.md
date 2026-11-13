@@ -166,6 +166,28 @@ all chains move together and it works.
   from `price_connectors.json` (it then becomes tier 3 and expires after
   seven days) is the operator's remedy.
 
+### Measured
+
+One sync of Optimism in its Aero era (Aero contracts only, from block
+158,475,795) with Mode and Unichain from genesis, tier-1 carry in place:
+
+- Unichain WETH: pool-priced to 2026-10-18 12:00, when an LP withdrew $1.65k
+  of USDC from the USDC/WETH pool (USDC side $2,152 → $499); then `carried` at
+  $2,414 for 26 days, never 0; `canonical` from Optimism WETH ($1,928, depth
+  $78.6k) once the chains reached the head together.
+- Mode WETH: `carried` at $1,923 from 2026-08-19 to the head, then
+  `canonical` at $1,928.
+- No `canonical` WETH row anywhere in the backfill, as the alignment argument
+  predicts; Optimism ran up to weeks ahead of the leaf chains.
+- Share of swaps in pools with both tokens priced at the head: Unichain 94.2%
+  (5.6% without the carry and without the source), Mode 90.5% (19.1%).
+
+The same alignment explains xAERO at 0 on the Aero leaf chains of an Aero-only
+seven-chain sync: its source (Base AERO, mapped since ADR 0004) ran up to two
+days ahead of the leaf chains, so the ±2 h window rejected it except for the
+two hours Robinhood Chain happened to be aligned. It takes Base AERO's price
+at the head; exact backfill prices need the hourly source table above.
+
 ## Base: depth measure and floor kept (2026-11-13)
 
 An Aero-only Base sync (2026-10-21 to 10-30) left 59 tokens with oracle
