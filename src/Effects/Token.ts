@@ -1,8 +1,26 @@
 import { S, createEffect } from "envio";
-import { ErrorType } from "./Helpers";
-import { EffectType, callRpcGateway } from "./RpcGateway";
+import { isAddress } from "viem";
+import ERC20_ABI from "../../abis/ERC20.json";
+import {
+  CHAIN_CONSTANTS,
+  PriceOracleType,
+  TOKEN_DETAILS_FALLBACK,
+  toChecksumAddress,
+} from "../Constants";
+import { RpcConfigError } from "./RpcConfig";
+import { createRpcEffect } from "./RpcEffect";
+import { executeRpc, mostCacheBlockingErrorClass } from "./RpcGateway";
+import {
+  DEFAULT_DECIMALS,
+  MAX_DECIMALS,
+  type TokenMetadata,
+  UNKNOWN_NAME,
+  UNKNOWN_SYMBOL,
+  getTokenMetadata,
+} from "./TokenMetadata";
+import { fetchTokenPrice } from "./fetchers/Token";
 
-export { fetchTokenDetails, fetchTokenPrice } from "./fetchers/Token";
+export { fetchTokenPrice } from "./fetchers/Token";
 
 /**
  * Rounds a block number down to the start of its hourly interval for better cache hits on price lookups.
@@ -23,9 +41,6 @@ export function roundBlockToInterval(
   chainId: number,
   minBlock?: number,
 ): number {
-  // Approximate block times per chain (in seconds)
-  // Most L2s (Base, Optimism, Mode, etc.) are ~2 seconds
-  // Ethereum mainnet is ~12 seconds
   const blockTimeSeconds = chainId === 1 ? 12 : 2;
   const blocksPerHour = Math.floor(3600 / blockTimeSeconds);
   const rounded = Math.floor(blockNumber / blocksPerHour) * blocksPerHour;
@@ -33,16 +48,41 @@ export function roundBlockToInterval(
 }
 
 /**
- * Effect to get ERC20 token metadata (name, decimals, symbol). Delegates to {@link rpcGateway}.
- * On error, fallback handling is delegated to the RPC gateway.
+ * Maps {@link getTokenMetadata} output to the shape callers of
+ * {@link getTokenDetails} expect: the cache's "unknown"/"UNKNOWN" placeholders
+ * become "" — the "missing" marker that `healTokenMetadata` and the
+ * TOKEN_DETAILS_FALLBACK fingerprint (#820) key on.
+ *
+ * @param meta - Metadata from the getTokenMetadata effect / cache.
+ * @returns `{ name, decimals, symbol }` with placeholders blanked.
+ */
+export function toTokenDetails(meta: TokenMetadata): {
+  name: string;
+  decimals: number;
+  symbol: string;
+} {
+  return {
+    name: meta.name === UNKNOWN_NAME ? "" : meta.name,
+    symbol: meta.symbol === UNKNOWN_SYMBOL ? "" : meta.symbol,
+    decimals: meta.decimals,
+  };
+}
+
+/**
+ * Effect to get ERC20 token metadata (name, decimals, symbol). Thin mapping
+ * over {@link getTokenMetadata}, which does the RPC and owns the cache (and is
+ * seeded from the Uniswap v4 token cache); this effect itself is not cached.
+ * Name and symbol are "" when unreadable; decimals is 18 when unreadable.
+ *
+ * `crossChain: false` because it calls the chain-scoped getTokenMetadata.
  *
  * @param input.contractAddress - ERC20 contract address.
  * @param input.chainId - Chain ID for RPC client.
- * @returns Promise resolving to { name, decimals, symbol }; fallback on error.
+ * @returns Promise resolving to { name, decimals, symbol }.
  */
 export const getTokenDetails = createEffect(
   {
-    name: EffectType.GET_TOKEN_DETAILS,
+    name: "getTokenDetails",
     input: {
       contractAddress: S.string,
       chainId: S.number,
@@ -53,98 +93,160 @@ export const getTokenDetails = createEffect(
       symbol: S.string,
     },
     rateLimit: false,
-    cache: true,
+    cache: false,
+    crossChain: false,
   },
   async ({ input, context }) => {
-    const result = await callRpcGateway(context, {
-      type: EffectType.GET_TOKEN_DETAILS,
-      contractAddress: input.contractAddress,
+    if (!isAddress(input.contractAddress, { strict: false })) {
+      return { ...TOKEN_DETAILS_FALLBACK };
+    }
+    const meta = await context.effect(getTokenMetadata, {
+      address: toChecksumAddress(input.contractAddress),
       chainId: input.chainId,
     });
-
-    // Skip caching only when the fallback was returned because of a transient
-    // RPC failure (issue #691 + #692). A deterministic contract revert is
-    // safe to cache — re-fetching at the same block would produce the same
-    // revert and the same fallback constant, so caching avoids one extra RPC
-    // call per revert-producing address per indexer run.
-    if (shouldSkipCacheOnDefault(result.usedDefault, result.errorClass)) {
-      context.cache = false;
-    }
-
-    return {
-      name: result.name,
-      decimals: result.decimals,
-      symbol: result.symbol,
-    };
+    return toTokenDetails(meta);
   },
 );
 
 /**
- * Cache gating helper for outer effects sitting on top of {@link callRpcGateway}.
- * Returns true when the fallback constant is unsafe to cache — i.e. it was
- * produced by a transient RPC failure (network blip, rate limit, etc.) rather
- * than a deterministic contract revert. CONTRACT_REVERT fallbacks stay cached
- * (issue #692) so reverts amortise like real successes.
- *
- * @param usedDefault - Whether the gateway returned the caller's fallback constant.
- * @param errorClass - The {@link ErrorType} of the underlying failure, or null on success.
- * @returns true when the caller should set `context.cache = false`; false otherwise.
- */
-function shouldSkipCacheOnDefault(
-  usedDefault: boolean,
-  errorClass: ErrorType | string | undefined,
-): boolean {
-  return usedDefault && errorClass !== ErrorType.CONTRACT_REVERT;
-}
-
-/**
- * Effect to read token price in USD from the chain's price oracle. Delegates to {@link rpcGateway};
- * fallback on error is handled inside the gateway.
+ * Effect to read token price in USD from the chain's price oracle.
+ * Kept for scripts and the remaining callers; the RPC legs go through
+ * {@link executeRpc} and a stand-in zero price is never cached.
  *
  * @param input.tokenAddress - Token to price.
  * @param input.chainId - Chain ID for oracle and RPC.
  * @param input.blockNumber - Block at which to read (often rounded via {@link roundBlockToInterval}).
- * @param input.tokenDecimals - Optional source-token decimals (issue #748). When supplied,
- *   skips the source-token `fetchTokenDetails` RPC (3 redundant `eth_call`s per cache miss).
- *   Omit when the caller doesn't hold a trustworthy stored decimals (e.g. cross-chain
- *   cold-sync against an unloaded source Token); the gateway falls back to fetching.
+ * @param input.tokenDecimals - Optional source-token decimals (issue #748); fetched when omitted.
  * @returns Promise resolving to { pricePerUSDNew, priceOracleType }.
  */
-export const getTokenPrice = createEffect(
+export const getTokenPrice = createRpcEffect(
   {
-    name: EffectType.GET_TOKEN_PRICE,
-    input: {
+    name: "getTokenPrice",
+    input: S.schema({
       tokenAddress: S.string,
       chainId: S.number,
       blockNumber: S.number,
       tokenDecimals: S.optional(S.number),
-    },
-    output: {
+    }),
+    output: S.schema({
       pricePerUSDNew: S.bigint,
       priceOracleType: S.string,
-    },
-    rateLimit: false,
+    }),
     cache: true,
   },
   async ({ input, context }) => {
-    const result = await callRpcGateway(context, {
-      type: EffectType.GET_TOKEN_PRICE,
-      tokenAddress: input.tokenAddress,
-      chainId: input.chainId,
-      blockNumber: input.blockNumber,
-      tokenDecimals: input.tokenDecimals,
+    const { tokenAddress, chainId, blockNumber, tokenDecimals } = input;
+    const chain = CHAIN_CONSTANTS[chainId];
+    if (!chain) throw new RpcConfigError(`Unsupported chainId: ${chainId}`);
+    const oracleType = chain.oracle.getType(blockNumber);
+    const real = (pricePerUSDNew: bigint) => ({
+      value: { pricePerUSDNew, priceOracleType: oracleType.toString() },
+      usedDefault: false,
+      errorClass: undefined,
     });
 
-    // Skip caching only on transient-RPC fallbacks (issue #691 + #692).
-    // Legitimate zero prices (pre-oracle-deploy, broken connectors) are cacheable;
-    // a deterministic CONTRACT_REVERT fallback is also cacheable.
-    if (shouldSkipCacheOnDefault(result.usedDefault, result.errorClass)) {
-      context.cache = false;
+    if (
+      tokenAddress === chain.destinationToken ||
+      chain.stablecoins.has(tokenAddress.toLowerCase())
+    ) {
+      return real(10n ** 18n);
+    }
+    // Pre-deploy zero is a real answer (the oracle does not exist yet).
+    if (chain.oracle.startBlock > blockNumber) return real(0n);
+
+    let sourceDecimals = tokenDecimals;
+    let decimalsErrorClass: ReturnType<typeof mostCacheBlockingErrorClass>;
+    let decimalsUsedDefault = false;
+    if (sourceDecimals === undefined) {
+      const r = await executeRpc<number>(
+        context,
+        {
+          name: "getTokenPrice.decimals",
+          chainId,
+          details: { token: tokenAddress },
+        },
+        DEFAULT_DECIMALS,
+        async (client) =>
+          Number(
+            await client.readContract({
+              address: tokenAddress as `0x${string}`,
+              abi: ERC20_ABI,
+              functionName: "decimals",
+              args: [],
+            }),
+          ),
+      );
+      sourceDecimals =
+        Number.isInteger(r.value) && r.value >= 0 && r.value <= MAX_DECIMALS
+          ? r.value
+          : DEFAULT_DECIMALS;
+      decimalsUsedDefault = r.usedDefault;
+      decimalsErrorClass = r.errorClass;
     }
 
+    const WETH_ADDRESS = chain.weth;
+    const SYSTEM_TOKEN_ADDRESS = chain.rewardToken(blockNumber);
+    const DESTINATION = chain.destinationToken;
+    let connectors = chain.oracle.priceConnectors
+      .filter((c) => c.createdBlock <= blockNumber)
+      .map((c) => c.address)
+      .filter(
+        (a) =>
+          a !== tokenAddress &&
+          a !== WETH_ADDRESS &&
+          a !== DESTINATION &&
+          a !== SYSTEM_TOKEN_ADDRESS,
+      );
+    // Issue #688: V1/V2 oracles revert on connectors without a pool.
+    if (
+      oracleType === PriceOracleType.V1 ||
+      oracleType === PriceOracleType.V2
+    ) {
+      const blacklist = chain.oracle.v1v2ConnectorBlacklist;
+      if (blacklist.size > 0) {
+        connectors = connectors.filter((a) => !blacklist.has(a));
+      }
+    }
+
+    const price = await executeRpc(
+      context,
+      {
+        name: "getTokenPrice",
+        chainId,
+        details: { token: tokenAddress, block: blockNumber },
+      },
+      { pricePerUSDNew: 0n, priceOracleType: oracleType.toString() },
+      (client) =>
+        fetchTokenPrice(
+          tokenAddress,
+          DESTINATION,
+          SYSTEM_TOKEN_ADDRESS,
+          WETH_ADDRESS,
+          connectors,
+          chainId,
+          blockNumber,
+          client,
+        ),
+    );
+
+    const p = price.value;
+    const currentPrice =
+      p.priceOracleType === PriceOracleType.V3 ||
+      p.priceOracleType === PriceOracleType.V4
+        ? (p.pricePerUSDNew * 10n ** BigInt(sourceDecimals)) /
+          10n ** BigInt(chain.destinationTokenDecimals)
+        : p.pricePerUSDNew;
+
     return {
-      pricePerUSDNew: result.pricePerUSDNew,
-      priceOracleType: result.priceOracleType,
+      value: {
+        pricePerUSDNew: currentPrice,
+        priceOracleType: oracleType.toString(),
+      },
+      usedDefault: price.usedDefault || decimalsUsedDefault,
+      errorClass: mostCacheBlockingErrorClass(
+        price.errorClass,
+        decimalsErrorClass,
+      ),
     };
   },
 );

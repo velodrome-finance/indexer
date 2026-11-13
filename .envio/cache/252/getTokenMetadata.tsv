@@ -1,0 +1,37 @@
+id	output
+["0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",252]	{"name": "OpenUSDT", "symbol": "oUSDT", "decimals": 6}
+["0x1509706a6c66CA549ff0cB464de88231DDBe213B",252]	{"name": "Aura", "symbol": "AURA", "decimals": 18}
+["0x1abaE239090138E87d719f659987eb2AA7D091C8",252]	{"name": "CurveYield Max cvxFXS/FXS Vault", "symbol": "cycvxFXS/FXS", "decimals": 18}
+["0x211Cc4DD073734dA055fbF44a2b4667d5E5fE5d2",252]	{"name": "Staked USDe", "symbol": "sUSDe", "decimals": 18}
+["0x215886A8DBF3eB528a95A21eF3bbeac18f2b2fE3",252]	{"name": "Moo Convex cvxFXS", "symbol": "mooConvexCvxFXS", "decimals": 18}
+["0x2416092f143378750bb29b79eD961ab195CcEea5",252]	{"name": "Renzo Restaked ETH", "symbol": "ezETH", "decimals": 18}
+["0x3022E3B9F00444ea4d44fAb4e0c6349A4495b915",252]	{"name": "Luna the Bitcoin Witch by IQ", "symbol": "BTCWITCH", "decimals": 18}
+["0x331B9182088e2A7d6D3Fe4742AbA1fB231aEcc56",252]	{"name": "Curve DAO Token", "symbol": "CRV", "decimals": 18}
+["0x4217B0B878101bdd718b70168203Bbc445F1C466",252]	{"name": "Astral FXB20551231", "symbol": "aFXB2055", "decimals": 18}
+["0x500AD720e676901C90aaBAD2482CC0A70535f2B2",252]	{"name": "Astral FXB20551231", "symbol": "aFXB2055+", "decimals": 18}
+["0x5BD5c0cB9E4404C63526433BcBd6d133C1d73ffE",252]	{"name": "Ionic", "symbol": "ION", "decimals": 18}
+["0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",252]	{"name": "USDe", "symbol": "USDe", "decimals": 18}
+["0x62eE4F79E6d5F608F19d8954ACAf68b8403eCA03",252]	{"name": "Astral Bifi Convex Frax", "symbol": "astcvxFXS", "decimals": 18}
+["0x748e54072189Ec8540cD58A078404ebFDc2aACeA",252]	{"name": "Wrapped liquid staked Ether 2.0", "symbol": "wstETH", "decimals": 18}
+["0x788D96f655735f52c676A133f4dFC53cEC614d4A",252]	{"name": "dTRINITY USD", "symbol": "dUSD", "decimals": 6}
+["0x7Ed7ff3e6E66e40B9EE19F376eB4DF89237ad210",252]	{"name": "DK the AI DeFi Trader by IQ", "symbol": "DKDEFI", "decimals": 18}
+["0x7F3a9Afc827AeEdb0c5dC1A66C0Baa41cD7289F0",252]	{"name": "Wrapped BTC", "symbol": "WBTC", "decimals": 8}
+["0x7FE8bdBafE8C5A2bFdc09b78e4109E987eB62610",252]	{"name": "IK the Liquid IQ AI Rapper by IQ", "symbol": "IQYIELD", "decimals": 18}
+["0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",252]	{"name": "Superchain Velodrome", "symbol": "XVELO", "decimals": 18}
+["0x8e9C334afc76106F08E0383907F4Fca9bB10BA3e",252]	{"name": "FXB_4_DEC312026", "symbol": "FXB_20261231", "decimals": 18}
+["0x96F0860Bb034aF101266810AAF0210C2EaB81406",252]	{"name": "Staked CurveYield", "symbol": "scrvYIELD", "decimals": 18}
+["0xA4e45e7462C26F1aE5FA4Ec18596EDD2f624970B",252]	{"name": "Staked CurveYIELD DAO Token", "symbol": "scrvYIELDx", "decimals": 18}
+["0xBE5B2Eb217bB04A7ddD1A451e6a1567Dc15e2Fd6",252]	{"name": "KRWQ", "symbol": "KRWQ", "decimals": 18}
+["0xBec43dC6cedF0203dc59B12140A2a6e497474A0C",252]	{"name": "Super Astral Yield Bearing BTC", "symbol": "SuperABTC", "decimals": 18}
+["0xDcc0F2D8F90FDe85b10aC1c8Ab57dc0AE946A543",252]	{"name": "USD Coin", "symbol": "USDC", "decimals": 6}
+["0xEFb4B26FC242478c9008274F9e81db89Fa6adAB9",252]	{"name": "Convex FXS", "symbol": "cvxFXS", "decimals": 18}
+["0xF1e2b576aF4C6a7eE966b14C810b772391e92153",252]	{"name": "FXB20291231", "symbol": "FXB20291231", "decimals": 18}
+["0xFC00000000000000000000000000000000000005",252]	{"name": "Staked Frax Ether", "symbol": "sfrxETH", "decimals": 18}
+["0xFC00000000000000000000000000000000000006",252]	{"name": "Frax Ether", "symbol": "frxETH", "decimals": 18}
+["0xFc00000000000000000000000000000000000001",252]	{"name": "Frax USD", "symbol": "frxUSD", "decimals": 18}
+["0xFc00000000000000000000000000000000000002",252]	{"name": "Wrapped Frax", "symbol": "WFRAX", "decimals": 18}
+["0xacA9A33698cF96413A40A4eB9E87906ff40fC6CA",252]	{"name": "FXB20251231", "symbol": "FXB20251231", "decimals": 18}
+["0xafcc6AE807187A31E84138F3860D4CE27973e01b",252]	{"name": "Superchain OP", "symbol": "XOP", "decimals": 18}
+["0xc38173D34afaEA88Bc482813B3CD267bc8A1EA83",252]	{"name": "FXB20551231", "symbol": "FXB20551231", "decimals": 18}
+["0xe5465cEEEd9AC6979f7590Cb4e417ABBf7C90a85",252]	{"name": "Staked Astral FXB20551231", "symbol": "aFXB2055+", "decimals": 18}
+["0xfc00000000000000000000000000000000000008",252]	{"name": "Staked Frax USD", "symbol": "sfrxUSD", "decimals": 18}

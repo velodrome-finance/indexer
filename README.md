@@ -70,8 +70,47 @@ cp .env.example .env
 
 - `ENVIO_API_TOKEN` — Envio API token
 - `ENVIO_PG_MAX_CONNECTIONS` — Postgres connection cap (recommended for v3)
-- `ENVIO_<CHAIN>_RPC_URL` — one RPC URL per chain, used for on-chain reads that
-  fall outside HyperSync (e.g. `ENVIO_OPTIMISM_RPC_URL`, `ENVIO_BASE_RPC_URL`)
+- `ENVIO_CLICKHOUSE_*` — ClickHouse storage (see `.env.example`)
+- RPC endpoints, see below.
+
+#### RPC configuration
+
+On-chain reads that fall outside HyperSync (token metadata, gauge balances,
+swap fees, root-pool lookups, oracle prices) go through `src/Effects/`. Each
+chain's endpoints are resolved in one place, `src/Effects/RpcConfig.ts`:
+
+| Variable | Meaning |
+| --- | --- |
+| `ENVIO_DRPC_API_KEY` | dRPC key. When set, every chain's primary is `https://lb.drpc.live/<network>/<key>` (networks: optimism, base, celo, soneium, ink, mode, lisk, unichain, fraxtal, metall2, superseed, swell). |
+| `ENVIO_<CHAIN>_RPC_URL` | Explicit primary for one chain; overrides the dRPC URL. `<CHAIN>` is one of `OPTIMISM BASE CELO SONEIUM INK MODE LISK UNICHAIN FRAXTAL METAL SUPERSEED SWELL`. |
+| `ENVIO_<CHAIN>_FALLBACK_RPC_URL` | Second endpoint used when the primary fails for any reason other than a contract revert. Defaults to a public endpoint from another provider (Superseed has none); `none` disables it. |
+| `ENVIO_<CHAIN>_RPC_RPS` | Requests per second for that chain's primary (defaults: Base 40, Optimism 25, others 10). |
+| `ENVIO_DRPC_MAX_RPS` | Budget shared by all dRPC-key endpoints (default 80; dRPC pay-as-you-go accounts created after 2026-10-19 are limited to 100 RPS per account). |
+| `ENVIO_FALLBACK_RPC_RPS` | Requests per second for each fallback endpoint (default 5). |
+
+There is no silent public default for the primary: if neither
+`ENVIO_<CHAIN>_RPC_URL` nor `ENVIO_DRPC_API_KEY` is set, the indexer refuses to
+start and lists every missing variable. Check endpoints (chain id, archive
+`eth_call`s at several historical blocks, latency) with:
+
+```bash
+npx -y tsx@4.19.2 scripts/check-rpc.ts            # all chains, primary + fallback
+npx -y tsx@4.19.2 scripts/check-rpc.ts --chain 8453 --calls 20 --primary-only
+```
+
+Failures are retried with backoff and then sent to the fallback; when both
+fail, the effect returns a default that is never written to the effect cache,
+and the indexer logs `rpc.default_used` (error class, chain, operation) plus a
+per-chain `rpc.stats` line every minute. Alert on `default_transient`.
+
+#### Token metadata seed cache
+
+`.envio/cache/<chainId>/getTokenMetadata.tsv` is committed. Envio loads it into
+the `getTokenMetadata` effect cache when it initialises a fresh database
+(first `envio dev`/`envio start`, or a run with `-r`), so a resync does not
+re-read ~35k tokens over RPC. It is compatible with the `getTokenMetadata`
+cache of Envio's Uniswap v4 indexer. Rebuild it with
+`scripts/build-token-metadata-cache.ts`.
 
 ### Run
 

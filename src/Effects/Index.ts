@@ -5,10 +5,18 @@ export {
   roundBlockToInterval,
 } from "./Token";
 
+// Uniswap-v4-cache-compatible metadata effect underneath getTokenDetails
+export { getTokenMetadata } from "./TokenMetadata";
+
 export { getSwapFee } from "./SwapFee";
+
+export { getRootPoolAddress } from "./RootPool";
 
 // Voter-related effects
 export { getTokensDeposited } from "./Voter";
 
 // Bytecode-gate effect (filters EOAs / non-contract addresses at Token creation sites)
 export { hasContractBytecode } from "./Bytecode";
+
+// RPC observability
+export { getRpcStats } from "./RpcGateway";

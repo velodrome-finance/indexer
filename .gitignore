@@ -29,7 +29,12 @@ benchmarks/
 artifacts
 cache
 generated
-.envio
+# Envio codegen output and local state stay ignored; the effect-cache seed
+# (.envio/cache/<chainId>/<effect>.tsv) is committed so a fresh database starts
+# with token metadata instead of ~35k RPC calls. Rebuild it with
+# scripts/build-token-metadata-cache.ts.
+.envio/*
+!.envio/cache/
 envio-env.d.ts
 logs
 *.bs.js

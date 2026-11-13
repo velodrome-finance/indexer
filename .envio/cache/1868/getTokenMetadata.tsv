@@ -1,0 +1,33 @@
+id	output
+["0x0555E30da8f98308EdB960aa94C0Db47230d2B9c",1868]	{"name": "Wrapped BTC", "symbol": "WBTC", "decimals": 8}
+["0x102d758f688a4C1C5a80b116bD945d4455460282",1868]	{"name": "Stargate USD₮0 (Bridged)", "symbol": "USD₮0", "decimals": 6}
+["0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",1868]	{"name": "OpenUSDT", "symbol": "oUSDT", "decimals": 6}
+["0x194Bef1cC4d8E97Fc6ABeAFACe5c9872eEefDeA4",1868]	{"name": "INTERN", "symbol": "INTERN", "decimals": 18}
+["0x19a80F5DFE30bdf19054716E221539FC040f3b72",1868]	{"name": "Yay Staked Astar", "symbol": "yayASTR", "decimals": 18}
+["0x2CAE934a1e84F693fbb78CA5ED3B0A6893259441",1868]	{"name": "Astar Token", "symbol": "ASTR", "decimals": 18}
+["0x2a52B289bA68bBd02676640aA9F605700c9e5699",1868]	{"name": "Wrapped Staked USR", "symbol": "wstUSR", "decimals": 18}
+["0x2fc9a87b1ef46dCDdF4801C36d752E0d5F243E4b",1868]	{"name": "Neemo ReStaked Ether", "symbol": "nrETH", "decimals": 18}
+["0x35533f54740F1F1aA4179E57bA37039dfa16868B",1868]	{"name": "Resolv Liquidity Provider Token", "symbol": "RLP", "decimals": 18}
+["0x3A337a6adA9d885b6Ad95ec48F9b75f197b5AE35",1868]	{"name": "Tether USD", "symbol": "USDT", "decimals": 6}
+["0x3b0DC2daC9498A024003609031D973B1171dE09E",1868]	{"name": "Warpped stASTR", "symbol": "wstASTR", "decimals": 18}
+["0x4200000000000000000000000000000000000006",1868]	{"name": "Wrapped Ether", "symbol": "WETH", "decimals": 18}
+["0x541FD749419CA806a8bc7da8ac23D346f2dF8B77",1868]	{"name": "Solv BTC", "symbol": "SolvBTC", "decimals": 18}
+["0x54e86315C03217b76A7466C302245fD10ebEf25A",1868]	{"name": "Yay StakeStone Ether", "symbol": "yaySTONE", "decimals": 18}
+["0x60336f9296C79dA4294A19153eC87F8E52158e5F",1868]	{"name": "Bifrost Voucher ASTR", "symbol": "vASTR", "decimals": 18}
+["0x651076B543c4F084E8B595818C371904FE742352",1868]	{"name": "HotBriquettedIron", "symbol": "HBI", "decimals": 18}
+["0x7274364543EDd6cd5cE59AD64b12e5F5837Bb2f3",1868]	{"name": "Algem xnASTR", "symbol": "xnASTR", "decimals": 18}
+["0x78eC2a0E1B5a0639173f0C9185455296CD63761A",1868]	{"name": "LFxVelodrome 28.06.25 ETH/yaySTONE", "symbol": "LWRAPPED", "decimals": 18}
+["0x7a25b5faaE8F06ee3eAd7Cd0E81706a68395aC87",1868]	{"name": "SONEIUM", "symbol": "SNM", "decimals": 18}
+["0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",1868]	{"name": "Superchain Velodrome", "symbol": "XVELO", "decimals": 18}
+["0x8CD846c404C7267350a2920576816603Cd5C6539",1868]	{"name": "Pipo", "symbol": "PIPO", "decimals": 18}
+["0xA0aeBd4Ae5F256B72B7D43f67eD934237Adb1AeE",1868]	{"name": "BONSAI COIN", "symbol": "BONSAICOIN", "decimals": 18}
+["0xAffEb8576b927050f5a3B6fbA43F360D2883A118",1868]	{"name": "SolvBTC Jupiter", "symbol": "SolvBTC.JUP", "decimals": 18}
+["0xB8c0f852c588ed93adEAfDF7c3ea28989F1F91D8",1868]	{"name": "Soneium Samurai Gold Coins", "symbol": "KOBAN", "decimals": 18}
+["0xCC0966D8418d412c599A6421b760a847eB169A8c",1868]	{"name": "xSolvBTC", "symbol": "xSolvBTC", "decimals": 18}
+["0xa00223f9eB48f9AFC4aa1F3D62dc16d0ea415c19",1868]	{"name": "SNYCAT", "symbol": "SNYCAT", "decimals": 18}
+["0xaA9BD8c957D803466FA92504BDd728cC140f8941",1868]	{"name": "Wrapped liquid staked Ether 2.0", "symbol": "wstETH", "decimals": 18}
+["0xafcc6AE807187A31E84138F3860D4CE27973e01b",1868]	{"name": "Superchain OP", "symbol": "XOP", "decimals": 18}
+["0xb1b385542B6E80F77B94393Ba8342c3Af699f15c",1868]	{"name": "Resolv USD", "symbol": "USR", "decimals": 18}
+["0xbA9986D2381edf1DA03B0B9c1f8b00dc4AacC369",1868]	{"name": "Bridged USDC (Soneium)", "symbol": "USDC.e", "decimals": 6}
+["0xc67476893C166c537afd9bc6bc87b3f228b44337",1868]	{"name": "Neemo Staked Astar", "symbol": "nsASTR", "decimals": 18}
+["0xda14b3B7aEF494b8c37ed9710d14e44D490316fa",1868]	{"name": "Yay Kelp DAO’s Airdrop Gain ETH", "symbol": "yayAgETH", "decimals": 18}

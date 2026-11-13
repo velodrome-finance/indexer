@@ -1,0 +1,19 @@
+id	output
+["0x0555E30da8f98308EdB960aa94C0Db47230d2B9c",130]	{"name": "Wrapped BTC", "symbol": "WBTC", "decimals": 8}
+["0x078D782b760474a361dDA0AF3839290b0EF57AD6",130]	{"name": "USDC", "symbol": "USDC", "decimals": 6}
+["0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",130]	{"name": "OpenUSDT", "symbol": "oUSDT", "decimals": 6}
+["0x14d9143BEcC348920b68D123687045db49a016C6",130]	{"name": "Spark USDC Vault", "symbol": "sUSDC", "decimals": 18}
+["0x1AE5c230a480Cd9226411271D137cb9BbD201f30",130]	{"name": "Fly", "symbol": "⨎₤¥", "decimals": 18}
+["0x39538C45f6fD0B0Dd3e595ED1C2671875feE9F17",130]	{"name": "Hooffather", "symbol": "HOOF", "decimals": 18}
+["0x4200000000000000000000000000000000000006",130]	{"name": "Wrapped Ether", "symbol": "WETH", "decimals": 18}
+["0x61cfE4FA9a14EcD63CFE0BCE13021c13f9F039E6",130]	{"name": "tailor hemingway associates", "symbol": "THA", "decimals": 18}
+["0x69c969A3E82936D5cf8D641D8229A9977e598438",130]	{"name": "BitcoinBR", "symbol": "BTCBR", "decimals": 18}
+["0x749Fb1c53bd3dC7269b42bc7ffDaB111532e664a",130]	{"name": "GUEDDY🌹♱", "symbol": "GUEDDY🌹♱", "decimals": 9}
+["0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",130]	{"name": "Superchain Velodrome", "symbol": "XVELO", "decimals": 18}
+["0x87826EbB2d9864007DA3e6Cc5568aCACD93FC84A",130]	{"name": "Unik", "symbol": "Uk", "decimals": 18}
+["0x89f7C0870794103744C8042630CC1C846a858E57",130]	{"name": "Paxos Gold", "symbol": "PAXG", "decimals": 18}
+["0x9151434b16b9763660705744891fA906F660EcC5",130]	{"name": "USD₮0", "symbol": "USD₮0", "decimals": 6}
+["0x927B51f251480a681271180DA4de28D44EC4AfB8",130]	{"name": "Wrapped BTC", "symbol": "WBTC", "decimals": 8}
+["0xDe55FF6506B8730a8d9A3e8e5c66083af9992b93",130]	{"name": "Wrapped 2025ThatsaWrap by zinalsite", "symbol": "w2025", "decimals": 18}
+["0xFe713eA2832575D963a4d702c5554d4D8721C8f5",130]	{"name": "BitcoinBR", "symbol": "BTCBR", "decimals": 18}
+["0xafcc6AE807187A31E84138F3860D4CE27973e01b",130]	{"name": "Superchain OP", "symbol": "XOP", "decimals": 18}
