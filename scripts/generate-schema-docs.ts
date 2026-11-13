@@ -70,7 +70,9 @@ function parseSchema(src: string): Entity[] {
       continue;
     }
 
-    const typeMatch = line.match(/^type\s+(\w+)\s*\{/);
+    // `type X {`, `type X @storage(...) @internal {`, or `type X` with its
+    // directives and `{` on the following lines.
+    const typeMatch = line.match(/^type\s+(\w+)\b/);
     if (typeMatch) {
       current = {
         name: typeMatch[1],
@@ -164,6 +166,7 @@ const CATEGORIES: { title: string; blurb: string; names: string[] }[] = [
       "DynamicFeeGlobalConfig",
       "CLGaugeConfig",
       "FeeToTickSpacingMapping",
+      "PoolFactoryDefaultFee",
       "RedistributorConfig",
       "RootPool_LeafPool",
       "RootGauge_RootPool",
@@ -184,6 +187,8 @@ const CATEGORIES: { title: string; blurb: string; names: string[] }[] = [
       "OUSDTSwaps",
       "DispatchId_event",
       "ProcessId_event",
+      "TxDispatchIdRegistry",
+      "TxOUSDTSwapRegistry",
     ],
   },
   {
@@ -195,9 +200,15 @@ const CATEGORIES: { title: string; blurb: string; names: string[] }[] = [
       "CLPoolPendingInitialize",
       "PendingRootPoolMapping",
       "PendingDistribution",
+      "PoolTickMap",
       "CLPoolMintEvent",
       "CLPositionPendingPrincipal",
       "TxCLPoolMintRegistry",
+      "AeroNFPMMintPool",
+      "AeroNFPMPendingMint",
+      "NFPMPositionPendingPrincipal",
+      "V2SwapFeesInTx",
+      "TokenPricingPools",
       "TxPoolTransferRegistry",
       "PoolTransferInTx",
       "ALMLPWrapperTransferInTx",

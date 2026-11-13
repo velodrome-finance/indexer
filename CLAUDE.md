@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Multi-chain blockchain indexer for **Velodrome V2** (Optimism) and **Aerodrome** (Base) plus superchain deployments (Celo, Soneium, Ink, Mode, Lisk, Unichain, Fraxtal, Metal, Swell). Built with TypeScript on the **Envio HyperIndex** platform (v3.16). This is **not** a TheGraph subgraph.
+Multi-chain blockchain indexer for **Velodrome V2** (Optimism) and **Aerodrome** (Base) plus superchain deployments (Celo, Soneium, Ink, Mode, Lisk, Unichain, Fraxtal, Metal, Swell), and for **Aero** (MetaDEX), the merged deployment launched 2026-10-21 on Base, Optimism, Ethereum, Arbitrum, Ink, Robinhood Chain (4663) and Arc (5042). Legacy and Aero pools share one data model (`Pool.deployment` tells them apart, ADR 0005). Built with TypeScript on the **Envio HyperIndex** platform (v3.16). This is **not** a TheGraph subgraph.
 
 ## Commands
 
@@ -34,7 +34,7 @@ pnpm envio stop           # Stop the indexer
 - **`src/Aggregators/`** - Derived entity computations. `Pool.ts` is the central aggregator (~24KB) that computes pool-level metrics (TVL, volume, fees, votes, emissions). Other aggregators: `UserStatsPerPool.ts`, `NonFungiblePosition.ts`, `VeNFTState.ts`, `VeNFTPoolVote.ts`, `ALMLPWrapper.ts`.
 - **`src/Snapshots/`** - Hourly snapshot creation for all aggregated entities. Uses `Shared.ts` for common epoch-alignment logic.
 - **`src/Effects/`** - External calls (RPC, API) wrapped in Envio's Effect API for preload compatibility. `RpcGateway.ts` handles multi-chain RPC calls, `Token.ts` fetches token details (its `getTokenPrice` oracle effect is kept for scripts only — handlers never call it).
-- **`src/Constants.ts`** - Chain-specific constants, factory addresses, price connectors, RPC client setup. Exports `toChecksumAddress()`, chain constants map (`CHAIN_CONSTANTS`), and precision constants.
+- **`src/Constants.ts`** - Chain-specific constants, factory addresses, price connectors, RPC client setup. Exports `toChecksumAddress()`, chain constants map (`CHAIN_CONSTANTS`), and precision constants. A chain's entry has a `legacy` block (legacy reward token, LpHelper, on-chain oracle; read it with `getLegacyConstants`) and/or an `aero` block (Aero reward token, start block); Aero-only chains have no `legacy` block.
 - **`src/Helpers.ts`** - Shared utilities (error handling, CL position calculations using Uniswap v3 SDK, USD conversions).
 - **`src/PriceOracle.ts`** - Hourly token price refresh from indexed pool state (see Pricing below), token creation, metadata heal.
 - **`src/Pricing/`** - Pool-derived pricing building blocks: tiers + thresholds (`PricingConfig.ts`), candidate pools + deepest-pool selection (`PoolRoute.ts`), throttle / carry / 7-day expiry (`PriceResolution.ts`).
@@ -52,7 +52,21 @@ The indexer tracks these protocol domains, each with its own event handlers:
 - **ALM**: Automated Liquidity Management (DeployFactory, Core, LPWrapper v1/v2)
 - **Pool Launcher**: `CLPoolLauncher`, `V2PoolLauncher` for emerging token launches
 - **Superswaps/Hyperlane**: Cross-chain swap tracking (`VelodromeUniversalRouter`, `Mailbox`)
-- **Swap Fee Modules**: `DynamicSwapFeeModule`, `CustomSwapFeeModule`
+- **Swap Fee Modules**: `DynamicSwapFeeModule`, `CustomSwapFeeModule` (CL); `V2CustomFeeModule` (each superchain leaf `PoolFactory.feeModule()` and the Aero V2 CustomFeeModules)
+- **Aero (MetaDEX)**: `AeroCLFactory` (same ABI as `CLFactory`), `AeroStablePoolFactory` / `AeroVolatilePoolFactory` (V2; stability = emitting factory), `AeroNFPM`, `DynamicSwapFeeHook` (CL fee config), `V2CustomFeeModule` (V2 custom fees, shared with the leaf chains), `AeroTokenRegistry` (Aero token list → `Token.isListedOnAero`, a price-trust signal). Their pools register into the shared `Pool` / `CLPool` contracts. Arc also has the earlier "lite launch" factories / NFPM / hook, listed under the same contract names. Gauges, emissions and governance (sAERO, allocations) are not indexed yet.
+
+### Deployments (legacy vs Aero)
+
+`Pool.deployment` (`VELODROME` / `AERODROME` / `AERO`, `POOL_DEPLOYMENT` in `src/Constants.ts`) is set at PoolCreated from the config contract that emitted it, and copied to `PoolSnapshot`. Rules for Aero pools (docs/adr/0005-one-data-model-for-legacy-and-aero-pools.md):
+
+- Never give an existing field a second meaning: a legacy-only field stays at its creation default (or null) on an AERO pool, and the schema comment says so.
+- AERO pools are never superchain leaf pools: `rootPoolMatchingHash` is null and the Aero handlers skip the root-pool reconciliation and the leaf `getRootPoolAddress` RPC.
+- `FeeToTickSpacingMapping` is per CL factory (`{chainId}-{factory}-{tickSpacing}`).
+- Aero NFPM positions are created at `IncreaseLiquidity` (which carries the range); the pool comes from the CLPool.Mint by primary key (`AeroNFPMMintPool`), the owner from the mint Transfer (`AeroNFPMPendingMint`). Aero NFPM `Collect` credits fees to the position owner (`NFPMPositionPendingPrincipal`), so `CLPool.Collect` on an Aero pool does not credit the NFPM contract.
+
+### V2 swap fees
+
+A V2 pool emits `Fees` (fee per input token) before `Sync` and `Swap` in the same tx, and no `Fees` when the fee is 0. The Fees handler stages the amounts in `V2SwapFeesInTx` (`{chainId}-{txHash}-{pool}`); the Swap handler reads and deletes it, values the fee from those amounts and writes the effective rate to `currentFee`. Never value a V2 swap's fee from the stored rate alone: fee modules the indexer does not follow change it (ADR 0001, 2026-11-13 amendment). `baseFee` comes from `PoolFactoryDefaultFee` (SetDefaultFee) or the latest `SetCustomFee`.
 
 ### Pricing
 
@@ -61,7 +75,9 @@ Token USD prices (`Token.pricePerUSDNew`, 1e18-scaled) are derived from indexed 
 - **Tiers** (`getPricingTier`): 0 = destination token + stablecoins, pinned at exactly $1; 1 = the chain's WETH; 2 = other price connectors (`src/constants/price_connectors.json`) and the reward token; 3 = everything else. A token is only ever priced through a counterparty in a strictly lower tier, so pricing is acyclic and recursion is at most three deep.
 - **Candidates**: `TokenPricingPools` (Postgres-only, internal) lists, per token, the pools it may be priced through. `registerPricingPool` appends at V2 `PoolFactory` / CL `CLFactory` `PoolCreated` when the counterparty is in a lower tier.
 - **Refresh** (`refreshTokenPrice`): at most once per token per clock hour, no bypasses. Order: blacklist → 0; tier 0 → $1; else refresh due counterparties, then take the deepest candidate that passes the per-chain depth floor, the 1000× value-imbalance bound and the $1M ceiling; else carry the last price, dropping to 0 once the last success is 7 days old.
-- **Candidates**: each local pool (price = pool ratio × counterparty price, depth = counterparty reserve in USD) plus, for a token with a canonical source in `PriceOverrides.ts` (WETH on ETH-equivalent leaf chains → Optimism WETH, XVELO → Optimism VELO, …), that source's stored price at its stored `Token.pricingDepthUSD`, only while the source's last success is within ±2 h of the block (ADR `docs/adr/0004-canonical-cross-chain-price-candidates.md`). The source is read, never refreshed.
+- **Candidates**: each local pool (price = pool ratio × counterparty price, depth = counterparty reserve in USD) plus, for a token with a canonical source in `PriceOverrides.ts` (WETH on ETH-equivalent leaf chains and on Ethereum / Arbitrum / Robinhood / Arc → Optimism WETH, XVELO → Optimism VELO, xAERO on every Aero leaf chain → Base AERO, …), that source's stored price at its stored `Token.pricingDepthUSD`, only while the source's last success is within ±2 h of the block (ADR `docs/adr/0004-canonical-cross-chain-price-candidates.md`). The source is read, never refreshed.
+- **Trust** (`src/PriceTrust.ts`, ADR 0002): a token's USD counts only if it is legacy-whitelisted (`isWhitelisted`), listed in the Aero TokenRegistry (`isListedOnAero`, `AeroTokenRegistry.ListingSet`) or a price connector, and not blacklisted.
+- **Reward tokens**: tier 2 includes every legacy reward token (`legacy.rewardToken`, both ends of its block range) and the Aero reward token (`aero.rewardToken`: AERO on Base, xAERO elsewhere). On Base both AERO v1 (legacy) and AERO (Aero) are connectors; the legacy reward token stays AERO v1 at every block.
 - **Ratios** (`src/PoolPriceRatio.ts`): CL from `sqrtPriceX96`, V2 volatile from the reserve ratio, V2 stable from the `x³y + xy³` curve's marginal price; decimals are folded in exactly (0-decimal tokens included).
 - Every refresh writes one `TokenPriceSnapshot` (id keyed by the hour) tagged with `priceSource` and, for `pool` / `canonical` prices, `pricingPoolId` or `pricingSourceTokenId` plus `pricingDepthUSD`.
 
@@ -87,7 +103,7 @@ Token USD prices (`Token.pricePerUSDNew`, 1e18-scaled) are derived from indexed 
 Postgres and ClickHouse are both enabled (envio 3.16). The `storage:` block in `config.yaml` marks both backends with `default: true`, so an entity with no `@storage` directive is written to both and read by handlers from Postgres. Three groups are routed explicitly in `schema.graphql`:
 
 - **ClickHouse only** (`@storage(postgres: false, clickhouse: true)`): the seven `*Snapshot` entities. Handlers only ever write them. They are not served over GraphQL.
-- **Postgres only, hidden from the API** (`@storage(postgres: true, clickhouse: false) @internal`): handler working state that has no analytical value, i.e. the mint/transfer correlation entities, the Hyperlane staging entities, `PoolTickMap` and `TokenPricingPools`.
+- **Postgres only, hidden from the API** (`@storage(postgres: true, clickhouse: false) @internal`): handler working state that has no analytical value, i.e. the mint/transfer correlation entities (including the Aero NFPM ones: `AeroNFPMMintPool`, `AeroNFPMPendingMint`, `NFPMPositionPendingPrincipal`), the V2 swap-fee hand-over `V2SwapFeesInTx`, the Hyperlane staging entities, `PoolTickMap` and `TokenPricingPools`.
 - **Both** (no directive): everything else, including the aggregates handlers read and update (`Pool`, `UserStatsPerPool`, `Token`, `NonFungiblePosition`, `VeNFTState`, `VeNFTPoolVote`).
 
 When adding an entity: if no handler reads it back, make it ClickHouse-only; if it is scratch state, make it Postgres-only and `@internal`. Do not make an entity that handlers read and update ClickHouse-only: a load from ClickHouse scans every stored version of each id, and ClickHouse keeps one version per block in which the entity changed.

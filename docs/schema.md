@@ -6,7 +6,7 @@
 
 # Entity & field reference
 
-Generated from [`schema.graphql`](../schema.graphql). The schema defines **42 entity types**; each becomes a queryable table in the indexer's database.
+Generated from [`schema.graphql`](../schema.graphql). The schema defines **48 entity types**; each becomes a queryable table in the indexer's database.
 
 ## Reading this reference
 
@@ -20,10 +20,10 @@ Generated from [`schema.graphql`](../schema.graphql). The schema defines **42 en
 
 - **Core aggregates** — [Pool](#pool), [Token](#token), [UserStatsPerPool](#userstatsperpool), [NonFungiblePosition](#nonfungibleposition), [VeNFTState](#venftstate), [VeNFTPoolVote](#venftpoolvote), [ALM_LP_Wrapper](#alm_lp_wrapper)
 - **Snapshots** — [PoolSnapshot](#poolsnapshot), [TokenPriceSnapshot](#tokenpricesnapshot), [UserStatsPerPoolSnapshot](#userstatsperpoolsnapshot), [NonFungiblePositionSnapshot](#nonfungiblepositionsnapshot), [VeNFTStateSnapshot](#venftstatesnapshot), [VeNFTPoolVoteSnapshot](#venftpoolvotesnapshot), [ALM_LP_WrapperSnapshot](#alm_lp_wrappersnapshot)
-- **Config & registry** — [FactoryRegistryConfig](#factoryregistryconfig), [DynamicFeeGlobalConfig](#dynamicfeeglobalconfig), [CLGaugeConfig](#clgaugeconfig), [FeeToTickSpacingMapping](#feetotickspacingmapping), [RedistributorConfig](#redistributorconfig), [RootPool_LeafPool](#rootpool_leafpool), [RootGauge_RootPool](#rootgauge_rootpool)
+- **Config & registry** — [FactoryRegistryConfig](#factoryregistryconfig), [DynamicFeeGlobalConfig](#dynamicfeeglobalconfig), [CLGaugeConfig](#clgaugeconfig), [FeeToTickSpacingMapping](#feetotickspacingmapping), [PoolFactoryDefaultFee](#poolfactorydefaultfee), [RedistributorConfig](#redistributorconfig), [RootPool_LeafPool](#rootpool_leafpool), [RootGauge_RootPool](#rootgauge_rootpool)
 - **Pool launcher** — [PoolLauncherPool](#poollauncherpool), [PoolLauncherConfig](#poollauncherconfig)
 - **Cross-chain superswaps (Hyperlane)** — [SuperSwap](#superswap), [OUSDTBridgedTransaction](#ousdtbridgedtransaction), [OUSDTSwaps](#ousdtswaps), [DispatchId_event](#dispatchid_event), [ProcessId_event](#processid_event), [TxDispatchIdRegistry](#txdispatchidregistry), [TxOUSDTSwapRegistry](#txousdtswapregistry)
-- **Internal buffers & deferred state** — [PendingVote](#pendingvote), [CLPoolPendingInitialize](#clpoolpendinginitialize), [PendingRootPoolMapping](#pendingrootpoolmapping), [PendingDistribution](#pendingdistribution), [PoolTickMap](#pooltickmap), [CLPoolMintEvent](#clpoolmintevent), [CLPositionPendingPrincipal](#clpositionpendingprincipal), [TxCLPoolMintRegistry](#txclpoolmintregistry), [TokenPricingPools](#tokenpricingpools), [TxPoolTransferRegistry](#txpooltransferregistry), [PoolTransferInTx](#pooltransferintx), [ALMLPWrapperTransferInTx](#almlpwrappertransferintx), [ALM_TotalSupplyLimitUpdated_event](#alm_totalsupplylimitupdated_event)
+- **Internal buffers & deferred state** — [PendingVote](#pendingvote), [CLPoolPendingInitialize](#clpoolpendinginitialize), [PendingRootPoolMapping](#pendingrootpoolmapping), [PendingDistribution](#pendingdistribution), [PoolTickMap](#pooltickmap), [CLPoolMintEvent](#clpoolmintevent), [CLPositionPendingPrincipal](#clpositionpendingprincipal), [TxCLPoolMintRegistry](#txclpoolmintregistry), [AeroNFPMMintPool](#aeronfpmmintpool), [AeroNFPMPendingMint](#aeronfpmpendingmint), [NFPMPositionPendingPrincipal](#nfpmpositionpendingprincipal), [V2SwapFeesInTx](#v2swapfeesintx), [TokenPricingPools](#tokenpricingpools), [TxPoolTransferRegistry](#txpooltransferregistry), [PoolTransferInTx](#pooltransferintx), [ALMLPWrapperTransferInTx](#almlpwrappertransferintx), [ALM_TotalSupplyLimitUpdated_event](#alm_totalsupplylimitupdated_event)
 
 ## Core aggregates
 
@@ -43,6 +43,7 @@ Latest-state entities that hold the headline metrics most consumers query.
 | `token1_address` | `String!` | token1 address |
 | `isStable` | `Boolean!` | whether the pool is a stable AMM or a volatile AMM |
 | `isCL` | `Boolean!` | whether the pool is a CL pool |
+| `deployment` | `String!` | Which deployment created the pool (docs/adr/0005-one-data-model-for-legacy-and-aero-pools.md): VELODROME (Velodrome V2 / Slipstream on Optimism and the superchain leaves), AERODROME (Aerodrome V2 / Slipstream on Base) or AERO (the Aero / MetaDEX deployment launched 2026-10-21, every chain). Set once at PoolCreated from the factory contract that emitted it. Values pinned by POOL_DEPLOYMENT in src/Constants.ts. Fields that do not apply to AERO pools are documented per field below. _(indexed)_ |
 | `createdBlockNumber` | `BigInt!` | Block number at which PoolCreated fired (#759); creation-time metadata |
 | `tickSpacing` | `BigInt!` | Tick spacing of the pool; 0 for non-CL pools |
 | `reserve0` | `BigInt!` | reserve of token0 in token units |
@@ -65,10 +66,10 @@ Latest-state entities that hold the headline metrics most consumers query.
 | `numberOfSwapFeeFallbacks` | `BigInt!` | CL only: swaps whose fee could not be derived from the swap (tick-map walk disagreed with the event's liquidity, or the derived fee was negative or above 10% of the input) and were valued with the stored currentFee instead. Should stay 0 on a from-creation sync |
 | `token0Price` | `BigInt!` | price of token0 relative to token1 |
 | `token1Price` | `BigInt!` | price of token1 relative to token0 |
-| `totalVotesDeposited` | `BigInt!` | total votes deposited in veToken units |
-| `totalVotesDepositedUSD` | `BigInt!` | total votes deposited in USD |
+| `totalVotesDeposited` | `BigInt!` | total votes deposited in veToken units (legacy weekly Voter votes; 0 on AERO pools: Aero has no weekly votes and sAERO allocations are not indexed) |
+| `totalVotesDepositedUSD` | `BigInt!` | total votes deposited in USD (0 on AERO pools, see totalVotesDeposited) |
 | `totalEmissions` | `BigInt!` | total emissions for the pool in reward token units (VELO form Optimism and AERO for Base); 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
-| `totalEmissionsUSD` | `BigInt!` | total emissions for the pool in USD |
+| `totalEmissionsUSD` | `BigInt!` | total emissions for the pool in USD. totalEmissions* are legacy-gauge emissions; 0 on AERO pools until Aero gauges are indexed |
 | `totalEmissionsRedistributed` | `BigInt!` | cumulative reward tokens this pool's gauge received from the Redistributor (Redistributed events); AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
 | `totalEmissionsForfeited` | `BigInt!` | cumulative reward tokens this pool's gauge forwarded to the Redistributor or minter because it was over its cap (Deposited events); AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
 | `lastUpdatedTimestamp` | `Timestamp!` | timestamp of last update |
@@ -88,10 +89,10 @@ Latest-state entities that hold the headline metrics most consumers query.
 | `totalFlashLoanFeesUSD` | `BigInt` | total flash loan fees collected in USD |
 | `totalFlashLoanVolumeUSD` | `BigInt` | total flash loan volume in USD |
 | `numberOfFlashLoans` | `BigInt` | total number of flash loans |
-| `gaugeIsAlive` | `Boolean!` | whether the gauge is alive |
+| `gaugeIsAlive` | `Boolean!` | whether the gauge is alive. Gauge fields describe the legacy gauge; on AERO pools they keep their creation defaults (false / "" / 0) until Aero gauges are indexed |
 | `gaugeAddress` | `String` | address of the gauge for this pool _(indexed)_ |
-| `gaugeEmissionsCap` | `BigInt` | Emissions cap for gauge. If not specified in an SetEmissionsCap event, set to defaultEmissionsCap as per CLGaugeConfig. If CLGaugeConfig doesn't exist, there's no emissions cap |
-| `minStakeTime` | `BigInt!` | Per-pool LP stake lockup (seconds). Seeded from CLGaugeConfig.defaultMinStakeTime at pool creation; overridden by CLGaugeFactoryV3.SetPoolMinStakeTime. 0 before V3. |
+| `gaugeEmissionsCap` | `BigInt` | Emissions cap for gauge. If not specified in an SetEmissionsCap event, set to defaultEmissionsCap as per CLGaugeConfig. If CLGaugeConfig doesn't exist, there's no emissions cap. Null on AERO pools (CLGaugeConfig is the legacy CLGaugeFactory's) |
+| `minStakeTime` | `BigInt!` | Per-pool LP stake lockup (seconds). Seeded from CLGaugeConfig.defaultMinStakeTime at pool creation; overridden by CLGaugeFactoryV3.SetPoolMinStakeTime. 0 before V3. 0 on AERO pools (legacy CLGaugeFactory setting) |
 | `numberOfGaugeDeposits` | `BigInt!` | number of gauge deposits (staking) |
 | `numberOfGaugeWithdrawals` | `BigInt!` | number of gauge withdrawals (unstaking) |
 | `numberOfGaugeRewardClaims` | `BigInt!` | number of gauge reward claims |
@@ -103,16 +104,16 @@ Latest-state entities that hold the headline metrics most consumers query.
 | `totalBribeClaimedUSD` | `BigInt!` | total bribes claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — bribes are arbitrary heterogeneous tokens) |
 | `feeVotingRewardAddress` | `String` | address of the fee voting reward contract for this pool _(indexed)_ |
 | `totalFeeRewardClaimedUSD` | `BigInt!` | total fee rewards claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens) |
-| `veNFTamountStaked` | `BigInt!` | total amount of veNFT staked for this pool |
-| `baseFee` | `BigInt!` | Configured (nominal) fee, FEE_SCALE 1e6 (hundredths of a basis point; single divisor across V2 & CL, issue #812). V2: factory default or SetCustomFee. CL: tick-spacing default, CustomSwapFeeModule fee, or DynamicSwapFeeModule custom base fee (a dynamic pool charges this plus a TWAP-volatility part, up to feeCap). Custom-fee sentinels resolved as the contracts do: 420 = 0%, 0 = default (ADR 0001) |
+| `veNFTamountStaked` | `BigInt!` | total amount of veNFT staked for this pool (legacy voting rewards; 0 on AERO pools) |
+| `baseFee` | `BigInt!` | Configured (nominal) fee, FEE_SCALE 1e6 (hundredths of a basis point; single divisor across V2 & CL, issue #812). V2: factory default (PoolFactoryDefaultFee) or SetCustomFee (factory or V2 CustomFeeModule). CL: tick-spacing default, CustomSwapFeeModule fee, or DynamicSwapFeeModule custom base fee (a dynamic pool charges this plus a TWAP-volatility part, up to feeCap). Custom-fee sentinels resolved as the contracts do: 420 = 0%, 0 = default (ADR 0001) |
 | `feeCap` | `BigInt` | Current fee cap for pool |
 | `scalingFactor` | `BigInt` | Current scaling factor for pool |
-| `currentFee` | `BigInt!` | Fee rate charged, FEE_SCALE 1e6 (issue #812). V2: the configured fee (= baseFee). CL: effective rate of the latest swap with input >= 1e7 raw units, derived from the swap itself ((amountIn - principal) / amountIn, rounded to nearest); seeded from baseFee at creation and on CustomSwapFeeModule.SetCustomFee; also the fallback rate for a swap whose fee cannot be derived (ADR 0001) |
-| `unstakedFee` | `BigInt` | Raw customFee value last emitted by an UnstakedFeeModule for this pool (CL pools only). 0 = no override (factory default applies), 420 = explicit 0% fee (ZERO_FEE_INDICATOR), else fee rate with 6-decimal precision (e.g. 500_000 = 50%). Null = never set. |
-| `poolLauncherPoolId` | `String` | ID of the PoolLauncherPool entity if this pool was launched via Pool Launcher |
+| `currentFee` | `BigInt!` | Fee rate charged, FEE_SCALE 1e6 (issue #812). AERO pools: as V2 / CL; the CL base fee comes from the DynamicSwapFeeHook (CustomFeeSet; 0 and the hook's zero-fee indicator both mean the static tick-spacing fee), feeCap / scalingFactor from its FeeCapSet / ScalingFactorSet; the V2 custom fee from the V2 CustomFeeModules. V2: effective rate of the latest swap with input >= 1e7 raw units, from the swap's own Fees amount (fee / amountIn, rounded to the nearest basis point); seeded from baseFee at creation and on SetCustomFee. CL: effective rate of the latest swap with input >= 1e7 raw units, derived from the swap itself ((amountIn - principal) / amountIn, rounded to nearest); seeded from baseFee at creation and on CustomSwapFeeModule.SetCustomFee; also the fallback rate for a swap whose fee cannot be derived (ADR 0001) |
+| `unstakedFee` | `BigInt` | Raw customFee value last emitted by an UnstakedFeeModule for this pool (CL pools only). 0 = no override (factory default applies), 420 = explicit 0% fee (ZERO_FEE_INDICATOR), else fee rate with 6-decimal precision (e.g. 500_000 = 50%). Null = never set. Null on AERO pools: Aero's CustomUnstakedFeeModule is not indexed yet. |
+| `poolLauncherPoolId` | `String` | ID of the PoolLauncherPool entity if this pool was launched via Pool Launcher (legacy launchers only) |
 | `factoryAddress` | `String` | Address of the factory that created this pool (e.g. CLFactory for CL pools, set from PoolCreated event) |
 | `nfpmAddress` | `String` | Address of the NFPM contract that mints positions for this CL pool. Null for V2 (non-CL) pools. Resolved from (chainId, factoryAddress) via nfpmForCLPool in Constants.ts. Used by downstream consumers (gauges, user-stats, NFPM handlers) to derive the correct NFPM without a separate scan. _(indexed)_ |
-| `rootPoolMatchingHash` | `String!` | {chainId}_{token0_address}_{token1_address}_{tickSpacing} _(indexed)_ |
+| `rootPoolMatchingHash` | `String` | {chainId}_{token0_address}_{token1_address}_{tickSpacing} _(indexed)_ |
 
 ### Token
 
@@ -130,7 +131,8 @@ Entity that tracks the latest state of the token entity By nature this entity sa
 | `lastUpdatedTimestamp` | `Timestamp!` | timestamp of last price refresh attempt (drives the once-per-clock-hour throttle; see src/PriceOracle.ts) |
 | `lastSuccessfulPriceTimestamp` | `Timestamp` | timestamp of last successful price (pinned / pool route / canonical source); drives the 7-day carry window (#694, docs/adr/0003) |
 | `pricingDepthUSD` | `BigInt` | USD depth (1e18-base) behind pricePerUSDNew: the counterparty-side reserve of the pool that priced it, or the canonical source's own depth; kept while carried, unset when pinned / unpriced / overridden. Lets a cross-chain canonical source be compared with local pools (docs/adr/0004) |
-| `isWhitelisted` | `Boolean!` | whether the token is whitelisted |
+| `isWhitelisted` | `Boolean!` | whether the token is whitelisted by the legacy Voter / SuperchainLeafVoter (WhitelistToken) |
+| `isListedOnAero` | `Boolean` | Aero listing: the latest ListingSet of the chain's Aero TokenRegistry (Aero's curated token list, the successor of the legacy whitelist). Null when the registry never emitted one for the token. A positive price-trust signal like isWhitelisted (priceTrustReason LISTED, ADR 0005). |
 | `priceTrustOutcome` | `String` | Price-trust gate per-token decision surface (issue #755 slice 2). Populated at every Token construction site (Voter.WhitelistToken, SuperchainLeafVoter .WhitelistToken, PriceOracle.createTokenEntity, VotingReward reward-token bootstrap) via `PriceTrust.getGateDecisionFromSignals`; subsequent refreshes preserve the stamped values via spread until slice-3+ aggregator paths re-evaluate via `PriceTrust.getGateDecision` at consume time. Null only on rows that predate the field's introduction. Stored as String (not enum) so values can extend without an Envio schema migration. The TypeScript value sets are pinned by the `PRICE_TRUST_OUTCOME` / `PRICE_TRUST_REASON` const objects in `src/PriceTrust.ts` — call sites should reference those constants rather than bare string literals. Trusted-USD aggregates are written into the existing `*USD` fields on Pool — no `*USDTrusted` companion fields. Per-chain rollback uses the migration mode flag introduced in slice 4; A/B comparison against pre-gate values is done offline via the diff script (issue #755 US #19). |
 | `priceTrustReason` | `String` | Reason code paired with priceTrustOutcome; values pinned by PRICE_TRUST_REASON in src/PriceTrust.ts (see priceTrustOutcome). |
 
@@ -145,9 +147,9 @@ Entity for tracking user activity and positions in specific pools
 | `poolAddress` | `String!` | address of the pool these stats are scoped to _(indexed)_ |
 | `chainId` | `Int!` | chain id |
 | `lpBalance` | `BigInt!` | user's LP token balance (tracked from Transfer events) |
-| `totalLiquidityAddedUSD` | `BigInt!` | cumulative USD value of liquidity added (from IncreaseLiquidity events, Transfer ADD attribution, and direct non-NFPM CLPool.Mint) |
-| `totalLiquidityAddedToken0` | `BigInt!` | cumulative raw token0 amount added (sum of event.params.amount0 from IncreaseLiquidity + Transfer ADD + direct non-NFPM CLPool.Mint). May differ from removed due to price movement between deposit and withdrawal |
-| `totalLiquidityAddedToken1` | `BigInt!` | cumulative raw token1 amount added (sum of event.params.amount1 from IncreaseLiquidity + Transfer ADD + direct non-NFPM CLPool.Mint). May differ from removed due to price movement between deposit and withdrawal |
+| `totalLiquidityAddedUSD` | `BigInt!` | cumulative USD value of liquidity added (from IncreaseLiquidity events, V2 Transfer ADD attribution, V2 superchain-leaf 4-arg Mint recipient (#886), and direct non-NFPM CLPool.Mint). Tracks capital contribution, not LP ownership — may diverge from lpBalance for users who receive/send LP tokens via plain Transfer |
+| `totalLiquidityAddedToken0` | `BigInt!` | cumulative raw token0 amount added (sum of event.params.amount0 from IncreaseLiquidity + V2 Transfer ADD + V2 superchain-leaf 4-arg Mint (#886) + direct non-NFPM CLPool.Mint). May differ from removed due to price movement between deposit and withdrawal |
+| `totalLiquidityAddedToken1` | `BigInt!` | cumulative raw token1 amount added (sum of event.params.amount1 from IncreaseLiquidity + V2 Transfer ADD + V2 superchain-leaf 4-arg Mint (#886) + direct non-NFPM CLPool.Mint). May differ from removed due to price movement between deposit and withdrawal |
 | `totalLiquidityRemovedUSD` | `BigInt!` | cumulative USD value of liquidity removed (from DecreaseLiquidity events, Transfer REMOVE attribution, and direct non-NFPM CLPool.Burn) |
 | `totalLiquidityRemovedToken0` | `BigInt!` | cumulative raw token0 amount removed (sum of event.params.amount0 from DecreaseLiquidity + Transfer REMOVE + direct non-NFPM CLPool.Burn). Can exceed totalLiquidityAddedToken0 due to price movement (impermanent loss rebalancing) |
 | `totalLiquidityRemovedToken1` | `BigInt!` | cumulative raw token1 amount removed (sum of event.params.amount1 from DecreaseLiquidity + Transfer REMOVE + direct non-NFPM CLPool.Burn). Can exceed totalLiquidityAddedToken1 due to price movement (impermanent loss rebalancing) |
@@ -193,7 +195,7 @@ Tracks relevant data for each NFT minted: each NFT represents a concentrated pos
 | `id` | `ID!` | Format: {chainId}-{nfpmAddress}-{tokenId} (NonFungiblePositionId). Natural key is (NFPM, tokenId); pool is metadata and preserved as a field. nfpmAddress disambiguates intra-chain tokenId collisions across multiple NFPMs (e.g. Optimism has two). |
 | `chainId` | `Int!` | Chain ID where the NFT exists |
 | `tokenId` | `BigInt!` | Token ID of the NFT (from Transfer event) _(indexed)_ |
-| `nfpmAddress` | `String!` | Address of the NFPM contract that emitted the Transfer; disambiguates intra-chain tokenId collisions across multiple NFPMs (e.g. Optimism has two) _(indexed)_ |
+| `nfpmAddress` | `String!` | Address of the NFPM contract that emitted the Transfer (a legacy NFPM or the Aero NFPM); disambiguates intra-chain tokenId collisions across multiple NFPMs (e.g. Optimism has two) _(indexed)_ |
 | `owner` | `String!` | Checksum address of the current owner (from Transfer event) _(indexed)_ |
 | `pool` | `String!` | Address of the CL pool this position belongs to _(indexed)_ |
 | `tickUpper` | `BigInt!` | Upper tick of the position range |
@@ -202,10 +204,10 @@ Tracks relevant data for each NFT minted: each NFT represents a concentrated pos
 | `token1` | `String!` | Address of token1 in the position |
 | `liquidity` | `BigInt!` | Current liquidity value of the position |
 | `mintTransactionHash` | `String!` | Transaction hash of the NFT mint transaction _(indexed)_ |
-| `mintLogIndex` | `Int!` | Log index of CLPool.Mint event (for placeholder matching) |
+| `mintLogIndex` | `Int!` | Log index of the CLPool.Mint the position was created from (legacy NFPMs: matched at NFPM.Transfer; Aero NFPM: matched at IncreaseLiquidity by range, liquidity and amounts) |
 | `lastUpdatedTimestamp` | `Timestamp!` | Timestamp of last update |
 | `lastSnapshotTimestamp` | `Timestamp` | nullable - null means never snapshotted |
-| `isStakedInGauge` | `Boolean!` | Set from NFPM.Transfer to/from the pool's gauge; owner is not updated on gauge transfers so we need this to know staked vs not. |
+| `isStakedInGauge` | `Boolean!` | Set from NFPM.Transfer to/from the pool's gauge; owner is not updated on gauge transfers so we need this to know staked vs not. Always false on Aero positions until Aero gauges are indexed (an Aero position staked in a gauge is owned by the gauge until then) |
 
 ### VeNFTState
 
@@ -280,6 +282,7 @@ Snapshot of the LiquidityPool entity
 | `token1_address` | `String!` | token1 address |
 | `isStable` | `Boolean!` | whether the pool is a stable AMM or a volatile AMM |
 | `isCL` | `Boolean!` | whether the pool is a CL pool |
+| `deployment` | `String!` | Pool.deployment (VELODROME / AERODROME / AERO), copied so snapshots can be filtered by deployment |
 | `reserve0` | `BigInt!` | reserve of token0 in token units |
 | `reserve1` | `BigInt!` | reserve of token1 in token units |
 | `totalLPTokenSupply` | `BigInt!` | total supply of LP tokens (tracked from Transfer events) |
@@ -336,10 +339,10 @@ Snapshot of the LiquidityPool entity
 | `feeVotingRewardAddress` | `String` | address of the fee voting reward contract for this pool _(indexed)_ |
 | `totalFeeRewardClaimedUSD` | `BigInt!` | total fee rewards claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens) |
 | `veNFTamountStaked` | `BigInt!` | total amount of veNFT staked for this pool |
-| `baseFee` | `BigInt!` | Configured (nominal) fee, FEE_SCALE 1e6 (hundredths of a basis point; single divisor across V2 & CL, issue #812). V2: factory default or SetCustomFee. CL: tick-spacing default, CustomSwapFeeModule fee, or DynamicSwapFeeModule custom base fee (a dynamic pool charges this plus a TWAP-volatility part, up to feeCap). Custom-fee sentinels resolved as the contracts do: 420 = 0%, 0 = default (ADR 0001) |
+| `baseFee` | `BigInt!` | Configured (nominal) fee, FEE_SCALE 1e6 (hundredths of a basis point; single divisor across V2 & CL, issue #812). V2: factory default (PoolFactoryDefaultFee) or SetCustomFee (factory or V2 CustomFeeModule). CL: tick-spacing default, CustomSwapFeeModule fee, or DynamicSwapFeeModule custom base fee (a dynamic pool charges this plus a TWAP-volatility part, up to feeCap). Custom-fee sentinels resolved as the contracts do: 420 = 0%, 0 = default (ADR 0001) |
 | `feeCap` | `BigInt` | Current fee cap for pool |
 | `scalingFactor` | `BigInt` | Current scaling factor for pool |
-| `currentFee` | `BigInt!` | Fee rate charged, FEE_SCALE 1e6 (issue #812). V2: the configured fee (= baseFee). CL: effective rate of the latest swap with input >= 1e7 raw units, derived from the swap itself ((amountIn - principal) / amountIn, rounded to nearest); seeded from baseFee at creation and on CustomSwapFeeModule.SetCustomFee; also the fallback rate for a swap whose fee cannot be derived (ADR 0001) |
+| `currentFee` | `BigInt!` | Fee rate charged, FEE_SCALE 1e6 (issue #812). V2: effective rate of the latest swap with input >= 1e7 raw units, from the swap's own Fees amount (fee / amountIn, rounded to the nearest basis point); seeded from baseFee at creation and on SetCustomFee. CL: effective rate of the latest swap with input >= 1e7 raw units, derived from the swap itself ((amountIn - principal) / amountIn, rounded to nearest); seeded from baseFee at creation and on CustomSwapFeeModule.SetCustomFee; also the fallback rate for a swap whose fee cannot be derived (ADR 0001) |
 | `unstakedFee` | `BigInt` | Raw customFee value last emitted by an UnstakedFeeModule for this pool (see Pool for semantics) |
 
 ### TokenPriceSnapshot
@@ -526,15 +529,29 @@ Stores chain-wide CLGauge config data — default emissions cap, default min-sta
 
 ### FeeToTickSpacingMapping
 
-Should be updated by TickSpacingEnabled event emitted by CLFactory contract It allows to initialise currentFee field for all CLPools CLPool fees can then be modified by either CustomSwapFeeModule or DynamicSwapFeeModule The same tick spacing can be enabled multiple times (to update the fee), so this entity is updated, not created new
+Should be updated by TickSpacingEnabled event emitted by CLFactory contract It allows to initialise currentFee field for all CLPools CLPool fees can then be modified by either CustomSwapFeeModule or DynamicSwapFeeModule The same tick spacing can be enabled multiple times (to update the fee), so this entity is updated, not created new Keyed per CLFactory: a chain can have several CLFactories with different fees for the same tick spacing (on Arc, tick spacing 50 is 0.05% on the lite-launch CLFactory, 0.30% on the Aero one).
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {chainId}-{tickSpacing} (FeeToTickSpacingMappingId) |
+| `id` | `ID!` | Format: {chainId}-{factoryAddress}-{tickSpacing} (FeeToTickSpacingMappingId) |
 | `chainId` | `Int!` | chain id _(indexed)_ |
+| `factoryAddress` | `String!` | CLFactory (legacy CLFactory or AeroCLFactory) that emitted TickSpacingEnabled _(indexed)_ |
 | `tickSpacing` | `BigInt!` | Tick spacing value _(indexed)_ |
 | `fee` | `BigInt!` | Fee value for this tick spacing |
 | `lastUpdatedTimestamp` | `Timestamp!` | Timestamp when this mapping was last updated |
+
+### PoolFactoryDefaultFee
+
+Default fee of a V2 pool factory for one pool type, from its SetDefaultFee events (leaf PoolFactory: SetDefaultFee(bool stable, uint256 fee); Aero stable / volatile factories: SetDefaultFee(uint256)). A pool without a custom fee is charged this. Factories that never emitted one (the Optimism and Base PoolFactory) use the 5 / 30 bps constants.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{factoryAddress}-{stable\|volatile} (PoolFactoryDefaultFeeId) |
+| `chainId` | `Int!` | chain id |
+| `factoryAddress` | `String!` | V2 pool factory that emitted SetDefaultFee _(indexed)_ |
+| `isStable` | `Boolean!` | pool type the default applies to |
+| `fee` | `BigInt!` | default fee, FEE_SCALE 1e6 (the event's basis points x 100) |
+| `lastUpdatedTimestamp` | `Timestamp!` | block time of the latest SetDefaultFee |
 
 ### RedistributorConfig
 
@@ -603,7 +620,7 @@ One per underlying pool (per chain) launched or migrated via Pool Launcher
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{poolLauncherAddress} (PoolId with launcher contract as address) |
 | `version` | `String!` | "CL" for concentrated liquidity, "V2" for V2 pools |
-| `pairableTokens` | `[String!]` | Whitelisted tokens an emerging-token pool may be paired against on this launcher |
+| `pairableTokens` | `[String!]!` | Whitelisted tokens an emerging-token pool may be paired against on this launcher |
 
 ## Cross-chain superswaps (Hyperlane)
 
@@ -617,7 +634,7 @@ A superswap is characterized by 3 steps: 1. Original asset is swapped for oUSDT 
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {messageId} — globally unique Hyperlane message identifier |
 | `originChainId` | `BigInt!` | Chain ID where the swap originated |
-| `destinationChainId` | `BigInt!` | Chain ID of the swap target/recipient |
+| `destinationChainId` | `BigInt!` | Resolved EVM chain ID of the swap target/recipient (mapped from the Hyperlane domain via domainToChainId) |
 | `sender` | `String!` | Original sender address initiating the swap |
 | `recipient` | `String!` | The recipient address on the destination chain |
 | `oUSDTamount` | `BigInt!` | Amount of oUSDT swapped (already normalized to token decimals) |
@@ -634,7 +651,7 @@ A superswap is characterized by 3 steps: 1. Original asset is swapped for oUSDT 
 | `id` | `ID!` | Format: transaction hash (unique per bridge tx) |
 | `transactionHash` | `String!` | Transaction hash _(indexed)_ |
 | `originChainId` | `BigInt!` | Chain ID where the bridge transaction originated |
-| `destinationChainId` | `BigInt!` | Chain ID where the bridge transaction is destined |
+| `destinationChainId` | `BigInt!` | Resolved EVM chain ID the bridge transaction is destined for (mapped from the Hyperlane domain via domainToChainId) |
 | `sender` | `String!` | Address that initiated the bridge transaction |
 | `recipient` | `String!` | Address that will receive the bridged tokens |
 | `amount` | `BigInt!` | Amount of oUSDT tokens being bridged |
@@ -761,7 +778,7 @@ Deferred distribution: stored when DistributeReward fires for a root gauge but R
 
 ### PoolTickMap
 
-Per-tick liquidityNet maps of a CL pool, split off the Pool row: hot pools hold hundreds of entries, which every Pool read and write would otherwise (de)serialise, and envio writes a ClickHouse row per block in which an entity changes. Postgres only (`@storage(postgres: true, clickhouse: false) @internal`); read by CLPool Swap / Mint / Burn, the gauge stake paths and NFPM staked-position changes; written only when a map changes (Mint / Burn / stake / unstake / staked-position liquidity change, never a Swap). Each map is a pair of parallel arrays encoding Uniswap v3's per-tick liquidityNet: sorted ascending by tick, dedup'd, no zero-net entries, same length; (edges[i], nets[i]) is one (tick, net) pair.
+Per-tick liquidityNet maps of a CL pool, split off the Pool row: hot pools hold hundreds of entries, which every Pool read and write would otherwise (de)serialise, and envio writes a ClickHouse row per block in which an entity changes. Postgres only; read by CLPool Swap / Mint / Burn, the gauge stake paths and NFPM staked-position changes; written only when a map changes (Mint / Burn / stake / unstake / staked-position liquidity change, never a Swap). Each map is a pair of parallel arrays encoding Uniswap v3's per-tick liquidityNet: sorted ascending by tick, dedup'd, no zero-net entries, same length; (edges[i], nets[i]) is one (tick, net) pair. Two arrays instead of a list of structs because GraphQL lists only allow scalars or named types.
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
@@ -811,6 +828,46 @@ Per-transaction registry of CLPoolMintEvent IDs, used to skip the index scan on 
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{txHash} |
 | `mintEventIds` | `[String!]!` | CLPoolMintEvent ids produced in this tx, in insertion order |
+
+### AeroNFPMMintPool
+
+Aero NFPM position creation, step 1 of 2 (src/EventHandlers/NFPM/AeroNFPMLogic.ts). The Aero NFPM's IncreaseLiquidity carries the tick range but not the pool. A CLPool.Mint on an Aero pool whose owner is the pool's NFPM stores its pool here, keyed by every value the NFPM's IncreaseLiquidity repeats, so IncreaseLiquidity finds the pool by primary key (no scan, no positional guess). Deleted by that IncreaseLiquidity (mints and increases alike).
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | {chainId}-{txHash}-{nfpmAddress}-{tickLower}-{tickUpper}-{liquidity}-{amount0}-{amount1} (AeroNFPMMintPoolId) |
+| `pools` | `[String!]!` | CL pool address of each matching Mint in the tx, in log order (one entry unless two pools received identical mints) |
+| `mintLogIndexes` | `[Int!]!` | log index of each of those Mints (parallel to pools) |
+
+### AeroNFPMPendingMint
+
+Aero NFPM position creation, step 2 of 2: the recipient of NFPM.Transfer(mint), held until the same tx's IncreaseLiquidity creates the NonFungiblePosition (the Transfer has the owner but no range or pool; IncreaseLiquidity has the range but no owner). Deleted on creation.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Same as the position's id: {chainId}-{nfpmAddress}-{tokenId} (NonFungiblePositionId) |
+| `owner` | `String!` | recipient of the mint Transfer |
+| `transactionHash` | `String!` | mint transaction |
+
+### NFPMPositionPendingPrincipal
+
+Principal removed from an NFPM position (NFPM.DecreaseLiquidity amounts) and not yet collected. The NFPM's Collect pays principal plus fees, so Collect minus this is the position's fees. Per position (tokenId), unlike CLPositionPendingPrincipal, which is per pool-level position (pool + owner + range) and therefore shared by every NFPM position with the same range. Used for the Aero NFPM; deleted when fully drained.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Same as the position's id: {chainId}-{nfpmAddress}-{tokenId} (NonFungiblePositionId) |
+| `pendingPrincipal0` | `BigInt!` | token0 principal awaiting Collect |
+| `pendingPrincipal1` | `BigInt!` | token1 principal awaiting Collect |
+
+### V2SwapFeesInTx
+
+V2 swap fee hand-over. A V2 pool emits Fees(sender, amount0, amount1) for the fee it takes on each input token, before the swap's Sync and Swap in the same transaction. The Fees handler adds the amounts here and the Swap handler reads (by primary key) and deletes them, so a swap's fee USD and effective rate come from the fee actually charged. Deleted by the Swap.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{txHash}-{poolAddress} (V2SwapFeesInTxId) |
+| `fee0` | `BigInt!` | raw token0 fee of the pending swap |
+| `fee1` | `BigInt!` | raw token1 fee of the pending swap |
 
 ### TokenPricingPools
 
@@ -865,7 +922,6 @@ Temporary entity for matching Withdraw events with Transfer events (burns) Simil
 | `to` | `String!` | recipient address (0x0 for burns) |
 | `value` | `BigInt!` | LP token amount transferred |
 | `isBurn` | `Boolean!` | to == 0x0 |
-| `consumedByLogIndex` | `Int` | logIndex of the Withdraw event that consumed this transfer (undefined if unused) |
 | `timestamp` | `Timestamp!` | block timestamp of the transfer |
 
 ### ALM_TotalSupplyLimitUpdated_event

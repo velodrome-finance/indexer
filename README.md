@@ -1,11 +1,16 @@
-# Velodrome V2 & Aerodrome multi-chain indexer
+# Velodrome V2, Aerodrome & Aero multi-chain indexer
 
 A multi-chain blockchain indexer for [Velodrome V2](https://velodrome.finance/)
 (Optimism) and [Aerodrome](https://aerodrome.finance/) (Base) and their
-superchain deployments. It ingests on-chain events for pools, gauges, voting,
+superchain deployments, and for **Aero** (MetaDEX), the merged deployment
+launched on 2026-10-21. It ingests on-chain events for pools, gauges, voting,
 veNFTs, concentrated-liquidity positions, automated liquidity management, pool
 launchers, and cross-chain swaps, and serves the derived state from a Postgres
-database.
+database. Legacy and Aero pools share one data model: `Pool.deployment`
+(`VELODROME` / `AERODROME` / `AERO`) tells them apart
+([ADR 0005](docs/adr/0005-one-data-model-for-legacy-and-aero-pools.md)). For
+Aero, pools, swaps, liquidity, positions and prices are indexed; gauges,
+emissions and governance are not yet.
 
 Built in TypeScript on the [Envio HyperIndex](https://docs.envio.dev/) platform
 (v3.16).
@@ -34,14 +39,18 @@ Built in TypeScript on the [Envio HyperIndex](https://docs.envio.dev/) platform
 
 Networks are defined in `config.yaml`:
 
-| Chain    | Chain ID | Chain     | Chain ID |
-| -------- | -------- | --------- | -------- |
-| Optimism | 10       | Lisk      | 1135     |
-| Base     | 8453     | Unichain  | 130      |
-| Celo     | 42220    | Fraxtal   | 252      |
-| Soneium  | 1868     | Metal     | 1750     |
-| Ink      | 57073    | Superseed | 5330     |
-| Mode     | 34443    | Swell     | 1923     |
+| Chain    | Chain ID | Deployments        | Chain           | Chain ID | Deployments |
+| -------- | -------- | ------------------ | --------------- | -------- | ----------- |
+| Optimism | 10       | Velodrome, Aero    | Lisk            | 1135     | Velodrome   |
+| Base     | 8453     | Aerodrome, Aero    | Unichain        | 130      | Velodrome   |
+| Celo     | 42220    | Velodrome          | Fraxtal         | 252      | Velodrome   |
+| Soneium  | 1868     | Velodrome          | Metal           | 1750     | Velodrome   |
+| Ink      | 57073    | Velodrome, Aero    | Superseed       | 5330     | Velodrome   |
+| Mode     | 34443    | Velodrome          | Swell           | 1923     | Velodrome   |
+| Ethereum | 1        | Aero               | Robinhood Chain | 4663     | Aero        |
+| Arbitrum | 42161    | Aero               | Arc             | 5042     | Aero (incl. the lite launch) |
+
+The Aero-only chains start at their first Aero contract's deploy block.
 
 ## Getting started
 
@@ -81,8 +90,8 @@ chain's endpoints are resolved in one place, `src/Effects/RpcConfig.ts`:
 
 | Variable | Meaning |
 | --- | --- |
-| `ENVIO_DRPC_API_KEY` | dRPC key. When set, every chain's primary is `https://lb.drpc.live/<network>/<key>` (networks: optimism, base, celo, soneium, ink, mode, lisk, unichain, fraxtal, metall2, superseed, swell). |
-| `ENVIO_<CHAIN>_RPC_URL` | Explicit primary for one chain; overrides the dRPC URL. `<CHAIN>` is one of `OPTIMISM BASE CELO SONEIUM INK MODE LISK UNICHAIN FRAXTAL METAL SUPERSEED SWELL`. |
+| `ENVIO_DRPC_API_KEY` | dRPC key. When set, every chain's primary is `https://lb.drpc.live/<network>/<key>` (networks: optimism, base, celo, soneium, ink, mode, lisk, unichain, fraxtal, metall2, superseed, swell, ethereum, arbitrum, robinhood, arc). |
+| `ENVIO_<CHAIN>_RPC_URL` | Explicit primary for one chain; overrides the dRPC URL. `<CHAIN>` is one of `OPTIMISM BASE CELO SONEIUM INK MODE LISK UNICHAIN FRAXTAL METAL SUPERSEED SWELL ETHEREUM ARBITRUM ROBINHOOD ARC`. |
 | `ENVIO_<CHAIN>_FALLBACK_RPC_URL` | Second endpoint used when the primary fails for any reason other than a contract revert. Defaults to a public endpoint from another provider (Superseed has none); `none` disables it. |
 | `ENVIO_<CHAIN>_RPC_RPS` | Requests per second for that chain's primary (defaults: Base 40, Optimism 25, others 10). |
 | `ENVIO_DRPC_MAX_RPS` | Budget shared by all dRPC-key endpoints (default 80; dRPC pay-as-you-go accounts created after 2026-10-19 are limited to 100 RPS per account). |
@@ -233,10 +242,15 @@ Subdirectories:
 - **Superswaps / Hyperlane** — cross-chain swap tracking
   (`VelodromeUniversalRouter`, `Mailbox`)
 - **Redistributor**
+- **Aero (MetaDEX)** — `AeroCLFactory`, `AeroStablePoolFactory`,
+  `AeroVolatilePoolFactory`, `AeroNFPM`, `DynamicSwapFeeHook`,
+  `V2CustomFeeModule`, `AeroTokenRegistry` (token list, a price-trust
+  signal); Aero pools use the shared `Pool` / `CLPool` contracts
+  and entities
 
 ## Data model
 
-The database schema is defined in [`schema.graphql`](schema.graphql) (39 entity
+The database schema is defined in [`schema.graphql`](schema.graphql) (48 entity
 types). The full, field-by-field reference — types, nullability, indexes, and
 descriptions for every field — is in
 **[`docs/schema.md`](docs/schema.md)**, which is generated from the schema by

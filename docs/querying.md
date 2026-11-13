@@ -10,17 +10,38 @@ the exhaustive field-by-field reference, see [`docs/schema.md`](schema.md).
 ## What the indexer provides
 
 The indexer ingests on-chain events for Velodrome V2 (Optimism) and Aerodrome
-(Base), together with their superchain deployments, and serves the derived state
-as a GraphQL API over Postgres. Consumers do not work with raw logs. They query
-clean, aggregated entities such as a pool's TVL, volume, and fees, or a wallet's
-position in a pool.
+(Base), together with their superchain deployments, and for Aero (MetaDEX), the
+merged deployment launched on 2026-10-21 (Base, Optimism, Ethereum, Arbitrum,
+Ink, Robinhood Chain, Arc), and serves the derived state as a GraphQL API over
+Postgres. Consumers do not work with raw logs. They query clean, aggregated
+entities such as a pool's TVL, volume, and fees, or a wallet's position in a
+pool.
+
+Legacy and Aero pools are the same entities (`Pool`, `NonFungiblePosition`,
+`UserStatsPerPool`, snapshots), so one query covers both. To tell them apart,
+filter on `Pool.deployment` (also on `PoolSnapshot`): `VELODROME`, `AERODROME`
+or `AERO`. For example, Aero pools on Base by volume:
+
+```graphql
+query {
+  Pool(
+    where: { chainId: { _eq: 8453 }, deployment: { _eq: "AERO" } }
+    order_by: { totalVolumeUSD: desc }
+    limit: 10
+  ) { name isCL totalVolumeUSD totalLiquidityUSD }
+}
+```
+
+For Aero pools, swaps, liquidity, positions and prices are indexed; gauge,
+emission and vote fields keep their defaults until Aero gauges and governance
+are indexed (see the field notes in the [schema reference](schema.md#pool)).
 
 Every row is scoped to a `chainId`, so a single API answers questions for all
 [supported chains](../README.md#supported-chains) at once.
 
 ### Three kinds of entity
 
-The 39 entity types fall into three categories. Identifying the category of an
+The 45 entity types fall into three categories. Identifying the category of an
 entity prevents querying the wrong one.
 
 | Kind | What it is | Examples | Use it for |
@@ -92,7 +113,7 @@ There are five rules.
 | **Raw token amounts** — `reserve0/1`, `totalVolume0/1`, `lpBalance`, `totalLiquidityAdded/RemovedToken0/1`, `oUSDTamount`, … | `10^token.decimals` | `value / 10^decimals` gives whole tokens |
 | **Token prices** — `Token.pricePerUSDNew` | `1e18` | `value / 1e18` gives the USD price of one whole token. Despite the field name, the value is USD-per-token. |
 | **Pool price ratios** — `Pool.token0Price` / `token1Price` | `1e18`, already decimal-adjusted | `value / 1e18` gives whole counter-token per whole token |
-| **Fee rates** — `baseFee`, `currentFee` | `FEE_SCALE = 1e6` (hundredths of a basis point) | `value / 1e6` gives a fraction. `value / 1e4` gives a percentage (for example, `3000` is 0.30%). On CL pools `baseFee` is the configured fee and `currentFee` the rate the latest swap actually paid (dynamic-fee pools move it swap to swap); see [ADR 0001](adr/0001-canonical-fee-field-scaling.md). |
+| **Fee rates** — `baseFee`, `currentFee` | `FEE_SCALE = 1e6` (hundredths of a basis point) | `value / 1e6` gives a fraction. `value / 1e4` gives a percentage (for example, `3000` is 0.30%). On CL and V2 pools `baseFee` is the configured fee and `currentFee` the rate the latest swap actually paid (dynamic-fee pools move it swap to swap); see [ADR 0001](adr/0001-canonical-fee-field-scaling.md). |
 
 The four fee-amount fields `totalFeesGenerated0/1` and `totalFeesContributed0/1`
 are an exception to the raw-token rule. They are `1e18`-normalized rather than
@@ -311,11 +332,12 @@ The following are non-obvious properties of the data rather than defects.
 - **Verify price trust before relying on a USD value.** USD values are gated by
   a price-trust system. A token whose price cannot be trusted contributes `$0` to
   USD aggregates rather than an unreliable figure. Check
-  `Token.priceTrustOutcome`, `priceTrustReason`, and `isWhitelisted` when a USD
-  value is unexpectedly low or zero. A token is trusted when it is either
-  protocol-whitelisted **or** a configured price connector for its chain — and
-  not operator-blacklisted. `priceTrustReason` records which: `WL`
-  (protocol-whitelisted), `CONNECTOR` (a canonical base asset — WETH, USDC, the
+  `Token.priceTrustOutcome`, `priceTrustReason`, `isWhitelisted` and
+  `isListedOnAero` when a USD value is unexpectedly low or zero. A token is
+  trusted when it is legacy-whitelisted **or** listed in the Aero TokenRegistry
+  **or** a configured price connector for its chain — and not
+  operator-blacklisted. `priceTrustReason` records which: `WL`
+  (legacy-whitelisted), `LISTED` (on Aero's token list), `CONNECTOR` (a canonical base asset — WETH, USDC, the
   chain's gov token — trusted without a `WhitelistToken` event, issue #898),
   `BLACKLISTED`, or `NON_WL` (no trust signal). This is why USD is populated on
   leaf chains that never whitelisted tokens on-chain (e.g. **Mode**, **Swell**)
