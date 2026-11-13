@@ -248,6 +248,11 @@ contracts:
       - event: SetUpkeepManager
 chains:
   - id: 10 # Optimism
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_OPTIMISM_RPC_URL:-}
+        for: fallback
     start_block: 0
     contracts:
       - name: DynamicSwapFeeModule
@@ -333,6 +338,11 @@ chains:
         address:
           - 0xd4C1905BB1D26BC93DAC913e13CaCC278CdCC80D
   - id: 8453 # Base
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_BASE_RPC_URL:-}
+        for: fallback
     start_block: 0
     contracts:
       - name: DynamicSwapFeeModule
@@ -428,6 +438,11 @@ chains:
           - 0x11a53f31Bf406de59fCf9613E1922bd3E283A4B4 # Slipstream README — Gauge Caps Deployment
           - 0xEe5b3C7b333e2870B746b3B2b168EF0958e55e15 # Slipstream README — Gauges V3 Deployment (current)
   - id: 42220 # Celo
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_CELO_RPC_URL:-}
+        for: fallback
     hypersync_config:
       url: https://celo.hypersync.xyz
     start_block: 31597000 # Velodrome contracts were only deployed on Celo mainnet after this block
@@ -487,6 +502,11 @@ chains:
         address:
           - 0x50da3B3907A08a24fe4999F4Dcf337E8dC7954bb
   - id: 1868 # Soneium
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_SONEIUM_RPC_URL:-}
+        for: fallback
     hypersync_config:
       url: https://soneium.hypersync.xyz
     start_block: 0
@@ -546,6 +566,11 @@ chains:
         address:
           - 0x3a464f746D23Ab22155710f44dB16dcA53e0775E
   - id: 57073 # Ink
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_INK_RPC_URL:-}
+        for: fallback
     hypersync_config:
       url: https://ink.hypersync.xyz
     start_block: 0
@@ -611,6 +636,11 @@ chains:
         address:
           - 0x7f50C5776722630a0024fAE05fDe8b47571D7B39
   - id: 34443 # Mode
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_MODE_RPC_URL:-}
+        for: fallback
     start_block: 0
     contracts:
       - name: CustomSwapFeeModule
@@ -668,6 +698,11 @@ chains:
         address:
           - 0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7
   - id: 1135 # Lisk
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_LISK_RPC_URL:-}
+        for: fallback
     start_block: 0
     contracts:
       - name: CustomSwapFeeModule
@@ -725,6 +760,11 @@ chains:
         address:
           - 0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7
   - id: 130 # Unichain
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_UNICHAIN_RPC_URL:-}
+        for: fallback
     hypersync_config:
       url: https://unichain.hypersync.xyz
     start_block: 0
@@ -784,6 +824,11 @@ chains:
         address:
           - 0x3a464f746D23Ab22155710f44dB16dcA53e0775E
   - id: 252 # Fraxtal
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_FRAXTAL_RPC_URL:-}
+        for: fallback
     hypersync_config:
       url: https://fraxtal.hypersync.xyz
     start_block: 0
@@ -835,6 +880,11 @@ chains:
         address:
           - 0x2f9DB5616fa3fAd1aB06cB2C906830BA63d135e3
   - id: 1750 # Metal
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_METAL_RPC_URL:-}
+        for: fallback
     hypersync_config:
       url: https://1750.hypersync.xyz # Metal L2 hypersync address
     start_block: 0
@@ -886,6 +936,11 @@ chains:
         address:
           - 0x730f8a4128Fa8c53C777B62Baa1abeF94cAd34a9
   - id: 5330 # Superseed
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_SUPERSEED_RPC_URL:-}
+        for: fallback
     hypersync_config:
       url: https://superseed.hypersync.xyz
     start_block: 0
@@ -945,6 +1000,11 @@ chains:
         address:
           - 0x3a464f746D23Ab22155710f44dB16dcA53e0775E
   - id: 1923 # Swell
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_SWELL_RPC_URL:-}
+        for: fallback
     hypersync_config:
       url: https://swell.hypersync.xyz
     start_block: 3717939
