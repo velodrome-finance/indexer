@@ -160,30 +160,9 @@ export interface PoolDiff {
   incrementalStakedReserve0: bigint;
   incrementalStakedReserve1: bigint;
   hasStakes: boolean;
-  // Replace semantics (NOT incremental): producers — gauge deposit/withdraw,
-  // NFPM liquidity change — compute the full post-edit arrays from `current.
-  // stakedTickEdges` / `current.stakedTickEdgeNets` and pass them whole. The
-  // aggregator writes them verbatim; there is no merge/sum path for these
-  // fields the way `incrementalCurrentLiquidityStaked` & co. have. This is
-  // the same "last-writer-wins" style used for `tick`, `sqrtPriceX96`, etc.
-  //
-  // Why replace (not incremental): the array is a sorted, dedup'd, no-zero
-  // encoding of Uniswap v3's liquidityNet per tick. Splicing in a delta
-  // requires a binary-search locate that only makes sense against the current
-  // state — producers already do it in applyPositionToEdges, so the
-  // aggregator just takes the result.
-  //
-  // Typed `readonly bigint[]` so callers can pass the value straight from the
-  // `Pool` entity (whose array fields are readonly in
-  // envio.d.ts) without a copy.
-  stakedTickEdges: readonly bigint[];
-  stakedTickEdgeNets: readonly bigint[];
-  // Total-liquidity edge map (all positions). Same replace semantics as the
-  // staked pair above: CLPool Mint/Burn compute the full post-edit arrays via
-  // applyPositionToEdges and pass them whole. Drives the fee-free swap
-  // reserve delta (#803).
-  tickEdges: readonly bigint[];
-  tickEdgeNets: readonly bigint[];
+  // The per-tick liquidityNet maps (total and staked) live on the
+  // Postgres-only PoolTickMap entity (src/Aggregators/PoolTickMap.ts), written
+  // by their producers directly; they are not part of a Pool diff.
   totalVotesDeposited: bigint;
   totalVotesDepositedUSD: bigint;
   incrementalTotalBribeClaimedUSD: bigint;
@@ -270,74 +249,6 @@ export async function updatePool(
   _eventChainId: number,
   _blockNumber: number,
 ) {
-  // Invariant check for the parallel-array pair (stakedTickEdges,
-  // stakedTickEdgeNets). Writers are supposed to compute both together via
-  // applyPositionToEdges (see src/Aggregators/CLStakedLiquidity.ts),
-  // but there's nothing in the type system that prevents a future caller
-  // from setting one and forgetting the other. Diverging lengths would
-  // silently desync the sparse map the swap path binary-searches, so log
-  // loudly under the [STAKED_TICK_DRIFT] tag and DROP both fields from the
-  // diff — preserving the prior consistent pair is safer than writing a
-  // mismatched one. Does not crash the indexer.
-  const edgesSet = diff.stakedTickEdges !== undefined;
-  const netsSet = diff.stakedTickEdgeNets !== undefined;
-  if (edgesSet !== netsSet) {
-    context.log.error(
-      `[STAKED_TICK_DRIFT][updatePool] stakedTickEdges and stakedTickEdgeNets must be updated together (parallel arrays) for pool ${current.poolAddress} on chain ${current.chainId}. Got edges=${edgesSet ? "set" : "unset"}, nets=${netsSet ? "set" : "unset"}. Dropping both from this update; aggregator retains the prior consistent pair.`,
-    );
-    diff.stakedTickEdges = undefined;
-    diff.stakedTickEdgeNets = undefined;
-    // Issue #719: writer-side derivation means diff.stakedLiquidityInRange was
-    // computed from the now-rejected edge pair. Drop it too so the clamp block
-    // below falls back to current.stakedLiquidityInRange, preserving consistency
-    // between the retained edges and the persisted counter.
-    diff.stakedLiquidityInRange = undefined;
-  } else if (
-    edgesSet &&
-    netsSet &&
-    // biome-ignore lint/style/noNonNullAssertion: edgesSet/netsSet narrow above
-    diff.stakedTickEdges!.length !== diff.stakedTickEdgeNets!.length
-  ) {
-    context.log.error(
-      // biome-ignore lint/style/noNonNullAssertion: edgesSet/netsSet narrow above
-      `[STAKED_TICK_DRIFT][updatePool] stakedTickEdges/stakedTickEdgeNets length mismatch for pool ${current.poolAddress} on chain ${current.chainId}: edges.length=${diff.stakedTickEdges!.length}, nets.length=${diff.stakedTickEdgeNets!.length}. Dropping both from this update; aggregator retains the prior consistent pair.`,
-    );
-    diff.stakedTickEdges = undefined;
-    diff.stakedTickEdgeNets = undefined;
-    // Issue #719: see comment above — keep counter aligned with retained edges.
-    diff.stakedLiquidityInRange = undefined;
-  }
-
-  // Same invariant check for the TOTAL-liquidity parallel pair (tickEdges,
-  // tickEdgeNets), added with #803. CLPool Mint/Burn always set both together
-  // via applyPositionToEdges, but — as with the staked pair above — nothing in
-  // the type system enforces that on a future caller. A presence/length
-  // mismatch would silently desync the sparse map the swap path binary-searches
-  // for the fee-free reserve geometry, so log under [TICK_EDGE_DRIFT] and drop
-  // both. Unlike the staked counter, `liquidityInRange` is NOT derived from this
-  // map (it comes straight from event.params.liquidity), so it is left untouched.
-  const totalEdgesSet = diff.tickEdges !== undefined;
-  const totalNetsSet = diff.tickEdgeNets !== undefined;
-  if (totalEdgesSet !== totalNetsSet) {
-    context.log.error(
-      `[TICK_EDGE_DRIFT][updatePool] tickEdges and tickEdgeNets must be updated together (parallel arrays) for pool ${current.poolAddress} on chain ${current.chainId}. Got edges=${totalEdgesSet ? "set" : "unset"}, nets=${totalNetsSet ? "set" : "unset"}. Dropping both from this update; aggregator retains the prior consistent pair.`,
-    );
-    diff.tickEdges = undefined;
-    diff.tickEdgeNets = undefined;
-  } else if (
-    totalEdgesSet &&
-    totalNetsSet &&
-    // biome-ignore lint/style/noNonNullAssertion: totalEdgesSet/totalNetsSet narrow above
-    diff.tickEdges!.length !== diff.tickEdgeNets!.length
-  ) {
-    context.log.error(
-      // biome-ignore lint/style/noNonNullAssertion: totalEdgesSet/totalNetsSet narrow above
-      `[TICK_EDGE_DRIFT][updatePool] tickEdges/tickEdgeNets length mismatch for pool ${current.poolAddress} on chain ${current.chainId}: edges.length=${diff.tickEdges!.length}, nets.length=${diff.tickEdgeNets!.length}. Dropping both from this update; aggregator retains the prior consistent pair.`,
-    );
-    diff.tickEdges = undefined;
-    diff.tickEdgeNets = undefined;
-  }
-
   // Clamp reserve0 / reserve1 to >= 0n at the accumulator path (issue #702).
   // Reserves are LP-deposited capital and must never go negative; a Burn
   // larger than the cumulative Mint we observed would otherwise drive the
@@ -647,13 +558,6 @@ export async function updatePool(
     // Monotonic latch: once a pool has ever been staked, hasStakes stays true
     // even if the diff doesn't explicitly re-assert it.
     hasStakes: current.hasStakes || (diff.hasStakes ?? false),
-    // Replace semantics: if the diff provides a new edge list, use it directly.
-    // Producers compute the post-edit arrays from `current.stakedTickEdges`/
-    // `current.stakedTickEdgeNets` and must replace both together (parallel arrays).
-    stakedTickEdges: diff.stakedTickEdges ?? current.stakedTickEdges,
-    stakedTickEdgeNets: diff.stakedTickEdgeNets ?? current.stakedTickEdgeNets,
-    tickEdges: diff.tickEdges ?? current.tickEdges,
-    tickEdgeNets: diff.tickEdgeNets ?? current.tickEdgeNets,
     totalVotesDeposited:
       diff.totalVotesDeposited ?? current.totalVotesDeposited,
     totalVotesDepositedUSD:
@@ -1147,10 +1051,6 @@ export function createPoolEntity(params: {
     stakedReserve0: 0n,
     stakedReserve1: 0n,
     hasStakes: false,
-    stakedTickEdges: [],
-    stakedTickEdgeNets: [],
-    tickEdges: [],
-    tickEdgeNets: [],
     totalFlashLoanFees0: 0n,
     totalFlashLoanFees1: 0n,
     totalFlashLoanFeesUSD: 0n,

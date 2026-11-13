@@ -23,7 +23,7 @@ Generated from [`schema.graphql`](../schema.graphql). The schema defines **40 en
 - **Config & registry** — [FactoryRegistryConfig](#factoryregistryconfig), [DynamicFeeGlobalConfig](#dynamicfeeglobalconfig), [CLGaugeConfig](#clgaugeconfig), [FeeToTickSpacingMapping](#feetotickspacingmapping), [RedistributorConfig](#redistributorconfig), [RootPool_LeafPool](#rootpool_leafpool), [RootGauge_RootPool](#rootgauge_rootpool)
 - **Pool launcher** — [PoolLauncherPool](#poollauncherpool), [PoolLauncherConfig](#poollauncherconfig)
 - **Cross-chain superswaps (Hyperlane)** — [SuperSwap](#superswap), [OUSDTBridgedTransaction](#ousdtbridgedtransaction), [OUSDTSwaps](#ousdtswaps), [DispatchId_event](#dispatchid_event), [ProcessId_event](#processid_event)
-- **Internal buffers & deferred state** — [PendingVote](#pendingvote), [CLPoolPendingInitialize](#clpoolpendinginitialize), [PendingRootPoolMapping](#pendingrootpoolmapping), [PendingDistribution](#pendingdistribution), [CLPoolMintEvent](#clpoolmintevent), [CLPositionPendingPrincipal](#clpositionpendingprincipal), [TxCLPoolMintRegistry](#txclpoolmintregistry), [TokenPricingPools](#tokenpricingpools), [TxPoolTransferRegistry](#txpooltransferregistry), [PoolTransferInTx](#pooltransferintx), [ALMLPWrapperTransferInTx](#almlpwrappertransferintx), [ALM_TotalSupplyLimitUpdated_event](#alm_totalsupplylimitupdated_event)
+- **Internal buffers & deferred state** — [PendingVote](#pendingvote), [CLPoolPendingInitialize](#clpoolpendinginitialize), [PendingRootPoolMapping](#pendingrootpoolmapping), [PendingDistribution](#pendingdistribution), [PoolTickMap](#pooltickmap), [CLPoolMintEvent](#clpoolmintevent), [CLPositionPendingPrincipal](#clpositionpendingprincipal), [TxCLPoolMintRegistry](#txclpoolmintregistry), [TokenPricingPools](#tokenpricingpools), [TxPoolTransferRegistry](#txpooltransferregistry), [PoolTransferInTx](#pooltransferintx), [ALMLPWrapperTransferInTx](#almlpwrappertransferintx), [ALM_TotalSupplyLimitUpdated_event](#alm_totalsupplylimitupdated_event)
 
 ## Core aggregates
 
@@ -82,11 +82,7 @@ Latest-state entities that hold the headline metrics most consumers query.
 | `stakedLiquidityInRange` | `BigInt` | staked in-range liquidity L (running counter from tick-based tracking) |
 | `stakedReserve0` | `BigInt` | staked reserves in token0 raw units (running counter) |
 | `stakedReserve1` | `BigInt` | staked reserves in token1 raw units (running counter) |
-| `hasStakes` | `Boolean!` | True once any staked position has been recorded for this pool. Gates the per-swap staked-tick sweep in processTickCrossings: pools that have never been staked skip the sweep entirely. Set on the first gauge Deposit. One-way latch: does NOT clear if every staked position is later withdrawn. A transiently-staked-then-fully-unstaked pool will keep running the sweep (with zero contributions). The structural fix that makes the residual cost negligible is tracked in #649 (sparse stakedTickEdges list); until it lands, the latch is "accept a degenerate case to avoid the bookkeeping of clearing". |
-| `stakedTickEdges` | `[BigInt!]!` | Parallel arrays encoding Uniswap v3's per-tick liquidityNet for the staked subset. Sorted ascending by tick, dedup'd, no zero-net entries. Same length, same index: (stakedTickEdges[i], stakedTickEdgeNets[i]) is one (tick, net) pair. Two arrays instead of one list-of-structs because GraphQL lists only allow scalars or named types — tuples don't exist at this layer. Maintained on gauge deposit / withdraw / NFPM staked-position liquidity changes. Consumed by processTickCrossings via in-memory binary search — no per-tick entity loads on the swap path, which breaks the OOM chain-of-amplification from #648. |
-| `stakedTickEdgeNets` | `[BigInt!]!` | Per-tick liquidityNet for the staked subset; paired index-for-index with stakedTickEdges (see stakedTickEdges). |
-| `tickEdges` | `[BigInt!]!` | Total-liquidity analog of stakedTickEdges/stakedTickEdgeNets: the pool's full per-tick liquidityNet map (all positions, not just staked). Maintained on CLPool Mint/Burn; consumed by processTickCrossings on the swap path to compute the fee-free reserve delta from pool geometry (L·ΔsqrtPrice), replacing the stale-fee approximation that drifts on dynamic-fee pools (#803). |
-| `tickEdgeNets` | `[BigInt!]!` | Per-tick liquidityNet for all positions; paired index-for-index with tickEdges (see tickEdges). |
+| `hasStakes` | `Boolean!` | True once any staked position has been recorded for this pool. Gates the per-swap staked-tick sweep in processTickCrossings: pools that have never been staked skip the sweep entirely. Set on the first gauge Deposit. One-way latch: does NOT clear if every staked position is later withdrawn. The per-tick maps themselves live on PoolTickMap (Postgres only). |
 | `totalFlashLoanFees0` | `BigInt` | total flash loan fees collected in token0 |
 | `totalFlashLoanFees1` | `BigInt` | total flash loan fees collected in token1 |
 | `totalFlashLoanFeesUSD` | `BigInt` | total flash loan fees collected in USD |
@@ -734,6 +730,18 @@ Deferred distribution: stored when DistributeReward fires for a root gauge but R
 | `blockNumber` | `BigInt!` | Block number of the event |
 | `blockTimestamp` | `Timestamp!` | Block timestamp of the event |
 | `logIndex` | `Int!` | Log index for uniqueness within block |
+
+### PoolTickMap
+
+Per-tick liquidityNet maps of a CL pool, split off the Pool row: hot pools hold hundreds of entries, which every Pool read and write would otherwise (de)serialise, and envio writes a ClickHouse row per block in which an entity changes. Postgres only (`@storage(postgres: true, clickhouse: false) @internal`); read by CLPool Swap / Mint / Burn, the gauge stake paths and NFPM staked-position changes; written only when a map changes (Mint / Burn / stake / unstake / staked-position liquidity change, never a Swap). Each map is a pair of parallel arrays encoding Uniswap v3's per-tick liquidityNet: sorted ascending by tick, dedup'd, no zero-net entries, same length; (edges[i], nets[i]) is one (tick, net) pair.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Same as the Pool id: {chainId}-{poolAddress} (PoolId) |
+| `tickEdges` | `[BigInt!]!` | All positions (CLPool Mint/Burn). Drives the fee-free swap reserve delta (#803) and the swap-derived fee (src/Aggregators/CLSwapFee.ts). |
+| `tickEdgeNets` | `[BigInt!]!` | liquidityNet per tick in tickEdges |
+| `stakedTickEdges` | `[BigInt!]!` | Staked positions only (gauge deposit / withdraw, NFPM liquidity changes of staked positions). Drives the staked reserve deltas (#666/#719). |
+| `stakedTickEdgeNets` | `[BigInt!]!` | staked liquidityNet per tick in stakedTickEdges |
 
 ### CLPoolMintEvent
 

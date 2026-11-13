@@ -1,4 +1,4 @@
-import type { EvmEvent, Token } from "envio";
+import type { EvmEvent, PoolTickMap, Token } from "envio";
 import { processTickCrossings } from "../../Aggregators/CLStakedLiquidity";
 import {
   type CLSwapFeeDerivation,
@@ -214,11 +214,15 @@ export function calculateSwapFees(
  * swap of a pool logs one `[CL_SWAP_FEE_FALLBACK]` warning. An accepted swap
  * large enough to measure its rate writes it to `currentFee`.
  *
+ * The tick maps are read, never written: a swap does not change them.
+ *
  * @param event - CLPool Swap event
  * @param liquidityPoolAggregator - Pool state before the swap
  * @param token0Instance - Token0 (decimals and price)
  * @param token1Instance - Token1 (decimals and price)
  * @param context - Handler context, used for logging only
+ * @param tickMap - The pool's PoolTickMap (`loadPoolTickMap`); defaults to
+ *   empty maps (no Mint / stake seen)
  * @returns The pool diff and the swapper's user-stats diff
  */
 export async function processCLPoolSwap(
@@ -227,6 +231,13 @@ export async function processCLPoolSwap(
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
   context: handlerContext,
+  tickMap: PoolTickMap = {
+    id: liquidityPoolAggregator.id,
+    tickEdges: [],
+    tickEdgeNets: [],
+    stakedTickEdges: [],
+    stakedTickEdgeNets: [],
+  },
 ): Promise<CLPoolSwapResult> {
   const { volumeInUSD } = calculateSwapVolume(
     event,
@@ -239,32 +250,50 @@ export async function processCLPoolSwap(
   // sqrtPrice move, integrated over the TOTAL per-tick liquidity map, is the
   // exact principal token flow (Δ1 = L·ΔsqrtPrice/Q96, Δ0 = L·ΔsqrtPrice·Q96/
   // (S_a·S_b)); the fee never moves the price, so it is excluded by construction.
-  // This is the same edge-walk as the staked share (#666), seeded from the total
-  // edge map via deriveLiquidityInRange — so it stays correct even when the
-  // price starts at a boundary tick where the cached liquidityInRange is 0, and
-  // it walks initialized edges directly (binary search) with no per-tick step cap.
+  // This is the same edge-walk as the staked share (#666); it walks initialized
+  // edges directly (binary search) with no per-tick step cap.
   //
-  // Edge-map completeness: the seed comes from tickEdges (built by Mint/Burn from
-  // pool creation), NOT from the cached liquidityInRange. If the map is empty —
-  // e.g. a partial-history sync whose start block postdates the pool's Mints — the
-  // seed is 0n and swaps contribute no reserve delta. That is consistent with the
-  // reserve accumulator's full-history requirement (those pre-start Mints' principal
-  // would be absent from reserve0/1 too); a from-creation sync always has a complete map.
-  const totalCrossings = processTickCrossings(
-    event.chainId,
-    event.srcAddress,
-    liquidityPoolAggregator.tick ?? 0n,
-    event.params.tick,
-    liquidityPoolAggregator.sqrtPriceX96 ?? 0n,
-    event.params.sqrtPriceX96,
-    liquidityPoolAggregator.tickSpacing,
-    context,
-    liquidityPoolAggregator.liquidityInRange ?? 0n,
-    liquidityPoolAggregator.tickEdges.length > 0,
-    liquidityPoolAggregator.tickEdges,
-    liquidityPoolAggregator.tickEdgeNets,
-    "total",
-  );
+  // Seed: the walk starts from the cached pre-swap in-range liquidity (the last
+  // Swap's event liquidity plus in-range Mint/Burn deltas, exactly the pool's
+  // on-chain liquidity()), so it touches only the crossed edges instead of
+  // summing the whole map. If the walk then ends on a different liquidity than
+  // the event reports, the swap is re-walked from the map-derived seed
+  // (`deriveLiquidityInRange`, the previous behaviour) and that result is kept.
+  //
+  // Edge-map completeness: if the map is empty — e.g. a partial-history sync
+  // whose start block postdates the pool's Mints — the seed is 0n and swaps
+  // contribute no reserve delta (and the fee falls back to the stored rate).
+  // That is consistent with the reserve accumulator's full-history requirement
+  // (those pre-start Mints' principal would be absent from reserve0/1 too); a
+  // from-creation sync always has a complete map.
+  const oldTick = liquidityPoolAggregator.tick ?? 0n;
+  const oldSqrtPriceX96 = liquidityPoolAggregator.sqrtPriceX96 ?? 0n;
+  const cachedLiquidity = liquidityPoolAggregator.liquidityInRange ?? 0n;
+  const hasTotalMap = tickMap.tickEdges.length > 0;
+  const walkTotal = (seed: bigint | undefined) =>
+    processTickCrossings(
+      event.chainId,
+      event.srcAddress,
+      oldTick,
+      event.params.tick,
+      oldSqrtPriceX96,
+      event.params.sqrtPriceX96,
+      liquidityPoolAggregator.tickSpacing,
+      context,
+      cachedLiquidity,
+      hasTotalMap,
+      tickMap.tickEdges,
+      tickMap.tickEdgeNets,
+      "total",
+      seed,
+    );
+  let totalCrossings = walkTotal(hasTotalMap ? cachedLiquidity : 0n);
+  if (
+    hasTotalMap &&
+    totalCrossings.liquidityInRange !== event.params.liquidity
+  ) {
+    totalCrossings = walkTotal(undefined);
+  }
   const reserveDelta0 = totalCrossings.delta0;
   const reserveDelta1 = totalCrossings.delta1;
 
@@ -298,8 +327,21 @@ export async function processCLPoolSwap(
   const newReserve0 = liquidityPoolAggregator.reserve0 + reserveDelta0;
   const newReserve1 = liquidityPoolAggregator.reserve1 + reserveDelta1;
 
-  // Staked-share tracking (#666) — unchanged. Same edge-walk math, but over the
-  // staked-only edge map, producing the staked slice of the reserve deltas.
+  // Staked-share tracking (#666). Same edge-walk math, but over the staked-only
+  // edge map, producing the staked slice of the reserve deltas. Seeded from the
+  // cached stakedLiquidityInRange — every writer stores the map-derived value at
+  // the current tick (gauge / NFPM / CLPool Mint & Burn derive it, swaps walk
+  // it) — unless updatePool may have clamped it (#891: clamped to
+  // liquidityInRange, so staked === total) or it is zero (also the #719
+  // negative floor); then it is re-derived from the map (#719 self-healing).
+  const cachedStakedLiquidity =
+    liquidityPoolAggregator.stakedLiquidityInRange ?? 0n;
+  const stakedSeed =
+    liquidityPoolAggregator.hasStakes &&
+    cachedStakedLiquidity > 0n &&
+    cachedStakedLiquidity < cachedLiquidity
+      ? cachedStakedLiquidity
+      : undefined;
   const {
     liquidityInRange: stakedLiquidityInRange,
     delta0: stakedDelta0,
@@ -307,16 +349,18 @@ export async function processCLPoolSwap(
   } = processTickCrossings(
     event.chainId,
     event.srcAddress,
-    liquidityPoolAggregator.tick ?? 0n,
+    oldTick,
     event.params.tick,
-    liquidityPoolAggregator.sqrtPriceX96 ?? 0n,
+    oldSqrtPriceX96,
     event.params.sqrtPriceX96,
     liquidityPoolAggregator.tickSpacing,
     context,
-    liquidityPoolAggregator.stakedLiquidityInRange ?? 0n,
+    cachedStakedLiquidity,
     liquidityPoolAggregator.hasStakes,
-    liquidityPoolAggregator.stakedTickEdges,
-    liquidityPoolAggregator.stakedTickEdgeNets,
+    tickMap.stakedTickEdges,
+    tickMap.stakedTickEdgeNets,
+    "staked",
+    stakedSeed,
   );
 
   // token0Price/token1Price are the pool-internal exchange rate, derived from

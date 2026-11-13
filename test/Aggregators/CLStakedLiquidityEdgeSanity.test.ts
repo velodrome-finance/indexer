@@ -37,12 +37,35 @@ async function carryStore(
     to.NonFungiblePosition.set(rehydrateTimestamps("NonFungiblePosition", e));
   for (const e of await from.UserStatsPerPool.getAll())
     to.UserStatsPerPool.set(rehydrateTimestamps("UserStatsPerPool", e));
+  for (const e of await from.PoolTickMap.getAll())
+    to.PoolTickMap.set({
+      ...e,
+      tickEdges: [...e.tickEdges],
+      tickEdgeNets: [...e.tickEdgeNets],
+      stakedTickEdges: [...e.stakedTickEdges],
+      stakedTickEdgeNets: [...e.stakedTickEdgeNets],
+    });
+}
+
+/**
+ * Reads a pool's staked tick map from the PoolTickMap store (empty when no
+ * map was ever written).
+ */
+async function stakedMapOf(
+  indexer: ReturnType<typeof createTestIndexer>,
+  poolId: string,
+): Promise<{ edges: readonly bigint[]; nets: readonly bigint[] }> {
+  const map = await indexer.PoolTickMap.get(poolId);
+  return {
+    edges: map?.stakedTickEdges ?? [],
+    nets: map?.stakedTickEdgeNets ?? [],
+  };
 }
 
 /**
  * Co-located sanity test for #649: replacing `processTickCrossings`
- * fan-out with the sparse stakedTickEdges / stakedTickEdgeNets list on
- * Pool.
+ * fan-out with the sparse stakedTickEdges / stakedTickEdgeNets list (now on
+ * PoolTickMap).
  *
  * Two assertions:
  *   (a) The edge list stays sorted + monotone under arbitrary gauge
@@ -169,8 +192,7 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
     expect(updated).toBeDefined();
     if (!updated) return;
 
-    const edges = updated.stakedTickEdges;
-    const nets = updated.stakedTickEdgeNets;
+    const { edges, nets } = await stakedMapOf(indexer, updated.id);
 
     // Invariant 1: parallel arrays have the same length
     expect(edges.length).toBe(nets.length);
@@ -425,19 +447,16 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       expect(updated).toBeDefined();
       if (!updated) return;
 
-      // Edges populated by applyPositionToEdges.
-      expect(updated.stakedTickEdges).toEqual([tickLower, tickUpper]);
-      expect(updated.stakedTickEdgeNets).toEqual([liquidity, -liquidity]);
+      // Edges populated by applyPositionToEdges (on PoolTickMap).
+      const map = await stakedMapOf(indexer, updated.id);
+      expect(map.edges).toEqual([tickLower, tickUpper]);
+      expect(map.nets).toEqual([liquidity, -liquidity]);
       // Counter MUST equal derive(currentTick=0n, edges, nets):
       //   edge -100 ≤ 0 → contributes +500
       //   edge  100 > 0 → excluded
       // ⇒ stakedLiquidityInRange = 500. Legacy gated path would leave 0n.
       expect(updated.stakedLiquidityInRange).toBe(
-        deriveLiquidityInRange(
-          updated.tick ?? 0n,
-          updated.stakedTickEdges,
-          updated.stakedTickEdgeNets,
-        ),
+        deriveLiquidityInRange(updated.tick ?? 0n, map.edges, map.nets),
       );
       expect(updated.stakedLiquidityInRange).toBe(500n);
     });
@@ -462,10 +481,9 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
         sqrtPriceX96: sqrtAt(0n),
         tick: 0n,
         hasStakes: false,
-        // Poisoned cached counter — edges are empty, so the truth is 0n.
+        // Poisoned cached counter — edges are empty (no PoolTickMap), so the
+        // truth is 0n.
         stakedLiquidityInRange: 999_999n,
-        stakedTickEdges: [],
-        stakedTickEdgeNets: [],
       });
       indexer.Pool.set(liquidityPool);
       indexer.Token.set(mockToken0Data as Token);
@@ -519,16 +537,13 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       expect(updated).toBeDefined();
       if (!updated) return;
 
-      // Rejection means edges are unchanged (still empty).
-      expect(updated.stakedTickEdges).toEqual([]);
-      expect(updated.stakedTickEdgeNets).toEqual([]);
+      // Rejection means edges are unchanged (still empty) and, the map being
+      // unchanged, no PoolTickMap row is written.
+      expect(await indexer.PoolTickMap.get(updated.id)).toBeUndefined();
+      const map = await stakedMapOf(indexer, updated.id);
       // The healing invariant: counter must equal derive at the current tick.
       expect(updated.stakedLiquidityInRange).toBe(
-        deriveLiquidityInRange(
-          updated.tick ?? 0n,
-          updated.stakedTickEdges,
-          updated.stakedTickEdgeNets,
-        ),
+        deriveLiquidityInRange(updated.tick ?? 0n, map.edges, map.nets),
       );
       expect(updated.stakedLiquidityInRange).toBe(0n);
     });
@@ -557,9 +572,14 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
         // Pre-deposit state: counter=positionLiquidity (correct WHILE in range
         // — set as if the deposit fired earlier at a price in range).
         stakedLiquidityInRange: positionLiquidity,
+      });
+      const storedMap = {
+        id: liquidityPool.id,
+        tickEdges: [],
+        tickEdgeNets: [],
         stakedTickEdges: [tickLower, tickUpper],
         stakedTickEdgeNets: [positionLiquidity, -positionLiquidity],
-      });
+      };
 
       // Position is already staked in gauge (so updateStakedPositionLiquidity
       // is the function NFPM.IncreaseLiquidity would invoke for it).
@@ -578,11 +598,16 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       // delegates to for staked positions, and bypassing the full event chain
       // keeps the test focused on the counter-update path the issue exposes.
       const setSpy = vi.fn();
+      const tickMapSetSpy = vi.fn();
       // Issue #780: updateStakedPositionLiquidity now also touches the staker's
       // UserStatsPerPool (Pool + user must move in lockstep for the gauge
       // Withdraw guard). Mock the user-side entities so the path completes.
       const mockContext = {
         Pool: { set: setSpy },
+        PoolTickMap: {
+          get: vi.fn().mockResolvedValue(storedMap),
+          set: tickMapSetSpy,
+        },
         PoolSnapshot: { set: vi.fn() },
         Token: { get: vi.fn().mockResolvedValue(undefined) },
         UserStatsPerPool: {
@@ -617,14 +642,17 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       expect(setSpy).toHaveBeenCalledTimes(1);
       const written = setSpy.mock.calls[0][0] as {
         stakedLiquidityInRange: bigint;
+        tick: bigint;
+      };
+      expect(tickMapSetSpy).toHaveBeenCalledTimes(1);
+      const writtenMap = tickMapSetSpy.mock.calls[0][0] as {
         stakedTickEdges: bigint[];
         stakedTickEdgeNets: bigint[];
-        tick: bigint;
       };
 
       // Edges absorbed the +increaseDelta (consistent with applyPositionToEdges).
-      expect(written.stakedTickEdges).toEqual([tickLower, tickUpper]);
-      expect(written.stakedTickEdgeNets).toEqual([
+      expect(writtenMap.stakedTickEdges).toEqual([tickLower, tickUpper]);
+      expect(writtenMap.stakedTickEdgeNets).toEqual([
         positionLiquidity + increaseDelta,
         -(positionLiquidity + increaseDelta),
       ]);
@@ -634,8 +662,8 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       expect(written.stakedLiquidityInRange).toBe(
         deriveLiquidityInRange(
           written.tick ?? 0n,
-          written.stakedTickEdges,
-          written.stakedTickEdgeNets,
+          writtenMap.stakedTickEdges,
+          writtenMap.stakedTickEdgeNets,
         ),
       );
       expect(written.stakedLiquidityInRange).toBe(0n);
@@ -715,11 +743,12 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       );
       expect(postDeposit).toBeDefined();
       if (!postDeposit) return;
+      const depositMap = await stakedMapOf(indexer, postDeposit.id);
       expect(postDeposit.stakedLiquidityInRange).toBe(
         deriveLiquidityInRange(
           postDeposit.tick ?? 0n,
-          postDeposit.stakedTickEdges,
-          postDeposit.stakedTickEdgeNets,
+          depositMap.edges,
+          depositMap.nets,
         ),
       );
 
@@ -782,13 +811,14 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       if (!postWithdraw) return;
 
       // After the round-trip, edges and counter must be empty/zero.
-      expect(postWithdraw.stakedTickEdges).toEqual([]);
-      expect(postWithdraw.stakedTickEdgeNets).toEqual([]);
+      const withdrawMap = await stakedMapOf(indexer2, postWithdraw.id);
+      expect(withdrawMap.edges).toEqual([]);
+      expect(withdrawMap.nets).toEqual([]);
       expect(postWithdraw.stakedLiquidityInRange).toBe(
         deriveLiquidityInRange(
           postWithdraw.tick ?? 0n,
-          postWithdraw.stakedTickEdges,
-          postWithdraw.stakedTickEdgeNets,
+          withdrawMap.edges,
+          withdrawMap.nets,
         ),
       );
       expect(postWithdraw.stakedLiquidityInRange).toBe(0n);
@@ -982,8 +1012,9 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
       // and the counter at "L0 - (L0+ΔL) = guard fires, no decrement applied",
       // leaving phantom edges and a stale counter forever.
       expect(postWithdraw.currentLiquidityStaked).toBe(0n);
-      expect(postWithdraw.stakedTickEdges).toEqual([]);
-      expect(postWithdraw.stakedTickEdgeNets).toEqual([]);
+      const finalMap = await stakedMapOf(indexer3, postWithdraw.id);
+      expect(finalMap.edges).toEqual([]);
+      expect(finalMap.nets).toEqual([]);
       expect(postWithdraw.stakedLiquidityInRange).toBe(0n);
     });
   });

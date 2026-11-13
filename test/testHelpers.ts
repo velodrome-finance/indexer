@@ -61,11 +61,6 @@ export function setupPool(
     id: poolId,
     poolAddress: poolAddress,
     isCL: mockLiquidityPoolData.isCL ?? true,
-    // Array fields: force mutable bigint[] (envio types use readonly; set() wants mutable).
-    stakedTickEdges: [...mockLiquidityPoolData.stakedTickEdges],
-    stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
-    tickEdges: [...mockLiquidityPoolData.tickEdges],
-    tickEdgeNets: [...mockLiquidityPoolData.tickEdgeNets],
   };
   indexer.Pool.set(mockPool);
 }

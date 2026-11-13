@@ -544,8 +544,13 @@ describe("CLPoolSwapLogic", () => {
         sqrtPriceX96: sqrtAtTick(0),
         tickSpacing: 1n,
         liquidityInRange: L,
+      };
+      const geoMap = {
+        id: geoBase.id,
         tickEdges: [-887272n, 887272n],
         tickEdgeNets: [L, -L],
+        stakedTickEdges: [],
+        stakedTickEdgeNets: [],
       };
       // Swap moves the price up from tick 0 to tick 100 (stays within the range).
       const geoEvent: EvmEvent<"CLPool", "Swap"> = {
@@ -563,6 +568,7 @@ describe("CLPoolSwapLogic", () => {
         wlToken0,
         wlToken1,
         mockContext,
+        geoMap,
       );
       const zeroFee = await processCLPoolSwap(
         geoEvent,
@@ -570,6 +576,7 @@ describe("CLPoolSwapLogic", () => {
         wlToken0,
         wlToken1,
         mockContext,
+        geoMap,
       );
 
       // Fee-independence: identical reserve deltas at a 1% fee and at 0% fee.
@@ -758,11 +765,16 @@ describe("CLPoolSwapLogic", () => {
       sqrtPriceX96: sqrtAtTick(0),
       tickSpacing: 1n,
       liquidityInRange: L,
-      tickEdges: [-887272n, 50n, 150n, 887272n],
-      tickEdgeNets: [L, L, -L, -L],
       currentFee: 3000n,
       baseFee: 3000n,
       numberOfSwapFeeFallbacks: 0n,
+    };
+    const tickMap = {
+      id: pool.id,
+      tickEdges: [-887272n, 50n, 150n, 887272n],
+      tickEdgeNets: [L, L, -L, -L],
+      stakedTickEdges: [],
+      stakedTickEdgeNets: [],
     };
     // Principal for a token1-in move from tick 0 to tick 100, as the indexer
     // walk computes it (two segments: L over [0, 50], 2L over [50, 100]).
@@ -803,6 +815,7 @@ describe("CLPoolSwapLogic", () => {
         wlToken0,
         wlToken1,
         ctx,
+        tickMap,
       );
       const d = result.liquidityPoolDiff;
       expect(d.incrementalTotalFeesGenerated1).toBe(fee); // 18 decimals
@@ -831,6 +844,7 @@ describe("CLPoolSwapLogic", () => {
           wlToken0,
           wlToken1,
           freshContext(),
+          tickMap,
         );
         expect(result.liquidityPoolDiff.currentFee).toBe(f);
         expect(result.liquidityPoolDiff.incrementalTotalFeesGenerated1).toBe(
@@ -847,6 +861,7 @@ describe("CLPoolSwapLogic", () => {
         wlToken0,
         wlToken1,
         ctx,
+        tickMap,
       );
       expect(result.liquidityPoolDiff.incrementalTotalFeesGenerated1).toBe(0n);
       expect(result.liquidityPoolDiff.incrementalTotalFeesGeneratedUSD).toBe(
@@ -873,6 +888,7 @@ describe("CLPoolSwapLogic", () => {
           wlToken0,
           wlToken1,
           ctx,
+          tickMap,
         );
         const d = result.liquidityPoolDiff;
         expect(d.incrementalTotalFeesGenerated1).toBe(
@@ -896,6 +912,7 @@ describe("CLPoolSwapLogic", () => {
           wlToken0,
           wlToken1,
           ctx2,
+          tickMap,
         );
         expect(
           again.liquidityPoolDiff.incrementalNumberOfSwapFeeFallbacks,
@@ -904,14 +921,100 @@ describe("CLPoolSwapLogic", () => {
       },
     );
 
+    it("seeds the walk from the cached in-range liquidity, touching only crossed edges", async () => {
+      // A bogus edge far below the price makes the map's prefix sum at tick 0
+      // disagree with the true in-range liquidity; the walk never crosses it.
+      // Seeded from the cached liquidity (L), the walk still ends on 2L.
+      const fee = chainFee(principal1, 500n);
+      const result = await processCLPoolSwap(
+        swapEvent(principal1 + fee),
+        pool,
+        wlToken0,
+        wlToken1,
+        freshContext(),
+        {
+          ...tickMap,
+          tickEdges: [-887272n, -800000n, 50n, 150n, 887272n],
+          tickEdgeNets: [L, 5n, L, -L, -L - 5n],
+        },
+      );
+      expect(result.liquidityPoolDiff.incrementalNumberOfSwapFeeFallbacks).toBe(
+        0n,
+      );
+      expect(result.liquidityPoolDiff.incrementalTotalFeesGenerated1).toBe(fee);
+      expect(result.liquidityPoolDiff.incrementalReserve1).toBe(principal1);
+    });
+
+    it("re-walks from the map-derived seed when the cached liquidity is stale", async () => {
+      const fee = chainFee(principal1, 500n);
+      const result = await processCLPoolSwap(
+        swapEvent(principal1 + fee),
+        { ...pool, liquidityInRange: L + 7n },
+        wlToken0,
+        wlToken1,
+        freshContext(),
+        tickMap,
+      );
+      expect(result.liquidityPoolDiff.incrementalNumberOfSwapFeeFallbacks).toBe(
+        0n,
+      );
+      expect(result.liquidityPoolDiff.incrementalTotalFeesGenerated1).toBe(fee);
+      expect(result.liquidityPoolDiff.incrementalReserve1).toBe(principal1);
+    });
+
+    it("seeds the staked walk from the cached staked liquidity unless it may have been clamped", async () => {
+      const S = L / 4n;
+      const stakedMap = {
+        ...tickMap,
+        stakedTickEdges: [-887272n, 887272n],
+        stakedTickEdgeNets: [S, -S],
+      };
+      const fee = chainFee(principal1, 500n);
+      const ev = swapEvent(principal1 + fee);
+      // 0 < cached < total: trusted (the map is not summed).
+      const trusted = await processCLPoolSwap(
+        ev,
+        { ...pool, hasStakes: true, stakedLiquidityInRange: S - 3n },
+        wlToken0,
+        wlToken1,
+        freshContext(),
+        stakedMap,
+      );
+      expect(trusted.liquidityPoolDiff.stakedLiquidityInRange).toBe(S - 3n);
+      // cached === total (what the #891 clamp leaves behind): re-derived.
+      const clamped = await processCLPoolSwap(
+        ev,
+        { ...pool, hasStakes: true, stakedLiquidityInRange: L },
+        wlToken0,
+        wlToken1,
+        freshContext(),
+        stakedMap,
+      );
+      expect(clamped.liquidityPoolDiff.stakedLiquidityInRange).toBe(S);
+      // cached === 0: re-derived.
+      const zero = await processCLPoolSwap(
+        ev,
+        { ...pool, hasStakes: true, stakedLiquidityInRange: 0n },
+        wlToken0,
+        wlToken1,
+        freshContext(),
+        stakedMap,
+      );
+      expect(zero.liquidityPoolDiff.stakedLiquidityInRange).toBe(S);
+      expect(zero.liquidityPoolDiff.incrementalStakedReserve1).toBe(
+        segmentReserveDelta(S, sqrtAtTick(0), sqrtAtTick(100)).delta1,
+      );
+    });
+
     it("falls back when the tick map is empty (partial-history sync)", async () => {
       const fee = chainFee(principal1, 500n);
       const result = await processCLPoolSwap(
         swapEvent(principal1 + fee),
-        { ...pool, tickEdges: [], tickEdgeNets: [] },
+        pool,
         wlToken0,
         wlToken1,
         freshContext(),
+        { ...tickMap, tickEdges: [], tickEdgeNets: [] },
       );
       expect(result.liquidityPoolDiff.incrementalNumberOfSwapFeeFallbacks).toBe(
         1n,

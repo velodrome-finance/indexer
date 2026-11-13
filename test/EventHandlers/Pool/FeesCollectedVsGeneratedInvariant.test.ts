@@ -109,8 +109,6 @@ describe("Pool fees collected ≤ generated invariant (#861)", () => {
   ): Promise<PoolEntity | undefined> {
     indexer.Pool.set({
       ...mockLiquidityPoolData,
-      stakedTickEdges: [...mockLiquidityPoolData.stakedTickEdges],
-      stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
     });
     indexer.Token.set(mockToken0Data as Token);
     indexer.Token.set(mockToken1Data as Token);
@@ -236,8 +234,6 @@ describe("Pool fees collected ≤ generated invariant (#861)", () => {
 
     indexer.Pool.set({
       ...mockLiquidityPoolData,
-      stakedTickEdges: [...mockLiquidityPoolData.stakedTickEdges],
-      stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
     });
     indexer.Token.set(mockToken0Data as Token);
     indexer.Token.set(untrustedToken1);

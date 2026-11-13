@@ -69,30 +69,8 @@ type Pool {
   # per-swap staked-tick sweep in processTickCrossings: pools that have
   # never been staked skip the sweep entirely. Set on the first gauge Deposit.
   # One-way latch: does NOT clear if every staked position is later withdrawn.
-  # A transiently-staked-then-fully-unstaked pool will keep running the sweep
-  # (with zero contributions). The structural fix that makes the residual cost
-  # negligible is tracked in #649 (sparse stakedTickEdges list); until it lands,
-  # the latch is "accept a degenerate case to avoid the bookkeeping of clearing".
+  # The per-tick maps themselves live on PoolTickMap (Postgres only).
   hasStakes: Boolean!
-  # Parallel arrays encoding Uniswap v3's per-tick liquidityNet for the staked
-  # subset. Sorted ascending by tick, dedup'd, no zero-net entries. Same length,
-  # same index: (stakedTickEdges[i], stakedTickEdgeNets[i]) is one (tick, net)
-  # pair. Two arrays instead of one list-of-structs because GraphQL lists only
-  # allow scalars or named types — tuples don't exist at this layer.
-  #
-  # Maintained on gauge deposit / withdraw / NFPM staked-position liquidity
-  # changes. Consumed by processTickCrossings via in-memory binary
-  # search — no per-tick entity loads on the swap path, which breaks the OOM
-  # chain-of-amplification from #648.
-  stakedTickEdges: [BigInt!]!
-  stakedTickEdgeNets: [BigInt!]! # Per-tick liquidityNet for the staked subset; paired index-for-index with stakedTickEdges (see stakedTickEdges).
-  # Total-liquidity analog of stakedTickEdges/stakedTickEdgeNets: the pool's full
-  # per-tick liquidityNet map (all positions, not just staked). Maintained on
-  # CLPool Mint/Burn; consumed by processTickCrossings on the swap path
-  # to compute the fee-free reserve delta from pool geometry (L·ΔsqrtPrice),
-  # replacing the stale-fee approximation that drifts on dynamic-fee pools (#803).
-  tickEdges: [BigInt!]!
-  tickEdgeNets: [BigInt!]! # Per-tick liquidityNet for all positions; paired index-for-index with tickEdges (see tickEdges).
   totalFlashLoanFees0: BigInt @config(precision: 76) # total flash loan fees collected in token0
   totalFlashLoanFees1: BigInt @config(precision: 76) # total flash loan fees collected in token1
   totalFlashLoanFeesUSD: BigInt @config(precision: 76) # total flash loan fees collected in USD
@@ -773,6 +751,29 @@ type FeeToTickSpacingMapping {
   tickSpacing: BigInt! @config(precision: 24) @index # Tick spacing value
   fee: BigInt! @config(precision: 24) # Fee value for this tick spacing
   lastUpdatedTimestamp: Timestamp! # Timestamp when this mapping was last updated
+}
+
+# Per-tick liquidityNet maps of a CL pool, split off the Pool row: hot pools
+# hold hundreds of entries, which every Pool read and write would otherwise
+# (de)serialise, and envio writes a ClickHouse row per block in which an entity
+# changes. Postgres only; read by CLPool Swap / Mint / Burn, the gauge stake
+# paths and NFPM staked-position changes; written only when a map changes
+# (Mint / Burn / stake / unstake / staked-position liquidity change, never a Swap).
+#
+# Each map is a pair of parallel arrays encoding Uniswap v3's per-tick
+# liquidityNet: sorted ascending by tick, dedup'd, no zero-net entries, same
+# length; (edges[i], nets[i]) is one (tick, net) pair. Two arrays instead of a
+# list of structs because GraphQL lists only allow scalars or named types.
+type PoolTickMap @storage(postgres: true, clickhouse: false) @internal {
+  id: ID! # Same as the Pool id: {chainId}-{poolAddress} (PoolId)
+  # All positions (CLPool Mint/Burn). Drives the fee-free swap reserve delta
+  # (#803) and the swap-derived fee (src/Aggregators/CLSwapFee.ts).
+  tickEdges: [BigInt!]!
+  tickEdgeNets: [BigInt!]! # liquidityNet per tick in tickEdges
+  # Staked positions only (gauge deposit / withdraw, NFPM liquidity changes of
+  # staked positions). Drives the staked reserve deltas (#666/#719).
+  stakedTickEdges: [BigInt!]!
+  stakedTickEdgeNets: [BigInt!]! # staked liquidityNet per tick in stakedTickEdges
 }
 
 # Temporary entity for storing CLPool.Mint event data until consumed by NFPM.Transfer(mint)

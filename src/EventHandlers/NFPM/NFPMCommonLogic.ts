@@ -5,6 +5,7 @@ import {
 } from "../../Aggregators/CLStakedLiquidity";
 import type { PoolData } from "../../Aggregators/Pool";
 import { updatePool } from "../../Aggregators/Pool";
+import { loadPoolTickMap, setPoolTickMap } from "../../Aggregators/PoolTickMap";
 import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
@@ -97,8 +98,8 @@ export async function attributeLiquidityChangeToUserStatsPerPool(
  * position.liquidity` reflecting in-flight Increase/Decrease deltas, while the
  * indexer's running counter only received the original Deposit amount; the
  * Withdraw guard at `GaugeSharedLogic.ts:419` then underflows and the edges
- * decrement is dropped, leaving phantom positive residue in
- * `stakedTickEdges`/`stakedTickEdgeNets` that swap re-derives forever.
+ * decrement is dropped, leaving phantom positive residue in the staked tick
+ * map (PoolTickMap.stakedTickEdges / stakedTickEdgeNets) that swaps walk forever.
  *
  * Position.owner is the real staker, not the gauge: `handleRegularTransfer`
  * skips owner updates on gauge stake/unstake transfers (see
@@ -128,13 +129,16 @@ export async function updateStakedPositionLiquidity(
 ): Promise<void> {
   const { liquidityPoolAggregator } = poolData;
 
+  // The staked map lives on PoolTickMap; it is written only when it changes.
+  const tickMap = await loadPoolTickMap(liquidityPoolAggregator.id, context);
   const {
     edges: stakedTickEdges,
     nets: stakedTickEdgeNets,
     rejected: edgesRejected,
+    changed: edgesChanged,
   } = applyPositionToEdges(
-    liquidityPoolAggregator.stakedTickEdges,
-    liquidityPoolAggregator.stakedTickEdgeNets,
+    tickMap.stakedTickEdges,
+    tickMap.stakedTickEdgeNets,
     position.tickLower,
     position.tickUpper,
     liquidityDelta,
@@ -143,6 +147,9 @@ export async function updateStakedPositionLiquidity(
     context.log.error(
       `[updateStakedPositionLiquidity] applyPositionToEdges rejected position ${position.tokenId} on pool ${position.pool} chain ${chainId}: reason=${edgesRejected} tickLower=${position.tickLower} tickUpper=${position.tickUpper}. Edge list left unchanged.`,
     );
+  }
+  if (edgesChanged) {
+    setPoolTickMap(tickMap, { stakedTickEdges, stakedTickEdgeNets }, context);
   }
 
   // Belt-and-suspenders: flip the hasStakes latch whenever the edge list is
@@ -192,8 +199,6 @@ export async function updateStakedPositionLiquidity(
       updatePool(
         {
           incrementalCurrentLiquidityStaked: liquidityDelta,
-          stakedTickEdges,
-          stakedTickEdgeNets,
           stakedLiquidityInRange,
           hasStakes,
         },
@@ -231,8 +236,6 @@ export async function updateStakedPositionLiquidity(
     stakedLiquidityInRange,
     incrementalStakedReserve0: direction * amount0,
     incrementalStakedReserve1: direction * amount1,
-    stakedTickEdges,
-    stakedTickEdgeNets,
     hasStakes,
   };
 
