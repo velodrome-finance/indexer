@@ -405,37 +405,37 @@
   },
   "1868": {
     "poolsDiscovered": 136,
-    "swapsCounted": false,
+    "swapsCounted": true,
     "wethPairs": {
       "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
         "pools": 2,
-        "swaps": null
+        "swaps": 396048
       },
       "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
         "pools": 2,
-        "swaps": null
+        "swaps": 147215
       },
       "0xba9986d2381edf1da03b0b9c1f8b00dc4aacc369": {
         "pools": 5,
-        "swaps": null
+        "swaps": 8813964
       }
     },
     "tokenPools": {
       "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
         "pools": 10,
-        "swaps": null
+        "swaps": 803977
       },
       "0x4200000000000000000000000000000000000006": {
         "pools": 47,
-        "swaps": null
+        "swaps": 15398337
       },
       "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
         "pools": 14,
-        "swaps": null
+        "swaps": 214598
       },
       "0xba9986d2381edf1da03b0b9c1f8b00dc4aacc369": {
         "pools": 32,
-        "swaps": null
+        "swaps": 24216228
       }
     }
   },
@@ -805,49 +805,49 @@
   },
   "42220": {
     "poolsDiscovered": 28,
-    "swapsCounted": false,
+    "swapsCounted": true,
     "wethPairs": {
       "0x471ece3750da237f93b8e339c536989b8978a438": {
         "pools": 2,
-        "swaps": null
+        "swaps": 682096
       },
       "0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e": {
         "pools": 1,
-        "swaps": null
+        "swaps": 1599286
       },
       "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
         "pools": 1,
-        "swaps": null
+        "swaps": 2760
       },
       "0xceba9300f2b948710d2653dd7b07f33a8b32118c": {
         "pools": 1,
-        "swaps": null
+        "swaps": 37
       }
     },
     "tokenPools": {
       "0x471ece3750da237f93b8e339c536989b8978a438": {
         "pools": 11,
-        "swaps": null
+        "swaps": 6893233
       },
       "0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e": {
         "pools": 8,
-        "swaps": null
+        "swaps": 6471239
       },
       "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
         "pools": 3,
-        "swaps": null
+        "swaps": 56814
       },
       "0xceba9300f2b948710d2653dd7b07f33a8b32118c": {
         "pools": 6,
-        "swaps": null
+        "swaps": 3216158
       },
       "0xd221812de1bd094f35587ee8e174b07b6167d9af": {
         "pools": 8,
-        "swaps": null
+        "swaps": 2286927
       },
       "0xef4229c8c3250c675f21bcefa42f58efbff6002a": {
         "pools": 1,
-        "swaps": null
+        "swaps": 0
       }
     }
   },
