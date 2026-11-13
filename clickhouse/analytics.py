@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import json
 import os
 import re
@@ -199,6 +200,9 @@ def ddl(ctx: Ctx, e: Entity) -> str:
     cols = [f"  {q(r.name)} {r.ch_type}" for r in ctx.resolved(e)]
     if e.mode != "latest":
         cols.append("  `period` DateTime('UTC')")
+        types = {r.name: r.ch_type for r in ctx.resolved(e)}
+        cols += [f"  {q('prev_' + f)} {types[f]} COMMENT 'value at the end of the previous period with a change (0 for the first)'"
+                 for f in e.prev_fields]
     cols += [
         "  `_version` UInt64 COMMENT 'envio_checkpoint_id of the row this state was taken from'",
         "  `_deleted` UInt8 COMMENT '1 when envio deleted the entity (envio_change = DELETE)'",
@@ -252,7 +256,53 @@ def projection(ctx: Ctx, e: Entity, rows: str) -> str:
 
 def insert_into(ctx: Ctx, e: Entity) -> str:
     cols = [r.name for r in ctx.resolved(e)] + (["period"] if e.mode != "latest" else []) + ["_version", "_deleted"]
+    cols += [f"prev_{f}" for f in e.prev_fields]
     return f"INSERT INTO {q(ctx.db)}.{q(e.table)} (" + ", ".join(q(c) for c in cols) + ")\n"
+
+
+def zero(t: str) -> str:
+    return f"CAST(0, {lit(t)})"
+
+
+SERIES_WINDOW = "WINDOW __w AS (PARTITION BY chain_id, pool_address ORDER BY period ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)"
+
+
+def with_prev_backfill(ctx: Ctx, e: Entity, proj: str) -> str:
+    """Backfill: a chunk holds every period of its pools, so prev_ is the previous row's value."""
+    if not e.prev_fields:
+        return proj
+    types = {r.name: r.ch_type for r in ctx.resolved(e)}
+    lags = ", ".join(f"lagInFrame({q(f)}, 1, {zero(types[f])}) OVER __w AS {q('prev_' + f)}" for f in e.prev_fields)
+    return f"SELECT *, {lags}\nFROM (\n{proj}\n)\n{SERIES_WINDOW}"
+
+
+def with_prev_refresh(ctx: Ctx, e: Entity, proj: str) -> str:
+    """Refresh: prev_ comes from the stored row of the same period (a period that continues),
+    else for a pool's first new period from the end of its last stored period, else from the
+    previous new period in this window."""
+    if not e.prev_fields:
+        return proj
+    types = {r.name: r.ch_type for r in ctx.resolved(e)}
+    t = f"{q(ctx.db)}.{q(e.table)}"
+    lags = ", ".join(f"lagInFrame({q(f)}, 1, {zero(types[f])}) OVER __w AS {q('__lag_' + f)}" for f in e.prev_fields)
+    base = [r.name for r in ctx.resolved(e)] + ["period", "_version", "_deleted"]
+    pools = "(chain_id, pool_address) IN (SELECT chain_id, pool_address FROM __new)"
+    prevs = ", ".join(
+        f"if(x.__has = 1, x.{q('prev_' + f)}, if(n.__rn = 1, if(o.__has = 1, o.{q('__end_' + f)}, {zero(types[f])}), n.{q('__lag_' + f)})) AS {q('prev_' + f)}"
+        for f in e.prev_fields
+    )
+    ends = ", ".join(f"argMax({q(f)}, period) AS {q('__end_' + f)}" for f in e.prev_fields)
+    xprev = ", ".join(q('prev_' + f) for f in e.prev_fields)
+    return (
+        f"WITH __new AS (\n  SELECT *, row_number() OVER (PARTITION BY chain_id, pool_address ORDER BY period) AS __rn, {lags}\n"
+        f"  FROM (\n{proj}\n  )\n  {SERIES_WINDOW}\n)\n"
+        f"SELECT " + ", ".join(f"n.{q(c)} AS {q(c)}" for c in base) + f", {prevs}\n"
+        f"FROM __new AS n\n"
+        f"LEFT JOIN (SELECT chain_id, pool_address, period, 1 AS __has, {xprev} FROM {t} FINAL WHERE {pools}) AS x\n"
+        f"  ON x.chain_id = n.chain_id AND x.pool_address = n.pool_address AND x.period = n.period\n"
+        f"LEFT JOIN (SELECT chain_id, pool_address, 1 AS __has, {ends} FROM {t} FINAL WHERE {pools} GROUP BY chain_id, pool_address) AS o\n"
+        f"  ON o.chain_id = n.chain_id AND o.pool_address = n.pool_address"
+    )
 
 
 def chunk_pred(lo: str | None, hi: str | None) -> str:
@@ -307,7 +357,7 @@ def rmv_ddl(ctx: Ctx, e: Entity, instance: str) -> str:
         f"CREATE MATERIALIZED VIEW IF NOT EXISTS {q(ctx.db)}.{q(rmv_name(e))}\n"
         f"REFRESH EVERY {REFRESH_EVERY}\n"
         f"APPEND TO {q(ctx.db)}.{q(e.table)}\n"
-        f"AS {projection(ctx, e, refresh_rows(ctx, e, instance))}\n"
+        f"AS {with_prev_refresh(ctx, e, projection(ctx, e, refresh_rows(ctx, e, instance)))}\n"
         "ORDER BY _version\n"
         "SETTINGS max_insert_threads = 1\n"
         f"COMMENT {lit('incremental refresh of ' + e.table + ' from ' + ctx.hist(e) + ' (rows up to the commit frontier only)')}"
@@ -403,7 +453,7 @@ def backfill(ctx: Ctx, e: Entity, frontier: int):
     parts = chunks(ctx, e, BACKFILL_CHUNK_ROWS)
     total_read = 0
     for i, chunk in enumerate(parts, 1):
-        sql = insert_into(ctx, e) + projection(ctx, e, backfill_rows(ctx, e, chunk, frontier))
+        sql = insert_into(ctx, e) + with_prev_backfill(ctx, e, projection(ctx, e, backfill_rows(ctx, e, chunk, frontier)))
         s = ctx.ch.execute(sql, BACKFILL_SETTINGS)
         total_read += int(s.get("read_rows", 0))
         log(f"  {e.table}: chunk {i}/{len(parts)} wrote {s.get('written_rows', '?')} rows (read {s.get('read_rows', '?')})")
@@ -469,15 +519,24 @@ def install(ctx: Ctx, force_rebuild=False):
         if not ctx.has_source(e):
             log(f"  {e.table}: source {ctx.hist(e)} missing, skipped")
             continue
-        ch.execute(ddl(ctx, e))
+        table_ddl = ddl(ctx, e)
+        digest = hashlib.sha1(table_ddl.encode()).hexdigest()
+        if meta.get(f"ddl:{e.table}") not in (None, digest):
+            # The layer's definition of this table changed: rebuild this table only.
+            log(f"  {e.table}: definition changed, rebuilding it")
+            ch.execute(f"DROP VIEW IF EXISTS {q(ctx.db)}.{q(rmv_name(e))} SYNC")
+            ch.execute(f"DROP TABLE IF EXISTS {q(ctx.db)}.{q(e.table)} SYNC")
+            meta.pop(f"backfilled:{e.table}", None)
+        ch.execute(table_ddl)
         done = meta.get(f"backfilled:{e.table}")
         if done is None:
             # Not backfilled to completion (new table, or a run cut off half way): start over.
             ch.execute(f"DROP VIEW IF EXISTS {q(ctx.db)}.{q(rmv_name(e))} SYNC")
             ch.execute(f"TRUNCATE TABLE {q(ctx.db)}.{q(e.table)}")
             backfill(ctx, e, frontier)
-            meta_set(ctx, {f"backfilled:{e.table}": str(frontier)})
+            meta_set(ctx, {f"backfilled:{e.table}": str(frontier), f"ddl:{e.table}": digest})
         else:
+            meta_set(ctx, {f"ddl:{e.table}": digest})
             log(f"  {e.table}: backfilled at checkpoint {done}, {table_rows(ctx, e.table)} rows; refreshed incrementally")
     for e in ENTITIES:
         if ctx.has_source(e):
@@ -561,7 +620,11 @@ def verify(ctx: Ctx, only: list[str] | None = None) -> bool:
         ctx.ch.execute(f"SYSTEM STOP VIEW {q(ctx.db)}.{q(n)}")
     try:
         for n in names:
-            ctx.ch.execute(f"SYSTEM WAIT VIEW {q(ctx.db)}.{q(n)}")
+            try:  # a refresh the STOP cancelled reports "Refresh failed: cancelled"
+                ctx.ch.execute(f"SYSTEM WAIT VIEW {q(ctx.db)}.{q(n)}")
+            except ClickHouseError as err:
+                if "cancelled" not in str(err):
+                    raise
         for e in ENTITIES:
             if only and e.key not in only:
                 continue
@@ -597,9 +660,22 @@ def verify_entity(ctx: Ctx, e: Entity) -> bool:
             f" FROM {h} WHERE {{chunk}} AND envio_checkpoint_id <= {f0} AND envio_change = 'SET' GROUP BY id, _period)"
         )
         join_on = "e.id = t.id AND e._period = t.period"
+        # prev_<f>: the value at the end of the pool's previous period (0 for the first)
+        by_name = {r.name: r for r in ctx.resolved(e)}
+        lags = ", ".join(
+            f"lagInFrame(toNullable(toString({q(by_name[f].col.src)})), 1, toNullable('0')) "
+            f"OVER (PARTITION BY id ORDER BY _period ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS {q('__prev_' + f)}"
+            for f in e.prev_fields
+        )
+        expected = f"SELECT *, {lags} FROM ({expected})"
+        pairs += [
+            (f"prev_{f}", (f"ifNull(toString(t.{q('prev_' + f)}), '<null>')", f"ifNull(e.{q('__prev_' + f)}, '<null>')"))
+            for f in e.prev_fields
+        ]
     mism = ", ".join(f"countIf({p[0]} != {p[1]}) AS {q('m_' + n)}" for n, p in pairs)
     totals: dict[str, int] = {}
-    for chunk in chunks(ctx, e, VERIFY_CHUNK_ROWS):
+    # series compare every version of a pool-period and sort them for prev_: smaller chunks
+    for chunk in chunks(ctx, e, VERIFY_CHUNK_ROWS if e.mode == "latest" else VERIFY_CHUNK_ROWS // 4):
         sql = (
             f"SELECT count() AS compared, countIf(t.id = '') AS missing_in_layer, {mism}\n"
             f"FROM ({expected.format(chunk=chunk)}) AS e\n"
@@ -705,7 +781,7 @@ def main(argv=None):
                 continue
             print(ddl(ctx, e) + ";\n")
             print("-- backfill (one statement per id chunk)\n" + insert_into(ctx, e)
-                  + projection(ctx, e, backfill_rows(ctx, e, "1", frontier)) + ";\n")
+                  + with_prev_backfill(ctx, e, projection(ctx, e, backfill_rows(ctx, e, "1", frontier))) + ";\n")
             print(rmv_ddl(ctx, e, instance) + ";\n")
         for s in view_statements(ctx):
             print(s + ";\n")

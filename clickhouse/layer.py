@@ -54,6 +54,10 @@ class Entity:
     # 'latest': one row per id (current state). 'hour' / 'day': one row per id per period,
     # holding the last version written in that period (end-of-period state).
     mode: str = "latest"
+    # Series only: fields whose value at the end of the pool's previous period is stored next to
+    # the current one (prev_<field>), so a period's flow is field - prev_field without a window
+    # function (ClickHouse does not push filters through window functions).
+    prev_fields: list[str] = field(default_factory=list)
     period_expr: str = ""
     indexes: list[str] = field(default_factory=list)  # skipping indexes
     partition_extra: str = ""  # leading partition expression (for time series)
@@ -173,6 +177,13 @@ SERIES_FIELDS = [
     "sqrt_price_x96", "tick", "liquidity_in_range", "staked_liquidity_in_range",
     "staked_reserve0", "staked_reserve1", "staked_liquidity", "staked_usd",
     "current_fee", "last_updated",
+]
+
+
+PREV_FIELDS = [
+    "tvl_usd", "staked_usd", "volume_usd", "volume0", "volume1", "fees_usd", "swaps",
+    "unstaked_fees_collected_usd", "staked_fees_collected_usd", "emissions", "emissions_usd",
+    "gauge_rewards_claimed_usd", "bribes_claimed_usd", "fee_rewards_claimed_usd", "flash_loan_volume_usd",
 ]
 
 
@@ -367,10 +378,10 @@ ENTITIES: list[Entity] = [
     Entity("token_price", "_token_price", "TokenPriceSnapshot", "chain_id, token_address, snapshot_key", token_price_cols(),
            description="hourly token price refreshes (TokenPriceSnapshot, typed and keyed per token)",
            partition_extra="toYear(refreshed_at)"),
-    Entity("pool_hour", "_pool_hour", "Pool", "chain_id, pool_address, period", series_cols(), mode="hour",
+    Entity("pool_hour", "_pool_hour", "Pool", "chain_id, pool_address, period", series_cols(), mode="hour", prev_fields=PREV_FIELDS,
            period_expr="toStartOfHour(lastUpdatedTimestamp)", partition_extra="toYear(period)",
            description="end-of-hour pool state for every hour in which the pool changed (exact, from the per-block history)"),
-    Entity("pool_day", "_pool_day", "Pool", "chain_id, pool_address, period", series_cols(), mode="day",
+    Entity("pool_day", "_pool_day", "Pool", "chain_id, pool_address, period", series_cols(), mode="day", prev_fields=PREV_FIELDS,
            period_expr="toStartOfDay(lastUpdatedTimestamp)",
            description="end-of-day pool state for every day in which the pool changed (exact, from the per-block history)"),
 ]

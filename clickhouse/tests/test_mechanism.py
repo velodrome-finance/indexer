@@ -115,20 +115,32 @@ def main():
     check("3 trimmed version never shown; re-run version loaded", tvl(), (4, 120))
 
     # --- 4: reorg rollback: the diff restores the pre-reorg state at a new checkpoint
-    pool_row(130, 2, t0 + 20)  # restored state carries its old timestamp
+    # (a reorg near the head: the restored state carries a timestamp from the same hour)
+    pool_row(130, 2, t0 + H + 10)
     frontier(130, 10**6 + 1)
     refresh()
     check("4 rollback diff followed", tvl(), (2, 130))
+
+    # --- 5 again: two new hours in one refresh; prev_ chains across them and the stored hour
+    pool_row(140, 6, t0 + 2 * H + 5)
+    pool_row(141, 9, t0 + 3 * H + 5)
+    frontier(141, 10**6 + 2)
+    refresh()
+    rows = ch.rows(f"SELECT toUnixTimestamp(period) - {t0} AS h, toString(tvl_usd) AS v, toString(prev_tvl_usd) AS p "
+                   f"FROM {DB}._pool_hour FINAL ORDER BY period")
+    check("5 hourly prev_ values chain across refreshes",
+          [(int(r["h"]), int(r["v"]), int(r["p"])) for r in rows], [(0, 2, 0), (H, 2, 2), (2 * H, 6, 2), (3 * H, 9, 6)])
     check("7 verify after refreshes", A.verify(ctx), True)
 
     # --- 6: indexer reset: envio empties its database and starts a new instance
+    before_reset = tvl()
     for t in TABLES:
         x(f"TRUNCATE TABLE {SRC}.{t}")
     x(f"INSERT INTO {SRC}.envio_info VALUES (1, 'instance-B')")
     pool_row(5, 7, t0 + 50)
     frontier(10, 2 * 10**6)
     refresh()
-    check("6 refresh loads nothing from a reset indexer", tvl(), (2, 130))
+    check("6 refresh loads nothing from a reset indexer", tvl(), before_reset)
     stale = [r for r in A.status(ctx) if r.get("table") == "!"]
     check("6 status reports STALE", bool(stale), True)
     A.install(ctx)
