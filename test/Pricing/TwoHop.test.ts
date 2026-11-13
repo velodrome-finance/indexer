@@ -1,6 +1,7 @@
 import type { Token } from "envio";
 import { PoolId, TokenId, toChecksumAddress } from "../../src/Constants";
 import * as PriceOracle from "../../src/PriceOracle";
+import { MAX_TWO_HOP_PEER_POOLS } from "../../src/Pricing/PricingConfig";
 import {
   E18,
   HOUR_S,
@@ -312,6 +313,35 @@ describe("two-hop pricing through a tier-3 peer (ADR 0006)", () => {
       tokens: [makeToken(OP, OP_MANATEE, 18n, 0n, STALE)],
     });
     expect((await refresh(s, X)).pricePerUSDNew).toBe(0n);
+  });
+
+  it("considers at most MAX_TWO_HOP_PEER_POOLS peer pools, oldest first", async () => {
+    // 32 dead peer pools registered first, then the X/Y pool with a priced
+    // peer: the 33rd peer pool is beyond the cap.
+    const dead = Array.from({ length: MAX_TWO_HOP_PEER_POOLS }, (_, i) =>
+      makePool(OP, addr(0xd00 + i), X, addr(0xe00 + i), {
+        reserve0: E18,
+        reserve1: E18,
+      }),
+    );
+    const s = store({
+      pools: [pYUsdc(), pXY(), ...dead],
+      pricingPools: {
+        [id(Y)]: [pid(P_Y_USDC), pid(P_X_Y)],
+        [id(X)]: [...dead.map((p) => p.id), pid(P_X_Y)],
+      },
+    });
+    expect((await refresh(s, X)).pricePerUSDNew).toBe(0n);
+
+    // The same pools with the priced peer registered first: it is used.
+    const first = store({
+      pools: [pYUsdc(), pXY(), ...dead],
+      pricingPools: {
+        [id(Y)]: [pid(P_Y_USDC), pid(P_X_Y)],
+        [id(X)]: [pid(P_X_Y), ...dead.map((p) => p.id)],
+      },
+    });
+    expect((await refresh(first, X)).pricePerUSDNew).toBe(E18 / 20n);
   });
 
   it("never calls an RPC effect", async () => {

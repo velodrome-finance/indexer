@@ -19,6 +19,7 @@ import {
   isPriceRefreshDue,
 } from "./Pricing/PriceResolution";
 import {
+  MAX_TWO_HOP_PEER_POOLS,
   PRICE_REFRESH_INTERVAL_MS,
   PRICING_TIER,
   type PricingTier,
@@ -446,11 +447,13 @@ async function findTwoHopCandidates(
   chainId: number,
   context: handlerContext,
 ): Promise<PricingCandidate[]> {
-  const peerPools = pools.filter(
-    (pool) =>
-      getPricingTier(chainId, counterpartyOf(pool, token).address) ===
-      PRICING_TIER.OTHER,
-  );
+  const peerPools = pools
+    .filter(
+      (pool) =>
+        getPricingTier(chainId, counterpartyOf(pool, token).address) ===
+        PRICING_TIER.OTHER,
+    )
+    .slice(0, MAX_TWO_HOP_PEER_POOLS);
   if (peerPools.length === 0) return [];
 
   const minDepthUSD = getMinPricingDepthUSD(chainId);

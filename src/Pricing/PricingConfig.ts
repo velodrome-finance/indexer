@@ -64,6 +64,15 @@ export const PRICE_CARRY_WINDOW_MS = 7 * 24 * MS_IN_AN_HOUR;
 export const PRICE_REFRESH_INTERVAL_MS = MS_IN_AN_HOUR;
 
 /**
+ * Most peer pools a two-hop refresh considers (ADR 0006), oldest first in
+ * registration order. Each peer costs its own pool and counterparty reads, and
+ * on Base a meme token can share pools with hundreds of other tier-3 tokens;
+ * the cap bounds that fan-out deterministically. Established markets register
+ * first, so they are the ones kept.
+ */
+export const MAX_TWO_HOP_PEER_POOLS = 32;
+
+/**
  * A canonical cross-chain source (src/PriceOverrides.ts) is only a candidate
  * while its last successful price is within this window either side of the
  * block being priced. Chains are not processed in time order during a
