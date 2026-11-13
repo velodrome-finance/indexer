@@ -12,6 +12,25 @@ import {
   toChecksumAddress,
 } from "../src/Constants";
 
+describe("toChecksumAddress (memoised)", () => {
+  const checksummed = "0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed";
+
+  it("returns the EIP-55 form for any input casing, first call and repeats alike", () => {
+    for (let i = 0; i < 3; i++) {
+      expect(toChecksumAddress(checksummed.toLowerCase())).toBe(checksummed);
+      expect(toChecksumAddress(`0x${checksummed.slice(2).toUpperCase()}`)).toBe(
+        checksummed,
+      );
+      expect(toChecksumAddress(checksummed)).toBe(checksummed);
+    }
+  });
+
+  it("still throws on invalid input every time (errors are not memoised)", () => {
+    expect(() => toChecksumAddress("0x1234")).toThrow();
+    expect(() => toChecksumAddress("0x1234")).toThrow();
+  });
+});
+
 describe("nfpmForCLPool", () => {
   const OP_CL_FACTORY_OLD = toChecksumAddress(
     "0x548118C7E0B865C2CfA94D15EC86B666468ac758",

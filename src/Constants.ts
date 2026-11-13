@@ -54,8 +54,29 @@ export const SECONDS_IN_FOUR_YEARS = BigInt(126144000);
 /** Snapshot interval: 1 hour in milliseconds (for epoch-aligned snapshots) */
 export const SNAPSHOT_INTERVAL_IN_MS = 60 * 60 * 1000;
 
-export const toChecksumAddress = (address: string): `0x${string}` =>
-  Web3.utils.toChecksumAddress(address) as `0x${string}`;
+/**
+ * Memo for {@link toChecksumAddress}: EIP-55 casing costs a keccak256 per call,
+ * and the hot callers (e.g. the swap initiator on every swap) see the same few
+ * thousand addresses over and over. Cleared wholesale when it reaches
+ * {@link CHECKSUM_MEMO_LIMIT} entries so memory stays bounded.
+ */
+const checksumMemo = new Map<string, `0x${string}`>();
+const CHECKSUM_MEMO_LIMIT = 100_000;
+
+/**
+ * EIP-55 checksum-cases an address (memoised; see {@link checksumMemo}).
+ * @param address - Address in any case
+ * @returns The checksummed address
+ * @throws When `address` is not a valid address (as Web3 does; not memoised)
+ */
+export const toChecksumAddress = (address: string): `0x${string}` => {
+  const memoised = checksumMemo.get(address);
+  if (memoised !== undefined) return memoised;
+  const checksummed = Web3.utils.toChecksumAddress(address) as `0x${string}`;
+  if (checksumMemo.size >= CHECKSUM_MEMO_LIMIT) checksumMemo.clear();
+  checksumMemo.set(address, checksummed);
+  return checksummed;
+};
 
 // Note:
 // These pools factories addresses are hardcoded since we can't check the pool type from the Voter contract.
