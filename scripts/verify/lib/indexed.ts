@@ -99,6 +99,55 @@ export class Indexed {
     }));
   }
 
+  /** Chains read from ClickHouse history at a checkpoint instead of Postgres (live instances). */
+  readonly pinnedCp = new Map<number, bigint>();
+
+  /**
+   * Reads entity rows of a chain as they were at a ClickHouse checkpoint, in the
+   * Postgres text shapes the checks expect (booleans 't'/'f', arrays '{..}').
+   * @param table - Entity table
+   * @param chainId - Chain
+   * @param cp - Checkpoint id (inclusive)
+   * @returns Rows
+   */
+  private async chRowsAt(
+    table: string,
+    chainId: number,
+    cp: bigint,
+  ): Promise<PgRow[]> {
+    if (!this.ch) return [];
+    const cols = await this.ch.query(
+      `SELECT name FROM system.columns WHERE database = currentDatabase() AND table = 'envio_history_${table}'`,
+    );
+    const hasChain = cols.some((c) => c.name === "chainId");
+    const filter = hasChain
+      ? `chainId = ${chainId}`
+      : `startsWith(id, '${chainId}-')`;
+    const cond = `envio_checkpoint_id <= ${cp} AND ${filter}`;
+    const rows = await this.ch.query(
+      `SELECT * FROM envio_history_${table} WHERE ${cond} AND (id, envio_checkpoint_id) IN (
+         SELECT id, max(envio_checkpoint_id) FROM envio_history_${table} WHERE ${cond} GROUP BY id)`,
+    );
+    const out: PgRow[] = [];
+    for (const r of rows) {
+      if (r.envio_change === "DELETE") continue;
+      const o: PgRow = {};
+      for (const [k, v] of Object.entries(r)) {
+        if (k.startsWith("envio_")) continue;
+        o[k] =
+          v === "true"
+            ? "t"
+            : v === "false"
+              ? "f"
+              : v !== null && v.startsWith("[") && v.endsWith("]")
+                ? `{${v.slice(1, -1).replace(/'/g, "")}}`
+                : v;
+      }
+      out.push(o);
+    }
+    return out;
+  }
+
   /**
    * All rows of an entity table for one chain (by `chainId` column, or by id prefix).
    * @param table - Entity table
@@ -106,6 +155,9 @@ export class Indexed {
    * @returns Rows
    */
   async rowsForChain(table: string, chainId: number): Promise<PgRow[]> {
+    const pinned = this.pinnedCp.get(chainId);
+    if (pinned !== undefined && this.ch)
+      return this.chRowsAt(table, chainId, pinned);
     const cols = await this.columns(table);
     const where = cols.has("chainId")
       ? `"chainId" = ${chainId}`
@@ -125,6 +177,12 @@ export class Indexed {
     chainId: number,
     fn: (r: PgRow) => void,
   ): Promise<number> {
+    const pinned = this.pinnedCp.get(chainId);
+    if (pinned !== undefined && this.ch) {
+      const rows = await this.chRowsAt(table, chainId, pinned);
+      for (const r of rows) fn(r);
+      return rows.length;
+    }
     const cols = await this.columns(table);
     const where = cols.has("chainId")
       ? `"chainId" = ${chainId}`

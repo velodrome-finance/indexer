@@ -200,7 +200,13 @@ export async function checkRegistrations(ctx: CheckContext): Promise<void> {
   ]);
   for (const [a, list] of regs) {
     for (const x of list) {
-      if (x.block < 0 || !dynamic.has(x.contract)) continue;
+      // Registrations after the pinned block (a live instance) are out of scope.
+      if (
+        x.block < 0 ||
+        x.block > ctx.truth.pinnedBlock ||
+        !dynamic.has(x.contract)
+      )
+        continue;
       if (!expected.has(a)) {
         extra++;
         c.add(

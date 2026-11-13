@@ -193,8 +193,18 @@ async function main(): Promise<number> {
       report.warnings.push(
         `chain ${chainId}: no RPC URL (${chain.rpcEnvVar ?? "none in config.yaml"}); contract-state checks skipped`,
       );
-    await loadCommon(ctx);
     const cp = idx.ch ? await idx.chCheckpointAt(chainId, pinned) : 0n;
+    // --live: read entity rows from ClickHouse history at the pinned checkpoint, so a
+    // running instance can be verified exactly (Postgres keeps moving).
+    let eventsProcessed = pr.eventsProcessed;
+    if (args.live === "true" && idx.ch) {
+      idx.pinnedCp.set(chainId, cp);
+      const ev = await idx.ch.query(
+        `SELECT sum(events_processed) AS n FROM envio_checkpoints WHERE chain_id = ${chainId} AND id <= ${cp}`,
+      );
+      eventsProcessed = Number(ev[0]?.n ?? 0);
+    }
+    await loadCommon(ctx);
     const steps: [string, () => void | Promise<void>][] = [
       ["completeness.pools", () => checkPools(ctx)],
       ["completeness.registrations", () => checkRegistrations(ctx)],
@@ -202,7 +212,7 @@ async function main(): Promise<number> {
       ["completeness.tick-spacing-fees", () => checkTickSpacingFees(ctx)],
       [
         "completeness.events-processed",
-        () => checkEventsProcessed(ctx, pr.eventsProcessed),
+        () => checkEventsProcessed(ctx, eventsProcessed),
       ],
       ["completeness.event-counters", () => checkEventCounters(ctx)],
       ["pool.v2", () => checkV2Pools(ctx)],
