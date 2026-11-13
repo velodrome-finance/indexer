@@ -7,13 +7,16 @@ import {
   CANONICAL_ALIGNMENT_WINDOW_MS,
   MAX_ACCEPTED_PRICE,
   MAX_PRICING_POOL_VALUE_IMBALANCE,
+  PRICING_TIER,
   getPricingTier,
 } from "./PricingConfig";
 
 /**
  * One offer to price a target token T. All values are USD in 1e18-base.
  *
- * - `pool`: a local pool pricing T through its counterparty C.
+ * - `pool`: a local pool pricing T through its counterparty C. With
+ *   `hops: 2` C is a tier-3 peer whose own price came from a direct pool route
+ *   computed in the same refresh (see {@link combineTwoHopCandidate}).
  * - `canonical`: the same asset's stored price on its canonical chain
  *   (src/PriceOverrides.ts), valued at that token's stored depth.
  */
@@ -28,6 +31,12 @@ export interface PricingCandidate {
   readonly depthUSD: bigint;
   /** T-side reserve valued at the candidate price (0n for `canonical`, which has no local reserve). */
   readonly targetSideUSD: bigint;
+  /** 2 for a two-hop pool route through a tier-3 peer; absent (= 1) otherwise. */
+  readonly hops?: 1 | 2;
+  /** Two-hop only: the peer token id (`{chainId}-{address}`) T was priced through. */
+  readonly viaTokenId?: string;
+  /** Two-hop only: the pool that priced the peer directly. */
+  readonly viaPoolId?: string;
 }
 
 /**
@@ -228,10 +237,50 @@ export function selectPricingCandidate(
 }
 
 /**
- * Which of a new pool's tokens may be priced through it: each side whose
- * counterparty sits in a strictly lower pricing tier. At most one side ever
- * qualifies (tiers are strictly ordered), and a pool between two tokens of the
- * same tier qualifies for neither.
+ * Combines a peer pool's candidate with the peer's own direct route into one
+ * two-hop candidate for the target (ADR 0006). `hop` must be the candidate the
+ * peer pool P2 (target T / peer C) offers when C is valued at `via.priceUSD`;
+ * `via` is C's winning direct pool candidate (pool P1, C / lower-tier token).
+ *
+ * The weakest link governs: the depth is `min(depth of P1, depth of P2)`, and
+ * the imbalance bound in {@link isQualifyingCandidate} is then applied to T's
+ * side of P2 against that minimum, so a deep peer pool cannot lend depth to a
+ * shallow peer route, nor the reverse. The price is P2's ratio × C's direct
+ * price (already in `hop.priceUSD`).
+ *
+ * Pure: no reads, no writes.
+ *
+ * @param hop - P2's candidate for T, with C at its direct price
+ * @param via - C's winning direct pool candidate (its `sourceId` is P1)
+ * @param viaTokenId - C's token id
+ * @returns The two-hop candidate
+ */
+export function combineTwoHopCandidate(
+  hop: PricingCandidate,
+  via: PricingCandidate,
+  viaTokenId: string,
+): PricingCandidate {
+  return {
+    kind: "pool",
+    sourceId: hop.sourceId,
+    priceUSD: hop.priceUSD,
+    depthUSD: hop.depthUSD < via.depthUSD ? hop.depthUSD : via.depthUSD,
+    targetSideUSD: hop.targetSideUSD,
+    hops: 2,
+    viaTokenId,
+    viaPoolId: via.sourceId,
+  };
+}
+
+/**
+ * Which of a new pool's tokens may be priced through it:
+ *
+ * - each side whose counterparty sits in a strictly lower pricing tier (a
+ *   direct route; at most one side, since tiers are strictly ordered);
+ * - both sides when both tokens are tier 3 (a peer pool, usable only for a
+ *   two-hop route through a peer that has a direct route of its own, ADR 0006).
+ *
+ * A pool between two tokens of the same tier 0–2 qualifies for neither.
  *
  * @param chainId - Chain the pool lives on
  * @param token0Address - Pool token0 address
@@ -247,13 +296,17 @@ export function getPricingPoolTargets(
   const tier1 = getPricingTier(chainId, token1Address);
   if (tier0 > tier1) return [TokenId(chainId, token0Address)];
   if (tier1 > tier0) return [TokenId(chainId, token1Address)];
+  if (tier0 === PRICING_TIER.OTHER) {
+    return [TokenId(chainId, token0Address), TokenId(chainId, token1Address)];
+  }
   return [];
 }
 
 /**
- * Registers a newly created pool as a pricing candidate for whichever of its
- * tokens sits in the higher tier (see {@link getPricingPoolTargets}), appending
- * the pool id to that token's `TokenPricingPools` row. Called from the V2
+ * Registers a newly created pool as a pricing candidate for the tokens
+ * {@link getPricingPoolTargets} names, appending the pool id to each one's
+ * `TokenPricingPools` row. Direct and peer pools share the list; the refresh
+ * tells them apart by the counterparty's tier. Called from the V2
  * `PoolFactory` and CL `CLFactory` `PoolCreated` handlers. Idempotent: a pool
  * already on the list is not appended twice.
  *

@@ -10,6 +10,7 @@ import {
   type PricingCandidate,
   buildCanonicalCandidate,
   buildPricingCandidate,
+  combineTwoHopCandidate,
   selectPricingCandidate,
 } from "./Pricing/PoolRoute";
 import {
@@ -155,7 +156,15 @@ export async function createTokenEntity(
  *      block. The source is read, never refreshed, so this cannot recurse.
  *    A candidate must pass the chain's depth floor, the 1000× imbalance bound
  *    and the $1M ceiling (`pool` / `canonical`).
- * 4. Nothing qualified: carry the last price while its last success is under
+ * 4. Tier-3 tokens only, when nothing in step 3 qualified: two-hop routes
+ *    (ADR 0006). Each registered pool against another tier-3 token C (a peer
+ *    pool) offers pool ratio × C's direct price, where C's direct price is
+ *    computed now from C's own direct pool candidates (step 3 without peers or
+ *    the canonical source). C's stored price is never used, so a carried or
+ *    itself-two-hop C cannot extend a chain. The weaker of the two hops sets
+ *    the depth for the floor, the imbalance bound and the comparison
+ *    (`pool`, `pricingHops = 2`).
+ * 5. Nothing qualified: carry the last price while its last success is under
  *    7 days old (`carried`), else 0 (`unpriced`).
  *
  * Two clocks (#694): `lastUpdatedTimestamp` advances on every due refresh
@@ -282,6 +291,9 @@ async function refreshDueTokenPrice(
       pricingPoolId: applied.pricingPoolId,
       pricingSourceTokenId: applied.pricingSourceTokenId,
       pricingDepthUSD: applied.pricingDepthUSD,
+      pricingHops: applied.pricingHops,
+      pricingViaTokenId: applied.pricingViaTokenId,
+      pricingViaPoolId: applied.pricingViaPoolId,
     },
     context,
   );
@@ -316,38 +328,171 @@ async function resolveTokenPrice(
     return { kind: "pinned" };
   }
 
-  const [poolCandidates, canonicalCandidate] = await Promise.all([
-    findPoolCandidates(
-      token,
-      tier,
-      blockNumber,
-      blockTimestamp,
-      chainId,
-      context,
-    ),
+  const minDepthUSD = getMinPricingDepthUSD(chainId);
+  const [pools, canonicalCandidate] = await Promise.all([
+    loadRegisteredPools(token, context),
     findCanonicalCandidate(token, chainId, blockTimestamp * 1000, context),
   ]);
+  const poolCandidates = await findPoolCandidates(
+    token,
+    tier,
+    pools,
+    blockNumber,
+    blockTimestamp,
+    chainId,
+    context,
+  );
   // Pools first, so a depth tie keeps the local route.
-  const best = selectPricingCandidate(
+  let best = selectPricingCandidate(
     canonicalCandidate
       ? [...poolCandidates, canonicalCandidate]
       : poolCandidates,
-    getMinPricingDepthUSD(chainId),
+    minDepthUSD,
   );
+  if (!best && tier === PRICING_TIER.OTHER) {
+    best = selectPricingCandidate(
+      await findTwoHopCandidates(
+        token,
+        pools,
+        blockNumber,
+        blockTimestamp,
+        chainId,
+        context,
+      ),
+      minDepthUSD,
+    );
+  }
   if (!best) return { kind: "none" };
   return {
     kind: best.kind,
     priceUSD: best.priceUSD,
     sourceId: best.sourceId,
     depthUSD: best.depthUSD,
+    hops: best.hops,
+    viaTokenId: best.viaTokenId,
+    viaPoolId: best.viaPoolId,
   };
 }
 
 /**
- * Loads the token's registered pricing pools and their counterparties,
- * refreshes each counterparty that is due, and builds one candidate per pool.
- * Reads are issued together with `Promise.all` so Envio's preload pass batches
- * them.
+ * Loads every pool registered for `token` in `TokenPricingPools` (direct and
+ * peer pools alike), in registration order.
+ *
+ * @param token - The token whose pools to load
+ * @param context - Envio handler context
+ * @returns The pools that still exist
+ */
+async function loadRegisteredPools(
+  token: Token,
+  context: handlerContext,
+): Promise<Pool[]> {
+  const registered = await context.TokenPricingPools.get(token.id);
+  const poolIds = registered?.pools ?? [];
+  if (poolIds.length === 0) return [];
+  return (
+    await Promise.all(
+      poolIds.map((id) => getRehydrated(context.Pool, "Pool", id)),
+    )
+  ).filter((pool): pool is Pool => pool !== undefined);
+}
+
+/**
+ * The other token of `pool`, seen from `token`.
+ *
+ * @param pool - A pool containing `token`
+ * @param token - The token being priced
+ * @returns The counterparty's token id and address
+ */
+function counterpartyOf(
+  pool: Pool,
+  token: Token,
+): { id: string; address: string } {
+  const id = pool.token0_id === token.id ? pool.token1_id : pool.token0_id;
+  // A token id is `{chainId}-{address}`; the address never contains `-`.
+  return { id, address: id.slice(id.indexOf("-") + 1) };
+}
+
+/**
+ * Two-hop candidates for a tier-3 token T (ADR 0006): one per registered pool
+ * whose counterparty C is also tier 3, valuing C at its *direct* price,
+ * computed now from C's own direct pool candidates (never C's peers, never its
+ * canonical source, never its stored price). C's direct route therefore cannot
+ * itself be two-hop or carried, and computing it never re-enters T or any
+ * other tier-3 token, so the extension adds exactly one level and stays
+ * acyclic. A blacklisted C is skipped.
+ *
+ * @param token - The tier-3 token being priced
+ * @param pools - The token's registered pools (from {@link loadRegisteredPools})
+ * @param blockNumber - Block of the triggering event
+ * @param blockTimestamp - Block timestamp in seconds
+ * @param chainId - Chain the token lives on
+ * @param context - Envio handler context
+ * @returns One weakest-link candidate per usable peer pool, in registration order
+ */
+async function findTwoHopCandidates(
+  token: Token,
+  pools: readonly Pool[],
+  blockNumber: number,
+  blockTimestamp: number,
+  chainId: number,
+  context: handlerContext,
+): Promise<PricingCandidate[]> {
+  const peerPools = pools.filter(
+    (pool) =>
+      getPricingTier(chainId, counterpartyOf(pool, token).address) ===
+      PRICING_TIER.OTHER,
+  );
+  if (peerPools.length === 0) return [];
+
+  const minDepthUSD = getMinPricingDepthUSD(chainId);
+  const peerIds = [
+    ...new Set(peerPools.map((pool) => counterpartyOf(pool, token).id)),
+  ];
+  const peers = await Promise.all(
+    peerIds.map((id) => getRehydrated(context.Token, "Token", id)),
+  );
+  const routes = await Promise.all(
+    peers.map(async (peer) => {
+      if (!peer || isBlacklistedToken(chainId, peer.address)) return undefined;
+      const peerCandidates = await findPoolCandidates(
+        peer,
+        PRICING_TIER.OTHER,
+        await loadRegisteredPools(peer, context),
+        blockNumber,
+        blockTimestamp,
+        chainId,
+        context,
+      );
+      const via = selectPricingCandidate(peerCandidates, minDepthUSD);
+      return via ? { peer, via } : undefined;
+    }),
+  );
+  const routeByPeerId = new Map(
+    routes
+      .filter((r): r is NonNullable<typeof r> => r !== undefined)
+      .map((r) => [r.peer.id, r]),
+  );
+
+  const candidates: PricingCandidate[] = [];
+  for (const pool of peerPools) {
+    const route = routeByPeerId.get(counterpartyOf(pool, token).id);
+    if (!route) continue;
+    const hop = buildPricingCandidate(pool, token, {
+      decimals: route.peer.decimals,
+      pricePerUSDNew: route.via.priceUSD,
+    });
+    if (hop) {
+      candidates.push(combineTwoHopCandidate(hop, route.via, route.peer.id));
+    }
+  }
+  return candidates;
+}
+
+/**
+ * Builds the direct candidates among a token's registered pools: those whose
+ * counterparty sits in a strictly lower tier. Loads the counterparties,
+ * refreshes each one that is due, and builds one candidate per pool. Reads are
+ * issued together with `Promise.all` so Envio's preload pass batches them.
  *
  * Counterparties are re-checked against the tier rule here as well as at
  * registration, so even a stale or hand-edited `TokenPricingPools` row cannot
@@ -355,32 +500,30 @@ async function resolveTokenPrice(
  *
  * @param token - The token being priced
  * @param tier - The token's pricing tier
+ * @param registeredPools - The token's registered pools
  * @param blockNumber - Block of the triggering event
  * @param blockTimestamp - Block timestamp in seconds
  * @param chainId - Chain the token lives on
  * @param context - Envio handler context
- * @returns One candidate per usable pool (selection happens in the caller)
+ * @returns One candidate per usable direct pool (selection happens in the caller)
  */
 async function findPoolCandidates(
   token: Token,
   tier: PricingTier,
+  registeredPools: readonly Pool[],
   blockNumber: number,
   blockTimestamp: number,
   chainId: number,
   context: handlerContext,
 ): Promise<PricingCandidate[]> {
-  const registered = await context.TokenPricingPools.get(token.id);
-  const poolIds = registered?.pools ?? [];
-  if (poolIds.length === 0) return [];
-
-  const pools = (
-    await Promise.all(
-      poolIds.map((id) => getRehydrated(context.Pool, "Pool", id)),
-    )
-  ).filter((pool): pool is Pool => pool !== undefined);
+  const pools = registeredPools.filter(
+    (pool) =>
+      getPricingTier(chainId, counterpartyOf(pool, token).address) < tier,
+  );
+  if (pools.length === 0) return [];
 
   const counterpartyIdOf = (pool: Pool): string =>
-    pool.token0_id === token.id ? pool.token1_id : pool.token0_id;
+    counterpartyOf(pool, token).id;
   const counterpartyIds = [...new Set(pools.map(counterpartyIdOf))];
   const counterparties = await Promise.all(
     counterpartyIds.map((id) => getRehydrated(context.Token, "Token", id)),

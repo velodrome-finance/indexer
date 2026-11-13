@@ -3,6 +3,7 @@ import {
   type PricingCandidate,
   buildCanonicalCandidate,
   buildPricingCandidate,
+  combineTwoHopCandidate,
   getPricingPoolTargets,
   isCanonicalSourceAligned,
   isQualifyingCandidate,
@@ -56,12 +57,16 @@ describe("PoolRoute", () => {
       ]);
     });
 
-    it("registers nothing for same-tier pairs", () => {
+    it("registers nothing for same-tier pairs in tiers 0-2", () => {
       expect(getPricingPoolTargets(OP, OP_USDC, OP_DAI)).toEqual([]); // 0/0
       expect(getPricingPoolTargets(OP, OP_VELO, OP_WBTC)).toEqual([]); // 2/2
-      expect(getPricingPoolTargets(OP, OP_TOKEN_X, OP_TOKEN_ZERO_DEC)).toEqual(
-        [],
-      ); // 3/3
+    });
+
+    it("registers a tier-3 / tier-3 pool for both sides as a peer pool (ADR 0006)", () => {
+      expect(getPricingPoolTargets(OP, OP_TOKEN_X, OP_TOKEN_ZERO_DEC)).toEqual([
+        TokenId(OP, OP_TOKEN_X),
+        TokenId(OP, OP_TOKEN_ZERO_DEC),
+      ]);
     });
   });
 
@@ -87,7 +92,13 @@ describe("PoolRoute", () => {
       ]);
     });
 
-    it("writes nothing for a same-tier pool", async () => {
+    it("writes nothing for a same-tier pool in tiers 0-2", async () => {
+      const store = createPricingStore({});
+      await registerPricingPool(store.context, OP, POOL_A, OP_VELO, OP_WBTC);
+      expect(store.pricingPools.size).toBe(0);
+    });
+
+    it("appends a tier-3 / tier-3 pool to both tokens' lists", async () => {
       const store = createPricingStore({});
       await registerPricingPool(
         store.context,
@@ -96,7 +107,12 @@ describe("PoolRoute", () => {
         OP_TOKEN_X,
         OP_TOKEN_ZERO_DEC,
       );
-      expect(store.pricingPools.size).toBe(0);
+      expect(store.pricingPools.get(TokenId(OP, OP_TOKEN_X))?.pools).toEqual([
+        PoolId(OP, POOL_A),
+      ]);
+      expect(
+        store.pricingPools.get(TokenId(OP, OP_TOKEN_ZERO_DEC))?.pools,
+      ).toEqual([PoolId(OP, POOL_A)]);
     });
   });
 
@@ -426,6 +442,80 @@ describe("PoolRoute", () => {
       expect(
         selectPricingCandidate([deepLocal, canonical], USD(1_000))?.kind,
       ).toBe("pool");
+    });
+  });
+  describe("combineTwoHopCandidate (weakest link, ADR 0006)", () => {
+    const hop = (depthUSD: bigint, targetSideUSD = depthUSD) => ({
+      kind: "pool" as const,
+      sourceId: "10-0xPeerPool",
+      priceUSD: USD(1) / 20n,
+      depthUSD,
+      targetSideUSD,
+    });
+    const via = (depthUSD: bigint) => ({
+      kind: "pool" as const,
+      sourceId: "10-0xDirectPool",
+      priceUSD: USD(2),
+      depthUSD,
+      targetSideUSD: depthUSD,
+    });
+
+    it("keeps the peer pool's price and records the route", () => {
+      expect(
+        combineTwoHopCandidate(
+          hop(USD(50_000)),
+          via(USD(100_000)),
+          "10-0xPeer",
+        ),
+      ).toEqual({
+        kind: "pool",
+        sourceId: "10-0xPeerPool",
+        priceUSD: USD(1) / 20n,
+        depthUSD: USD(50_000),
+        targetSideUSD: USD(50_000),
+        hops: 2,
+        viaTokenId: "10-0xPeer",
+        viaPoolId: "10-0xDirectPool",
+      });
+    });
+
+    it("takes the shallower hop as the depth, whichever it is", () => {
+      expect(
+        combineTwoHopCandidate(hop(USD(50_000)), via(USD(8_000)), "p").depthUSD,
+      ).toBe(USD(8_000));
+      expect(
+        combineTwoHopCandidate(hop(USD(3_000)), via(USD(900_000)), "p")
+          .depthUSD,
+      ).toBe(USD(3_000));
+    });
+
+    it("applies the floor and the 1000x bound to the weakest link", () => {
+      const floor = USD(5_000);
+      // Deep peer pool, shallow direct route: fails the floor.
+      expect(
+        isQualifyingCandidate(
+          combineTwoHopCandidate(hop(USD(500_000)), via(USD(4_000)), "p"),
+          floor,
+        ),
+      ).toBe(false);
+      // T side of the peer pool is under 1000x the peer pool's own depth but
+      // over 1000x the weakest link.
+      const imbalanced = combineTwoHopCandidate(
+        hop(USD(500_000), USD(500_000) * 900n),
+        via(USD(10_000)),
+        "p",
+      );
+      expect(isQualifyingCandidate(imbalanced, floor)).toBe(false);
+      expect(
+        isQualifyingCandidate(
+          combineTwoHopCandidate(
+            hop(USD(500_000), USD(10_000) * 1000n),
+            via(USD(10_000)),
+            "p",
+          ),
+          floor,
+        ),
+      ).toBe(true);
     });
   });
 });

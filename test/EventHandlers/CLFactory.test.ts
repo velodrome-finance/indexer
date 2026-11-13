@@ -133,14 +133,17 @@ describe("CLFactory Events", () => {
       expect(pool?.isCL).toBe(true);
     });
 
-    it("registers no pricing candidate when both tokens share a tier", async () => {
+    it("registers a tier-3 / tier-3 pool as a peer pool for both sides (ADR 0006)", async () => {
       // 0x1111… / 0x2222… are both tier-3 tokens on Base.
+      const poolId = PoolId(chainId, poolAddress);
       expect(
-        await indexer.TokenPricingPools.get(TokenId(chainId, token0Address)),
-      ).toBeUndefined();
+        (await indexer.TokenPricingPools.get(TokenId(chainId, token0Address)))
+          ?.pools,
+      ).toEqual([poolId]);
       expect(
-        await indexer.TokenPricingPools.get(TokenId(chainId, token1Address)),
-      ).toBeUndefined();
+        (await indexer.TokenPricingPools.get(TokenId(chainId, token1Address)))
+          ?.pools,
+      ).toEqual([poolId]);
     });
 
     it("registers the pool as a pricing candidate for the higher-tier side (ADR 0003)", async () => {
