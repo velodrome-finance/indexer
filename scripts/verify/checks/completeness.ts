@@ -198,6 +198,48 @@ export async function checkRegistrations(ctx: CheckContext): Promise<void> {
 }
 
 /**
+ * FeeToTickSpacingMapping rows vs the CLFactory TickSpacingEnabled logs.
+ * @param ctx - Check context
+ * @returns Promise resolving when done
+ */
+export async function checkTickSpacingFees(ctx: CheckContext): Promise<void> {
+  const c = new Check(
+    "completeness.tick-spacing-fees",
+    ctx.chainId,
+    "FeeToTickSpacingMapping has one row per tick spacing enabled by the chain's CLFactories, with the fee of the last TickSpacingEnabled log.",
+    "Exact. (Several factories on one chain share the {chainId}-{tickSpacing} id, so the last log over all factories wins.)",
+  );
+  const rows = await ctx.idx.rowsForChain(
+    "FeeToTickSpacingMapping",
+    ctx.chainId,
+  );
+  const byTs = new Map(rows.map((r) => [Number(r.tickSpacing), r]));
+  for (const [ts, fee] of ctx.truth.tickSpacingFees) {
+    const r = byTs.get(ts);
+    if (!r)
+      c.add({
+        key: `tickSpacing ${ts}`,
+        indexed: "missing",
+        truth: `fee ${fee}`,
+      });
+    else c.eq(`tickSpacing ${ts}.fee`, r.fee, fee);
+  }
+  for (const ts of byTs.keys()) {
+    if (!ctx.truth.tickSpacingFees.has(ts))
+      c.add({
+        key: `tickSpacing ${ts}`,
+        indexed: "present",
+        truth: "never enabled",
+      });
+  }
+  ctx.results.push(
+    c.done(
+      `${ctx.truth.tickSpacingFees.size} tick spacings on chain, ${rows.length} rows`,
+    ),
+  );
+}
+
+/**
  * Gauge / voting-reward links on Pool and the gauge alive flag.
  * @param ctx - Check context
  * @returns void

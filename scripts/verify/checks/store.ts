@@ -78,11 +78,27 @@ export async function chLatest(
   cp: bigint | undefined,
   where = "1",
 ): Promise<Record<string, string | null>[]> {
-  return ch.query(
-    `SELECT * FROM envio_history_${table}
-     WHERE ${cp !== undefined ? `envio_checkpoint_id <= ${cp}` : "1"} AND (${where})
-     ORDER BY id, envio_checkpoint_id DESC LIMIT 1 BY id`,
+  const cond = `${cp !== undefined ? `envio_checkpoint_id <= ${cp}` : "1"} AND (${where})`;
+  // History tables hold one version per changed block; sort them in hash buckets
+  // so a query stays well under the server's per-query memory cap.
+  const n = Number(
+    (
+      await ch.query(
+        `SELECT count() AS n FROM envio_history_${table} WHERE ${cond}`,
+      )
+    )[0]?.n ?? 0,
   );
+  const buckets = Math.max(1, Math.ceil(n / 250_000));
+  const out: Record<string, string | null>[] = [];
+  for (let k = 0; k < buckets; k++) {
+    const rows = await ch.query(
+      `SELECT * FROM envio_history_${table}
+       WHERE ${cond}${buckets > 1 ? ` AND cityHash64(id) % ${buckets} = ${k}` : ""}
+       ORDER BY id, envio_checkpoint_id DESC LIMIT 1 BY id`,
+    );
+    for (const r of rows) out.push(r);
+  }
+  return out;
 }
 
 /**

@@ -5,6 +5,7 @@ import {
   encodeAbiParameters,
   encodeEventTopics,
   parseAbiItem,
+  parseAbiParameters,
 } from "viem";
 import { normValue } from "../checks/store";
 import { AbiRegistry, decodeLog } from "../lib/abi";
@@ -84,7 +85,9 @@ describe("fast log decoder", () => {
       args: { sender: args.sender, recipient: args.recipient },
     });
     const data = encodeAbiParameters(
-      ev.inputs.filter((i) => !i.indexed),
+      parseAbiParameters(
+        "int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick",
+      ),
       [
         args.amount0,
         args.amount1,
@@ -98,9 +101,9 @@ describe("fast log decoder", () => {
       log_index: 0,
       address: "0x",
       data,
-      topic0: topics[0],
-      topic1: topics[1],
-      topic2: topics[2],
+      topic0: topics[0] as string,
+      topic1: topics[1] as string,
+      topic2: topics[2] as string,
     };
     const fast = decodeLog(
       {

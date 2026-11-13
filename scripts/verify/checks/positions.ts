@@ -114,11 +114,18 @@ export async function checkAlmWrappers(ctx: CheckContext): Promise<void> {
   const c = new Check(
     "alm.wrapper",
     ctx.chainId,
-    "Each ALM StrategyCreated wrapper has an ALM_LP_Wrapper row for its pool; lpAmount equals Σ Deposit.lpAmount − Σ Withdraw.lpAmount and the wrapper's totalSupply() (Transfer replay; on-chain for a sample).",
+    "Each ALM StrategyCreated wrapper has an ALM_LP_Wrapper row for its pool; lpAmount equals Σ Deposit.lpAmount − Σ Withdraw.lpAmount and the wrapper's totalSupply() (Transfer replay; on-chain); tickLower/tickUpper and liquidity equal the strategy's NFT position (tokenId).",
+    "Exact; liquidity relative 1e-3 (the handler re-derives it from deposit amounts with maxLiquidityForAmounts between rebalances).",
+  );
+  const liq = new Check(
+    "alm.position-link",
+    ctx.chainId,
+    "ALM_LP_Wrapper.tokenId is a live NFT of the wrapper's pool (the strategy's current AMM position after the last Rebalance).",
     "Exact.",
   );
   if (ctx.truth.wrappers.size === 0) {
     ctx.results.push(c.skip("no ALM wrappers on this chain").done(""));
+    ctx.results.push(liq.skip("no ALM wrappers on this chain").done(""));
     return;
   }
   const rows = await ctx.idx.rowsForChain("ALM_LP_Wrapper", ctx.chainId);
@@ -172,7 +179,33 @@ export async function checkAlmWrappers(ctx: CheckContext): Promise<void> {
         {},
         det,
       );
+    // The strategy's AMM position is an NFT: its ticks and liquidity are on-chain facts.
+    const nft = [...ctx.truth.nfts.values()].find(
+      (n) => n.tokenId === big(r.tokenId) && n.pool === w.pool,
+    );
+    if (nft && !nft.burned) {
+      const nd = { ...det, tokenId: String(r.tokenId), nfpm: nft.nfpm };
+      c.eq(`${w.address}.tickLower vs NFT`, r.tickLower, nft.tickLower, nd);
+      c.eq(`${w.address}.tickUpper vs NFT`, r.tickUpper, nft.tickUpper, nd);
+      c.cmp(
+        `${w.address}.liquidity vs NFT liquidity`,
+        big(r.liquidity),
+        nft.liquidity,
+        { rel: 1e-3 },
+        nd,
+      );
+    } else {
+      liq.add(
+        {
+          key: `${w.address}.tokenId ${r.tokenId}`,
+          indexed: String(r.tokenId),
+          truth: nft ? "burned NFT" : "no NFT with this id in the pool",
+        },
+        1,
+      );
+    }
   });
+  ctx.results.push(liq.done(`${ctx.truth.wrappers.size} wrappers`));
   ctx.results.push(
     c.done(
       `${ctx.truth.wrappers.size} wrappers on chain, ${rows.length} indexed`,

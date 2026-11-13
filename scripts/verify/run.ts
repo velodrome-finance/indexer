@@ -25,6 +25,7 @@ import {
   checkHandlerMetrics,
   checkPools,
   checkRegistrations,
+  checkTickSpacingFees,
 } from "./checks/completeness";
 import {
   type CheckContext,
@@ -45,6 +46,7 @@ import {
   checkTokenMetadata,
   checkWhitelist,
 } from "./checks/tokens";
+import { checkUsdAggregates } from "./checks/usd";
 import { checkUsers } from "./checks/users";
 import { AbiRegistry } from "./lib/abi";
 import { loadIndexerConfig } from "./lib/config";
@@ -175,6 +177,7 @@ async function main(): Promise<number> {
       ["completeness.pools", () => checkPools(ctx)],
       ["completeness.registrations", () => checkRegistrations(ctx)],
       ["completeness.gauge-links", () => checkGaugeLinks(ctx)],
+      ["completeness.tick-spacing-fees", () => checkTickSpacingFees(ctx)],
       [
         "completeness.events-processed",
         () => checkEventsProcessed(ctx, pr.eventsProcessed),
@@ -204,6 +207,7 @@ async function main(): Promise<number> {
       ],
       ["price", () => checkPrices(ctx)],
       ["snapshot", () => checkSnapshots(ctx, cp)],
+      ["usd", () => checkUsdAggregates(ctx, cp)],
     ];
     for (const [id, fn] of steps) {
       if (!want(id)) continue;
