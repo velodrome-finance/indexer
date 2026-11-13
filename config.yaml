@@ -703,11 +703,11 @@ chains:
         address:
           - 0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7
   - id: 1135 # Lisk
-    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
-    # Swell and Superseed in 2026). Ignored when the variable is unset.
-    rpc:
-      - url: ${ENVIO_LISK_RPC_URL:-}
-        for: fallback
+    # Wound down. HyperSync stopped serving new blocks for this chain on 2026-11-09, so the
+    # chain is indexed up to that block and then finishes. No RPC fallback: backfilling
+    # it over RPC would cost a request per block and per transaction. If HyperSync drops
+    # the chain's history as well, remove the chain.
+    end_block: 39746606
     start_block: 0
     contracts:
       - name: CustomSwapFeeModule
@@ -941,11 +941,11 @@ chains:
         address:
           - 0x730f8a4128Fa8c53C777B62Baa1abeF94cAd34a9
   - id: 5330 # Superseed
-    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
-    # Swell and Superseed in 2026). Ignored when the variable is unset.
-    rpc:
-      - url: ${ENVIO_SUPERSEED_RPC_URL:-}
-        for: fallback
+    # Wound down. HyperSync stopped serving new blocks for this chain on 2026-10-13, so the
+    # chain is indexed up to that block and then finishes. No RPC fallback: backfilling
+    # it over RPC would cost a request per block and per transaction. If HyperSync drops
+    # the chain's history as well, remove the chain.
+    end_block: 32854188
     hypersync_config:
       url: https://superseed.hypersync.xyz
     start_block: 0
@@ -1005,11 +1005,11 @@ chains:
         address:
           - 0x3a464f746D23Ab22155710f44dB16dcA53e0775E
   - id: 1923 # Swell
-    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
-    # Swell and Superseed in 2026). Ignored when the variable is unset.
-    rpc:
-      - url: ${ENVIO_SWELL_RPC_URL:-}
-        for: fallback
+    # Wound down. HyperSync stopped serving new blocks for this chain on 2026-09-03, so the
+    # chain is indexed up to that block and then finishes. No RPC fallback: backfilling
+    # it over RPC would cost a request per block and per transaction. If HyperSync drops
+    # the chain's history as well, remove the chain.
+    end_block: 27851500
     hypersync_config:
       url: https://swell.hypersync.xyz
     start_block: 3717939
