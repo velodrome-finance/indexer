@@ -9,6 +9,8 @@
     python3 clickhouse/analytics.py drop               # drop the analytics database
     python3 clickhouse/analytics.py render             # print the SQL install would run
     python3 clickhouse/analytics.py queries [file...]  # run docs queries, print rows and elapsed time
+    python3 clickhouse/analytics.py history-ttl [--days N] [--apply] [--remove]
+                                                       # TTL on envio's per-block aggregate history (writes to it)
 
 Connection (no secrets in the repo; the same variables envio itself reads):
     ENVIO_CLICKHOUSE_HOST       http(s)://host:port of the ClickHouse HTTP interface
@@ -754,6 +756,57 @@ def verify_entity(ctx: Ctx, e: Entity) -> bool:
     return not bad
 
 
+# Dual-stored aggregates (Postgres serves the handlers) whose ClickHouse history is one row per
+# block in which they changed: the tables a short TTL shrinks. Column = the block time of the change.
+TTL_TABLES = {
+    "Pool": "lastUpdatedTimestamp", "UserStatsPerPool": "lastActivityTimestamp", "Token": "lastUpdatedTimestamp",
+    "NonFungiblePosition": "lastUpdatedTimestamp", "ALM_LP_Wrapper": "lastUpdatedTimestamp",
+    "VeNFTState": "lastUpdatedTimestamp", "VeNFTPoolVote": "lastUpdatedTimestamp",
+    "AeroGauge": "lastUpdatedTimestamp", "AeroLeafVoterState": "lastUpdatedTimestamp",
+    "AeroRootChainState": "lastUpdatedTimestamp", "AeroMinterState": "lastUpdatedTimestamp",
+    "AeroLeafTokenState": "lastUpdatedTimestamp", "AeroRootAllocation": "lastUpdatedTimestamp",
+}
+
+
+def history_ttl(ctx: Ctx, days: int, apply: bool, remove: bool):
+    """Print (or apply) a TTL on envio's per-block history of the dual-stored aggregates.
+
+    This is the one command that writes to the indexer's database, and only with --apply. It
+    refuses unless every layer table is caught up with the commit frontier, because rows that
+    expire before the layer read them are lost to it. Apply it once the indexer is at the head:
+    a TTL declared in schema.graphql would also fire during a resync, on rows whose block time is
+    old, within seconds of their insert (measured: the layer then misses most of the state).
+    envio's own entity views (Pool, Token, ...) become incomplete once versions expire; read the
+    layer instead. An indexer reset recreates the tables without the TTL.
+    """
+    stmts = []
+    for entity, col in TTL_TABLES.items():
+        table = f"envio_history_{entity}"
+        cols = ctx.ch.rows(f"SELECT name FROM system.columns WHERE database = {lit(ctx.src)} AND table = {lit(table)}")
+        if col not in {c["name"] for c in cols}:
+            continue
+        if remove:
+            stmts.append(f"ALTER TABLE {q(ctx.src)}.{q(table)} REMOVE TTL")
+        else:
+            stmts.append(
+                f"ALTER TABLE {q(ctx.src)}.{q(table)} MODIFY TTL toDateTime({q(col)}) + INTERVAL {days} DAY "
+                "WHERE envio_change = 'SET' SETTINGS materialize_ttl_after_modify = 0"
+            )
+    if not apply:
+        print(";\n".join(stmts) + ";")
+        print("-- dry run; add --apply to run. Then reclaim space now with ALTER TABLE ... MATERIALIZE TTL, or let merges do it.",
+              file=sys.stderr)
+        return
+    if not remove:
+        behind = [r for r in status(ctx) if r.get("source_rows_behind", 0) > 0 or r.get("table") == "!"]
+        if behind:
+            raise SystemExit("refusing: the layer is not caught up with the indexer: "
+                             + ", ".join(f"{r['table']} ({r.get('source_rows_behind')})" for r in behind))
+    for st in stmts:
+        log(st)
+        ctx.ch.execute(st)
+
+
 def run_queries(ctx: Ctx, files: list[str]):
     qdir = HERE / "queries"
     paths = [Path(f) for f in files] if files else sorted(qdir.glob("*.sql"))
@@ -805,12 +858,15 @@ def connect(args) -> Ctx:
 
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("command", choices=["install", "rebuild", "refresh", "status", "verify", "drop", "render", "queries"])
+    p.add_argument("command", choices=["install", "rebuild", "refresh", "status", "verify", "drop", "render", "queries", "history-ttl"])
     p.add_argument("files", nargs="*", help="queries: .sql files to run (default clickhouse/queries/*.sql); verify: entity keys")
     p.add_argument("--url")
     p.add_argument("--source", help="indexer database (default ENVIO_CLICKHOUSE_DATABASE)")
     p.add_argument("--db", help="analytics database (default analytics_<source>)")
     p.add_argument("--json", action="store_true", help="machine-readable output")
+    p.add_argument("--days", type=int, default=30, help="history-ttl: days of per-block history to keep")
+    p.add_argument("--apply", action="store_true", help="history-ttl: run the statements (default: print them)")
+    p.add_argument("--remove", action="store_true", help="history-ttl: remove the TTL again")
     a = p.parse_args(argv)
     ctx = connect(a)
     if a.command == "install":
@@ -841,6 +897,8 @@ def main(argv=None):
             print(rmv_ddl(ctx, e, instance) + ";\n")
         for s in view_statements(ctx):
             print(s + ";\n")
+    elif a.command == "history-ttl":
+        history_ttl(ctx, a.days, a.apply, a.remove)
     elif a.command == "queries":
         res = run_queries(ctx, a.files)
         if a.json:

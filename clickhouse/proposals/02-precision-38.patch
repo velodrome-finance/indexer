@@ -28,7 +28,7 @@
 +  numberOfSwapFeeFallbacks: BigInt! @config(precision: 38) # CL only: swaps whose fee could not be derived from the swap (tick-map walk disagreed with the event's liquidity, or the derived fee was negative or above 10% of the input) and were valued with the stored currentFee instead. Should stay 0 on a from-creation sync
    token0Price: BigInt! @config(precision: 76) # price of token0 relative to token1
    token1Price: BigInt! @config(precision: 76) # price of token1 relative to token0
-   totalVotesDeposited: BigInt! @config(precision: 76) # total votes deposited in veToken units (legacy weekly Voter votes; 0 on AERO pools: Aero has no weekly votes and sAERO allocations are not indexed)
+   totalVotesDeposited: BigInt! @config(precision: 76) # total votes deposited in veToken units (legacy weekly Voter votes; 0 on AERO pools: Aero has no weekly votes; sAERO allocations are in AeroLeafAllocation / AeroGauge.totalAllocated)
 -  totalVotesDepositedUSD: BigInt! @config(precision: 76) # total votes deposited in USD (0 on AERO pools, see totalVotesDeposited)
 +  totalVotesDepositedUSD: BigInt! @config(precision: 38) # total votes deposited in USD (0 on AERO pools, see totalVotesDeposited)
    totalEmissions: BigInt! @config(precision: 76) # total emissions for the pool in reward token units (VELO form Optimism and AERO for Base); 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813)
@@ -38,8 +38,8 @@
    # 2024-06-14, VELO/OP pre 2024-01-10), this cumulative will be permanently $0
    # even when totalEmissions > 0 — affects 188 legacy pools (143 Base + 45 OP).
    # See issue #738 for context.
--  totalEmissionsUSD: BigInt! @config(precision: 76) # total emissions for the pool in USD. totalEmissions* are legacy-gauge emissions; 0 on AERO pools until Aero gauges are indexed
-+  totalEmissionsUSD: BigInt! @config(precision: 38) # total emissions for the pool in USD. totalEmissions* are legacy-gauge emissions; 0 on AERO pools until Aero gauges are indexed
+-  totalEmissionsUSD: BigInt! @config(precision: 76) # total emissions for the pool in USD. totalEmissions* are legacy-gauge emissions; 0 on AERO pools (Aero emissions are minted on claim: see AeroGauge, ADR 0006)
++  totalEmissionsUSD: BigInt! @config(precision: 38) # total emissions for the pool in USD. totalEmissions* are legacy-gauge emissions; 0 on AERO pools (Aero emissions are minted on claim: see AeroGauge, ADR 0006)
    totalEmissionsRedistributed: BigInt! @config(precision: 76) # cumulative reward tokens this pool's gauge received from the Redistributor (Redistributed events); AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813)
    totalEmissionsForfeited: BigInt! @config(precision: 76) # cumulative reward tokens this pool's gauge forwarded to the Redistributor or minter because it was over its cap (Deposited events); AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813)
  
@@ -55,7 +55,7 @@
 +  numberOfFlashLoans: BigInt @config(precision: 38) # total number of flash loans
  
    # Gauge fields
-   gaugeIsAlive: Boolean! # whether the gauge is alive. Gauge fields describe the legacy gauge; on AERO pools they keep their creation defaults (false / "" / 0) until Aero gauges are indexed
+   gaugeIsAlive: Boolean! # whether the gauge is alive. On AERO pools: the Aero gauge is activated on its LeafVoter and its emission cap is not 0 (ADR 0006). Of the gauge fields below, gaugeAddress, the deposit / withdrawal counts and currentLiquidityStaked* apply to AERO pools; gaugeEmissionsCap, minStakeTime and the reward-claim / emission fields are legacy-only (see AeroGauge)
    gaugeAddress: String @index # address of the gauge for this pool
    gaugeEmissionsCap: BigInt @config(precision: 76) # Emissions cap for gauge. If not specified in an SetEmissionsCap event, set to defaultEmissionsCap as per CLGaugeConfig. If CLGaugeConfig doesn't exist, there's no emissions cap. Null on AERO pools (CLGaugeConfig is the legacy CLGaugeFactory's)
    minStakeTime: BigInt! @config(precision: 24) # Per-pool LP stake lockup (seconds). Seeded from CLGaugeConfig.defaultMinStakeTime at pool creation; overridden by CLGaugeFactoryV3.SetPoolMinStakeTime. 0 before V3. 0 on AERO pools (legacy CLGaugeFactory setting)

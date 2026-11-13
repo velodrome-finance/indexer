@@ -3,8 +3,10 @@
 This guide is for analysts who query the indexer's ClickHouse database with SQL. It covers how
 to connect, the analytics layer (typed tables and views built on top of what envio writes), the
 units and types, worked queries for the questions the protocol team asks most, and what the
-data cannot tell you. The GraphQL API is described in [`querying.md`](querying.md); the field
-reference is [`schema.md`](schema.md).
+data cannot tell you. The GraphQL API and the meaning of every entity are described in
+[`querying.md`](querying.md) (including
+[Aero gauges, emissions and governance](querying.md#aero-gauges-emissions-and-governance)); the
+field reference is [`schema.md`](schema.md). This guide does not repeat them.
 
 ## Contents
 
@@ -26,21 +28,21 @@ envio (HyperIndex 3.16) writes every entity stored in ClickHouse to an append-on
 id. Querying those directly is slow and awkward:
 
 - **Current state costs a full scan.** The `Pool` view sorts every stored version to keep the
-  newest. On the ten-chain test database (764 pools, 54 M `Pool` versions) a
+  newest. On the ten-chain test database (764 pools and 54 M `Pool` versions at the time) a
   `GROUP BY chainId` over it took **35.6 s and read 4.6 GiB**; in production (27.6 M versions of
   a single pool, 248 GiB of `Pool` history) the same query ran out of memory at 32 GiB. The
-  layer's `pools` view answers it in milliseconds.
+  layer's `pools` view answers it in under 0.1 s (query 1 below).
 - **Numbers are strings.** Every `BigInt` declared with `precision` above 38 (almost all of them
   here) is a `String` column (upstream enviodev/hyperindex#1816). Sums need casts, sorting is
   lexicographic, and every value still needs scaling (USD by 1e18, token amounts by the token's
   decimals).
-- **Snapshots are sparse and loosely ordered.** The hourly `*Snapshot` entities exist only for
-  hours with activity, are sorted by an id that starts with the chain and address, and a reorg
-  can leave a rolled-back row next to its replacement.
+- **Snapshots and events are sorted by id.** Ids start with the chain and an address or a
+  transaction hash, so "one pool's history", "one user's history" or "one gauge's events" read
+  the whole table, and a reorg can leave a rolled-back row next to its replacement.
 
 The layer is a set of typed storage tables, kept up to date from envio's history tables, and
 analyst views on top of them. It lives in its own database (`analytics_<indexer database>` by
-default) and never writes to envio's.
+default) and never writes to envio's (one opt-in command, `history-ttl`, is the exception).
 
 ## Connecting
 
@@ -58,18 +60,21 @@ curl -s "https://<host>:8443/?database=analytics_<db>" --user '<user>:<password>
 ```
 
 On the dev box: `velo chsql <stack>/<instance>` opens a client on the instance's envio
-database; add `-q "USE analytics_velo_<instance>"` or qualify the names. A read-only `reader`
-user exists for the protocol team (SELECT/SHOW only); its password is in the stack's secret
-file, not in this repository.
+database; run `USE analytics_velo_<instance>` or qualify the names. A read-only `reader` user
+exists for the protocol team (SELECT/SHOW only); its password is in the stack's secret file,
+not in this repository.
 
-All the views below are in the analytics database. Analysts never need envio's own database,
-except through the views that read it directly (`user_pool_snapshots`, `freshness`).
+Everything below lives in the analytics database. Two views read envio's database directly
+(`user_pool_snapshots`, `freshness`) and so do the typed event views (`aero_*_events`,
+`saero_position_events`, `aero_*_snapshots`): a read-only user needs `SELECT` on both databases.
 
 ## Installing and operating the layer
 
 Everything is in [`clickhouse/`](../clickhouse): `analytics.py` (the CLI, Python 3.9+ standard
-library only), `layer.py` (the column mapping of every storage table), `sql/views.sql` (the
-analyst views), `queries/` (the worked queries below) and `tests/`.
+library only), `layer.py` (the column mapping of the core tables), `schema_map.py` (the field by
+field mapping of the Aero tables, read from `schema.graphql`), `sql/views.sql` and
+`sql/views_aero.sql` (the analyst views), `queries/` (the worked queries below), `tests/` and
+`proposals/` (schema patches for envio, see the last section).
 
 Connection settings come from the environment, the same variables the indexer reads:
 
@@ -81,60 +86,63 @@ Connection settings come from the environment, the same variables the indexer re
 | `ANALYTICS_DATABASE` | optional, default `analytics_<indexer database>` |
 
 ```bash
-python3 clickhouse/analytics.py install   # create or upgrade; backfill what is not yet loaded; start refreshes
+python3 clickhouse/analytics.py install   # create or upgrade; backfill what is not loaded yet; start the refreshes
 python3 clickhouse/analytics.py status    # per table: watermark, commit frontier, source rows still to load, refresh state
 python3 clickhouse/analytics.py verify    # prove each table equals argMax over envio's history (see below)
 python3 clickhouse/analytics.py refresh   # run every refresh now and wait for it
 python3 clickhouse/analytics.py rebuild   # drop the layer's tables and install again (full backfill)
 python3 clickhouse/analytics.py drop      # drop the analytics database
 python3 clickhouse/analytics.py render    # print the SQL install would run, without running it
-python3 clickhouse/analytics.py queries   # run clickhouse/queries/*.sql, print rows and timings
+python3 clickhouse/analytics.py queries   # run clickhouse/queries/*.sql twice each, print rows and timings
+python3 clickhouse/analytics.py history-ttl [--days 30] [--apply]   # see "Proposals" below
+python3 clickhouse/tests/test_mechanism.py --template <an envio database>   # edge-case test
 ```
 
 On the dev box, `velo env <instance> --show-secrets` prints the variables for an instance.
 
-**`install` is idempotent.** Run it after deploying a new version of the layer, after a schema
-change, or whenever in doubt. It:
+**`install` is idempotent.** Run it after deploying a new version of the layer, after an
+indexer reset, or whenever in doubt. It:
 
 1. creates the analytics database and a `_meta` table (source database, envio instance id,
-   layer version, which tables finished their backfill);
+   which tables finished their backfill, a digest of each table's definition);
 2. **rebuilds from scratch when the indexer was reset** (envio writes a new instance id to
-   `envio_info` on every fresh start) or when the layer version changed;
+   `envio_info` on every fresh start), and rebuilds a single table whose definition changed
+   (new layer version or new indexer schema);
 3. creates each storage table and, if its backfill has not completed, loads it from the history
    up to the current commit frontier, in chunks of about 2 M source rows cut at primary-index
-   marks (`ANALYTICS_BACKFILL_CHUNK_ROWS`). A backfill cut off half way starts that table again;
+   marks (`ANALYTICS_BACKFILL_CHUNK_ROWS`); a backfill cut off half way starts that table again;
 4. creates one refreshable materialized view per table (`_refresh_<table>`, every minute,
-   `ANALYTICS_REFRESH_EVERY`), which appends what envio committed since the table's watermark;
-5. creates or replaces the views.
+   `ANALYTICS_REFRESH_EVERY`) that appends what envio committed since the table's watermark;
+5. creates or replaces the views (the Aero ones only where the indexer has Aero gauges).
 
-**Backfill from existing history** is what `install` does on first run. On the ten-chain test
-database (≈ 120 M history rows read) it took TBD_BACKFILL. **Rebuild** = `rebuild` (drop and
-backfill again) — needed only after a change to the layer's storage tables. **After an indexer
-reset** envio empties its database; the refreshes stop loading (their source no longer matches
-the recorded instance), `status` prints `STALE`, and `install` rebuilds once the new run has
-written its first batch. Re-run `install` after the reset (a cron line running `install` hourly
-is a safe way to automate it).
+**Backfill from existing history** is what the first `install` does. On the ten-chain test
+database (85 M `Pool` versions, 164 M `UserStatsPerPool` versions) it took about 16 minutes on
+a 4-thread server shared with four indexers: `_pool` 156 s, `_user_pool` 269 s, `_pool_hour`
+258 s, `_pool_day` 207 s, the rest under a minute. It scales with the history size: expect a
+few hours for production's 248 GiB of `Pool` history. **Rebuild** = `rebuild` (drop and backfill
+again). **After an indexer reset** envio empties its database; the refreshes stop loading
+(their source no longer matches the recorded instance id), `status` prints `STALE`, and the next
+`install` rebuilds once the new run has written its first batch. Running `install` from cron
+(hourly) automates that.
 
 Requirements: ClickHouse 24.10 or later (refreshable materialized views, `mergeTreeIndex`,
 `keccak256`); a user with `CREATE DATABASE` (or an analytics database created for you) and
 `SELECT` on the indexer database. The analytics database must not be the indexer's: a reset
-runs `TRUNCATE DATABASE` on it.
-
-The ClickHouse server here is capped at 2.4 GiB shared by several indexers, so the CLI runs
-single-threaded backfill inserts of small blocks and retries a statement the server killed for
-lack of memory (every statement it sends is safe to repeat). Raise
-`ANALYTICS_MAX_THREADS` / `ANALYTICS_MAX_MEMORY` on a bigger server.
+runs `TRUNCATE DATABASE` on it. The CLI runs single-threaded backfill inserts of small blocks
+and retries a statement the server killed for lack of memory or a restart (every statement it
+sends is safe to repeat); raise `ANALYTICS_MAX_THREADS` / `ANALYTICS_MAX_MEMORY` on a bigger
+server.
 
 ## How the layer stays exact
 
 **What envio writes.** Each batch is inserted into the history tables (one row per entity per
-block it changed in, `envio_change` = `SET` or `DELETE`, `envio_checkpoint_id` increasing), then
-one row per chain into `envio_chains` (a `ReplacingMergeTree`) moves the *commit frontier*, the
-highest committed checkpoint. Rows above the frontier belong to a batch still in flight; if the
-indexer dies before committing, the next start deletes them (`ALTER TABLE … DELETE` on
-resume) and re-runs the batch, reusing the same checkpoint ids. A reorg does not delete
-anything in ClickHouse: envio writes the restored state (or a `DELETE` for entities the reorg
-created) as new rows at a later checkpoint. Checkpoint ids are shared by all chains.
+block it changed in, `envio_change` = `SET` or `DELETE`, `envio_checkpoint_id` increasing,
+shared by all chains), then one row per chain into `envio_chains` (a `ReplacingMergeTree`) moves
+the *commit frontier*, the highest committed checkpoint. Rows above the frontier belong to a
+batch still in flight; if the indexer dies before committing, the next start deletes them
+(`ALTER TABLE … DELETE` on resume) and re-runs the batch, reusing the same checkpoint ids. A
+reorg deletes nothing in ClickHouse: envio writes the restored state (or a `DELETE` for entities
+the reorg created) as new rows at a later checkpoint.
 
 **What the layer does.** Each storage table is a `ReplacingMergeTree(_version, _deleted)` keyed
 by the entity's natural key (derived from envio's id, so `DELETE` rows, which carry only the
@@ -144,71 +152,94 @@ id, land on the right key). `_version` is `envio_checkpoint_id`, `_deleted` is
 table already holds (minus one, so a refresh that died half way through a checkpoint is
 completed). Consequences:
 
-- a row is never loaded before envio committed it, so **readers never see uncommitted rows**,
-  and rows that a crash left above the frontier are deleted by envio before the frontier can
-  pass them, so they are never loaded either;
+- a row is never loaded before envio committed it, so **readers never see uncommitted rows**;
+  rows a crash left above the frontier are deleted by envio before the frontier can pass them,
+  so they are never loaded either;
 - a reorg's restored state has a higher checkpoint and replaces what it reverts;
-- reading the table with `FINAL` (all views do) gives, per key, the row with the highest
-  version, without the deleted ones: exactly `argMax(row, envio_checkpoint_id)` over the
-  committed history;
-- the refresh is idempotent (loading a row twice changes nothing), so retries are safe.
+- reading a table with `FINAL` (every view does) gives, per key, the row with the highest
+  version, without deleted ones: exactly `argMax(row, envio_checkpoint_id)` over the committed
+  history;
+- a refresh is idempotent (loading a row twice changes nothing), so retries are safe.
 
 The watermark comes from part metadata (the tables are partitioned by
 `intDiv(_version, 10^12)`, one partition in practice, so `max(_version)` is read from the parts'
-min/max index, not from the column), and the window is bounded by a primary-key-sized skip
-index on the history table, so a refresh reads roughly the granules that changed.
+min/max index, not from the column), and the history's checkpoint skip index limits a refresh
+to the granules that changed.
 
-The hourly and daily pool series use the same machinery with the key `(pool, period)`: the row
-kept for a period is the pool's last version written in that period, i.e. its state at the end
-of the period, exactly, from the per-block history (not from the hourly snapshots).
+The pool series (`_pool_hour`, `_pool_day`) and the Aero series (`_aero_gauge_day`,
+`_aero_leaf_voter_day`) use the same machinery with the key `(entity, period)`: the row kept for
+a period is the entity's last version written in that period, its exact end-of-period state from
+the per-block history (not from the hourly snapshots). Each row also stores the counters' values
+at the end of the entity's previous period (`prev_*`), so a period's flow is a subtraction:
+the views need no window function, and filters on chain, pool, gauge and time reach the tables'
+sort keys (ClickHouse does not push filters through window functions).
 
 **Freshness.** The layer trails the indexer by at most one refresh period (1 minute) plus the
-refresh's own run time. `freshness` and `analytics.py status` show both sides.
+refresh's own run time; `freshness` and `analytics.py status` show both sides. On the Aero test
+sync, which was backfilling at about 1,000 checkpoints a minute, the refreshes stayed within a
+minute of the frontier.
 
 **The proof.** `analytics.py verify` stops the refreshes, takes each table's watermark `W`,
 and compares the table, read with `FINAL`, against an independent computation over envio's
 history: per id (per id and period for the series), `argMax` of every raw envio column by
 `envio_checkpoint_id` over rows with checkpoint `<= W`, keeping ids whose latest change is a
-`SET`. Both sides are compared as text, column by column, so a lossy cast would show up too.
-It reports missing keys, extra keys and mismatches per column. Results:
+`SET`; for the series also the previous period's values (`lagInFrame` over the periods). Both
+sides are compared as text, column by column, so a lossy cast would show up too. It reports
+keys missing from the layer, extra keys and mismatches per column. Results:
 
-TBD_VERIFY
+<!-- VERIFY:BEGIN -->
+<!-- VERIFY:END -->
 
 `clickhouse/tests/test_mechanism.py` plays the edge cases on a synthetic envio database (rows
-above the frontier; a `DELETE`; a crash whose rows envio trims and re-writes with reused
-checkpoint ids; a reorg rollback; the hourly series; an indexer reset) and runs `verify` after
-each step; all checks pass.
+above the frontier; a `DELETE`; a crash whose rows envio trims and re-writes under reused
+checkpoint ids; a reorg rollback; hourly series and their `prev_` values across refreshes; an
+indexer reset) and runs `verify` after each step. All checks pass.
 
 ## Object catalogue
 
-Views (the analyst API). Flows in the series are per period; `*_total` columns are cumulative
-since the pool or user started.
+Views (the analyst API). Flows in the series are per period; `*_total` columns are cumulative.
 
 | view | grain | what it answers |
 |---|---|---|
 | `chains` | chain | chain names, which deployment legacy pools there belong to, Aero chains, wound-down chains |
 | `tokens` | token | symbol, decimals, current USD price, price trust (`is_price_trusted`), `is_unpriced` |
 | `pool_dim` | pool | static pool facts: pair, type (`CL100`, `vAMM`, `sAMM`), tokens and decimals |
-| `pools` | pool | current TVL, reserves, staked USD and share, cumulative volume / fees / swaps / rewards, fee rates, price, gauge and reward addresses |
+| `pools` | pool | current TVL, reserves, staked USD and share, cumulative volume / fees / swaps / rewards, fee rates, price, gauge |
 | `pool_hourly` / `pool_daily` | pool × hour / day with a change | end-of-period TVL, reserves, staked; flows in the period: volume, fees, swaps, collected fees, emissions, rewards |
 | `chain_hourly` / `chain_daily` | chain × deployment × hour / day | totals of the above; TVL and staked USD carried forward for pools without a change |
 | `user_pools` | user × pool | swaps, volume, fees paid, liquidity added / removed, fees collected, rewards, LP balance, ALM |
 | `user_pool_snapshots(chain_id, user)` | user × pool × active hour | a wallet's hourly history on one chain (parameterized view over envio's snapshots) |
 | `positions` | CL NFT position that exists | owner, pool, range, in range, staked, token amounts and USD value at the current price |
-| `venfts` / `venft_votes` | veNFT / veNFT × pool | lock amount and end, owner; current vote weights |
+| `venfts` / `venft_votes` | veNFT / veNFT × pool | legacy lock amount and end, owner; current vote weights |
 | `alm_wrappers` | ALM LP wrapper | its pool, LP supply and strategy position |
 | `token_prices_hourly` | token × hour with a refresh | USD price, how it was obtained (`price_source`), pricing pool and depth |
+| `aero_gauges` | Aero gauge | cap per day, weight, allocations, emissions credited / minted / forfeited / unpaid, fees sent to voters, its pool's TVL and staked share |
+| `aero_gauge_daily` | Aero gauge × day with a change | emissions credited / minted / forfeited (AERO and USD, also at Base AERO's price), stake activity, the pool's fees and TVL that day |
+| `aero_chain_daily` | chain × day | the LeafVoter's ledger: emissions credited / minted / forfeited, surplus, redemptions, xAERO outstanding, allocation budget booked and idle |
+| `saero_positions` | sAERO position | amount, lock end, permanent, voting power now |
+| `aero_allocation_books` | sAERO position × chain | root Voter booking against the chain's LeafVoter budget and split |
+| `aero_gauge_allocations` | position × gauge | booked allocation per gauge |
+| `aero_voting_rewards` | rewards manager | fees and incentives collected and claimed (USD) |
+| `aero_migration` | migration contract | veNFTs and liquid tokens migrated, settlements |
+| `base_aero_price_daily` | day | mean fresh price of AERO on Base, for valuing xAERO |
+| `aero_gauge_stake_events`, `aero_emissions_events`, `aero_allocation_events`, `saero_position_events`, `aero_voting_rewards_events`, `aero_redemption_events`, `aero_minter_events`, `aero_migration_events` | event | the typed events, one row each, committed rows only, reorg-deleted ones removed |
+| `aero_gauge_snapshots`, `aero_leaf_voter_state_snapshots`, `saero_escrow_state_snapshots`, `aero_minter_snapshots` | entity × active hour | typed hourly snapshots |
 | `freshness` | chain | last committed block, last pool change and price refresh, layer watermark |
 | `known_data_issues` | chain × range | ranges where the indexed data is known to be wrong or incomplete |
 
-Storage tables (exact integers, for reconciliation work; read them with `FINAL`):
-`_pool`, `_token`, `_user_pool`, `_position`, `_venft`, `_venft_vote`, `_alm_wrapper`,
-`_token_price`, `_pool_hour`, `_pool_day`, plus `_meta`. Column meanings follow the schema
-(`docs/schema.md`), renamed to snake_case; the mapping is listed in `clickhouse/layer.py`.
+Storage tables (exact integers, for reconciliation; read them with `FINAL`): `_pool`, `_token`,
+`_user_pool`, `_position`, `_venft`, `_venft_vote`, `_alm_wrapper`, `_token_price`,
+`_pool_hour`, `_pool_day`, and for Aero `_aero_gauge`, `_aero_gauge_factory`,
+`_aero_leaf_voter`, `_aero_voting_rewards_manager`, `_aero_incentive_program`,
+`_saero_position`, `_saero_escrow`, `_aero_root_allocation`, `_aero_root_gauge_vote`,
+`_aero_root_chain`, `_aero_leaf_token`, `_aero_leaf_allocation`, `_aero_minter`,
+`_aero_migration_totals`, `_aero_gauge_day`, `_aero_leaf_voter_day`, plus `_meta`. Core column
+names follow the schema renamed for analysts (mapping in `clickhouse/layer.py`); Aero column
+names are envio's field names in snake_case (`totalEmissionsMinted` → `total_emissions_minted`).
 
 Naming rules: addresses are lowercase hex everywhere in the layer (envio's ids keep checksummed
-addresses and appear as `envio_id`); `chain_id` is the EVM chain id; `deployment` is
-`VELODROME`, `AERODROME` (legacy Base) or `AERO`; times are `DateTime` in UTC.
+addresses and appear as `envio_id` or `id`); `chain_id` is the EVM chain id; `deployment` is
+`VELODROME`, `AERODROME` (legacy Base) or `AERO`; times are UTC.
 
 ## Units, types and overflow
 
@@ -217,7 +248,8 @@ addresses and appear as `envio_id`); `chain_id` is the EVM chain id; `deployment
 | USD values (`*USD`, 1e18-scaled) | `String` (precision 76) | `Int256`, exact | `Float64` dollars (`*_usd`) |
 | raw token amounts (reserves, volumes, collected fees, liquidity added / removed, staked reserves) | `String` | `Int256` | `Float64` whole tokens, divided by the token's decimals |
 | 1e18-normalized fee amounts (`totalFeesGenerated0/1`, `totalFeesContributed0/1`) | `String` | `Int256` | `Float64` ÷ 1e18 regardless of decimals |
-| reward-token amounts, votes, veNFT locks (18 decimals) | `String` | `Int256` | `Float64` ÷ 1e18; one reward token per chain, not summable across chains |
+| legacy reward-token amounts, votes, veNFT locks (18 decimals) | `String` | `Int256` | `Float64` ÷ 1e18; one reward token per chain, not summable across chains |
+| Aero amounts (emissions, caps, allocations, sAERO, migration; AERO or xAERO, 18 decimals) | `String` | `Int256` | `Float64` ÷ 1e18 in the Aero views; summable across chains as AERO-equivalent |
 | prices (`token0Price`, `pricePerUSDNew`, `sqrtPriceX96`) | `String` | `Int256` | `Float64` |
 | CL liquidity (`uint128`) | `String` | `Int256` | `Float64` |
 | counters (`numberOf*`) | `String` | `UInt64` | `UInt64` totals, `Int64` per period |
@@ -225,16 +257,17 @@ addresses and appear as `envio_id`); `chain_id` is the EVM chain id; `deployment
 | fee rates (`baseFee`, `currentFee`, 1e6 scale) | `Decimal` / `String` | `Int64` / `Int256` | `Float64` percent (`*_fee_pct`) |
 | timestamps | `DateTime64(3)` | `DateTime64(3)` | `DateTime` |
 
-Why these types, from the ten-chain data (maxima over every stored version of `Pool`, 53 M
-rows; `Token`, `TokenPriceSnapshot`, `NonFungiblePosition`, `ALM_LP_Wrapper` all versions):
+Why these types, from the ten-chain data (maxima over every stored version of `Pool`, 53 M rows
+when measured; current `UserStatsPerPool`, 2.3 M rows; all versions of `Token`,
+`TokenPriceSnapshot`, `NonFungiblePosition` and `ALM_LP_Wrapper`):
 
 | family | largest value seen | digits | fits `Decimal(38,0)`? |
 |---|---|---|---|
-| USD, cumulative (`totalVolumeUSD`) | 1.98e27 ($1.98 B) | 28 | yes, 10 orders of magnitude of headroom |
+| USD, cumulative (`totalVolumeUSD`; per user `totalLiquidityAddedUSD`) | 1.98e27 ($1.98 B); per user 2.1e28 ($21 B, a vault cycling liquidity) | 28–29 | yes, 9–10 orders of magnitude of headroom |
 | USD, level (`totalLiquidityUSD`, `currentLiquidityStakedUSD`) | 9.97e24 ($9.97 M) | 25 | yes |
 | token price (`pricePerUSDNew`) | 1.26e23 ($126 k per token) | 24 | yes (prices are capped at $1 M) |
 | pricing depth (`pricingDepthUSD`) | 9.40e24 | 25 | yes |
-| raw token amounts (`reserve0`, `totalVolume0`) | 7.86e32 | 33 | today, with 5 orders to spare; a token with a 1e30 supply would break it |
+| raw token amounts (`reserve0`, `totalVolume0`, per-user liquidity added) | 7.86e32 | 33 | today, with 5 orders to spare; a token with a 1e30 supply would break it |
 | 1e18-normalized fees (`totalFeesGenerated0`) | 1.11e30 | 31 | today, with 7 orders to spare |
 | CL liquidity (`liquidity`, `liquidityInRange`) | 1.0e31 | 32 | no guarantee: `uint128` goes to 3.4e38 |
 | pool price ratio (`token0Price`, `token1Price`) | 3.40e68 (138 rows ≥ 1e38) | 69 | **no** |
@@ -244,22 +277,24 @@ rows; `Token`, `TokenPriceSnapshot`, `NonFungiblePosition`, `ALM_LP_Wrapper` all
 So the storage tables use `Int256` for every envio `String` integer: it holds every value
 below 5.79e76, and envio's Postgres column (`numeric(76,0)`) rejects anything with more than 76
 digits, so **no value envio can store overflows it**. The cast is guarded: a longer string (only
-possible for a `BigInt` with no precision) becomes 0 rather than wrapping around, which is what
-a plain `toInt256` does, and `verify` would flag the row. The views convert to `Float64`, which
-never overflows for these magnitudes (max 1.8e308) and keeps about 15–16 significant digits:
-a $10 B cumulative volume is exact to a millionth of a dollar, and deltas are taken in
+possible for a `BigInt` with no precision) becomes 0 instead of silently wrapping around (which
+is what a plain `toInt256` does), and `verify` reports the row. The views convert to `Float64`,
+which never overflows for these magnitudes (max 1.8e308) and keeps 15–16 significant digits: a
+$10 B cumulative volume is exact to a millionth of a dollar, and period deltas are taken in
 `Int256` before the conversion, so hourly flows do not lose precision to large totals. Use the
-`*_raw` columns (or the storage tables) when you need the exact integer.
+`*_raw` columns or the storage tables when you need the exact integer.
 
 ## Worked queries
 
-Each query below was run with `analytics.py queries` against the layer installed on the
-ten-chain test sync (`velo_small_legacy`: every legacy chain except Optimism and Base, from an
-older commit without `deployment`, synced to TBD_DATA_DATE, still running), with the elapsed
-time ClickHouse reported. That database has no Optimism or Base data, so votes, emissions and
-veNFTs are empty, and no Aero pools; the Aero query was also run against an Aero-on-Base test
-sync. The server was a 3-thread, 2.4 GiB ClickHouse shared with four running indexers, so the
-timings are pessimistic. In production, switch the `last_day` helper to `today()`.
+Each query below is a file in `clickhouse/queries/` and was run twice with
+`analytics.py queries`; the elapsed time is ClickHouse's own, the better of the two runs (the
+first is usually within 2× of it). Queries 1–25 ran against the layer on the ten-chain test sync
+(`velo_small_legacy`: every legacy chain except Optimism and Base, from an older commit without
+`deployment`, synced to the head of 2026-11-13, ≈ 160 M source rows). Queries 26–31 ran against
+the Aero test sync (`velo_aero_all`: the seven Aero chains from 2026-10-21, at a397cc0, still
+backfilling when measured), which also ran 1–25. The server was a 4-thread ClickHouse capped at
+5.6 GiB and shared with four indexers. Dates in the queries are relative to the last day of data;
+in production use `today()`.
 
 <!-- QUERIES:BEGIN -->
 <!-- QUERIES:END -->
@@ -268,42 +303,39 @@ timings are pessimistic. In production, switch the `last_day` helper to `today()
 
 **What the layer cannot answer.**
 
-- **Anything per event.** The indexer stores aggregates, not swaps, mints or transfers, so there
+- **Anything per swap.** The indexer stores aggregates, not swaps, mints or transfers, so there
   is no per-swap table: no trade sizes, no unique traders per day (only "wallets whose stats
-  changed", from `user_pool_snapshots` or `last_activity`), no per-transaction or per-block
-  questions. `pool_hourly` has a row per pool per hour with a change, not per trade.
-- **State at an arbitrary block.** The layer keeps the current state and end-of-hour /
-  end-of-day pool states. envio's per-block history (`envio_history_Pool`) has every version,
-  but if the proposed TTL is adopted it keeps only the last 30 days.
-- **Aero gauges, emissions, sAERO and allocations.** Not indexed yet: on `AERO` pools the gauge,
-  emission and vote fields stay at their defaults (0, empty, false), and an Aero position
-  staked in a gauge shows as owned by the gauge with `is_staked = false`.
-- **Votes per epoch.** `venft_votes` is the current allocation; history is only in envio's
-  `VeNFTPoolVoteSnapshot` (hourly, when a vote changed).
+  changed", from `user_pool_snapshots` or `last_activity`), no per-transaction questions. The
+  Aero stake, emission, allocation and sAERO events are the exception: those are per event.
+- **State at an arbitrary block.** The layer keeps current state and end-of-hour / end-of-day
+  states. envio's per-block history has every version, unless the TTL below is applied.
+- **Votes per epoch.** `venft_votes` and the Aero allocation views are current; history is in
+  envio's snapshots and `aero_allocation_events`.
 - **USD of an idle pool at today's prices.** `totalLiquidityUSD` is revalued only when the pool
   has an event, so TVL of idle pools is at their last event's prices; for a current valuation,
   value `reserve0` / `reserve1` with `tokens.price_usd` yourself.
 
 **Where numbers are approximate.**
 
-- **envio's hourly snapshots** (`PoolSnapshot`, `UserStatsPerPoolSnapshot`, …) are taken at the
-  *first* event of an hour, and only for hours with activity: a snapshot labelled hour H is the
-  state after the first event of H, not the state at the end of H − 1, so deltas between
-  snapshots are shifted by one event. The layer's `pool_hourly` / `pool_daily` do not have this
-  problem (they take the last version in the period from the per-block history), but
-  `user_pool_snapshots` and `token_prices_hourly` come from snapshots and do.
-- **Gaps are not zeros.** A pool, user or token with no change in a period has no row. Flows for
-  missing periods are 0; levels (TVL, reserves, prices) carry over from the previous row.
-  `chain_daily` / `chain_hourly` carry every pool forward, but a day on which no pool of a chain
-  changed has no row at all.
-- **Hour buckets use block time** (`lastUpdatedTimestamp`). A pool updated by a cross-chain event
-  (Optimism root-gauge distribution to a leaf pool) carries the Optimism block's time.
-- **A reorg can leave a ghost period.** The restored state replaces the state in its own hour;
-  the hour that held only orphaned blocks keeps its row until a later change lands in it. Rare
-  on these chains, and never affects `pools` (current state).
+- **envio's hourly snapshots** (`PoolSnapshot`, `UserStatsPerPoolSnapshot`, `AeroGaugeSnapshot`,
+  …) are taken at the *first* change of an hour, and only for hours with activity: a snapshot
+  labelled hour H is the state after the first event of H, not the state at the end of H − 1, so
+  deltas between snapshots are shifted by one event. The layer's `pool_*` and `aero_*_daily`
+  series do not have this problem (they take the last version in the period from the per-block
+  history), but `user_pool_snapshots`, `token_prices_hourly` and the `*_snapshots` views do.
+- **Gaps are not zeros.** A pool, gauge, user or token with no change in a period has no row.
+  Flows for missing periods are 0; levels (TVL, reserves, prices, caps) carry over from the
+  previous row. `chain_daily` / `chain_hourly` carry every pool forward, but a day on which no
+  pool of a chain changed has no row at all.
+- **Period buckets use block time** (`lastUpdatedTimestamp`). A legacy leaf pool updated by an
+  Optimism root-gauge distribution carries the Optimism block's time.
+- **A reorg that restores an older hour.** If a reorg's restored state lands in an earlier
+  period than a period the layer already holds for that entity, the later period keeps its
+  `prev_*` values (and its state from orphaned blocks) until a later change lands in it.
+  `verify` reports it; `rebuild` repairs it. Not seen in the test data.
 - **Position amounts and values** in `positions` are computed in `Float64` from liquidity, the
   tick range and the pool's current `sqrtPriceX96`; they ignore uncollected fees.
-- **Float64 views**: about 15–16 significant digits; use `*_raw` or the storage tables for exact
+- **Float64 views**: 15–16 significant digits; use `*_raw` or the storage tables for exact
   reconciliation.
 
 **Data-quality caveats a consumer must know.**
@@ -313,22 +345,33 @@ timings are pessimistic. In production, switch the `last_day` helper to `today()
   everything else). Below the per-chain depth floor there is no price; the last one is carried
   for 7 days and then the token reads $0 (`tokens.is_unpriced`, `price_source = 'unpriced'`).
   Volume and fees in USD are valued at the price when they happened, so a token that was
-  unpriced at the time contributes $0 forever.
+  unpriced at the time contributes $0 for good.
 - **Untrusted tokens contribute $0.** Only tokens that are legacy-whitelisted, listed on Aero's
   TokenRegistry or price connectors, and not blacklisted, count in USD aggregates
-  (`tokens.is_price_trusted`, ADR 0002). Query 19 lists the tokens that fall through.
-- **Legacy per-user CL fee collection is credited to the position manager.** On legacy (non-Aero)
-  CL pools, `CLPool.Collect` is emitted with the NFPM contract as owner, so
+  (`tokens.is_price_trusted`, ADR 0002). Query 19 lists the ones that fall through.
+- **Aero emissions on the leaf chains are in xAERO, which often has no price there.** xAERO is
+  redeemable 1:1 for AERO on Base but is priced only through its own pools or the canonical
+  Base AERO candidate (ADR 0004); on Arc, and on the Aero test sync on every leaf chain, its
+  price was 0, so `emissions_minted_usd` (as indexed) reads $0 outside Base. Use the
+  `*_usd_at_base_aero` columns (AERO amount × that day's Base AERO price) to compare chains.
+- **Aero allocation books are separate.** The root Voter on Base books what a position sent to
+  each chain; each chain's LeafVoter books what it received and the gauge split it applied. A
+  dispatch can be in flight, expire or be rejected, so the two differ at times; they are joined
+  only in queries (`aero_allocation_books`, query 29).
+- **Legacy per-user CL fee collection is credited to the position manager.** On legacy CL
+  pools `CLPool.Collect` is emitted with the NFPM contract as owner, so
   `user_pools.unstaked_fees_collected_*` for legacy CL positions accrue to the NFPM address,
   not the wallet. Pool-level totals are right. Aero NFPM collections are credited to the owner.
 - **Per-user staked USD is as of the user's last activity** (`staked_usd_as_of_last_activity`,
   issue #902): an idle staker is never revalued and often reads $0. Pool-level `staked_usd` is
   live for CL pools; for V2 pools it is set at gauge events and can go stale (#899).
 - **Top "users" are often contracts**: routers, aggregators, vaults, gauges and the NFPM.
-- **Reward-token amounts** (`emissions`, `gauge_rewards_claimed`, votes) are in each chain's own
-  reward token (VELO, AERO, XVELO, …): sum the `*_usd` columns across chains, not the amounts.
-- **Emissions before the oracle era read $0 in USD** for 188 legacy pools (#738) though the token
-  amounts are right; leaf-chain emissions need Optimism's root gauges in the same sync.
+- **Legacy reward-token amounts** (`emissions`, `gauge_rewards_claimed`, votes) are in each
+  chain's own legacy reward token (VELO, AERO v1, XVELO, …): sum the `*_usd` columns across
+  chains. Legacy emission fields stay 0 on Aero pools (Aero emissions are in the Aero views).
+- **Legacy emissions before the oracle era read $0 in USD** for 188 pools (#738) though the
+  token amounts are right, and leaf-chain legacy emissions need Optimism's root gauges in the
+  same sync (the ten-chain test sync has none, so they read 0 there).
 - **Superseed blocks 10,313,359 to 10,521,629** (about 2025-05-08 to 05-13) came from a
   non-canonical fork in HyperSync; mints and liquidity events are missing, and Superseed pool,
   position and user numbers are wrong from then on (`known_data_issues`).
@@ -337,9 +380,106 @@ timings are pessimistic. In production, switch the `last_day` helper to `today()
 - **Fee rates**: `current_fee_pct` is the rate the latest swap paid (dynamic fees move it);
   `base_fee_pct` is the configured fee. CL swaps whose fee could not be derived are counted in
   `_pool.swap_fee_fallbacks` (should stay 0).
-- **Older schemas**: on an indexer built before `Pool.deployment` existed, the layer derives it
-  from the chain (Base → `AERODROME`, else `VELODROME`), which is right for legacy pools only.
+- **Older indexer schemas**: on an indexer built before `Pool.deployment` existed, the layer
+  derives it from the chain (Base → `AERODROME`, else `VELODROME`), which is right for legacy
+  pools only; Aero tables and views are skipped when the indexer has no Aero gauges.
 
 ## Proposals for envio's own ClickHouse tables
 
-TBD_PROPOSALS
+The patches are in [`clickhouse/proposals/`](../clickhouse/proposals) (against `schema.graphql`
+at a397cc0; not applied). Each needs a full resync: envio fixes table layouts and column types
+when it creates the database.
+
+<!-- PROPOSALS:BEGIN -->
+Both patches together were applied to a Metal-only sync at a397cc0 (to block 41,500,000): envio
+3.16 accepted the schema, created every table with the new layout and types (Aero tables
+included, empty on Metal), and the Postgres state at the end (`Pool`, `UserStatsPerPool`,
+`Token`, `NonFungiblePosition`) was byte-identical (md5 of every row) to an unpatched run. The
+layer installs and verifies on top of it.
+
+**1. Table layouts for the ClickHouse-only entities** (`01-clickhouse-table-layouts.patch`).
+`@storage(clickhouse: {partitionBy, orderBy, skippingIndexes})` for the seven legacy snapshots
+and the twelve Aero event and snapshot tables, for example
+`orderBy: ["chainId", "poolAddress", "timestamp"]` on `PoolSnapshot`,
+`["chainId", "userAddress", "poolAddress", "timestamp"]` on `UserStatsPerPoolSnapshot`,
+`["chainId", "gaugeAddress", "timestamp"]` with a bloom index on `account` on
+`AeroGaugeStakeEvent` / `AeroEmissionsEvent`, `["chainId", "tokenId", "timestamp"]` on
+`SAeroPositionEvent` / `AeroAllocationEvent`. It also drops the `@index` tags on these entities
+(they create nothing: no Postgres table, and ClickHouse ignores `@index`). envio refuses to sort
+by a `BigInt` kept as a `String`, so the `tokenId` of `VeNFTStateSnapshot`, `SAeroPositionEvent`
+and `AeroAllocationEvent` moves to `precision: 38` (ids are small). Measured on copies of the
+ten-chain and Aero test tables, rows read by typical queries (query condition cache off):
+
+| table (rows) | query | envio layout (id-led) | proposed |
+|---|---|---|---|
+| `UserStatsPerPoolSnapshot` (22.2 M) | one user's history | 22.2 M rows, 76 ms | 208 k rows, 29 ms |
+| | one pool's users at an hour | 22.2 M rows, 331 ms | 8 k rows, 21 ms |
+| `PoolSnapshot` (1.84 M) | one pool's history | 1.84 M rows | 231 k rows |
+| | all pools at one hour | 1.84 M rows | 12.8 k rows |
+| `TokenPriceSnapshot` (1.29 M) | one token's prices | 1.29 M rows | 255 k rows |
+| `AeroGaugeStakeEvent` (0.5 M) | one gauge's events | 506 k rows | 49 k rows |
+| `AeroEmissionsEvent` (0.24 M) | one gauge's events | 239 k rows | 33 k rows |
+
+Storage is unchanged within ±3 % (2.29 vs 2.36 GiB, 498 vs 496 MB, 43.9 vs 40.5 MB, 86 vs 82
+MB). The gain grows with the table: production's 244 M user snapshots would be read in full for
+each per-user question today. Per-day questions over the event tables gain little from this
+order (partitions are monthly); the layer's daily tables answer those. Risk: none to indexing
+(verified above); a custom `orderBy` makes envio's own entity view re-sort, which matters only
+to readers of those views, and handler loads never read ClickHouse-only entities here.
+
+**2. Narrower `BigInt`s** (`02-precision-38.patch`). `precision: 38` on the USD fields and
+counters of `Pool`, `PoolSnapshot`, `UserStatsPerPool`, `UserStatsPerPoolSnapshot`, `Token` and
+`TokenPriceSnapshot`, so envio writes `Decimal(38,0)` instead of `String`. On the ten-chain
+`Pool` history (68.7 M rows), for `totalVolumeUSD`: 0.65 GiB instead of 1.02 GiB on disk
+(−36 %; −44 % for `totalLiquidityUSD`), `sum()` 1.1 s instead of 6.1 s, `ORDER BY … LIMIT 5`
+1.9 s instead of 6.7 s. Headroom: 1e38 / 1e18 = $1e20; the largest values seen are $2.1e10
+(per-user cumulative) and $2e9 (pool volume), 9–10 orders of magnitude below. **Risk:** Postgres
+would reject a value of 1e38 or more (`numeric field overflow`) and the indexer would stop; a
+mispriced but trusted token could inflate a cumulative USD total, so the aggregators must clamp
+before this ships (not part of the patch). Raw token amounts (7.9e32 seen, 5 orders of headroom
+only), CL liquidity (`uint128`), `sqrtPriceX96` and the pool price ratios (up to 3.4e68) must stay
+at 76. The analytics layer reads `Decimal` sources as well as `String` ones (tested), and gains
+nothing from the change (it already stores `Int256`): the benefit is to readers of envio's own
+tables and to their size.
+
+**3. A short ClickHouse history for the dual-stored aggregates** (`analytics.py history-ttl`, not
+a schema patch). `Pool`, `UserStatsPerPool`, `Token`, `NonFungiblePosition`, `AeroGauge` and the
+other aggregates handlers update are kept in Postgres for the handlers, so their ClickHouse
+history (one row per block in which they changed) is only analytics. Once the layer is caught up,
+the layer holds their current state and the hourly / daily series, and most of that history can
+expire. Measured:
+
+- **Saving.** On the ten-chain data, the last 30 days are 0.7–6.2 % of each chain's `Pool`
+  versions (Ink 6.2 %, Celo 5.2 %, Soneium 3.3 %, Unichain 2.4 %, Mode 1.3 %), so a 30-day TTL
+  removes 94–99 % of the largest tables (production: most of the 248 GiB of `Pool` history and
+  of the 1.6 B `UserStatsPerPool` versions). On the Metal test sync, `Pool` history went from
+  176,000 rows / 29.4 MB to 303 rows / 32 KB, `UserStatsPerPool` from 13.1 MB to 27 KB, `Token`
+  from 1.2 MB to 4 KB; the whole database from 68 MB to 24 MB.
+- **Indexing is unaffected.** With `ttl` on `Pool`, `UserStatsPerPool`, `Token` and
+  `NonFungiblePosition` (dual-stored, `@storage(postgres: true, clickhouse: {ttl})`) envio 3.16
+  synced Metal to the same Postgres state as without (md5 equal), including through 16 restarts
+  forced by a full Postgres connection pool. A TTL added later with `ALTER TABLE … MODIFY TTL`
+  does not stop envio from resuming either.
+- **The layer keeps the state.** On the Metal sync with the layer installed, a 30-day TTL took
+  the `Pool` history from 176,000 rows to 303: envio's own `Pool` view dropped from 18 pools to 10
+  (`UserStatsPerPool` from 3,733 rows to 95, `NonFungiblePosition` from 512 to 0), while the
+  layer kept all 18 pools, the 3,733 user rows and all 30,960 pool-hours.
+- **But not as a schema `ttl`.** The TTL is on block time, so during a resync it fires on old
+  rows within seconds of their insert, during merges. With the layer installed before the sync
+  and refreshing every 5 seconds, it still caught only 11 of 18 pools, 238 of 3,733 user rows,
+  0 of 512 positions and 489 of 30,960 pool-hours. So: no `ttl` in `schema.graphql`; apply it to
+  a synced indexer with `analytics.py history-ttl --days 30 --apply`, which refuses unless every
+  layer table is caught up, uses `materialize_ttl_after_modify = 0` (no immediate rewrite of
+  248 GiB; run `ALTER TABLE … MATERIALIZE TTL` off-peak to reclaim space at once), and is undone
+  by `--remove` or by any indexer reset (envio recreates the tables). Risk: envio's entity views
+  for those aggregates become incomplete (read the layer instead), and `verify` can only be run
+  against the retained window; a layer rebuild after the TTL needs an indexer resync.
+
+**4. `column_name_format: snake_case`: not worth a resync on its own.** envio's conversion
+(`totalVolumeUSD` → `total_volume_usd`, `isCL` → `is_cl`) is pleasant, but some names come out
+odd (`veNFTamountStaked` → `ve_nf_tamount_staked`, `numberOfVeNFTs` → `number_of_ve_nf_ts`), the
+layer already exposes snake_case names chosen for analysts, and the change would break every
+query written against envio's tables. Adopt it only bundled with a resync done for other reasons
+(the layer would then need its source column names mapped through the same conversion, a small
+change to the resolver in `analytics.py`; not done).
+<!-- PROPOSALS:END -->
