@@ -601,7 +601,7 @@ def run_queries(ctx: Ctx, files: list[str]):
         sql = ctx.render(p.read_text()).strip().rstrip(";")
         # analysts query with the read-only user; run the same text
         t0 = time.time()
-        body, summary = ctx.ch.request(sql + "\nFORMAT JSON", {"max_execution_time": "600"})
+        body, summary = ctx.ch.request(sql + "\nFORMAT JSON", {"max_execution_time": "600", "database": ctx.db})
         wall = time.time() - t0
         doc = json.loads(body)
         stats = doc.get("statistics", {})

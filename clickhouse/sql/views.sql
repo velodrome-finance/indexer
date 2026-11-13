@@ -508,7 +508,10 @@ FROM {{db}}.chains AS c
 INNER JOIN (
   SELECT f.chain_id AS chain_id, f.checkpoint_id AS checkpoint_id, k.block_number AS block_number
   FROM (SELECT chain_id, checkpoint_id FROM {{src}}.envio_chains FINAL) AS f
-  LEFT JOIN {{src}}.envio_checkpoints AS k ON k.chain_id = f.chain_id AND k.id = f.checkpoint_id
+  LEFT JOIN (
+    SELECT chain_id, id, block_number FROM {{src}}.envio_checkpoints
+    WHERE (chain_id, id) IN (SELECT chain_id, checkpoint_id FROM {{src}}.envio_chains FINAL)
+  ) AS k ON k.chain_id = f.chain_id AND k.id = f.checkpoint_id
 ) AS b ON b.chain_id = c.chain_id
 LEFT JOIN (
   SELECT chain_id, max(lp) AS last_pool_change, max(lr) AS last_price_refresh FROM (
