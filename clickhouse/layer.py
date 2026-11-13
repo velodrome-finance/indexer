@@ -188,7 +188,7 @@ def token_cols() -> list[Col]:
         Col("token_address", "idpart", expr=f"lower({id_part(2)})", ch_type="String", verify_src="lower({address})"),
         Col("symbol", "str", "symbol"),
         Col("name", "str", "name"),
-        Col("decimals", "count", "decimals", ch_type="UInt8", expr="toUInt8OrZero(decimals)"),
+        Col("decimals", "count", "decimals", ch_type="UInt8", expr="toUInt8OrZero(toString(decimals))"),
         Col("price_usd", "big", "pricePerUSDNew"),
         Col("last_price_refresh", "time", "lastUpdatedTimestamp"),
         Col("last_successful_price", "time", "lastSuccessfulPriceTimestamp"),
@@ -397,6 +397,8 @@ class Resolved:
         self.present = col.src is None or col.src in src_types
         src_type = src_types.get(col.src or "", "")
         self.nullable = src_type.startswith("Nullable") or src_type.startswith("LowCardinality(Nullable")
+        # A BigInt with precision <= 38 arrives as Decimal(P, 0), not String (envio >= 3.10).
+        self.decimal_source = "Decimal" in src_type
         base = col.ch_type or KIND_TYPE[col.kind]
         if self.nullable and not base.startswith("Nullable") and not base.startswith("LowCardinality(Nullable"):
             base = f"Nullable({base})"
@@ -413,6 +415,9 @@ class Resolved:
         s = f"`{c.src}`"
         if c.kind == "addr":
             return f"lower({s})"
+        if c.kind in ("big", "count") and self.decimal_source:
+            t = "Int256" if c.kind == "big" else "UInt64"
+            return f"CAST({s} AS Nullable({t}))" if self.nullable else f"to{t}({s})"
         if c.kind == "big":
             e = BIG.format(c=s)
             return f"if({s} IS NULL, NULL, {e})" if self.nullable else e

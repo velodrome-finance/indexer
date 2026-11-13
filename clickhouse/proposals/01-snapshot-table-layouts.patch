@@ -155,7 +155,7 @@
    chainId: Int! # chain id
 -  tokenId: BigInt! @index # veNFT token ID
 -  owner: String! @index # owner address at snapshot time
-+  tokenId: BigInt! # veNFT token ID
++  tokenId: BigInt! @config(precision: 38) # veNFT token ID (precision 38: ClickHouse sorts by it)
 +  owner: String! # owner address at snapshot time
    locktime: BigInt! @config(precision: 76) # lock expiry timestamp (seconds); 0 for permanent locks
    isPermanent: Boolean! # whether the lock is permanent (never expires)

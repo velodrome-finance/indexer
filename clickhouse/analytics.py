@@ -324,7 +324,19 @@ COMMENT 'analytics layer bookkeeping: source database, source instance, layer ve
 
 
 def chunks(ctx: Ctx, e: Entity, target_rows: int) -> list[str]:
-    """id ranges of about target_rows source rows each, cut at primary-index marks."""
+    """id ranges of about target_rows source rows each, cut at primary-index marks.
+
+    envio sorts history tables by (id, envio_checkpoint_id) unless the entity sets
+    @storage(clickhouse: {orderBy}); for those, chunks are hash buckets of the id (each chunk
+    then scans the table, but every version of an id stays in one chunk).
+    """
+    key = ctx.ch.scalar(
+        f"SELECT sorting_key FROM system.tables WHERE database = {lit(ctx.src)} AND name = {lit(ctx.hist(e))}"
+    )
+    if not key.startswith("id"):
+        total = table_rows_src(ctx, ctx.hist(e))
+        n = max(1, -(-total // target_rows))
+        return [f"cityHash64(id) % {n} = {i}" for i in range(n)]
     marks = ctx.ch.rows(
         f"SELECT id, rows_in_granule AS n FROM mergeTreeIndex({lit(ctx.src)}, {lit(ctx.hist(e))}) ORDER BY id"
     )
@@ -338,6 +350,15 @@ def chunks(ctx: Ctx, e: Entity, target_rows: int) -> list[str]:
             acc = 0
     edges = [None, *bounds, None]
     return [chunk_pred(edges[i], edges[i + 1]) for i in range(len(edges) - 1)]
+
+
+def table_rows_src(ctx: Ctx, table: str) -> int:
+    return int(
+        ctx.ch.scalar(
+            f"SELECT sum(rows) FROM system.parts WHERE database = {lit(ctx.src)} AND table = {lit(table)} AND active"
+        )
+        or 0
+    )
 
 
 def meta_get(ctx: Ctx) -> dict[str, str]:
