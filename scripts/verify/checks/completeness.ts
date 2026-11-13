@@ -128,11 +128,12 @@ export async function checkRegistrations(ctx: CheckContext): Promise<void> {
       );
     } else {
       expected.set(g.address, {
-        contract: g.kind === "cl" ? "CLGauge" : "Gauge",
+        contract: g.contract,
         block: g.created.block,
         why: `GaugeCreated tx ${g.created.tx}`,
       });
     }
+    if (g.aero) continue; // Aero voting-rewards managers come from the gauge manager; not covered here.
     expected.set(g.feeVotingReward, {
       contract: "FeesVotingReward",
       block: g.created.block,
@@ -143,6 +144,13 @@ export async function checkRegistrations(ctx: CheckContext): Promise<void> {
       contract: bribe?.contract ?? "BribesVotingReward",
       block: g.created.block,
       why: `GaugeCreated tx ${g.created.tx}`,
+    });
+  }
+  for (const [a, o] of ctx.truth.otherDynamic) {
+    expected.set(a, {
+      contract: o.contract,
+      block: o.created.block,
+      why: `registered by tx ${o.created.tx}`,
     });
   }
   for (const w of ctx.truth.wrappers.values()) {
@@ -186,6 +194,9 @@ export async function checkRegistrations(ctx: CheckContext): Promise<void> {
     "SuperchainIncentiveVotingReward",
     "ALMLPWrapperV1",
     "ALMLPWrapperV2",
+    "AeroCLGauge",
+    "AeroV2Gauge",
+    "AeroVotingRewardsManager",
   ]);
   for (const [a, list] of regs) {
     for (const x of list) {
@@ -298,6 +309,9 @@ export function checkGaugeLinks(ctx: CheckContext): void {
     if (!r) continue;
     const det = { block: g.created.block, tx: g.created.tx };
     c.eq(`${pool}.gaugeAddress`, lc(r.gaugeAddress), g.address, det);
+    // Aero gauges: liveness is "activated and cap > 0" (LeafVoter / factory events), and
+    // voting rewards come from the gauge manager; only the gauge link is compared here.
+    if (g.aero) continue;
     c.eq(
       `${pool}.feeVotingRewardAddress`,
       lc(r.feeVotingRewardAddress),

@@ -118,6 +118,10 @@ export interface GaugeTruth {
   address: Addr;
   pool: Addr;
   kind: "v2" | "cl" | "unregistered";
+  /** Contract the indexer registers the gauge as (Gauge, CLGauge, AeroCLGauge, AeroV2Gauge). */
+  contract: string;
+  /** Aero gauge (created by an Aero gauge factory, ADR 0006). */
+  aero: boolean;
   poolFactory: Addr;
   feeVotingReward: Addr;
   bribeVotingReward: Addr;
@@ -190,6 +194,8 @@ export interface ChainTruth {
   gauges: Map<Addr, GaugeTruth>;
   votingRewards: Map<Addr, VotingRewardTruth>;
   wrappers: Map<Addr, WrapperTruth>;
+  /** Other dynamically registered contracts (e.g. AeroVotingRewardsManager): address -> contract and creation. */
+  otherDynamic: Map<Addr, { contract: string; created: LogRef }>;
   /** `${nfpm}|${tokenId}` -> NFT */
   nfts: Map<string, NftTruth>;
   users: Map<string, UserPoolTruth>;

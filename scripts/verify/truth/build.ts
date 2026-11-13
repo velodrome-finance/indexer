@@ -266,6 +266,7 @@ export async function buildChainTruth(
     gauges: new Map(),
     votingRewards: new Map(),
     wrappers: new Map(),
+    otherDynamic: new Map(),
     nfts: new Map(),
     users: new Map(),
     tokens: new Set(),
@@ -358,6 +359,40 @@ export async function buildChainTruth(
           (d.pool as string).toLowerCase(),
           d.fee as bigint,
         );
+      } else if (ROLE.aeroGaugeManager(c) && e === "GaugeCreated") {
+        const m = String(d.votingRewardsManager ?? "").toLowerCase();
+        if (m)
+          truth.otherDynamic.set(m, {
+            contract: "AeroVotingRewardsManager",
+            created: ref(l),
+          });
+      } else if (ROLE.aeroGaugeFactory(c) && e === "GaugeCreated") {
+        // Aero (ADR 0006): GaugeCreated(gauge, pool, isPool) on the CL / V2 gauge factory.
+        const isCL = /CLGaugeFactory$/.test(c);
+        const g: GaugeTruth = {
+          address: (d.gauge as string).toLowerCase(),
+          pool: (d.pool as string).toLowerCase(),
+          kind: isCL ? "cl" : "v2",
+          contract: isCL ? "AeroCLGauge" : "AeroV2Gauge",
+          aero: true,
+          poolFactory: "",
+          feeVotingReward: "",
+          bribeVotingReward: "",
+          created: ref(l),
+          voter: l.address,
+          alive: true,
+          counts: new Map(),
+          deposits: 0,
+          withdrawals: 0,
+          claims: 0,
+          rewardsClaimed: 0n,
+          netStakeFromEvents: 0n,
+          notified: 0n,
+          notifies: 0,
+          claimFees0: 0n,
+          claimFees1: 0n,
+        };
+        truth.gauges.set(g.address, g);
       } else if (ROLE.voter(c) && e === "GaugeCreated") {
         const pf = (d.poolFactory as string).toLowerCase();
         const kind = clFactories.has(pf)
@@ -369,6 +404,8 @@ export async function buildChainTruth(
           address: (d.gauge as string).toLowerCase(),
           pool: (d.pool as string).toLowerCase(),
           kind,
+          contract: kind === "cl" ? "CLGauge" : "Gauge",
+          aero: false,
           poolFactory: pf,
           feeVotingReward: (d.feeVotingReward as string).toLowerCase(),
           bribeVotingReward: (
@@ -768,8 +805,7 @@ export async function buildChainTruth(
   // ---------------- Phase 2c: gauges ----------------
   const gaugeTopics = new Map<Addr, Map<string, EventDef>>();
   const regGauges = [...truth.gauges.values()];
-  for (const g of regGauges)
-    gaugeTopics.set(g.address, tm(g.kind === "cl" ? "CLGauge" : "Gauge"));
+  for (const g of regGauges) gaugeTopics.set(g.address, tm(g.contract));
   await streamAddresses(
     ctx,
     "gauges",
@@ -796,7 +832,8 @@ export async function buildChainTruth(
         const amount = (
           g.kind === "cl" ? d.liquidityToStake : d.amount
         ) as bigint;
-        const who = (g.kind === "cl" ? d.user : d.to) as string;
+        // Legacy: CL Deposit(user, tokenId, L), V2 Deposit(from, to, amount); Aero: (caller, user|account, ...).
+        const who = (d.user ?? d.account ?? d.to) as string;
         g.netStakeFromEvents += amount;
         const u = user(truth, who, g.pool);
         u.gaugeDeposits++;
@@ -811,12 +848,12 @@ export async function buildChainTruth(
             }
           }
         }
-      } else if (e === "Withdraw") {
+      } else if (e === "Withdraw" || (g.aero && e === "EmergencyWithdraw")) {
         g.withdrawals++;
         const amount = (
           g.kind === "cl" ? d.liquidityToStake : d.amount
         ) as bigint;
-        const who = (g.kind === "cl" ? d.user : d.from) as string;
+        const who = (d.user ?? d.account ?? d.from) as string;
         g.netStakeFromEvents -= amount;
         const u = user(truth, who, g.pool);
         u.gaugeWithdrawals++;
@@ -875,6 +912,24 @@ export async function buildChainTruth(
           (v.claimed.get(reward) ?? 0n) + ((d.amount ?? d._amount) as bigint),
         );
       }
+    },
+  );
+
+  // ---------------- Phase 2f: other dynamic contracts (event counts only) ----------------
+  const odTopics = new Map<Addr, Map<string, EventDef>>();
+  for (const [a, o] of truth.otherDynamic) odTopics.set(a, tm(o.contract));
+  await streamAddresses(
+    ctx,
+    "other dynamic contracts",
+    [...truth.otherDynamic.keys()],
+    false,
+    (l) => odTopics.get(l.address)?.get(l.topic0 ?? ""),
+    (l, def) => {
+      const o = truth.otherDynamic.get(l.address);
+      // Logs before the registering event's block are not indexed.
+      if (!o || l.block_number < o.created.block) return;
+      if (def.configured)
+        bump(truth.eventCounts, `${def.contract}.${def.name}`);
     },
   );
 

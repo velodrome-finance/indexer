@@ -163,6 +163,11 @@ export const ROLE = {
   voter: (name: string): boolean => name === "Voter" || /LeafVoter$/.test(name),
   /** Token lists that make a token trusted (Aero TokenRegistry ListingSet). */
   tokenRegistry: (name: string): boolean => /TokenRegistry$/.test(name),
+  /** Aero gauge factories: GaugeCreated(gauge, pool, isPool) (ADR 0006). */
+  /** Aero gauge manager: GaugeCreated(..., votingRewardsManager, ...) registers a rewards manager. */
+  aeroGaugeManager: (name: string): boolean => /^AeroGaugeManager$/.test(name),
+  aeroGaugeFactory: (name: string): boolean =>
+    /^Aero(CL|V2)GaugeFactory$/.test(name),
 };
 
 /**
