@@ -88,17 +88,27 @@ export async function chLatest(
       )
     )[0]?.n ?? 0,
   );
-  const buckets = Math.max(1, Math.ceil(n / 250_000));
-  const out: Record<string, string | null>[] = [];
-  for (let k = 0; k < buckets; k++) {
-    const rows = await ch.query(
-      `SELECT * FROM envio_history_${table}
-       WHERE ${cond}${buckets > 1 ? ` AND cityHash64(id) % ${buckets} = ${k}` : ""}
-       ORDER BY id, envio_checkpoint_id DESC LIMIT 1 BY id`,
-    );
-    for (const r of rows) out.push(r);
+  // The latest version per id is found on the two narrow columns first, then
+  // the wide rows are read by (id, checkpoint) without sorting them.
+  let buckets = Math.max(1, Math.ceil(n / 2_000_000));
+  for (;;) {
+    const out: Record<string, string | null>[] = [];
+    try {
+      for (let k = 0; k < buckets; k++) {
+        const b = buckets > 1 ? ` AND cityHash64(id) % ${buckets} = ${k}` : "";
+        const rows = await ch.query(
+          `SELECT * FROM envio_history_${table}
+           WHERE ${cond}${b} AND (id, envio_checkpoint_id) IN (
+             SELECT id, max(envio_checkpoint_id) FROM envio_history_${table} WHERE ${cond}${b} GROUP BY id)`,
+        );
+        for (const r of rows) out.push(r);
+      }
+      return out;
+    } catch (e) {
+      if (!/memory limit/i.test(String(e)) || buckets >= 256) throw e;
+      buckets *= 4;
+    }
   }
-  return out;
 }
 
 /**
