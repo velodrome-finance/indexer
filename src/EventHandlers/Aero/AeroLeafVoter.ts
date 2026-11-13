@@ -18,6 +18,14 @@ import {
   rewardTokenUSD,
   syncAeroPoolGaugeLink,
 } from "./AeroGaugeLogic";
+import {
+  type LeafEventContext,
+  patchLeafTokenState,
+  processLeafChainAllocated,
+  processLeafDeallocated,
+  processLeafEmergencyDeallocationApplied,
+  processLeafGaugesAllocated,
+} from "./AeroLeafAllocationLogic";
 
 /**
  * Aero LeafVoter (same address on every chain, Base included), phase 2:
@@ -360,6 +368,170 @@ indexer.onEvent(
     persistLeafVoterState(
       { ...state, chainStatus: Number(event.params.status) },
       timestamp,
+      context,
+    );
+  },
+);
+
+// ------------------------- phase 3: allocations -------------------------
+
+function leafContext(event: {
+  chainId: number;
+  block: { number: number; timestamp: number };
+  transaction: { hash: string };
+  logIndex: number;
+}): LeafEventContext {
+  return {
+    chainId: event.chainId,
+    blockNumber: event.block.number,
+    timestamp: event.block.timestamp,
+    transactionHash: event.transaction.hash,
+    logIndex: event.logIndex,
+  };
+}
+
+indexer.onEvent(
+  { contract: "AeroLeafVoter", event: "ChainAllocated" },
+  async ({ event, context }) => {
+    await processLeafChainAllocated(
+      leafContext(event),
+      event.params.tokenId,
+      event.params.allocationDelta,
+      event.params.chainAllocation,
+      event.params.emissionsPerVP,
+      context,
+    );
+  },
+);
+
+indexer.onEvent(
+  { contract: "AeroLeafVoter", event: "GaugesAllocated" },
+  async ({ event, context }) => {
+    await processLeafGaugesAllocated(
+      leafContext(event),
+      event.params.tokenId,
+      event.params.allocations,
+      event.params.emissionsPerVP,
+      context,
+    );
+  },
+);
+
+indexer.onEvent(
+  { contract: "AeroLeafVoter", event: "Deallocated" },
+  async ({ event, context }) => {
+    processLeafDeallocated(
+      leafContext(event),
+      event.params.tokenId,
+      event.params.amount,
+      context,
+    );
+  },
+);
+
+indexer.onEvent(
+  { contract: "AeroLeafVoter", event: "EmergencyDeallocationApplied" },
+  async ({ event, context }) => {
+    await processLeafEmergencyDeallocationApplied(
+      leafContext(event),
+      event.params.tokenId,
+      context,
+    );
+  },
+);
+
+indexer.onEvent(
+  { contract: "AeroLeafVoter", event: "OperatorSet" },
+  async ({ event, context }) => {
+    await patchLeafTokenState(
+      leafContext(event),
+      event.params.tokenId,
+      { operator: event.params.operator },
+      context,
+    );
+  },
+);
+
+indexer.onEvent(
+  { contract: "AeroLeafVoter", event: "CanVoteForZeroCapGaugesSet" },
+  async ({ event, context }) => {
+    await patchLeafTokenState(
+      leafContext(event),
+      event.params.tokenId,
+      { canVoteForZeroCapGauges: event.params.allowed },
+      context,
+    );
+  },
+);
+
+/**
+ * Applies a LeafVoter configuration change to the chain's state row.
+ *
+ * @param chainId - Chain of the LeafVoter
+ * @param blockTimestamp - Block time (seconds)
+ * @param patch - Fields to set
+ * @param context - Handler context
+ * @returns Promise that resolves once the state row is staged
+ */
+async function patchLeafVoterConfig(
+  chainId: number,
+  blockTimestamp: number,
+  patch: Partial<{
+    allocationCooldown: bigint;
+    maxGauges: bigint;
+    minIncentiveDuration: bigint;
+    localVotingEnabled: boolean;
+  }>,
+  context: handlerContext,
+): Promise<void> {
+  const timestamp = new Date(blockTimestamp * 1000);
+  const state = await loadOrCreateLeafVoterState(chainId, timestamp, context);
+  persistLeafVoterState({ ...state, ...patch }, timestamp, context);
+}
+
+indexer.onEvent(
+  { contract: "AeroLeafVoter", event: "AllocationCooldownSet" },
+  async ({ event, context }) => {
+    await patchLeafVoterConfig(
+      event.chainId,
+      event.block.timestamp,
+      { allocationCooldown: event.params.allocationCooldown },
+      context,
+    );
+  },
+);
+
+indexer.onEvent(
+  { contract: "AeroLeafVoter", event: "MaxGaugesSet" },
+  async ({ event, context }) => {
+    await patchLeafVoterConfig(
+      event.chainId,
+      event.block.timestamp,
+      { maxGauges: event.params.maxGauges },
+      context,
+    );
+  },
+);
+
+indexer.onEvent(
+  { contract: "AeroLeafVoter", event: "MinIncentiveDurationSet" },
+  async ({ event, context }) => {
+    await patchLeafVoterConfig(
+      event.chainId,
+      event.block.timestamp,
+      { minIncentiveDuration: event.params.minIncentiveDuration },
+      context,
+    );
+  },
+);
+
+indexer.onEvent(
+  { contract: "AeroLeafVoter", event: "LocalVotingEnabledSet" },
+  async ({ event, context }) => {
+    await patchLeafVoterConfig(
+      event.chainId,
+      event.block.timestamp,
+      { localVotingEnabled: event.params.enabled },
       context,
     );
   },

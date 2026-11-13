@@ -293,6 +293,13 @@ export async function loadOrCreateLeafVoterState(
     totalRedeemed: 0n,
     numberOfRedemptions: 0n,
     receiptTokenSupply: 0n,
+    emissionsPerVP: undefined,
+    totalChainAllocation: 0n,
+    totalBookedAllocation: 0n,
+    allocationCooldown: undefined,
+    maxGauges: undefined,
+    minIncentiveDuration: undefined,
+    localVotingEnabled: undefined,
     lastUpdatedTimestamp: timestamp,
     lastSnapshotTimestamp: undefined,
   };
@@ -327,6 +334,9 @@ export function persistLeafVoterState(
       totalEmissionsMintedUSD: next.totalEmissionsMintedUSD,
       totalRedeemed: next.totalRedeemed,
       receiptTokenSupply: next.receiptTokenSupply,
+      emissionsPerVP: next.emissionsPerVP,
+      totalChainAllocation: next.totalChainAllocation,
+      totalBookedAllocation: next.totalBookedAllocation,
     });
     next = { ...next, lastSnapshotTimestamp: epoch };
   }

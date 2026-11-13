@@ -167,3 +167,195 @@ export function AeroEventId(
  */
 export const AeroSnapshotId = (entityId: string, epochMs: number) =>
   `${entityId}-${epochMs}`;
+
+// ----------------------------- phase 3: governance -----------------------------
+
+/** Seconds in a week: VotingEscrow unlock times are week-aligned. */
+export const AERO_WEEK_SECONDS = 604_800n;
+
+/**
+ * VotingEscrow.Rebalance destination tokenId that requests a mint
+ * (`type(uint256).max`); tokenId 0 is the protocol accumulator.
+ */
+export const SAERO_MINT_SENTINEL = (1n << 256n) - 1n;
+
+/** Root Voter's idle chain (`CHAIN0`) and burn token (`TOKEN0`). */
+export const AERO_CHAIN0 = 0;
+
+/** VotingEscrow `DepositType` values carried by Deposit. */
+export const SAERO_DEPOSIT_TYPE = {
+  CREATE_STAKE: 0n,
+  INCREASE_STAKE_AMOUNT: 1n,
+  INCREASE_STAKING_PERIOD: 2n,
+  REVIVE_STAKE: 3n,
+} as const;
+
+/** `SAeroPosition.createdVia` values. */
+export const SAERO_CREATED_VIA = {
+  MINT_PENDING: "MINT_PENDING",
+  CREATE_STAKE: "CREATE_STAKE",
+  REBALANCE: "REBALANCE",
+  ACCUMULATOR: "ACCUMULATOR",
+} as const;
+
+/** `SAeroPositionEvent.kind` values. */
+export const SAERO_EVENT_KIND = {
+  MINT: "MINT",
+  TRANSFER: "TRANSFER",
+  CREATE_STAKE: "CREATE_STAKE",
+  INCREASE_AMOUNT: "INCREASE_AMOUNT",
+  INCREASE_PERIOD: "INCREASE_PERIOD",
+  REVIVE_STAKE: "REVIVE_STAKE",
+  WITHDRAW: "WITHDRAW",
+  UPGRADE_PERMANENT: "UPGRADE_PERMANENT",
+  DOWNGRADE_PERMANENT: "DOWNGRADE_PERMANENT",
+  REBALANCE_OUT: "REBALANCE_OUT",
+  REBALANCE_IN: "REBALANCE_IN",
+  BURN: "BURN",
+} as const;
+
+/** `AeroAllocationEvent.level` / `.kind` values. */
+export const AERO_ALLOCATION_LEVEL = { ROOT: "ROOT", LEAF: "LEAF" } as const;
+export const AERO_ALLOCATION_EVENT_KIND = {
+  PARKED: "PARKED",
+  CHAIN_ALLOCATED: "CHAIN_ALLOCATED",
+  GAUGES_DISPATCHED: "GAUGES_DISPATCHED",
+  DEALLOCATION_PROCESSED: "DEALLOCATION_PROCESSED",
+  EMERGENCY_DEALLOCATED: "EMERGENCY_DEALLOCATED",
+  TOKEN_CLEARED: "TOKEN_CLEARED",
+  CHAIN0_REBALANCED: "CHAIN0_REBALANCED",
+  BURNED: "BURNED",
+  GAUGE_ALLOCATED: "GAUGE_ALLOCATED",
+  DEALLOCATED: "DEALLOCATED",
+  EMERGENCY_DEALLOCATION_APPLIED: "EMERGENCY_DEALLOCATION_APPLIED",
+} as const;
+
+/** `AeroMinterEvent.kind` values. */
+export const AERO_MINTER_EVENT_KIND = {
+  BASE_RATE_SET: "BASE_RATE_SET",
+  DYNAMIC_RATE_SET: "DYNAMIC_RATE_SET",
+  TEAM_RATE_SET: "TEAM_RATE_SET",
+  RATE_BAND_SET: "RATE_BAND_SET",
+  MAX_BASE_RATE_CHANGE_PIPS_SET: "MAX_BASE_RATE_CHANGE_PIPS_SET",
+  BASE_RATE_UPDATE_COOLDOWN_SET: "BASE_RATE_UPDATE_COOLDOWN_SET",
+  OPERATOR_SET: "OPERATOR_SET",
+  FED_SET: "FED_SET",
+  DYNAMIC_RATE_MODULE_SET: "DYNAMIC_RATE_MODULE_SET",
+} as const;
+
+/** `AeroMigrationEvent.kind` and `.legacyToken` values. */
+export const AERO_MIGRATION_EVENT_KIND = {
+  VENFT: "VENFT",
+  LIQUID: "LIQUID",
+  SETTLED: "SETTLED",
+} as const;
+export const AERO_MIGRATION_LEGACY_TOKEN = {
+  AERO_V1: "AERO_V1",
+  VELO: "VELO",
+} as const;
+
+/**
+ * Id of an sAERO position: `{chainId}-{tokenId}`.
+ *
+ * @param chainId - Chain of the VotingEscrow (Base)
+ * @param tokenId - VotingEscrow tokenId
+ * @returns SAeroPosition id
+ */
+export const SAeroPositionId = (chainId: number, tokenId: bigint) =>
+  `${chainId}-${tokenId}`;
+
+/**
+ * Id of a root Voter per-chain row: `{chainId}-{tokenId}-{targetChainId}`
+ * (AeroRootAllocation, AeroRootGaugeVote).
+ *
+ * @param chainId - Chain of the root Voter (Base)
+ * @param tokenId - sAERO position
+ * @param targetChainId - Chain the power is booked on (0 = CHAIN0)
+ * @returns Row id
+ */
+export const AeroRootAllocationId = (
+  chainId: number,
+  tokenId: bigint,
+  targetChainId: number,
+) => `${chainId}-${tokenId}-${targetChainId}`;
+
+/**
+ * Id of a root Voter per-chain ledger row: `{chainId}-{targetChainId}`.
+ *
+ * @param chainId - Chain of the root Voter (Base)
+ * @param targetChainId - Chain (0 = CHAIN0)
+ * @returns AeroRootChainState id
+ */
+export const AeroRootChainStateId = (chainId: number, targetChainId: number) =>
+  `${chainId}-${targetChainId}`;
+
+/**
+ * Id of a position's LeafVoter state on a chain: `{chainId}-{tokenId}`.
+ *
+ * @param chainId - Chain of the LeafVoter
+ * @param tokenId - sAERO position
+ * @returns AeroLeafTokenState id
+ */
+export const AeroLeafTokenStateId = (chainId: number, tokenId: bigint) =>
+  `${chainId}-${tokenId}`;
+
+/**
+ * Id of a position's booked allocation on a gauge: `{chainId}-{tokenId}-{gauge}`.
+ *
+ * @param chainId - Chain of the LeafVoter
+ * @param tokenId - sAERO position
+ * @param gauge - Gauge address
+ * @returns AeroLeafAllocation id
+ */
+export const AeroLeafAllocationId = (
+  chainId: number,
+  tokenId: bigint,
+  gauge: string,
+) => `${chainId}-${tokenId}-${gauge}`;
+
+/**
+ * Id of an incentive program: `{chainId}-{votingRewardsManager}-{programId}`.
+ *
+ * @param chainId - Chain of the rewards manager
+ * @param manager - VotingRewardsManager address
+ * @param programId - Program id within the manager
+ * @returns AeroIncentiveProgram id
+ */
+export const AeroIncentiveProgramId = (
+  chainId: number,
+  manager: string,
+  programId: bigint,
+) => `${chainId}-${manager}-${programId}`;
+
+/**
+ * Id of a chain-scoped singleton keyed by a contract: `{chainId}-{address}`
+ * (AeroMinterState, AeroMigrationTotals).
+ *
+ * @param chainId - Chain of the contract
+ * @param address - Contract address
+ * @returns Row id
+ */
+export const AeroContractStateId = (chainId: number, address: string) =>
+  `${chainId}-${address}`;
+
+/**
+ * Voting power of an sAERO amount at time `t`, as the VotingEscrow and the
+ * LeafVoter compute it: the amount for a permanent stake, else
+ * `amount / MAXTIME * (stakeEnd - t)` (slope first, floored), 0 once expired.
+ *
+ * @param amount - AERO amount (18 decimals)
+ * @param stakeEnd - Unlock time (unix seconds)
+ * @param isPermanent - Permanent stake
+ * @param t - Time (unix seconds)
+ * @returns Voting power (18 decimals)
+ */
+export function aeroVotingPower(
+  amount: bigint,
+  stakeEnd: bigint,
+  isPermanent: boolean,
+  t: bigint,
+): bigint {
+  if (isPermanent) return amount;
+  if (stakeEnd <= t) return 0n;
+  return (amount / AERO_MAXTIME_SECONDS) * (stakeEnd - t);
+}

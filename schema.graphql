@@ -38,7 +38,7 @@ type Pool {
   numberOfSwapFeeFallbacks: BigInt! @config(precision: 76) # CL only: swaps whose fee could not be derived from the swap (tick-map walk disagreed with the event's liquidity, or the derived fee was negative or above 10% of the input) and were valued with the stored currentFee instead. Should stay 0 on a from-creation sync
   token0Price: BigInt! @config(precision: 76) # price of token0 relative to token1
   token1Price: BigInt! @config(precision: 76) # price of token1 relative to token0
-  totalVotesDeposited: BigInt! @config(precision: 76) # total votes deposited in veToken units (legacy weekly Voter votes; 0 on AERO pools: Aero has no weekly votes and sAERO allocations are not indexed)
+  totalVotesDeposited: BigInt! @config(precision: 76) # total votes deposited in veToken units (legacy weekly Voter votes; 0 on AERO pools: Aero has no weekly votes; sAERO allocations are in AeroLeafAllocation / AeroGauge.totalAllocated)
   totalVotesDepositedUSD: BigInt! @config(precision: 76) # total votes deposited in USD (0 on AERO pools, see totalVotesDeposited)
   totalEmissions: BigInt! @config(precision: 76) # total emissions for the pool in reward token units (VELO form Optimism and AERO for Base); 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813)
   # Cumulative across all DistributeReward events using the reward token's price at
@@ -48,7 +48,7 @@ type Pool {
   # 2024-06-14, VELO/OP pre 2024-01-10), this cumulative will be permanently $0
   # even when totalEmissions > 0 — affects 188 legacy pools (143 Base + 45 OP).
   # See issue #738 for context.
-  totalEmissionsUSD: BigInt! @config(precision: 76) # total emissions for the pool in USD. totalEmissions* are legacy-gauge emissions; 0 on AERO pools until Aero gauges are indexed
+  totalEmissionsUSD: BigInt! @config(precision: 76) # total emissions for the pool in USD. totalEmissions* are legacy-gauge emissions; 0 on AERO pools (Aero emissions are minted on claim: see AeroGauge, ADR 0006)
   totalEmissionsRedistributed: BigInt! @config(precision: 76) # cumulative reward tokens this pool's gauge received from the Redistributor (Redistributed events); AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813)
   totalEmissionsForfeited: BigInt! @config(precision: 76) # cumulative reward tokens this pool's gauge forwarded to the Redistributor or minter because it was over its cap (Deposited events); AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813)
 
@@ -85,7 +85,7 @@ type Pool {
   numberOfFlashLoans: BigInt @config(precision: 76) # total number of flash loans
 
   # Gauge fields
-  gaugeIsAlive: Boolean! # whether the gauge is alive. Gauge fields describe the legacy gauge; on AERO pools they keep their creation defaults (false / "" / 0) until Aero gauges are indexed
+  gaugeIsAlive: Boolean! # whether the gauge is alive. On AERO pools: the Aero gauge is activated on its LeafVoter and its emission cap is not 0 (ADR 0006). Of the gauge fields below, gaugeAddress, the deposit / withdrawal counts and currentLiquidityStaked* apply to AERO pools; gaugeEmissionsCap, minStakeTime and the reward-claim / emission fields are legacy-only (see AeroGauge)
   gaugeAddress: String @index # address of the gauge for this pool
   gaugeEmissionsCap: BigInt @config(precision: 76) # Emissions cap for gauge. If not specified in an SetEmissionsCap event, set to defaultEmissionsCap as per CLGaugeConfig. If CLGaugeConfig doesn't exist, there's no emissions cap. Null on AERO pools (CLGaugeConfig is the legacy CLGaugeFactory's)
   minStakeTime: BigInt! @config(precision: 24) # Per-pool LP stake lockup (seconds). Seeded from CLGaugeConfig.defaultMinStakeTime at pool creation; overridden by CLGaugeFactoryV3.SetPoolMinStakeTime. 0 before V3. 0 on AERO pools (legacy CLGaugeFactory setting)
@@ -114,7 +114,7 @@ type Pool {
   # Raw customFee value last emitted by an UnstakedFeeModule for this pool (CL pools only).
   # 0 = no override (factory default applies), 420 = explicit 0% fee (ZERO_FEE_INDICATOR),
   # else fee rate with 6-decimal precision (e.g. 500_000 = 50%). Null = never set.
-  # Null on AERO pools: Aero's CustomUnstakedFeeModule is not indexed yet.
+  # On AERO pools set by Aero's CustomUnstakedFeeModule (same semantics; AeroUnstakedFeeModule).
   unstakedFee: BigInt @config(precision: 24)
 
   # Pool Launcher relationship
@@ -441,7 +441,7 @@ type NonFungiblePosition {
   mintLogIndex: Int! # Log index of the CLPool.Mint the position was created from (legacy NFPMs: matched at NFPM.Transfer; Aero NFPM: matched at IncreaseLiquidity by range, liquidity and amounts)
   lastUpdatedTimestamp: Timestamp! # Timestamp of last update
   lastSnapshotTimestamp: Timestamp # nullable - null means never snapshotted
-  isStakedInGauge: Boolean! # Set from NFPM.Transfer to/from the pool's gauge; owner is not updated on gauge transfers so we need this to know staked vs not. Always false on Aero positions until Aero gauges are indexed (an Aero position staked in a gauge is owned by the gauge until then)
+  isStakedInGauge: Boolean! # Set from NFPM.Transfer to/from the pool's gauge; owner is not updated on gauge transfers so we need this to know staked vs not. Works the same for Aero positions: Pool.gaugeAddress is set from the Aero gauge factory (ADR 0006)
 }
 
 # Snapshot of NonFungiblePosition at an epoch (full state for historical queries / recomputation)
@@ -1144,6 +1144,13 @@ type AeroLeafVoterState {
   totalRedeemed: BigInt! @config(precision: 76) # sum of Redeemed: receipt tokens burned to redeem AERO on Base
   numberOfRedemptions: BigInt! @config(precision: 76) # Redeemed events
   receiptTokenSupply: BigInt! @config(precision: 76) # totalEmissionsMinted - totalRedeemed: xAERO outstanding (on Base: xAERO whose redemption the RootEmissionsHandler deferred)
+  emissionsPerVP: BigInt @config(precision: 76) # emissions per unit of voting power, 1e18-scaled, as of the last ChainAllocated / GaugesAllocated (0 while Suspended or Sunset)
+  totalChainAllocation: BigInt! @config(precision: 76) # sum of AeroLeafTokenState.chainAllocation: sAERO budget sent to this chain
+  totalBookedAllocation: BigInt! @config(precision: 76) # sum of booked gauge allocations (= sum of AeroGauge.totalAllocated); the rest of totalChainAllocation is idle
+  allocationCooldown: BigInt @config(precision: 76) # AllocationCooldownSet (seconds); null = deployment value (169,200 s, 47 hours, in the constructor)
+  maxGauges: BigInt @config(precision: 76) # MaxGaugesSet; null = deployment value (20)
+  minIncentiveDuration: BigInt @config(precision: 76) # MinIncentiveDurationSet (seconds); null = deployment value (172,800 s)
+  localVotingEnabled: Boolean # LocalVotingEnabledSet; null = deployment value (false)
   lastUpdatedTimestamp: Timestamp! # block time of the last change
   lastSnapshotTimestamp: Timestamp # epoch of the last AeroLeafVoterStateSnapshot
 }
@@ -1161,6 +1168,9 @@ type AeroLeafVoterStateSnapshot @storage(postgres: false, clickhouse: true) {
   totalEmissionsMintedUSD: BigInt! @config(precision: 76) # see AeroLeafVoterState
   totalRedeemed: BigInt! @config(precision: 76) # see AeroLeafVoterState
   receiptTokenSupply: BigInt! @config(precision: 76) # see AeroLeafVoterState
+  emissionsPerVP: BigInt @config(precision: 76) # see AeroLeafVoterState
+  totalChainAllocation: BigInt! @config(precision: 76) # see AeroLeafVoterState
+  totalBookedAllocation: BigInt! @config(precision: 76) # see AeroLeafVoterState
 }
 
 # The VotingRewardsManager of one Aero gauge: the pool fees its gauge collects from staked
@@ -1173,6 +1183,12 @@ type AeroVotingRewardsManager {
   poolAddress: String! @index # the gauge's pool
   totalFeesCollectedUSD: BigInt! @config(precision: 76) # USD (1e18) of FeesCollected (pool fees pulled from the gauge), trusted prices at each block
   numberOfFeeCollections: BigInt! @config(precision: 76) # FeesCollected events (one per token)
+  totalFeesClaimedUSD: BigInt! @config(precision: 76) # USD (1e18) of fees allocators claimed (ClaimFees, per token), trusted prices at each block
+  numberOfFeeClaims: BigInt! @config(precision: 76) # ClaimFees events
+  totalIncentivesFundedUSD: BigInt! @config(precision: 76) # USD (1e18) of incentive programs funded (IncentiveCreated), trusted prices at creation
+  numberOfIncentivePrograms: BigInt! @config(precision: 76) # IncentiveCreated events
+  totalIncentivesClaimedUSD: BigInt! @config(precision: 76) # USD (1e18) of incentives allocators claimed (ClaimIncentives), trusted prices at each block
+  numberOfIncentiveClaims: BigInt! @config(precision: 76) # ClaimIncentives events
   lastUpdatedTimestamp: Timestamp! # block time of the last change
 }
 
@@ -1254,4 +1270,292 @@ type AeroVotingRewardsEvent @storage(postgres: false, clickhouse: true) {
   blockNumber: BigInt! @config(precision: 76) # block number
   timestamp: Timestamp! @index # block time
   transactionHash: String! # transaction
+}
+
+# ============================================================================
+# Aero (MetaDEX) governance: sAERO, allocations, allocator rewards, Minter, redemptions and
+# migration (phase 3; docs/adr/0006-aero-gauges-and-governance.md)
+#
+# sAERO lives in the VotingEscrow on Base. Allocations exist twice, as each chain's own truth:
+# the root Voter on Base books a position's voting power per chain (AeroRootAllocation) and
+# dispatches gauge splits (AeroRootGaugeVote); each chain's LeafVoter books the split it applied
+# (AeroLeafTokenState / AeroLeafAllocation). Nothing reconciles the two inside the indexer: a
+# dispatch can be in flight, expire or be rejected by the leaf. Join them in queries.
+#
+# Voting power of an sAERO amount A at time t: A for a permanent stake, else
+# A * max(0, stakeEnd - t) / 126_144_000 (MAXTIME, 4 x 365 days), as the contracts compute it.
+# Allocation amounts are always the undecayed AERO amount A.
+# ============================================================================
+
+# One sAERO position (VotingEscrow NFT) on Base. tokenId 0 is the protocol accumulator (fees the
+# VoterPaymentsModule charges, permanently staked, burned through Burn); it has no NFT and no owner.
+type SAeroPosition {
+  id: ID! # Format: {chainId}-{tokenId} (SAeroPositionId)
+  chainId: Int! # chain id (Base)
+  tokenId: BigInt! @config(precision: 76) @index # VotingEscrow tokenId
+  owner: String! @index # current NFT owner (zero address for the accumulator)
+  amount: BigInt! @config(precision: 76) # AERO staked (18 decimals)
+  stakeEnd: BigInt! @config(precision: 76) # unlock time (unix seconds, week-aligned); 0 for a permanent stake or an empty position
+  isPermanent: Boolean! # permanent stake: no decay, voting power = amount
+  createdVia: String! # MINT_PENDING (NFT minted, stake not seen yet), CREATE_STAKE (createStake), REBALANCE (minted by a VoterPaymentsModule split / merge), ACCUMULATOR (tokenId 0)
+  totalDeposited: BigInt! @config(precision: 76) # AERO deposited by createStake / reviveStake / increaseStakeAmount
+  totalWithdrawn: BigInt! @config(precision: 76) # AERO withdrawn after expiry (Withdraw)
+  totalRebalancedIn: BigInt! @config(precision: 76) # AERO moved in by VotingEscrow.Rebalance (VoterPaymentsModule deposits, splits, merges)
+  totalRebalancedOut: BigInt! @config(precision: 76) # AERO moved out by VotingEscrow.Rebalance
+  createdTimestamp: Timestamp! # block time of the mint (or first touch for the accumulator)
+  createdTransactionHash: String! # mint transaction
+  lastUpdatedTimestamp: Timestamp! # block time of the last change
+}
+
+# One row per change to an sAERO position. ClickHouse only.
+type SAeroPositionEvent @storage(postgres: false, clickhouse: true) {
+  id: ID! # Format: {chainId}-{txHash}-{logIndex}[-{leg}] (a Rebalance writes one row per leg)
+  chainId: Int! # chain id (Base)
+  # MINT (NFT minted), TRANSFER (owner change), CREATE_STAKE / INCREASE_AMOUNT / INCREASE_PERIOD /
+  # REVIVE_STAKE (Deposit by type), WITHDRAW, UPGRADE_PERMANENT, DOWNGRADE_PERMANENT, REBALANCE_OUT /
+  # REBALANCE_IN (one row per VotingEscrow.Rebalance leg), BURN (accumulator).
+  # Pinned by SAERO_EVENT_KIND.
+  kind: String!
+  tokenId: BigInt! @config(precision: 76) @index # position
+  owner: String @index # owner after the change
+  counterparty: String # TRANSFER: previous owner; Deposit: provider
+  amount: BigInt! @config(precision: 76) # AERO moved by this change (0 for owner, period and mode changes)
+  amountAfter: BigInt! @config(precision: 76) # position amount after the change
+  stakeEndAfter: BigInt! @config(precision: 76) # unlock time after the change (0 = permanent or empty)
+  isPermanentAfter: Boolean! # permanent after the change
+  supplyAfter: BigInt @config(precision: 76) # VotingEscrow supply after the change (the transaction's Supply event; null when the change emits none)
+  blockNumber: BigInt! @config(precision: 76) # block number
+  timestamp: Timestamp! @index # block time
+  transactionHash: String! # transaction
+}
+
+# The VotingEscrow (sAERO) on Base: supply and position counts.
+type SAeroEscrowState {
+  id: ID! # Format: {chainId}
+  chainId: Int! # chain id (Base)
+  supply: BigInt! @config(precision: 76) # total AERO staked (Supply event; = sum of SAeroPosition.amount)
+  permanentStakeBalance: BigInt! @config(precision: 76) # AERO in permanent positions (accumulator included), tracked from position changes
+  accumulatorAmount: BigInt! @config(precision: 76) # AERO held by the tokenId-0 protocol accumulator
+  totalBurned: BigInt! @config(precision: 76) # accumulator AERO burned (Burn)
+  numberOfPositions: Int! # sAERO NFTs minted
+  lastTokenId: BigInt! @config(precision: 76) # highest tokenId minted
+  lastUpdatedTimestamp: Timestamp! # block time of the last change
+  lastSnapshotTimestamp: Timestamp # epoch of the last SAeroEscrowStateSnapshot
+}
+
+# Hourly snapshot of SAeroEscrowState. ClickHouse only.
+type SAeroEscrowStateSnapshot @storage(postgres: false, clickhouse: true) {
+  id: ID! # Format: {chainId}-{epochMs}
+  chainId: Int! # chain id
+  timestamp: Timestamp! @index # snapshot epoch (hour)
+  supply: BigInt! @config(precision: 76) # see SAeroEscrowState
+  permanentStakeBalance: BigInt! @config(precision: 76) # see SAeroEscrowState
+  accumulatorAmount: BigInt! @config(precision: 76) # see SAeroEscrowState
+  numberOfPositions: Int! # see SAeroEscrowState
+}
+
+# Root Voter (Base): voting power a position has booked on one chain. targetChainId 0 is CHAIN0,
+# the idle pool new stake parks on and every allocation draws from; ChainsAllocated moves power from
+# CHAIN0 to a chain, a confirmed leaf deallocation moves it back. Mirrors Voter.allocationChainAmounts.
+type AeroRootAllocation {
+  id: ID! # Format: {chainId}-{tokenId}-{targetChainId}
+  chainId: Int! # chain of the root Voter (Base)
+  tokenId: BigInt! @config(precision: 76) @index # sAERO position
+  targetChainId: Int! @index # chain the power is booked on; 0 = CHAIN0 (idle, earns nothing)
+  amount: BigInt! @config(precision: 76) # AERO booked (undecayed)
+  lastUpdatedTimestamp: Timestamp! # block time of the last change
+}
+
+# Root Voter (Base): the gauge split a position last dispatched to one chain (GaugesAllocated on the
+# root Voter). Requested, not applied: the leaf may reject or redirect parts of it.
+type AeroRootGaugeVote {
+  id: ID! # Format: {chainId}-{tokenId}-{targetChainId}
+  chainId: Int! # chain of the root Voter (Base)
+  tokenId: BigInt! @config(precision: 76) @index # sAERO position
+  targetChainId: Int! @index # chain the split was dispatched to
+  gauges: [String!]! # gauge addresses (the zero address = park idle; the dealloc sentinel = return to CHAIN0)
+  amounts: [BigInt!]! # AERO per gauge, parallel to gauges
+  lastDispatchedTimestamp: Timestamp! # block time of the dispatch
+  transactionHash: String! # dispatch transaction
+}
+
+# Root Voter (Base): per-chain ledger. targetChainId 0 is CHAIN0 (idle power; also counts the
+# accumulator power burned through Burned).
+type AeroRootChainState {
+  id: ID! # Format: {chainId}-{targetChainId}
+  chainId: Int! # chain of the root Voter (Base)
+  targetChainId: Int! @index # chain (0 = CHAIN0)
+  isRegistered: Boolean! # ChainRegistered seen (chains registered at deployment emit nothing and are marked on first use)
+  status: Int # ChainStatusSet: 1 Active, 2 Paused, 3 Suspended, 4 Sunset; null = never set
+  emergencyDeallocationAllowed: Boolean! # EmergencyDeallocationAllowedSet
+  totalAllocated: BigInt! @config(precision: 76) # AERO booked on the chain over all positions (sum of AeroRootAllocation.amount)
+  totalRedeemed: BigInt! @config(precision: 76) # AERO paid out for the chain's redemptions (RedeemProcessed)
+  numberOfRedemptions: BigInt! @config(precision: 76) # RedeemProcessed events
+  reportedSurplus: BigInt! @config(precision: 76) # surplus high-water mark the chain reported (latest RedeemProcessed)
+  totalDonated: BigInt! @config(precision: 76) # AERO donated into the chain's redeem buffer (Donated)
+  totalBufferDrawn: BigInt! @config(precision: 76) # buffer AERO paid out past the chain's ceiling (BufferDrawn)
+  totalSurplusSpent: BigInt! @config(precision: 76) # surplus governance minted (SurplusSpent)
+  totalBurned: BigInt! @config(precision: 76) # CHAIN0 only: accumulator power burned (Burned)
+  lastUpdatedTimestamp: Timestamp! # block time of the last change
+}
+
+# LeafVoter (every chain): a position's state on this chain. chainAllocation is the budget the root
+# Voter sent; gauges / allocations are the split this LeafVoter booked (only registered, activated
+# gauges with a non-zero cap, unless the position may vote for zero-cap gauges); the rest of the
+# budget is parked idle on the zero gauge and earns nothing.
+type AeroLeafTokenState {
+  id: ID! # Format: {chainId}-{tokenId}
+  chainId: Int! @index # chain id
+  tokenId: BigInt! @config(precision: 76) @index # sAERO position (lives on Base)
+  chainAllocation: BigInt! @config(precision: 76) # budget on this chain (ChainAllocated; less dealloc returns)
+  gauges: [String!]! # gauges the budget is booked on
+  allocations: [BigInt!]! # AERO booked per gauge, parallel to gauges
+  idleAllocation: BigInt! @config(precision: 76) # chainAllocation minus the booked total: parked on the zero gauge
+  operator: String # address allowed to re-split locally and claim rewards here (OperatorSet)
+  canVoteForZeroCapGauges: Boolean! # CanVoteForZeroCapGaugesSet: may book weight on activated gauges with a 0 cap
+  lastAllocatedTimestamp: Timestamp # block time of the last applied gauge split (the 47-hour cooldown counts from here)
+  lastUpdatedTimestamp: Timestamp! # block time of the last change
+}
+
+# LeafVoter (every chain): a position's booked allocation on one gauge. 0 once removed (the row is
+# kept). Sum over tokenIds = AeroGauge.totalAllocated.
+type AeroLeafAllocation {
+  id: ID! # Format: {chainId}-{tokenId}-{gaugeAddress}
+  chainId: Int! @index # chain id
+  tokenId: BigInt! @config(precision: 76) @index # sAERO position
+  gaugeAddress: String! @index # gauge
+  poolAddress: String # the gauge's pool (null if the gauge is not indexed)
+  allocated: BigInt! @config(precision: 76) # AERO booked (undecayed); 0 = no longer allocated
+  lastUpdatedTimestamp: Timestamp! # block time of the last change
+}
+
+# One row per allocation change: root ledger moves (PARKED, CHAIN_ALLOCATED, DEALLOCATION_PROCESSED,
+# EMERGENCY_DEALLOCATED, TOKEN_CLEARED, CHAIN0_REBALANCED, BURNED, GAUGES_DISPATCHED: one row per
+# dispatched gauge) and leaf changes (CHAIN_ALLOCATED, GAUGE_ALLOCATED: one row per listed or
+# removed gauge, DEALLOCATED, EMERGENCY_DEALLOCATION_APPLIED). Pinned by AERO_ALLOCATION_EVENT_KIND.
+# ClickHouse only.
+type AeroAllocationEvent @storage(postgres: false, clickhouse: true) {
+  id: ID! # Format: {chainId}-{txHash}-{logIndex}[-{leg}]
+  chainId: Int! # chain the event was emitted on
+  level: String! # ROOT (root Voter, Base) | LEAF (LeafVoter)
+  kind: String! # see above
+  tokenId: BigInt! @config(precision: 76) @index # sAERO position (0 for TOKEN0 burns)
+  targetChainId: Int # ROOT: the chain the power moved to or from (0 = CHAIN0); LEAF: the emitting chain
+  gaugeAddress: String @index # gauge (GAUGES_DISPATCHED, GAUGE_ALLOCATED)
+  amount: BigInt! @config(precision: 76) # AERO moved or requested (signed for ledger moves: negative = removed)
+  bookedAmount: BigInt @config(precision: 76) # GAUGE_ALLOCATED: AERO this LeafVoter booked on the gauge after the change
+  chainAllocationAfter: BigInt @config(precision: 76) # LEAF: the position's budget on the chain after the change
+  emissionsPerVP: BigInt @config(precision: 76) # LEAF CHAIN_ALLOCATED / GAUGE_ALLOCATED: the LeafVoter's emissions-per-voting-power scalar (1e18-scaled)
+  blockNumber: BigInt! @config(precision: 76) # block number
+  timestamp: Timestamp! @index # block time
+  transactionHash: String! # transaction
+}
+
+# An incentive program funded on a gauge's VotingRewardsManager, streamed to its allocators.
+type AeroIncentiveProgram {
+  id: ID! # Format: {chainId}-{votingRewardsManager}-{programId}
+  chainId: Int! @index # chain id
+  votingRewardsManager: String! @index # rewards manager
+  gaugeAddress: String! @index # its gauge
+  poolAddress: String! # the gauge's pool
+  programId: BigInt! @config(precision: 76) # program id within the manager
+  token: String! @index # incentive token
+  creator: String! @index # funder
+  amount: BigInt! @config(precision: 76) # raw amount funded
+  amountUSD: BigInt! @config(precision: 76) # USD (1e18) at creation (trusted prices only)
+  start: Timestamp! # stream start
+  end: Timestamp! # stream end (start + duration)
+  totalClaimed: BigInt! @config(precision: 76) # raw amount claimed by allocators (ClaimIncentives)
+  totalSwept: BigInt! @config(precision: 76) # raw unclaimable remainder returned to the creator (IncentiveSwept)
+  createdTimestamp: Timestamp! # block time of IncentiveCreated
+  transactionHash: String! # funding transaction
+}
+
+# The Minter on Base. It mints AERO only when a redemption is processed (and the team share to the
+# Splitter with it), so totalMinted grows with claims, not with time. Rates are null until their
+# setter emits (the deployment values are constructor arguments).
+type AeroMinterState {
+  id: ID! # Format: {chainId}-{minterAddress}
+  chainId: Int! # chain id (Base)
+  minter: String! # Minter address
+  baseRate: BigInt @config(precision: 76) # BaseRateSet: base emission rate (AERO wei per second)
+  dynamicRate: BigInt @config(precision: 76) # DynamicRateSet: dynamic rate target (raw, clamped to the band on read)
+  teamRate: BigInt @config(precision: 24) # TeamRateSet: team share in pips
+  bandFloorPips: BigInt @config(precision: 24) # RateBandSet: maximum downward move from the base rate
+  bandCeilingPips: BigInt @config(precision: 24) # RateBandSet: maximum upward move from the base rate
+  maxBaseRateChangePips: BigInt @config(precision: 24) # MaxBaseRateChangePipsSet
+  baseRateUpdateCooldown: BigInt @config(precision: 76) # BaseRateUpdateCooldownSet (seconds)
+  operator: String # OperatorSet
+  fed: String # FEDSet
+  dynamicRateModule: String # DynamicRateModuleSet
+  totalMinted: BigInt! @config(precision: 76) # AERO minted to redemption recipients (Minted.amount)
+  totalSplitterShare: BigInt! @config(precision: 76) # AERO minted to the Splitter (Minted.splitterShare)
+  numberOfMints: BigInt! @config(precision: 76) # Minted events
+  lastUpdatedTimestamp: Timestamp! # block time of the last change
+  lastSnapshotTimestamp: Timestamp # epoch of the last AeroMinterSnapshot
+}
+
+# Hourly snapshot of AeroMinterState (mint totals and rates). ClickHouse only.
+type AeroMinterSnapshot @storage(postgres: false, clickhouse: true) {
+  id: ID! # Format: {chainId}-{minterAddress}-{epochMs}
+  chainId: Int! # chain id
+  timestamp: Timestamp! @index # snapshot epoch (hour)
+  baseRate: BigInt @config(precision: 76) # see AeroMinterState
+  dynamicRate: BigInt @config(precision: 76) # see AeroMinterState
+  teamRate: BigInt @config(precision: 24) # see AeroMinterState
+  totalMinted: BigInt! @config(precision: 76) # see AeroMinterState
+  totalSplitterShare: BigInt! @config(precision: 76) # see AeroMinterState
+  numberOfMints: BigInt! @config(precision: 76) # see AeroMinterState
+}
+
+# One row per Minter configuration change (rates, band, operator, FED, module). ClickHouse only.
+type AeroMinterEvent @storage(postgres: false, clickhouse: true) {
+  id: ID! # Format: {chainId}-{txHash}-{logIndex}
+  chainId: Int! # chain id
+  kind: String! # BASE_RATE_SET | DYNAMIC_RATE_SET | TEAM_RATE_SET | RATE_BAND_SET | MAX_BASE_RATE_CHANGE_PIPS_SET | BASE_RATE_UPDATE_COOLDOWN_SET | OPERATOR_SET | FED_SET | DYNAMIC_RATE_MODULE_SET
+  value: BigInt @config(precision: 76) # new numeric value (RATE_BAND_SET: the floor)
+  value2: BigInt @config(precision: 76) # RATE_BAND_SET: the ceiling
+  address: String # new address (OPERATOR_SET, FED_SET, DYNAMIC_RATE_MODULE_SET)
+  blockNumber: BigInt! @config(precision: 76) # block number
+  timestamp: Timestamp! @index # block time
+  transactionHash: String! # transaction
+}
+
+# One row per legacy-to-Aero migration: veAERO / AERO v1 on Base (AerodromeMigration), veVELO /
+# VELO on Optimism (VelodromeMigration) and their settlement on Base (VelodromeMigrationEntrypoint).
+# ClickHouse only.
+type AeroMigrationEvent @storage(postgres: false, clickhouse: true) {
+  id: ID! # Format: {chainId}-{txHash}-{logIndex}
+  chainId: Int! # chain id
+  migrationContract: String! # migration contract
+  kind: String! # VENFT (veNFT migrated), LIQUID (liquid tokens migrated), SETTLED (Optimism migration settled on Base)
+  legacyToken: String! # AERO_V1 (Base) or VELO (Optimism)
+  depositor: String # VENFT / LIQUID: legacy holder
+  recipient: String! @index # receiver of the new AERO or sAERO
+  legacyTokenId: BigInt @config(precision: 76) # VENFT: legacy veNFT id
+  amountIn: BigInt @config(precision: 76) # VENFT / LIQUID: legacy amount (18 decimals)
+  amountOut: BigInt! @config(precision: 76) # new AERO (VENFT / LIQUID: converted amount; SETTLED: amount settled on Base)
+  isPermanent: Boolean # VENFT: the legacy lock was permanent
+  isLiquid: Boolean # VENFT: settled as liquid AERO (expired lock); SETTLED: liquid settlement
+  nonce: BigInt @config(precision: 76) # SETTLED: Hyperlane migration nonce
+  blockNumber: BigInt! @config(precision: 76) # block number
+  timestamp: Timestamp! @index # block time
+  transactionHash: String! # transaction
+}
+
+# Totals of one migration contract.
+type AeroMigrationTotals {
+  id: ID! # Format: {chainId}-{migrationContract}
+  chainId: Int! # chain id
+  migrationContract: String! # migration contract
+  legacyToken: String! # AERO_V1 or VELO (SETTLED totals: VELO)
+  numberOfVeNFTs: BigInt! @config(precision: 76) # veNFTs migrated (VeNFTMigrated)
+  veNFTAmountIn: BigInt! @config(precision: 76) # legacy locked amount migrated
+  veNFTAmountOut: BigInt! @config(precision: 76) # new AERO (as sAERO or liquid) for those veNFTs
+  numberOfLiquid: BigInt! @config(precision: 76) # liquid migrations (LiquidMigrated)
+  liquidAmountIn: BigInt! @config(precision: 76) # legacy liquid tokens migrated
+  liquidAmountOut: BigInt! @config(precision: 76) # new AERO for them
+  numberOfSettlements: BigInt! @config(precision: 76) # SETTLED (Base entrypoint Migrated)
+  settledAmount: BigInt! @config(precision: 76) # AERO settled on Base for Optimism migrations
+  lastUpdatedTimestamp: Timestamp! # block time of the last change
 }

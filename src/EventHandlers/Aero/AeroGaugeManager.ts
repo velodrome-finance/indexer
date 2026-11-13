@@ -57,6 +57,12 @@ export async function processAeroGaugeManagerGaugeCreated(
       poolAddress: target,
       totalFeesCollectedUSD: 0n,
       numberOfFeeCollections: 0n,
+      totalFeesClaimedUSD: 0n,
+      numberOfFeeClaims: 0n,
+      totalIncentivesFundedUSD: 0n,
+      numberOfIncentivePrograms: 0n,
+      totalIncentivesClaimedUSD: 0n,
+      numberOfIncentiveClaims: 0n,
       lastUpdatedTimestamp: timestamp,
     });
   }
