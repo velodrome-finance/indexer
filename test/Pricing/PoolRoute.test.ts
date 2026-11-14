@@ -57,9 +57,15 @@ describe("PoolRoute", () => {
       ]);
     });
 
-    it("registers nothing for same-tier pairs in tiers 0-2", () => {
+    it("registers nothing for a pool between two pinned tokens", () => {
       expect(getPricingPoolTargets(OP, OP_USDC, OP_DAI)).toEqual([]); // 0/0
-      expect(getPricingPoolTargets(OP, OP_VELO, OP_WBTC)).toEqual([]); // 2/2
+    });
+
+    it("registers a connector / connector pool for both sides as a peer pool", () => {
+      expect(getPricingPoolTargets(OP, OP_VELO, OP_WBTC)).toEqual([
+        TokenId(OP, OP_VELO),
+        TokenId(OP, OP_WBTC),
+      ]); // 2/2
     });
 
     it("registers a tier-3 / tier-3 pool for both sides as a peer pool (ADR 0007)", () => {
@@ -92,10 +98,16 @@ describe("PoolRoute", () => {
       ]);
     });
 
-    it("writes nothing for a same-tier pool in tiers 0-2", async () => {
+    it("writes nothing for a pool between two pinned tokens", async () => {
+      const store = createPricingStore({});
+      await registerPricingPool(store.context, OP, POOL_A, OP_USDC, OP_DAI);
+      expect(store.pricingPools.size).toBe(0);
+    });
+
+    it("appends a connector / connector pool to both tokens' lists", async () => {
       const store = createPricingStore({});
       await registerPricingPool(store.context, OP, POOL_A, OP_VELO, OP_WBTC);
-      expect(store.pricingPools.size).toBe(0);
+      expect(store.pricingPools.size).toBe(2);
     });
 
     it("appends a tier-3 / tier-3 pool to both tokens' lists", async () => {

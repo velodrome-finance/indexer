@@ -164,9 +164,9 @@ export async function createTokenEntity(
  *    window (always the case in a backfill), when nothing in step 3
  *    qualified: the committed hourly seed's price of the source for this
  *    block's hour, if the seed covers it (`canonical-seed`, ADR 0008).
- * 4. Tier-3 tokens only, when nothing in step 3 qualified: two-hop routes
- *    (ADR 0007). Each registered pool against another tier-3 token C (a peer
- *    pool) offers pool ratio × C's direct price, where C's direct price is
+ * 4. Tier-2 and tier-3 tokens only, when nothing in step 3 qualified: two-hop
+ *    routes (ADR 0007). Each registered pool against another token C of the
+ *    same tier (a peer pool) offers pool ratio × C's direct price, where C's direct price is
  *    computed now from C's own direct pool candidates (step 3 without peers or
  *    the canonical source). C's stored price is never used, so a carried or
  *    itself-two-hop C cannot extend a chain. The weaker of the two hops sets
@@ -410,10 +410,14 @@ async function resolveTokenPrice(
       };
     }
   }
-  if (!best && tier === PRICING_TIER.OTHER) {
+  if (
+    !best &&
+    (tier === PRICING_TIER.OTHER || tier === PRICING_TIER.CONNECTOR)
+  ) {
     best = selectPricingCandidate(
       await findTwoHopCandidates(
         token,
+        tier,
         pools,
         blockNumber,
         blockTimestamp,
@@ -474,15 +478,16 @@ function counterpartyOf(
 }
 
 /**
- * Two-hop candidates for a tier-3 token T (ADR 0007): one per registered pool
- * whose counterparty C is also tier 3, valuing C at its *direct* price,
- * computed now from C's own direct pool candidates (never C's peers, never its
- * canonical source, never its stored price). C's direct route therefore cannot
- * itself be two-hop or carried, and computing it never re-enters T or any
- * other tier-3 token, so the extension adds exactly one level and stays
- * acyclic. A blacklisted C is skipped.
+ * Two-hop candidates for a tier-2 or tier-3 token T (ADR 0007): one per
+ * registered pool whose counterparty C is in T's own tier, valuing C at its
+ * *direct* price, computed now from C's own direct pool candidates (never C's
+ * peers, never its canonical source, never its stored price). C's direct route
+ * therefore cannot itself be two-hop or carried, and computing it never
+ * re-enters T or any other token of that tier, so the extension adds exactly
+ * one level and stays acyclic. A blacklisted C is skipped.
  *
- * @param token - The tier-3 token being priced
+ * @param token - The token being priced
+ * @param tier - The token's pricing tier (`CONNECTOR` or `OTHER`)
  * @param pools - The token's registered pools (from {@link loadRegisteredPools})
  * @param blockNumber - Block of the triggering event
  * @param blockTimestamp - Block timestamp in seconds
@@ -492,6 +497,7 @@ function counterpartyOf(
  */
 async function findTwoHopCandidates(
   token: Token,
+  tier: PricingTier,
   pools: readonly Pool[],
   blockNumber: number,
   blockTimestamp: number,
@@ -501,8 +507,7 @@ async function findTwoHopCandidates(
   const peerPools = pools
     .filter(
       (pool) =>
-        getPricingTier(chainId, counterpartyOf(pool, token).address) ===
-        PRICING_TIER.OTHER,
+        getPricingTier(chainId, counterpartyOf(pool, token).address) === tier,
     )
     .slice(0, MAX_TWO_HOP_PEER_POOLS);
   if (peerPools.length === 0) return [];
@@ -519,7 +524,7 @@ async function findTwoHopCandidates(
       if (!peer || isBlacklistedToken(chainId, peer.address)) return undefined;
       const peerCandidates = await findPoolCandidates(
         peer,
-        PRICING_TIER.OTHER,
+        tier,
         await loadRegisteredPools(peer, context),
         blockNumber,
         blockTimestamp,

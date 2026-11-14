@@ -337,3 +337,21 @@ in `CANONICAL_SOURCES` would let the seed and the live source cover the
 drained hours. It would restore most of the 79% at about 1% error. It was
 left out in ADR 0004 because frxETH is not redeemable 1:1 on demand; that
 remains a decision to take on its own.
+
+## Amendment (2026-11-14): connectors may use a connector peer
+
+An Optimism-only sync showed WBTC unpriced from June to November 2023 and
+again in February and March 2024. Its only deep market then was the stable
+WBTC / tBTC pool (about 18 WBTC and 17 tBTC); its WETH pool held a few hundred
+dollars. Both tokens are price connectors (tier 2), and the tier rule lets a
+token price only through a strictly lower tier, so the pool was never a
+candidate.
+
+The two-hop rule now covers tier 2 as well as tier 3: a pool between two
+connectors is registered for both as a peer pool, and a connector with no
+qualifying direct candidate may be priced through a connector peer whose own
+price comes, in the same refresh, from a direct route through tiers 0 and 1.
+Everything else is unchanged: the peer's stored, carried or two-hop price is
+never used, the weaker hop sets the depth, and direct routes win. The
+construction stays acyclic for the same reason as in tier 3.
+

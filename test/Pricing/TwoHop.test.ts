@@ -1,7 +1,12 @@
 import type { Token } from "envio";
 import { PoolId, TokenId, toChecksumAddress } from "../../src/Constants";
 import * as PriceOracle from "../../src/PriceOracle";
-import { MAX_TWO_HOP_PEER_POOLS } from "../../src/Pricing/PricingConfig";
+import { getPricingPoolTargets } from "../../src/Pricing/PoolRoute";
+import {
+  MAX_TWO_HOP_PEER_POOLS,
+  PRICING_TIER,
+  getPricingTier,
+} from "../../src/Pricing/PricingConfig";
 import {
   DAY_S,
   E18,
@@ -389,5 +394,93 @@ describe("two-hop pricing through a tier-3 peer (ADR 0007)", () => {
         pricingViaPoolId: pid(P_Y_WETH),
       });
     });
+  });
+});
+
+/**
+ * Tier 2: a connector whose only deep market is against another connector
+ * (WBTC / tBTC on Optimism in 2023: about $900K in the stable pool, a few
+ * hundred dollars against WETH). Real Optimism addresses, both configured as
+ * price connectors. Address order: USDC 0x0b2C… < WBTC 0x68f1… < tBTC 0x6c84….
+ */
+describe("two-hop pricing through a tier-2 peer", () => {
+  const WBTC = toChecksumAddress("0x68f180fcCe6836688e9084f035309E29Bf0A2095");
+  const TBTC = toChecksumAddress("0x6c84a8f1c29108F47a79964b5Fe888D4f4D0dE40");
+  const P_TBTC_USDC = addr(0xd1); // tBTC direct: $100K USDC vs 2 tBTC → $50K
+  const P_WBTC_TBTC = addr(0xd2); // peer: 10 WBTC vs 10 tBTC
+  const P_WBTC_VELO = addr(0xd3);
+
+  const connectorStore = (pools: ReturnType<typeof makePool>[]) =>
+    createPricingStore({
+      tokens: [
+        makeToken(OP, OP_USDC, 6n, USD(1), STALE),
+        makeToken(OP, WBTC, 8n, 0n, STALE),
+        makeToken(OP, TBTC, 18n, 0n, STALE),
+      ],
+      pools,
+      pricingPools: {
+        [id(TBTC)]: [pid(P_TBTC_USDC), pid(P_WBTC_TBTC)],
+        [id(WBTC)]: [pid(P_WBTC_TBTC)],
+      },
+    });
+  const tbtcUsdc = (usdc: bigint) =>
+    makePool(OP, P_TBTC_USDC, OP_USDC, TBTC, {
+      reserve0: usdc * 10n ** 6n,
+      reserve1: (usdc * E18) / 50_000n,
+    });
+  const wbtcTbtc = makePool(OP, P_WBTC_TBTC, WBTC, TBTC, {
+    reserve0: 10n * 10n ** 8n,
+    reserve1: 10n * E18,
+  });
+
+  it("both tokens are connectors, and their pool registers for both", () => {
+    expect(getPricingTier(OP, WBTC)).toBe(PRICING_TIER.CONNECTOR);
+    expect(getPricingTier(OP, TBTC)).toBe(PRICING_TIER.CONNECTOR);
+    expect(getPricingPoolTargets(OP, WBTC, TBTC)).toEqual([id(WBTC), id(TBTC)]);
+  });
+
+  it("prices a connector through a connector peer that has a direct route", async () => {
+    const s = connectorStore([tbtcUsdc(100_000n), wbtcTbtc]);
+    const wbtc = await refresh(s, WBTC);
+    expect(wbtc.pricePerUSDNew).toBe(USD(50_000));
+    expect(snapsFor(s, WBTC)).toEqual([
+      expect.objectContaining({
+        priceSource: "pool",
+        pricingHops: 2,
+        pricingPoolId: pid(P_WBTC_TBTC),
+        pricingViaTokenId: id(TBTC),
+        pricingViaPoolId: pid(P_TBTC_USDC),
+        pricingDepthUSD: USD(100_000), // min($500K peer pool, $100K direct)
+      }),
+    ]);
+  });
+
+  it("gives no route when the peer's own direct market is under the floor", async () => {
+    const s = connectorStore([tbtcUsdc(4_000n), wbtcTbtc]);
+    const wbtc = await refresh(s, WBTC);
+    expect(wbtc.pricePerUSDNew).toBe(0n);
+  });
+
+  it("never chains through a second connector peer", async () => {
+    // VELO is a connector with no pools here; WBTC's only pool is against it.
+    const VELO = toChecksumAddress(
+      "0x9560e827aF36c94D2Ac33a39bCE1Fe78631088Db",
+    );
+    const s = createPricingStore({
+      tokens: [
+        makeToken(OP, OP_USDC, 6n, USD(1), STALE),
+        makeToken(OP, WBTC, 8n, 0n, STALE),
+        makeToken(OP, VELO, 18n, USD(1), STALE - DAY_S),
+      ],
+      pools: [
+        makePool(OP, P_WBTC_VELO, WBTC, VELO, {
+          reserve0: 10n * 10n ** 8n,
+          reserve1: 500_000n * E18,
+        }),
+      ],
+      pricingPools: { [id(WBTC)]: [pid(P_WBTC_VELO)] },
+    });
+    const wbtc = await refresh(s, WBTC);
+    expect(wbtc.pricePerUSDNew).toBe(0n); // VELO's stored price is never used
   });
 });

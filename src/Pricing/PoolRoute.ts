@@ -277,10 +277,12 @@ export function combineTwoHopCandidate(
  *
  * - each side whose counterparty sits in a strictly lower pricing tier (a
  *   direct route; at most one side, since tiers are strictly ordered);
- * - both sides when both tokens are tier 3 (a peer pool, usable only for a
- *   two-hop route through a peer that has a direct route of its own, ADR 0007).
+ * - both sides when both tokens are tier 2 or both are tier 3 (a peer pool,
+ *   usable only for a two-hop route through a peer that has a direct route of
+ *   its own, ADR 0007). Tier 2 is included because a connector's only deep
+ *   market can be against another connector (WBTC / tBTC on Optimism in 2023).
  *
- * A pool between two tokens of the same tier 0–2 qualifies for neither.
+ * A pool between two pinned tokens qualifies for neither.
  *
  * @param chainId - Chain the pool lives on
  * @param token0Address - Pool token0 address
@@ -296,7 +298,7 @@ export function getPricingPoolTargets(
   const tier1 = getPricingTier(chainId, token1Address);
   if (tier0 > tier1) return [TokenId(chainId, token0Address)];
   if (tier1 > tier0) return [TokenId(chainId, token1Address)];
-  if (tier0 === PRICING_TIER.OTHER) {
+  if (tier0 === PRICING_TIER.OTHER || tier0 === PRICING_TIER.CONNECTOR) {
     return [TokenId(chainId, token0Address), TokenId(chainId, token1Address)];
   }
   return [];
