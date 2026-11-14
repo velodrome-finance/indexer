@@ -4,10 +4,34 @@ import {
   type PriceSource,
 } from "../Snapshots/TokenPriceSnapshot";
 import {
+  COUNTERPARTY_FRESHNESS_MS,
   ONE_USD,
   PRICE_CARRY_WINDOW_MS,
   PRICE_REFRESH_INTERVAL_MS,
 } from "./PricingConfig";
+
+/**
+ * Whether a counterparty's price is fresh enough to build a pool route on:
+ * its last success is at most {@link COUNTERPARTY_FRESHNESS_MS} before the
+ * block (a later success, as in a deferred replay, is fine). A counterparty
+ * that is only carrying an older price is not a base for a `pool` price; the
+ * token carries its own last price instead. Pinned counterparties are exempt
+ * at the call site.
+ *
+ * @param lastSuccessfulPriceTimestamp - The counterparty's last successful price time
+ * @param blockTimestampMs - Timestamp of the block being priced, in milliseconds
+ * @returns true when the counterparty may serve as a route's base
+ */
+export function isCounterpartyPriceFresh(
+  lastSuccessfulPriceTimestamp: Date | undefined,
+  blockTimestampMs: number,
+): boolean {
+  if (!lastSuccessfulPriceTimestamp) return false;
+  return (
+    blockTimestampMs - lastSuccessfulPriceTimestamp.getTime() <=
+    COUNTERPARTY_FRESHNESS_MS
+  );
+}
 
 /**
  * What a refresh found for a token, before carry / expiry is applied.
@@ -107,23 +131,20 @@ export function isPriceRefreshDue(
  * When nothing qualifies (`none`), the last price is carried while the last
  * success is under {@link PRICE_CARRY_WINDOW_MS} old, so missing data never
  * zeroes a good price; past the window it drops to 0 (`unpriced`) so a token
- * whose liquidity has left stops inflating TVL. With `carryWithoutExpiry`
- * (tiers 1 and 2, see `carriesWithoutExpiry`) a positive price is carried however old
- * it is. `override` zeroes the price without touching the success clock.
+ * whose liquidity has left stops inflating TVL. The window is the same for
+ * every tier. `override` zeroes the price without touching the success clock.
  *
  * Pure: no reads, no writes.
  *
  * @param token - The token being refreshed
  * @param resolution - What the refresh found
  * @param blockTimestampMs - Current block timestamp in milliseconds
- * @param carryWithoutExpiry - Carry a positive price past the 7-day window
  * @returns The updated token plus snapshot provenance
  */
 export function applyPriceResolution(
   token: Token,
   resolution: PriceResolution,
   blockTimestampMs: number,
-  carryWithoutExpiry = false,
 ): AppliedPrice {
   const now = new Date(blockTimestampMs);
   const success = (
@@ -184,8 +205,7 @@ export function applyPriceResolution(
       const carry =
         token.pricePerUSDNew > 0n &&
         lastSuccess !== undefined &&
-        (carryWithoutExpiry ||
-          blockTimestampMs - lastSuccess.getTime() < PRICE_CARRY_WINDOW_MS);
+        blockTimestampMs - lastSuccess.getTime() < PRICE_CARRY_WINDOW_MS;
       return {
         token: {
           ...token,

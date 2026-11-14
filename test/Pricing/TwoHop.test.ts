@@ -3,6 +3,7 @@ import { PoolId, TokenId, toChecksumAddress } from "../../src/Constants";
 import * as PriceOracle from "../../src/PriceOracle";
 import { MAX_TWO_HOP_PEER_POOLS } from "../../src/Pricing/PricingConfig";
 import {
+  DAY_S,
   E18,
   HOUR_S,
   HOUR_START_S,
@@ -10,6 +11,7 @@ import {
   OP_MANATEE,
   OP_TOKEN_X,
   OP_USDC,
+  OP_WETH,
   Q96,
   USD,
   createPricingStore,
@@ -348,5 +350,44 @@ describe("two-hop pricing through a tier-3 peer (ADR 0007)", () => {
     const s = peerOnly();
     await refresh(s, X);
     expect(s.effectCalls).toEqual([]);
+  });
+
+  describe("the first hop's base must be fresh", () => {
+    // Y's only direct route is Y/WETH (50K Y vs 40 WETH: $100K at $2,500).
+    // WETH has no route of its own, so its refresh carries.
+    const P_Y_WETH = addr(0xc6);
+    const viaCarriedWeth = (wethLastSuccess: number) =>
+      store({
+        pools: [
+          makePool(OP, P_Y_WETH, Y, OP_WETH, {
+            reserve0: 50_000n * E18,
+            reserve1: 40n * E18,
+          }),
+          pXY(),
+        ],
+        pricingPools: {
+          [id(Y)]: [pid(P_Y_WETH), pid(P_X_Y)],
+          [id(X)]: [pid(P_X_Y)],
+          [id(OP_WETH)]: [],
+        },
+        tokens: [makeToken(OP, OP_WETH, 18n, USD(2_500), wethLastSuccess)],
+      });
+
+    it("no two-hop route when the peer's counterparty only carries an old price", async () => {
+      const s = viaCarriedWeth(NOW - 3 * DAY_S);
+      const x = await refresh(s, X);
+      expect(x.pricePerUSDNew).toBe(0n);
+      expect(snapsFor(s, X)[0].priceSource).toBe("unpriced");
+    });
+
+    it("two-hop route when that counterparty's last success is recent", async () => {
+      const s = viaCarriedWeth(NOW - HOUR_S);
+      const x = await refresh(s, X);
+      expect(x.pricePerUSDNew).toBe(E18 / 20n); // 0.025 Y × $2
+      expect(snapsFor(s, X)[0]).toMatchObject({
+        pricingHops: 2,
+        pricingViaPoolId: pid(P_Y_WETH),
+      });
+    });
   });
 });

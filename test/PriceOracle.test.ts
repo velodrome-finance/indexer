@@ -406,34 +406,35 @@ describe("PriceOracle", () => {
         });
       });
 
-      it("keeps the chain's WETH (tier 1) at its last price however old, with the age on the snapshot", async () => {
-        const lastSuccess = NOW - 60 * DAY_S;
-        const store = opStore({
-          tokens: [makeToken(OP, OP_WETH, 18n, USD(2_400), lastSuccess)],
-          pricingPools: { [TokenId(OP, OP_WETH)]: [] },
-        });
-        const weth = await refresh(store, OP, OP_WETH);
-        expect(weth.pricePerUSDNew).toBe(USD(2_400));
-        expect(snapshotsFor(store, OP_WETH)[0]).toMatchObject({
-          priceSource: "carried",
-          pricePerUSDNew: USD(2_400),
-          lastSuccessfulPriceTimestamp: new Date(lastSuccess * 1000),
-        });
-      });
+      it.each([
+        ["WETH (tier 1)", OP_WETH, USD(2_400)],
+        ["a connector (tier 2)", OP_VELO, USD(1) / 10n],
+      ])(
+        "drops %s to 0 after 7 days like any other token, with the age on the last carried snapshot",
+        async (_, address, price) => {
+          const at6d = NOW - 6 * DAY_S;
+          const carried = opStore({
+            tokens: [makeToken(OP, address, 18n, price, at6d)],
+            pricingPools: { [TokenId(OP, address)]: [] },
+          });
+          expect((await refresh(carried, OP, address)).pricePerUSDNew).toBe(
+            price,
+          );
+          expect(snapshotsFor(carried, address)[0]).toMatchObject({
+            priceSource: "carried",
+            lastSuccessfulPriceTimestamp: new Date(at6d * 1000),
+          });
 
-      it("keeps a connector (tier 2) at its last price however old", async () => {
-        const lastSuccess = NOW - 45 * DAY_S;
-        const store = opStore({
-          tokens: [makeToken(OP, OP_VELO, 18n, USD(1) / 10n, lastSuccess)],
-          pricingPools: { [TokenId(OP, OP_VELO)]: [] },
-        });
-        const velo = await refresh(store, OP, OP_VELO);
-        expect(velo.pricePerUSDNew).toBe(USD(1) / 10n);
-        expect(snapshotsFor(store, OP_VELO)[0]).toMatchObject({
-          priceSource: "carried",
-          lastSuccessfulPriceTimestamp: new Date(lastSuccess * 1000),
-        });
-      });
+          const expired = opStore({
+            tokens: [makeToken(OP, address, 18n, price, NOW - 7 * DAY_S)],
+            pricingPools: { [TokenId(OP, address)]: [] },
+          });
+          expect((await refresh(expired, OP, address)).pricePerUSDNew).toBe(0n);
+          expect(snapshotsFor(expired, address)[0].priceSource).toBe(
+            "unpriced",
+          );
+        },
+      );
 
       it("records the success time on a fresh snapshot", async () => {
         const store = opStore();
@@ -653,6 +654,82 @@ describe("PriceOracle", () => {
           LISK_WETH,
           XVELO,
         ]);
+      });
+    });
+
+    describe("a route is only as fresh as its base (counterparty freshness)", () => {
+      // X's only route is X/VELO ($50K of VELO). VELO has no route of its own
+      // here, so its refresh carries whatever it last had.
+      const xOnlyViaVelo = (veloLastSuccess: number) =>
+        opStore({
+          tokens: [
+            makeToken(OP, OP_TOKEN_X, 18n, USD(7) / 100n, NOW - DAY_S),
+            makeToken(OP, OP_VELO, 18n, E18 / 10n, veloLastSuccess),
+          ],
+          pricingPools: {
+            [TokenId(OP, OP_TOKEN_X)]: [PoolId(OP, P_X_VELO)],
+            [TokenId(OP, OP_VELO)]: [],
+          },
+        });
+
+      it("does not price through a counterparty that is only carrying an old price", async () => {
+        const store = xOnlyViaVelo(NOW - 3 * DAY_S);
+        const x = await refresh(store, OP, OP_TOKEN_X);
+        // VELO carried (3 days old): X keeps its own last price instead of a
+        // pool price built on the stale VELO.
+        expect(snapshotsFor(store, OP_VELO)[0].priceSource).toBe("carried");
+        expect(x.pricePerUSDNew).toBe(USD(7) / 100n);
+        expect(snapshotsFor(store, OP_TOKEN_X)[0]).toMatchObject({
+          priceSource: "carried",
+          pricingPoolId: undefined,
+        });
+      });
+
+      it("still prices through a counterparty whose last success is within the window", async () => {
+        const store = xOnlyViaVelo(NOW - 90 * 60);
+        const x = await refresh(store, OP, OP_TOKEN_X);
+        expect(x.pricePerUSDNew).toBe(E18 / 20n); // 0.5 VELO at $0.10
+        expect(snapshotsFor(store, OP_TOKEN_X)[0]).toMatchObject({
+          priceSource: "pool",
+          pricingPoolId: PoolId(OP, P_X_VELO),
+        });
+      });
+
+      it("a quiet but healthy counterparty is refreshed first and so is fresh", async () => {
+        // VELO last succeeded days ago but its own pool still qualifies: the
+        // due refresh re-prices it from pool state, so X's route stands.
+        const store = opStore({
+          tokens: [
+            makeToken(OP, OP_TOKEN_X, 18n, 0n, STALE),
+            makeToken(OP, OP_VELO, 18n, E18 / 10n, NOW - 3 * DAY_S),
+          ],
+          pricingPools: {
+            [TokenId(OP, OP_TOKEN_X)]: [PoolId(OP, P_X_VELO)],
+            [TokenId(OP, OP_VELO)]: [PoolId(OP, P_VELO_WETH)],
+            [TokenId(OP, OP_WETH)]: [PoolId(OP, P_WETH_USDC)],
+          },
+        });
+        const x = await refresh(store, OP, OP_TOKEN_X);
+        expect(snapshotsFor(store, OP_VELO)[0].priceSource).toBe("pool");
+        expect(snapshotsFor(store, OP_TOKEN_X)[0].priceSource).toBe("pool");
+        expect(x.pricePerUSDNew).toBeGreaterThan(0n);
+      });
+
+      it("a pinned counterparty is always fresh", async () => {
+        const store = opStore({
+          tokens: [
+            // Not due this hour, and a success clock far in the past: a
+            // pinned token's price never ages, so the route still stands.
+            makeToken(OP, OP_USDC, 6n, USD(1), NOW - 60, {
+              lastSuccessfulPriceTimestamp: new Date((NOW - 30 * DAY_S) * 1000),
+            }),
+            makeToken(OP, OP_WETH, 18n, 0n, STALE),
+          ],
+          pricingPools: { [TokenId(OP, OP_WETH)]: [PoolId(OP, P_WETH_USDC)] },
+        });
+        const weth = await refresh(store, OP, OP_WETH);
+        expect(snapshotsFor(store, OP_WETH)[0].priceSource).toBe("pool");
+        expect(weth.pricePerUSDNew).toBeGreaterThan(0n);
       });
     });
 

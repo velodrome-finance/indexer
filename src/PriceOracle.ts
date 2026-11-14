@@ -17,6 +17,7 @@ import {
 import {
   type PriceResolution,
   applyPriceResolution,
+  isCounterpartyPriceFresh,
   isPriceRefreshDue,
 } from "./Pricing/PriceResolution";
 import {
@@ -24,7 +25,6 @@ import {
   PRICE_REFRESH_INTERVAL_MS,
   PRICING_TIER,
   type PricingTier,
-  carriesWithoutExpiry,
   getMinPricingDepthUSD,
   getPinnedPrice,
   getPricingTier,
@@ -149,9 +149,10 @@ export async function createTokenEntity(
  *    - every pool registered for the token in `TokenPricingPools`
  *      (counterparty in a strictly lower tier) offers pool ratio ×
  *      counterparty USD price, at the counterparty-side depth. Each
- *      counterparty is refreshed first when it is itself due, so the token is
- *      never priced off a stale counterparty; the tier rule bounds that
- *      recursion at three levels;
+ *      counterparty is refreshed first when it is itself due, and a
+ *      counterparty whose last success is more than 2 h old (it is only
+ *      carrying) is skipped, so the token is never priced off a stale base;
+ *      the tier rule bounds that recursion at three levels;
  *    - a token with a canonical source on another chain (src/PriceOverrides.ts:
  *      WETH on ETH-equivalent leaf chains → Optimism WETH, XVELO → Optimism
  *      VELO, …) also gets that source's stored price at its stored
@@ -171,9 +172,8 @@ export async function createTokenEntity(
  *    itself-two-hop C cannot extend a chain. The weaker of the two hops sets
  *    the depth for the floor, the imbalance bound and the comparison
  *    (`pool`, `pricingHops = 2`).
- * 5. Nothing qualified: carry the last price (`carried`) — for tiers 1–2
- *    however old it is, for tier 3 while its last success is under 7 days
- *    old — else 0 (`unpriced`).
+ * 5. Nothing qualified: carry the last price (`carried`) while its last
+ *    success is under 7 days old, whatever the tier, else 0 (`unpriced`).
  *
  * Two clocks (#694): `lastUpdatedTimestamp` advances on every due refresh
  * (it is the throttle); `lastSuccessfulPriceTimestamp` only on steps 2–3.
@@ -319,12 +319,7 @@ async function refreshDueTokenPrice(
     resolution = { kind: "none" };
   }
 
-  const applied = applyPriceResolution(
-    healed,
-    resolution,
-    blockTimestampMs,
-    carriesWithoutExpiry(getPricingTier(chainId, healed.address)),
-  );
+  const applied = applyPriceResolution(healed, resolution, blockTimestampMs);
   context.Token.set(applied.token);
   setTokenPriceSnapshot(
     {
@@ -610,9 +605,22 @@ async function findPoolCandidates(
         : undefined,
     ),
   );
+  // A route is only as fresh as its base: a counterparty that is only
+  // carrying an old price (its own routes failed) cannot set this token's
+  // price; the token carries its own last price instead.
+  const blockTimestampMs = blockTimestamp * 1000;
   const counterpartyById = new Map<string, Token>();
   for (const counterparty of refreshed) {
-    if (counterparty) counterpartyById.set(counterparty.id, counterparty);
+    if (
+      counterparty &&
+      (getPricingTier(chainId, counterparty.address) === PRICING_TIER.PINNED ||
+        isCounterpartyPriceFresh(
+          counterparty.lastSuccessfulPriceTimestamp,
+          blockTimestampMs,
+        ))
+    ) {
+      counterpartyById.set(counterparty.id, counterparty);
+    }
   }
 
   const candidates: PricingCandidate[] = [];
