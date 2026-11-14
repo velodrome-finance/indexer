@@ -98,7 +98,9 @@ hours from the token's first snapshot to the head.
 - Swaps in pools with both tokens priced at the head: 100% (before: 0%).
 
 Most of the WETH gain comes from the USDC.e pin and the tier-1 carry
-(ADR 0007). XVELO's gain is mostly the seed.
+(ADR 0007). XVELO's gain is mostly the seed. The no-expiry carry for tiers
+1–2 was withdrawn on 2026-11-14 (ADR 0007 amendment); since then the seed
+alone is what keeps drained leaf WETH, XVELO and xAERO priced.
 
 ## Consequences
 
