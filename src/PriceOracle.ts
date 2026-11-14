@@ -6,6 +6,7 @@ import type { handlerContext } from "./EntityTypes";
 import type { Pool } from "./EntityTypes";
 import { getCanonicalSource, isBlacklistedToken } from "./PriceOverrides";
 import { getGateDecisionFromSignals } from "./PriceTrust";
+import { lookupCanonicalSeedPrice } from "./Pricing/CanonicalPriceSeed";
 import {
   type PricingCandidate,
   buildCanonicalCandidate,
@@ -158,6 +159,10 @@ export async function createTokenEntity(
  *      block. The source is read, never refreshed, so this cannot recurse.
  *    A candidate must pass the chain's depth floor, the 1000× imbalance bound
  *    and the $1M ceiling (`pool` / `canonical`).
+ * 3b. A token with a canonical source whose live price is outside the ±2 h
+ *    window (always the case in a backfill), when nothing in step 3
+ *    qualified: the committed hourly seed's price of the source for this
+ *    block's hour, if the seed covers it (`canonical-seed`, ADR 0008).
  * 4. Tier-3 tokens only, when nothing in step 3 qualified: two-hop routes
  *    (ADR 0007). Each registered pool against another tier-3 token C (a peer
  *    pool) offers pool ratio × C's direct price, where C's direct price is
@@ -336,6 +341,7 @@ async function refreshDueTokenPrice(
       pricingViaTokenId: applied.pricingViaTokenId,
       pricingViaPoolId: applied.pricingViaPoolId,
       lastSuccessfulPriceTimestamp: applied.token.lastSuccessfulPriceTimestamp,
+      pricingSeedHour: applied.pricingSeedHour,
     },
     context,
   );
@@ -371,10 +377,11 @@ async function resolveTokenPrice(
   }
 
   const minDepthUSD = getMinPricingDepthUSD(chainId);
-  const [pools, canonicalCandidate] = await Promise.all([
+  const [pools, canonical] = await Promise.all([
     loadRegisteredPools(token, context),
     findCanonicalCandidate(token, chainId, blockTimestamp * 1000, context),
   ]);
+  const canonicalCandidate = canonical?.candidate;
   const poolCandidates = await findPoolCandidates(
     token,
     tier,
@@ -391,6 +398,23 @@ async function resolveTokenPrice(
       : poolCandidates,
     minDepthUSD,
   );
+  if (!best && canonical && !canonicalCandidate) {
+    // The live source is outside its ±2 h window (a backfill: chains are not
+    // processed in time order), so take the committed hourly seed's price of
+    // the source for this block's hour, if the seed covers it (ADR 0008).
+    const seed = lookupCanonicalSeedPrice(
+      canonical.sourceId,
+      blockTimestamp * 1000,
+    );
+    if (seed) {
+      return {
+        kind: "seed",
+        priceUSD: seed.priceUSD,
+        sourceId: canonical.sourceId,
+        seedHourMs: seed.hourMs,
+      };
+    }
+  }
   if (!best && tier === PRICING_TIER.OTHER) {
     best = selectPricingCandidate(
       await findTwoHopCandidates(
@@ -612,23 +636,26 @@ async function findPoolCandidates(
  * @param chainId - Chain the token lives on
  * @param blockTimestampMs - Current block timestamp in milliseconds
  * @param context - Envio handler context
- * @returns The candidate, or `undefined` when the token has no canonical
- *   source or the source is missing, unpriced or misaligned
+ * @returns `undefined` when the token has no canonical source; otherwise the
+ *   source id and the live candidate (`undefined` when the source is missing,
+ *   unpriced or outside the ±2 h window — the case the hourly seed covers)
  */
 async function findCanonicalCandidate(
   token: Token,
   chainId: number,
   blockTimestampMs: number,
   context: handlerContext,
-): Promise<PricingCandidate | undefined> {
+): Promise<
+  { sourceId: string; candidate: PricingCandidate | undefined } | undefined
+> {
   const source = getCanonicalSource(chainId, token.address);
   if (!source) return undefined;
-  const sourceToken = await getRehydrated(
-    context.Token,
-    "Token",
-    TokenId(source.chainId, source.address),
-  );
-  return buildCanonicalCandidate(sourceToken, blockTimestampMs);
+  const sourceId = TokenId(source.chainId, source.address);
+  const sourceToken = await getRehydrated(context.Token, "Token", sourceId);
+  return {
+    sourceId,
+    candidate: buildCanonicalCandidate(sourceToken, blockTimestampMs),
+  };
 }
 
 /**

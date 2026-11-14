@@ -24,6 +24,10 @@ import {
  * - `canonical` — the same asset's stored price on its canonical chain won the
  *                depth comparison (`pricingSourceTokenId`, `pricingDepthUSD`
  *                say which token and how deep; ADR 0004)
+ * - `canonical-seed` — nothing qualified and the live canonical source was
+ *                outside its ±2 h window; the committed hourly seed's price of
+ *                the source (`pricingSourceTokenId`) for `pricingSeedHour`
+ *                (ADR 0008)
  * - `override` — forced to 0 by the operator blacklist
  * - `carried`  — nothing qualified; the prior price is kept (last success < 7 days
  *                ago; any age for tiers 1–2, see `lastSuccessfulPriceTimestamp`)
@@ -37,6 +41,7 @@ export const PRICE_SOURCE = {
   PINNED: "pinned",
   POOL: "pool",
   CANONICAL: "canonical",
+  CANONICAL_SEED: "canonical-seed",
   OVERRIDE: "override",
   CARRIED: "carried",
   UNPRICED: "unpriced",
@@ -77,6 +82,8 @@ export interface TokenPriceSnapshotInput {
    * carried price (tiers 1–2 carry without expiry, ADR 0007).
    */
   readonly lastSuccessfulPriceTimestamp?: Date;
+  /** `canonical-seed` ticks only: start of the seed hour whose price was used. */
+  readonly pricingSeedHour?: Date;
 }
 
 /**
@@ -122,6 +129,7 @@ export function createTokenPriceSnapshot(
     pricingViaTokenId: input.pricingViaTokenId,
     pricingViaPoolId: input.pricingViaPoolId,
     lastSuccessfulPriceTimestamp: input.lastSuccessfulPriceTimestamp,
+    pricingSeedHour: input.pricingSeedHour,
   };
 }
 

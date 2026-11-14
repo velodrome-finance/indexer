@@ -17,6 +17,10 @@ import {
  * - `pool`: the deepest qualifying candidate was a local pool (`sourceId` = pool id)
  * - `canonical`: the deepest qualifying candidate was the same asset's price on
  *   its canonical chain (`sourceId` = source token id)
+ * - `seed`: nothing qualified and the live canonical source was outside its
+ *   ±2 h window, so the committed hourly seed gave the source's price for the
+ *   block's hour (`sourceId` = source token id, `seedHourMs` = the hour used;
+ *   ADR 0008)
  * - `none`: nothing qualified
  */
 export type PriceResolution =
@@ -34,6 +38,13 @@ export type PriceResolution =
       /** Two-hop only: the pool that priced the peer. */
       readonly viaPoolId?: string;
     }
+  | {
+      readonly kind: "seed";
+      readonly priceUSD: bigint;
+      readonly sourceId: string;
+      /** Start of the seed hour used, in milliseconds. */
+      readonly seedHourMs: number;
+    }
   | { readonly kind: "none" };
 
 /** The token write and snapshot provenance a resolution produces. */
@@ -44,7 +55,7 @@ export interface AppliedPrice {
   readonly priceSource: PriceSource;
   /** Pool the price came through (`pool` resolutions only). */
   readonly pricingPoolId?: string;
-  /** Canonical source token whose price was used (`canonical` resolutions only). */
+  /** Canonical source token whose price was used (`canonical` / `seed` resolutions). */
   readonly pricingSourceTokenId?: string;
   /** Depth of the winning candidate, USD 1e18-base (`pool` / `canonical` only). */
   readonly pricingDepthUSD?: bigint;
@@ -54,6 +65,8 @@ export interface AppliedPrice {
   readonly pricingViaTokenId?: string;
   /** Two-hop only: the pool that priced the peer. */
   readonly pricingViaPoolId?: string;
+  /** `seed` only: the seed hour whose price was used. */
+  readonly pricingSeedHour?: Date;
 }
 
 /**
@@ -157,6 +170,14 @@ export function applyPriceResolution(
         pricingSourceTokenId: resolution.sourceId,
         pricingDepthUSD: resolution.depthUSD,
         pricingHops: 1,
+      };
+    case "seed":
+      // No depth: the seed is an hourly price, not a market this block saw.
+      return {
+        token: success(resolution.priceUSD, undefined),
+        priceSource: PRICE_SOURCE.CANONICAL_SEED,
+        pricingSourceTokenId: resolution.sourceId,
+        pricingSeedHour: new Date(resolution.seedHourMs),
       };
     case "none": {
       const lastSuccess = token.lastSuccessfulPriceTimestamp;

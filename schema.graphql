@@ -358,7 +358,7 @@ type Token {
   decimals: BigInt! @config(precision: 76) # number of decimals
   pricePerUSDNew: BigInt! @config(precision: 76) # price of token per USD
   lastUpdatedTimestamp: Timestamp! # timestamp of last price refresh attempt (drives the once-per-clock-hour throttle; see src/PriceOracle.ts)
-  lastSuccessfulPriceTimestamp: Timestamp # timestamp of last successful price (pinned / pool route / canonical source); drives the 7-day carry window (#694, docs/adr/0003)
+  lastSuccessfulPriceTimestamp: Timestamp # timestamp of last successful price (pinned / pool route / canonical source / canonical seed); drives the 7-day carry window (#694, docs/adr/0003)
   pricingDepthUSD: BigInt @config(precision: 76) # USD depth (1e18-base) behind pricePerUSDNew: the counterparty-side reserve of the pool that priced it, or the canonical source's own depth; kept while carried, unset when pinned / unpriced / overridden. Lets a cross-chain canonical source be compared with local pools (docs/adr/0004)
   isWhitelisted: Boolean! # whether the token is whitelisted by the legacy Voter / SuperchainLeafVoter (WhitelistToken)
   # Aero listing: the latest ListingSet of the chain's Aero TokenRegistry (Aero's curated token list,
@@ -400,7 +400,10 @@ type TokenPriceSnapshot @storage(postgres: false, clickhouse: true) {
   # destination token at exactly $1), `pool` (derived from the deepest qualifying
   # pool; see pricingPoolId / pricingDepthUSD), `canonical` (the same asset's
   # price on its canonical chain won the depth comparison; see
-  # pricingSourceTokenId / pricingDepthUSD, ADR 0004), `override` (operator
+  # pricingSourceTokenId / pricingDepthUSD, ADR 0004), `canonical-seed` (no
+  # route qualified and the live canonical source was outside its ±2 h window:
+  # the committed hourly seed's price of pricingSourceTokenId for
+  # pricingSeedHour, ADR 0008), `override` (operator
   # blacklist -> 0), `carried` (no route qualified; prior price kept, last
   # success < 7 days ago, any age for WETH, connectors and reward tokens; see
   # lastSuccessfulPriceTimestamp) or `unpriced` (no route qualified and nothing fresh to
@@ -411,11 +414,12 @@ type TokenPriceSnapshot @storage(postgres: false, clickhouse: true) {
   priceSource: String
   pricingPoolId: String # Pool id ({chainId}-{poolAddress}) the price was derived through; set only when priceSource = `pool`
   pricingDepthUSD: BigInt @config(precision: 76) # USD depth (1e18-base) of the winning candidate: pricingPoolId's counterparty-side reserve, or the canonical source token's stored depth; set only when priceSource = `pool` or `canonical`
-  pricingSourceTokenId: String # Token id ({chainId}-{address}) of the canonical source whose stored price was used; set only when priceSource = `canonical`
+  pricingSourceTokenId: String # Token id ({chainId}-{address}) of the canonical source whose price was used; set only when priceSource = `canonical` (its stored price) or `canonical-seed` (its seed price)
   pricingHops: Int # Route length when priceSource = `pool` / `canonical`: 1 = direct (pool against a lower-tier token, or canonical source), 2 = two-hop through a tier-3 peer that has a direct pool route (ADR 0007); then pricingPoolId is the peer pool and pricingDepthUSD the weaker of the two hops
   pricingViaTokenId: String # Two-hop only: token id ({chainId}-{address}) of the tier-3 peer the price went through
   pricingViaPoolId: String # Two-hop only: pool id of the peer's own direct route
   lastSuccessfulPriceTimestamp: Timestamp # When the price in this row was last obtained: the row's own time on `pinned` / `pool` / `canonical` rows, older on `carried` rows. WETH, connectors and reward tokens (tiers 1–2) carry without expiry, so their `carried` rows can be weeks old (ADR 0007); null on rows written before it existed
+  pricingSeedHour: Timestamp # Start of the seed hour whose price was used; set only when priceSource = `canonical-seed` (src/constants/canonical_price_seed.json, ADR 0008)
 }
 
 # Per-token list of pools the token can be priced through (ADR 0003). A pool is
