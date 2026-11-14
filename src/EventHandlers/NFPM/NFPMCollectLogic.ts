@@ -9,9 +9,9 @@ import { getRehydrated } from "../../EntityTimestamps";
 import type { handlerContext } from "../../EntityTypes";
 
 /**
- * Legacy NFPM fee collection.
+ * NFPM fee collection (legacy NFPMs and the Aero NFPM).
  *
- * For a position held through a legacy NFPM, CLPool.Collect's `owner` is the
+ * For a position held through an NFPM, CLPool.Collect's `owner` is the
  * NFPM contract and the event has no tokenId, so it cannot name the position's
  * owner. NFPM.collect calls pool.collect and then emits its own
  * Collect(tokenId, recipient, amount0, amount1) in the same tx, a few logs
@@ -21,18 +21,24 @@ import type { handlerContext } from "../../EntityTypes";
  * primary key. The user-level credit is therefore the pool-level amount, so
  * Σ users of totalUnstakedFeesCollected* still equals the Pool's.
  *
- * Aero pools do not use this: AeroNFPM.Collect isolates fees per position
- * (NFPMPositionPendingPrincipal, AeroNFPMLogic.ts).
+ * The NFPM's own Collect amounts are never used: the NFPM emits the amounts it
+ * asked the pool for (its per-position tokensOwed), which can exceed what the
+ * pool paid by a few wei (Arc tx 0x2e1346d0…: pool paid 83, NFPM says 84).
+ *
+ * Cost: principal is pooled per (NFPM, range), so when two positions share a
+ * range, one position's pending principal can absorb another's fee-only
+ * collect until the first collects; the fees then reach the first owner. Per
+ * owner this can shift fees between positions of one range; totals are exact.
  */
 
 /**
- * Stage the fees a CLPool.Collect isolated for a legacy-NFPM position, for the
+ * Stage the fees a CLPool.Collect isolated for an NFPM position, for the
  * NFPM.Collect that follows in the same tx. Adds to an unconsumed row (never
  * expected: every NFPM pool.collect is followed by its NFPM.Collect).
  *
  * @param chainId - Chain of the Collect
  * @param txHash - Transaction hash
- * @param nfpmAddress - CLPool.Collect's `owner`, the pool's legacy NFPM
+ * @param nfpmAddress - CLPool.Collect's `owner`, the pool's NFPM
  * @param poolAddress - The CL pool (`event.srcAddress`)
  * @param fees0 - Raw token0 fees isolated by CLPool.Collect
  * @param fees1 - Raw token1 fees isolated by CLPool.Collect
@@ -69,17 +75,18 @@ export async function stageNFPMCollectFees(
 }
 
 /**
- * Legacy NFPM Collect: credits the fees staged by the preceding CLPool.Collect
- * to the owner of the collected position (its `totalUnstakedFeesCollected*`)
- * and deletes the hand-over. Falls back to the NFPM contract when the position
- * is unknown, so the fees are never lost from the user sums.
+ * NFPM Collect (legacy or Aero): credits the fees staged by the preceding
+ * CLPool.Collect to the owner of the collected position (its
+ * `totalUnstakedFeesCollected*`) and deletes the hand-over. Falls back to the
+ * NFPM contract when the position is unknown, so the fees are never lost from
+ * the user sums.
  *
- * @param event - NFPM.Collect
+ * @param event - NFPM.Collect or AeroNFPM.Collect
  * @param context - Handler context
  * @returns Promise that resolves once the owner's fee counters are staged
  */
 export async function processNFPMCollect(
-  event: EvmEvent<"NFPM", "Collect">,
+  event: EvmEvent<"NFPM", "Collect"> | EvmEvent<"AeroNFPM", "Collect">,
   context: handlerContext,
 ): Promise<void> {
   const id = NFPMCollectFeesInTxId(

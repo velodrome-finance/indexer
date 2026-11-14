@@ -3,6 +3,7 @@ import { createTestIndexer } from "envio";
 import {
   AERO_NFPM_ADDRESS,
   AeroNFPMMintPoolId,
+  NFPMCollectFeesInTxId,
   NonFungiblePositionId,
   POOL_DEPLOYMENT,
   PoolId,
@@ -393,12 +394,58 @@ describe("AeroNFPM positions", () => {
         UserStatsPerPoolId(chainId, AERO_NFPM_ADDRESS, poolAddress),
       ),
     ).toBeUndefined();
-    // Principal fully drained: tracker deleted.
+    // The fee hand-over was consumed by the NFPM's Collect.
     expect(
-      await indexer.NFPMPositionPendingPrincipal.get(
-        NonFungiblePositionId(chainId, AERO_NFPM_ADDRESS, 7n),
+      await indexer.NFPMCollectFeesInTx.get(
+        NFPMCollectFeesInTxId(chainId, t.hash, AERO_NFPM_ADDRESS),
       ),
     ).toBeUndefined();
+  });
+
+  // The NFPM's Collect reports the amounts it asked the pool for, which can
+  // exceed what the pool paid by a few wei. Real Arc tx 0x2e1346d0…ca1a (pool
+  // 0x5e4d45a3…f922, tokenId 3094): CLPool.Collect paid 67324196766282 / 83,
+  // the Aero NFPM's Collect says 67324196766282 / 84.
+  it("credits the owner exactly what the pool paid, not the NFPM's requested amount", async () => {
+    await mintPosition(3094n);
+    const block = nextBlock();
+    const t = tx(2994);
+    const paid0 = 67324196766282n;
+    const paid1 = 83n;
+    await run([
+      {
+        contract: "CLPool" as const,
+        event: "Collect" as const,
+        srcAddress: poolAddress,
+        logIndex: 3,
+        block,
+        transaction: t,
+        params: {
+          owner: nfpm,
+          recipient: user,
+          tickLower,
+          tickUpper,
+          amount0: paid0,
+          amount1: paid1,
+        },
+      },
+      nfpmEvent("Collect", 5, block, t, {
+        tokenId: 3094n,
+        recipient: user,
+        amount0: paid0,
+        amount1: paid1 + 1n,
+      }),
+    ]);
+    const stats = await indexer.UserStatsPerPool.get(
+      UserStatsPerPoolId(chainId, user, poolAddress),
+    );
+    const pool = await indexer.Pool.get(PoolId(chainId, poolAddress));
+    expect(stats?.totalUnstakedFeesCollected0).toBe(paid0);
+    expect(stats?.totalUnstakedFeesCollected1).toBe(paid1);
+    // Σ users equals the pool's own increment.
+    expect(pool?.totalUnstakedFeesCollected1).toBe(
+      createMockPool().totalUnstakedFeesCollected1 + paid1,
+    );
   });
 
   it("moves the owner on transfer and deletes the position on burn", async () => {

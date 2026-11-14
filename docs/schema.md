@@ -6,7 +6,7 @@
 
 # Entity & field reference
 
-Generated from [`schema.graphql`](../schema.graphql). The schema defines **76 entity types**; each becomes a queryable table in the indexer's database.
+Generated from [`schema.graphql`](../schema.graphql). The schema defines **75 entity types**; each becomes a queryable table in the indexer's database.
 
 ## Reading this reference
 
@@ -25,8 +25,7 @@ Generated from [`schema.graphql`](../schema.graphql). The schema defines **76 en
 - **Cross-chain superswaps (Hyperlane)** — [SuperSwap](#superswap), [OUSDTBridgedTransaction](#ousdtbridgedtransaction), [OUSDTSwaps](#ousdtswaps), [DispatchId_event](#dispatchid_event), [ProcessId_event](#processid_event), [TxDispatchIdRegistry](#txdispatchidregistry), [TxOUSDTSwapRegistry](#txousdtswapregistry)
 - **Aero gauges, staking & emissions** — [AeroGauge](#aerogauge), [AeroGaugeFactory](#aerogaugefactory), [AeroLeafVoterState](#aeroleafvoterstate), [AeroVotingRewardsManager](#aerovotingrewardsmanager), [AeroIncentiveProgram](#aeroincentiveprogram), [AeroGaugeSnapshot](#aerogaugesnapshot), [AeroLeafVoterStateSnapshot](#aeroleafvoterstatesnapshot), [AeroGaugeStakeEvent](#aerogaugestakeevent), [AeroEmissionsEvent](#aeroemissionsevent), [AeroRedemptionEvent](#aeroredemptionevent), [AeroVotingRewardsEvent](#aerovotingrewardsevent)
 - **Aero governance** — [SAeroPosition](#saeroposition), [SAeroEscrowState](#saeroescrowstate), [SAeroEscrowStateSnapshot](#saeroescrowstatesnapshot), [SAeroPositionEvent](#saeropositionevent), [AeroRootAllocation](#aerorootallocation), [AeroRootGaugeVote](#aerorootgaugevote), [AeroRootChainState](#aerorootchainstate), [AeroLeafTokenState](#aeroleaftokenstate), [AeroLeafAllocation](#aeroleafallocation), [AeroAllocationEvent](#aeroallocationevent), [AeroMinterState](#aerominterstate), [AeroMinterSnapshot](#aeromintersnapshot), [AeroMinterEvent](#aerominterevent), [AeroMigrationTotals](#aeromigrationtotals), [AeroMigrationEvent](#aeromigrationevent)
-- **Internal buffers & deferred state** — [PendingVote](#pendingvote), [CLPoolPendingInitialize](#clpoolpendinginitialize), [PendingRootPoolMapping](#pendingrootpoolmapping), [PendingDistribution](#pendingdistribution), [PoolTickMap](#pooltickmap), [CLPoolMintEvent](#clpoolmintevent), [CLPositionPendingPrincipal](#clpositionpendingprincipal), [TxCLPoolMintRegistry](#txclpoolmintregistry), [AeroNFPMMintPool](#aeronfpmmintpool), [AeroNFPMPendingMint](#aeronfpmpendingmint), [AeroGaugePendingReferral](#aerogaugependingreferral), [NFPMPositionPendingPrincipal](#nfpmpositionpendingprincipal), [V2SwapFeesInTx](#v2swapfeesintx), [TokenPricingPools](#tokenpricingpools), [TxPoolTransferRegistry](#txpooltransferregistry), [PoolTransferInTx](#pooltransferintx), [ALMLPWrapperTransferInTx](#almlpwrappertransferintx), [ALM_TotalSupplyLimitUpdated_event](#alm_totalsupplylimitupdated_event)
-- **Other** — [NFPMCollectFeesInTx](#nfpmcollectfeesintx)
+- **Internal buffers & deferred state** — [PendingVote](#pendingvote), [CLPoolPendingInitialize](#clpoolpendinginitialize), [PendingRootPoolMapping](#pendingrootpoolmapping), [PendingDistribution](#pendingdistribution), [PoolTickMap](#pooltickmap), [CLPoolMintEvent](#clpoolmintevent), [CLPositionPendingPrincipal](#clpositionpendingprincipal), [TxCLPoolMintRegistry](#txclpoolmintregistry), [AeroNFPMMintPool](#aeronfpmmintpool), [AeroNFPMPendingMint](#aeronfpmpendingmint), [AeroGaugePendingReferral](#aerogaugependingreferral), [NFPMCollectFeesInTx](#nfpmcollectfeesintx), [V2SwapFeesInTx](#v2swapfeesintx), [TokenPricingPools](#tokenpricingpools), [TxPoolTransferRegistry](#txpooltransferregistry), [PoolTransferInTx](#pooltransferintx), [ALMLPWrapperTransferInTx](#almlpwrappertransferintx), [ALM_TotalSupplyLimitUpdated_event](#alm_totalsupplylimitupdated_event)
 
 ## Core aggregates
 
@@ -132,7 +131,7 @@ Entity that tracks the latest state of the token entity By nature this entity sa
 | `decimals` | `BigInt!` | number of decimals |
 | `pricePerUSDNew` | `BigInt!` | price of token per USD |
 | `lastUpdatedTimestamp` | `Timestamp!` | timestamp of last price refresh attempt (drives the once-per-clock-hour throttle; see src/PriceOracle.ts) |
-| `lastSuccessfulPriceTimestamp` | `Timestamp` | timestamp of last successful price (pinned / pool route / canonical source); drives the 7-day carry window (#694, docs/adr/0003) |
+| `lastSuccessfulPriceTimestamp` | `Timestamp` | timestamp of last successful price (pinned / pool route / canonical source / canonical seed); drives the 7-day carry window (#694, docs/adr/0003) |
 | `pricingDepthUSD` | `BigInt` | USD depth (1e18-base) behind pricePerUSDNew: the counterparty-side reserve of the pool that priced it, or the canonical source's own depth; kept while carried, unset when pinned / unpriced / overridden. Lets a cross-chain canonical source be compared with local pools (docs/adr/0004) |
 | `isWhitelisted` | `Boolean!` | whether the token is whitelisted by the legacy Voter / SuperchainLeafVoter (WhitelistToken) |
 | `isListedOnAero` | `Boolean` | Aero listing: the latest ListingSet of the chain's Aero TokenRegistry (Aero's curated token list, the successor of the legacy whitelist). Null when the registry never emitted one for the token. A positive price-trust signal like isWhitelisted (priceTrustReason LISTED, ADR 0005). |
@@ -1427,15 +1426,17 @@ A gauge's referral configured inside its factory's createGauge, whose ReferralCo
 | `referral` | `String!` | referral address |
 | `referralShare` | `BigInt!` | referral share, pips |
 
-### NFPMPositionPendingPrincipal
+### NFPMCollectFeesInTx
 
-Principal removed from an NFPM position (NFPM.DecreaseLiquidity amounts) and not yet collected. The NFPM's Collect pays principal plus fees, so Collect minus this is the position's fees. Per position (tokenId), unlike CLPositionPendingPrincipal, which is per pool-level position (pool + owner + range) and therefore shared by every NFPM position with the same range. Used for the Aero NFPM; deleted when fully drained.
+V2 swap fee hand-over. A V2 pool emits Fees(sender, amount0, amount1) for the fee it takes on each input token, before the swap's Sync and Swap in the same transaction. The Fees handler adds the amounts here and the Swap handler reads (by primary key) and deletes them, so a swap's fee USD and effective rate come from the fee actually charged. Deleted by the Swap. Fees of an NFPM position (legacy NFPMs and the Aero NFPM), isolated by CLPool.Collect (whose `owner` is the NFPM contract) and handed to the NFPM's Collect that follows in the same tx, which credits them to the position's owner and deletes the row.
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| `id` | `ID!` | Same as the position's id: {chainId}-{nfpmAddress}-{tokenId} (NonFungiblePositionId) |
-| `pendingPrincipal0` | `BigInt!` | token0 principal awaiting Collect |
-| `pendingPrincipal1` | `BigInt!` | token1 principal awaiting Collect |
+| `id` | `ID!` | Format: {chainId}-{txHash}-{nfpmAddress} (NFPMCollectFeesInTxId) |
+| `pool` | `String!` | the CL pool whose Collect isolated the fees |
+| `fees0` | `BigInt!` | raw token0 fees |
+| `fees1` | `BigInt!` | raw token1 fees |
+| `feesUSD` | `BigInt!` | USD of the fees at CLPool.Collect, 1e18 |
 
 ### V2SwapFeesInTx
 
@@ -1508,19 +1509,3 @@ Temporary entity for matching Withdraw events with Transfer events (burns) Simil
 | `lpWrapperAddress` | `String!` | LP Wrapper associated to the event |
 | `currentTotalSupplyLPTokens` | `BigInt!` | Current supply of LP tokens for the pool, emitted by the event |
 | `transactionHash` | `String!` | Transaction hash of the event |
-
-## Other
-
-Entities not yet categorized in scripts/generate-schema-docs.ts.
-
-### NFPMCollectFeesInTx
-
-V2 swap fee hand-over. A V2 pool emits Fees(sender, amount0, amount1) for the fee it takes on each input token, before the swap's Sync and Swap in the same transaction. The Fees handler adds the amounts here and the Swap handler reads (by primary key) and deletes them, so a swap's fee USD and effective rate come from the fee actually charged. Deleted by the Swap. Fees of a legacy-NFPM position, isolated by CLPool.Collect (whose `owner` is the NFPM contract) and handed to the NFPM.Collect that follows in the same tx, which credits them to the position's owner and deletes the row.
-
-| Field | Type | Description |
-| ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {chainId}-{txHash}-{nfpmAddress} (NFPMCollectFeesInTxId) |
-| `pool` | `String!` | the CL pool whose Collect isolated the fees |
-| `fees0` | `BigInt!` | raw token0 fees |
-| `fees1` | `BigInt!` | raw token1 fees |
-| `feesUSD` | `BigInt!` | USD of the fees at CLPool.Collect, 1e18 |

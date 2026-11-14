@@ -1,10 +1,10 @@
 import { indexer } from "envio";
 import {
-  processAeroNFPMCollect,
-  processAeroNFPMDecreaseLiquidity,
   processAeroNFPMIncreaseLiquidity,
   processAeroNFPMTransfer,
 } from "./AeroNFPMLogic";
+import { processNFPMCollect } from "./NFPMCollectLogic";
+import { processNFPMDecreaseLiquidity } from "./NFPMDecreaseLiquidityLogic";
 
 /**
  * @title Aero NonfungiblePositionManager
@@ -30,13 +30,15 @@ indexer.onEvent(
 indexer.onEvent(
   { contract: "AeroNFPM", event: "DecreaseLiquidity" },
   async ({ event, context }) => {
-    await processAeroNFPMDecreaseLiquidity(event, context);
+    await processNFPMDecreaseLiquidity(event, context);
   },
 );
 
 indexer.onEvent(
   { contract: "AeroNFPM", event: "Collect" },
   async ({ event, context }) => {
-    await processAeroNFPMCollect(event, context);
+    // Credits the fees the preceding CLPool.Collect isolated to the position's
+    // owner, as for the legacy NFPMs (NFPMCollectLogic.ts).
+    await processNFPMCollect(event, context);
   },
 );
