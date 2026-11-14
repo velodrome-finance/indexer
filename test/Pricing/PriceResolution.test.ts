@@ -1,11 +1,11 @@
 import {
   applyPriceResolution,
+  isCounterpartyPriceFresh,
   isPriceRefreshDue,
 } from "../../src/Pricing/PriceResolution";
 import {
+  COUNTERPARTY_FRESHNESS_MS,
   ONE_USD,
-  PRICING_TIER,
-  carriesWithoutExpiry,
 } from "../../src/Pricing/PricingConfig";
 import {
   DAY_S,
@@ -189,53 +189,47 @@ describe("PriceResolution", () => {
       expect(applied.priceSource).toBe("unpriced");
     });
 
-    it("none without expiry (tiers 1–2): carries a price of any age, depth and success clock kept", () => {
-      const lastSuccess = now - 90 * DAY_S;
+    it("none: every tier's carry ends after 7 days (no exemption for WETH or connectors)", () => {
       const token = {
-        ...makeToken(OP, OP_TOKEN_X, 18n, USD(2400), lastSuccess),
+        ...makeToken(OP, OP_TOKEN_X, 18n, USD(2400), now - 7 * DAY_S),
         pricingDepthUSD: USD(2150),
       };
-      const applied = applyPriceResolution(
-        token,
-        { kind: "none" },
-        nowMs,
-        true,
-      );
-      expect(applied.token.pricePerUSDNew).toBe(USD(2400));
-      expect(applied.token.pricingDepthUSD).toBe(USD(2150));
-      expect(applied.token.lastSuccessfulPriceTimestamp).toEqual(
-        at(lastSuccess),
-      );
-      expect(applied.token.lastUpdatedTimestamp).toEqual(at(now));
-      expect(applied.priceSource).toBe("carried");
-    });
-
-    it("none without expiry still never invents a price", () => {
-      const never = makeToken(OP, OP_TOKEN_X, 18n, 0n, now - HOUR_S);
-      expect(
-        applyPriceResolution(never, { kind: "none" }, nowMs, true).priceSource,
-      ).toBe("unpriced");
-      const unstamped = { ...priced, lastSuccessfulPriceTimestamp: undefined };
-      expect(
-        applyPriceResolution(unstamped, { kind: "none" }, nowMs, true).token
-          .pricePerUSDNew,
-      ).toBe(0n);
-    });
-
-    it("without expiry, an override still zeroes the price", () => {
-      expect(
-        applyPriceResolution(priced, { kind: "override" }, nowMs, true).token
-          .pricePerUSDNew,
-      ).toBe(0n);
+      const applied = applyPriceResolution(token, { kind: "none" }, nowMs);
+      expect(applied.token.pricePerUSDNew).toBe(0n);
+      expect(applied.token.pricingDepthUSD).toBeUndefined();
+      expect(applied.priceSource).toBe("unpriced");
     });
   });
 
-  describe("carriesWithoutExpiry", () => {
-    it("is tiers 1 and 2 (WETH, connectors, reward tokens); tier 3 keeps the 7-day rule", () => {
-      expect(carriesWithoutExpiry(PRICING_TIER.PINNED)).toBe(false);
-      expect(carriesWithoutExpiry(PRICING_TIER.WETH)).toBe(true);
-      expect(carriesWithoutExpiry(PRICING_TIER.CONNECTOR)).toBe(true);
-      expect(carriesWithoutExpiry(PRICING_TIER.OTHER)).toBe(false);
+  describe("isCounterpartyPriceFresh (a route is only as fresh as its base)", () => {
+    const now = HOUR_START_S + 10 * DAY_S;
+    const nowMs = now * 1000;
+
+    it(`accepts a counterparty whose last success is at most ${COUNTERPARTY_FRESHNESS_MS / (HOUR_S * 1000)} h old`, () => {
+      expect(isCounterpartyPriceFresh(at(now), nowMs)).toBe(true);
+      expect(
+        isCounterpartyPriceFresh(
+          new Date(nowMs - COUNTERPARTY_FRESHNESS_MS),
+          nowMs,
+        ),
+      ).toBe(true);
+    });
+
+    it("rejects one that is older, or was never priced", () => {
+      expect(
+        isCounterpartyPriceFresh(
+          new Date(nowMs - COUNTERPARTY_FRESHNESS_MS - 1000),
+          nowMs,
+        ),
+      ).toBe(false);
+      expect(isCounterpartyPriceFresh(at(now - 120 * DAY_S), nowMs)).toBe(
+        false,
+      );
+      expect(isCounterpartyPriceFresh(undefined, nowMs)).toBe(false);
+    });
+
+    it("accepts a success later than the block (a deferred replay)", () => {
+      expect(isCounterpartyPriceFresh(at(now + HOUR_S), nowMs)).toBe(true);
     });
   });
 });

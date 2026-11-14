@@ -405,7 +405,7 @@ type TokenPriceSnapshot @storage(postgres: false, clickhouse: true) {
   # the committed hourly seed's price of pricingSourceTokenId for
   # pricingSeedHour, ADR 0008), `override` (operator
   # blacklist -> 0), `carried` (no route qualified; prior price kept, last
-  # success < 7 days ago, any age for WETH, connectors and reward tokens; see
+  # success < 7 days ago, any tier; see
   # lastSuccessfulPriceTimestamp) or `unpriced` (no route qualified and nothing fresh to
   # carry -> 0). Earlier rows may carry `rebind` (ADR 0003 fallback copy) or the
   # oracle-era tags `fresh` / `pool-implied`, or no tag at all.
@@ -418,7 +418,7 @@ type TokenPriceSnapshot @storage(postgres: false, clickhouse: true) {
   pricingHops: Int # Route length when priceSource = `pool` / `canonical`: 1 = direct (pool against a lower-tier token, or canonical source), 2 = two-hop through a tier-3 peer that has a direct pool route (ADR 0007); then pricingPoolId is the peer pool and pricingDepthUSD the weaker of the two hops
   pricingViaTokenId: String # Two-hop only: token id ({chainId}-{address}) of the tier-3 peer the price went through
   pricingViaPoolId: String # Two-hop only: pool id of the peer's own direct route
-  lastSuccessfulPriceTimestamp: Timestamp # When the price in this row was last obtained: the row's own time on `pinned` / `pool` / `canonical` rows, older on `carried` rows. WETH, connectors and reward tokens (tiers 1–2) carry without expiry, so their `carried` rows can be weeks old (ADR 0007); null on rows written before it existed
+  lastSuccessfulPriceTimestamp: Timestamp # When the price in this row was last obtained: the row's own time on `pinned` / `pool` / `canonical` rows, older on `carried` rows (up to 7 days, any tier; ADR 0007); null on rows written before it existed
   pricingSeedHour: Timestamp # Start of the seed hour whose price was used; set only when priceSource = `canonical-seed` (src/constants/canonical_price_seed.json, ADR 0008)
 }
 

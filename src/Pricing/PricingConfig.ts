@@ -56,10 +56,25 @@ export const MAX_ACCEPTED_PRICE = 1_000_000n * ONE_USD;
 /**
  * How long a token keeps its last successful price when no route qualifies.
  * Once `lastSuccessfulPriceTimestamp` is older than this the price drops to 0:
- * a token whose liquidity has left must stop inflating TVL (#694). Tiers 1
- * and 2 are exempt (see {@link carriesWithoutExpiry}).
+ * a token whose liquidity has left must stop inflating TVL (#694). The same
+ * for every tier (ADR 0007, 2026-11-14 amendment: an unbounded carry for WETH
+ * and connectors left Fraxtal's sfrxETH 170 days stale and priced wstETH and
+ * ezETH through it).
  */
 export const PRICE_CARRY_WINDOW_MS = 7 * 24 * MS_IN_AN_HOUR;
+
+/**
+ * A pool candidate counts only while its counterparty's last successful price
+ * is at most this old at the block (pinned counterparties are always fresh).
+ * A healthy counterparty is refreshed before use whenever it is due, so its
+ * last success is within the current clock hour; the second hour tolerates a
+ * one-hour gap in the counterparty's own route, the same slack the canonical
+ * window allows. Anything older means the counterparty is only carrying, and a
+ * route built on a carried price is labelled `pool` while it is as stale as
+ * its base: the token carries its own last price instead (ADR 0007, 2026-11-14
+ * amendment).
+ */
+export const COUNTERPARTY_FRESHNESS_MS = 2 * MS_IN_AN_HOUR;
 
 /** Refresh / snapshot cadence: one price refresh per token per clock hour. */
 export const PRICE_REFRESH_INTERVAL_MS = MS_IN_AN_HOUR;
@@ -193,29 +208,6 @@ export function getPricingTier(chainId: number, address: string): PricingTier {
   if (lower === sets.weth) return PRICING_TIER.WETH;
   if (sets.connectors.has(lower)) return PRICING_TIER.CONNECTOR;
   return PRICING_TIER.OTHER;
-}
-
-/**
- * Whether a token of this tier keeps its last price indefinitely when no route
- * qualifies, instead of dropping to 0 after {@link PRICE_CARRY_WINDOW_MS}
- * (ADR 0007, "When every route fails").
- *
- * Tiers 1 and 2: the chain's WETH (frxETH on Fraxtal), its price connectors
- * and reward tokens. Every other price on the chain is built on them, so a 0
- * there removes half the TVL of each of their pairs and the USD of every token
- * priced through them, while a stale price is off only by the asset's move
- * since the last success. Their canonical source cannot serve a backfill on a
- * leaf chain (the source chain runs behind it in time), so carrying is the
- * only route for the hours between the local market draining and the head.
- * Tier 0 is pinned and never carries; tier 3 keeps the 7-day rule. The
- * staleness stays visible: `priceSource = carried` and
- * `TokenPriceSnapshot.lastSuccessfulPriceTimestamp`.
- *
- * @param tier - The token's pricing tier
- * @returns true when the carry never expires
- */
-export function carriesWithoutExpiry(tier: PricingTier): boolean {
-  return tier === PRICING_TIER.WETH || tier === PRICING_TIER.CONNECTOR;
 }
 
 /**

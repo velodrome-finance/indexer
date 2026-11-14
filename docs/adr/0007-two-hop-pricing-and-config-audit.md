@@ -1,8 +1,9 @@
 # ADR 0007: Two-hop pricing through a tier-3 peer; per-chain config audit
 
-- **Status:** Accepted (2026-11-13). Amends ADR 0003 (tier rule, and the
-  seven-day carry for tier 1) and ADR 0004 (canonical sources' freshness).
-  Includes the Base depth evaluation.
+- **Status:** Accepted (2026-11-13). Amends ADR 0003 (tier rule) and ADR 0004
+  (canonical sources' freshness). Includes the Base depth evaluation. The
+  2026-11-13 "when every route fails" amendment (no-expiry carry for tiers
+  1–2) is superseded by the 2026-11-14 amendment at the end.
 
 ## Context
 
@@ -223,3 +224,116 @@ Kept: counterparty balance, $5k on Base. Reasons:
   the oracle. GOOGL, AAPL and TSLAc ($281–410 here) trade at those prices in
   Aero USDC pools holding $170–500k of USDC (≈36k swaps for GOOGL alone),
   with WETH pools agreeing; the oracle's $0.13–0.23 is wrong.
+
+## Amendment (2026-11-14): 7-day carry for every tier; a route is only as fresh as its base
+
+Supersedes the 2026-11-13 decision that tiers 1–2 carry without expiry.
+
+### Context
+
+The twelve-chain sync at f7c17d0 showed the cost of an unbounded carry.
+
+- Fraxtal sfrxETH (tier 2) was `carried` at $2,992.7 for up to 170 days
+  (2025-05-30 to 2025-11-09) while ETH went to about $4,800.
+- frxETH (Fraxtal's tier 1) was carried for up to 44 days, through to the head.
+- wstETH and ezETH kept being priced `pool` through the stale sfrxETH: wstETH
+  $3,202 against DefiLlama's $5,825 on 2025-08-22.
+- The harness failed `price.vs-defillama` for wstETH (median error 12.7%),
+  ezETH (7.0%) and sfrxETH (6.1%), and `price.vs-prod-oracle` for ezETH.
+
+A wrong price is worse than a missing one: it is added into cumulative USD
+counters.
+
+The case the no-expiry carry was added for, drained leaf-chain WETH, is now
+covered by the canonical seed (ADR 0008). Every tier-1 or tier-2 token
+carried beyond 7 days in that sync was one of these:
+
+| chain | token | carried > 7 days | longest |
+|---|---|---:|---:|
+| Fraxtal | sfrxETH | 3,892 h | 170 days |
+| Fraxtal | frxETH | 1,019 h | 44 days |
+| Mode | MODE | 609 h | 65 days |
+| Metal | MTL | 109 h | 99 days |
+| Fraxtal | sUSDe | 78 h | 33 days |
+| Lisk | LSK | 36 h | 13 days |
+| Soneium, Fraxtal, Mode, Celo, Unichain | XVELO | 149 h in all | 10–15 days |
+
+None of them is a leaf WETH that the seed covers. The XVELO rows fall after
+the VELO seed's last hour (2026-11-03): rebuild the seed before a resync and
+they go away. For every other row in the table, carrying was the wrong
+answer.
+
+### Decision
+
+- **The 7-day carry applies to every tier again** (`PRICE_CARRY_WINDOW_MS`;
+  `carriesWithoutExpiry` is removed). `TokenPriceSnapshot.lastSuccessfulPriceTimestamp`
+  stays and dates every carried row.
+- **A pool route is only as fresh as its base.** A pool candidate counts
+  only when its counterparty is pinned, or last succeeded at most
+  `COUNTERPARTY_FRESHNESS_MS` = 2 h before the block (`isCounterpartyPriceFresh`).
+  This covers direct routes and the first hop of two-hop routes, since the
+  peer's direct price is built from the same candidates. A counterparty that
+  is only carrying is no base: the token carries its own last price instead,
+  and expires after 7 days like any other.
+
+### Why 2 hours
+
+- A healthy counterparty is refreshed right before it is used whenever it is
+  due, so its last success is inside the current clock hour.
+- A quiet market is not a stale one. The refresh re-prices the counterparty
+  from stored pool state whatever the event traffic.
+- Only a counterparty whose own routes fail ages past an hour. The second
+  hour absorbs a one-hour gap, the same slack as the canonical window.
+
+Measured on the twelve-chain sync before choosing (pool-priced rows whose
+counterparty's last success was older than N at that hour):
+
+| chain | pool rows | > 1 h | > 2 h | > 6 h | > 24 h | > 7 d |
+|---|---:|---:|---:|---:|---:|---:|
+| Fraxtal | 94,033 | 11,212 | 10,992 | 10,472 | 9,267 | 5,895 |
+| Mode, Metal, Swell | 141,284 | 12 | 2 | 0 | 0 | 0 |
+| the other eight chains | 348,756 | 0 | 0 | 0 | 0 | 0 |
+
+The choice of N only matters on Fraxtal, and there almost all affected rows
+are more than a day stale, so 2 h, 6 h or 24 h differ by a few percent.
+
+### Measured (Fraxtal, one sync at 7bd82b5)
+
+Harness price checks (`--only price`) all pass: `price.coverage`,
+`price.vs-prod-oracle` and `price.vs-defillama`. Before, at f7c17d0,
+`price.vs-defillama` and `price.vs-prod-oracle` failed.
+
+| token | DefiLlama median error, before → after | oracle median error, before → after |
+|---|---|---|
+| wstETH | 12.7% (n=193) → 2.9% (n=54) | n/a |
+| ezETH | 7.0% (n=298) → 1.2% (n=144) | 5.5% → 1.15% |
+| sfrxETH | 6.1% (n=328) → 1.0% (n=161) | 1.09% → 0.13% |
+| frxETH | 0.96% → 0.96% | 0.06% → 0.05% |
+
+Hours by source, before (f7c17d0) → after:
+
+| token | pool | carried | of which > 7 days | unpriced |
+|---|---|---|---|---|
+| wstETH | 2,220 → 441 | 354 → 528 | 0 → 0 | 2,566 → 4,171 |
+| ezETH | 4,918 → 1,169 | 1,990 → 2,512 | 0 → 0 | 5,653 → 8,880 |
+| sfrxETH | 8,606 → 5,891 | 4,371 → 2,462 | 3,892 → 0 | 3,363 → 8,198 |
+| frxETH | 14,103 → 14,103 | 3,183 → 2,164 | 1,019 → 0 | 35 → 1,056 |
+| WFRAX | 8,044 → 7,367 | 2,631 → 2,882 | 0 → 0 | 5,729 → 6,157 |
+| XVELO | 4,580 → 4,178 (+11,168 → 11,734 seed) | 140 → 140 | 49 → 0 | 0 → 75 |
+
+- Token-hours with activity that have a price fell from 83.0% to 77.3%. The
+  hours lost are the wrong prices.
+- Swaps in pools with both tokens priced at the head fell from 79.2% to 13.2%.
+  frxETH's last qualifying market drained on 2026-10-01: frxUSD/frxETH, the
+  pool with 1.09M swaps, holds $35 of frxUSD at the head. The 79.2% counted
+  frxETH at a 44-day-old price.
+
+### Follow-up, not done
+
+frxETH has traded within about 1% of ETH for two years: the quarterly median
+of its pool price against Optimism WETH ranges from −0.02% to −1.04%, and the
+5th percentile is never below −1.9%. Mapping Fraxtal frxETH to Optimism WETH
+in `CANONICAL_SOURCES` would let the seed and the live source cover the
+drained hours. It would restore most of the 79% at about 1% error. It was
+left out in ADR 0004 because frxETH is not redeemable 1:1 on demand; that
+remains a decision to take on its own.
