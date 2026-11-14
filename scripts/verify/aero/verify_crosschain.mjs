@@ -127,7 +127,7 @@ const votes = sql(
 );
 const gaugeRows = sql(
   inst,
-  `select "chainId","gaugeAddress","isActivated","isRegistered","emissionCap" from "AeroGauge"`,
+  `select "chainId","gaugeAddress","isActivated","isRegistered","emissionCap","emissionCapUpdatedTimestamp" from "AeroGauge"`,
 );
 const gaugeBy = new Map(
   gaugeRows.map((g) => [`${g.chainId}-${g.gaugeAddress.toLowerCase()}`, g]),
@@ -176,22 +176,30 @@ for (const c of leaves) {
       exact++;
       continue;
     }
-    // Drop the root's entries the leaf cannot book: no gauge row, not
-    // activated, or a zero cap (the position's zero-cap flag is not checked
-    // here, so such entries land in "other").
+    // Drop the root's entries the leaf could not book when it applied the
+    // split: no gauge row, not registered / activated, or a zero cap then.
+    // The cap at that time comes from the gauge's last hourly snapshot at or
+    // before the split (ClickHouse; only for the few splits that differ).
+    // The position's zero-cap flag is not checked here, so such entries land
+    // in "other".
+    const dispatched = ts(v.lastDispatchedTimestamp);
+    const applied = ts(la?.lastAllocatedTimestamp);
     const routable = new Map(
       [...want].filter(([g]) => {
         const row = gaugeBy.get(`${c}-${g}`);
-        return (
-          row &&
-          row.isRegistered === "t" &&
-          row.isActivated === "t" &&
-          row.emissionCap !== "0"
+        if (!row || row.isRegistered !== "t") return false;
+        if (have.has(g)) return true;
+        const [snap] = chsql(
+          inst,
+          `select emissionCap, isActivated from AeroGaugeSnapshot where chainId=${c} and lower(gaugeAddress)='${g}' and toUnixTimestamp(timestamp)<=${applied} order by timestamp desc limit 1`,
         );
+        const cap = snap ? snap.emissionCap : row.emissionCap;
+        const active = snap
+          ? snap.isActivated === "true"
+          : row.isActivated === "t";
+        return active && cap !== "0";
       }),
     );
-    const dispatched = ts(v.lastDispatchedTimestamp);
-    const applied = ts(la?.lastAllocatedTimestamp);
     if (same(routable, have)) parked++;
     else if (dispatched >= horizon && dispatched >= applied) flight++;
     else if (applied > dispatched) resplit++;
