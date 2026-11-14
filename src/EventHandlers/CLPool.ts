@@ -184,15 +184,12 @@ indexer.onEvent(
       poolData;
 
     // An NFPM position's `owner` here is the NFPM contract, which gets no
-    // UserStatsPerPool row. On Aero pools AeroNFPM.Collect credits the
-    // position's owner (per-position principal). On legacy pools the fees
-    // isolated here are handed to the NFPM.Collect that follows in this tx,
-    // which knows the tokenId and so the owner (NFPMCollectLogic.ts).
+    // UserStatsPerPool row. The fees isolated here are handed to the NFPM's
+    // Collect that follows in this tx (legacy NFPM or Aero NFPM), which knows
+    // the tokenId and so the owner (NFPMCollectLogic.ts).
     const ownerIsNfpm =
       event.params.owner === liquidityPoolAggregator.nfpmAddress;
-    const handToNfpmCollect =
-      ownerIsNfpm &&
-      liquidityPoolAggregator.deployment !== POOL_DEPLOYMENT.AERO;
+    const handToNfpmCollect = ownerIsNfpm;
     const creditOwner = !ownerIsNfpm;
 
     // Process the collect event — isolates fees from burned principal

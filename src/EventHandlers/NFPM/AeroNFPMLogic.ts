@@ -2,24 +2,17 @@ import type { EvmEvent, NonFungiblePosition } from "envio";
 import { updateNonFungiblePosition } from "../../Aggregators/NonFungiblePosition";
 import { loadPoolData } from "../../Aggregators/Pool";
 import {
-  loadOrCreateUserData,
-  updateUserStatsPerPool,
-} from "../../Aggregators/UserStatsPerPool";
-import {
   AeroNFPMMintPoolId,
   NonFungiblePositionId,
   ZERO_ADDRESS,
 } from "../../Constants";
 import { getRehydrated } from "../../EntityTimestamps";
 import type { handlerContext } from "../../EntityTypes";
-import { calculateTotalUSD } from "../../Helpers";
-import { isolateFees } from "../CLPool/CLPoolCollectLogic";
 import {
   LiquidityChangeType,
   attributeLiquidityChangeToUserStatsPerPool,
   updateStakedPositionLiquidity,
 } from "./NFPMCommonLogic";
-import { processNFPMDecreaseLiquidity } from "./NFPMDecreaseLiquidityLogic";
 import { handleRegularTransfer } from "./NFPMTransferLogic";
 
 /**
@@ -38,10 +31,11 @@ import { handleRegularTransfer } from "./NFPMTransferLogic";
  * An increase of an existing position is CLPool.Mint + IncreaseLiquidity; the
  * IncreaseLiquidity consumes (deletes) the AeroNFPMMintPool row either way.
  *
- * Fee collection: the NFPM's Collect pays principal (from DecreaseLiquidity)
- * plus fees; the principal is tracked per position (NFPMPositionPendingPrincipal)
- * so the fees are credited to the position's owner, not to the NFPM contract
- * (which is what CLPool.Collect's `owner` is for NFPM positions).
+ * Fee collection: as on legacy pools, CLPool.Collect isolates the fees and
+ * hands them to the NFPM's Collect, which credits the position's owner
+ * (NFPMCollectLogic.ts). The NFPM's own Collect amounts are not used: they are
+ * the amounts it asked the pool for, which can exceed what the pool paid.
+ * DecreaseLiquidity is the shared legacy logic (processNFPMDecreaseLiquidity).
  *
  * Gauge staking (phase 2): a transfer to or from `Pool.gaugeAddress` is a
  * stake / unstake (owner kept, isStakedInGauge flipped). Aero pools have no
@@ -136,7 +130,6 @@ export async function processAeroNFPMTransfer(
 
   if (event.params.to === ZERO_ADDRESS) {
     context.NonFungiblePosition.deleteUnsafe(position.id);
-    context.NFPMPositionPendingPrincipal.deleteUnsafe(position.id);
     return;
   }
 
@@ -280,130 +273,4 @@ export async function processAeroNFPMIncreaseLiquidity(
       event.block.number,
     );
   }
-}
-
-/**
- * Aero NFPM DecreaseLiquidity: the legacy decrease (liquidity, owner's
- * removed flows, staked edges) plus the principal now owed to the position,
- * which its next Collect pays out together with its fees.
- *
- * @param event - AeroNFPM.DecreaseLiquidity
- * @param context - Handler context
- * @returns Promise that resolves once the decrease and the principal tracker are staged
- */
-export async function processAeroNFPMDecreaseLiquidity(
-  event: EvmEvent<"AeroNFPM", "DecreaseLiquidity">,
-  context: handlerContext,
-): Promise<void> {
-  const positionId = NonFungiblePositionId(
-    event.chainId,
-    event.srcAddress,
-    event.params.tokenId,
-  );
-  const tracker = await context.NFPMPositionPendingPrincipal.get(positionId);
-  if (event.params.amount0 !== 0n || event.params.amount1 !== 0n) {
-    context.NFPMPositionPendingPrincipal.set({
-      id: positionId,
-      pendingPrincipal0:
-        (tracker?.pendingPrincipal0 ?? 0n) + event.params.amount0,
-      pendingPrincipal1:
-        (tracker?.pendingPrincipal1 ?? 0n) + event.params.amount1,
-    });
-  }
-  await processNFPMDecreaseLiquidity(event, context);
-}
-
-/**
- * Aero NFPM Collect: splits the collected amounts into principal (tracked
- * from DecreaseLiquidity) and fees, and credits the fees to the position
- * owner's `totalUnstakedFeesCollected*`. Pool-level totals are written by
- * CLPool.Collect, which skips the NFPM contract as a user for Aero pools.
- *
- * @param event - AeroNFPM.Collect
- * @param context - Handler context
- * @returns Promise that resolves once the tracker and the owner's fee counters are staged
- */
-export async function processAeroNFPMCollect(
-  event: EvmEvent<"AeroNFPM", "Collect">,
-  context: handlerContext,
-): Promise<void> {
-  const positionId = NonFungiblePositionId(
-    event.chainId,
-    event.srcAddress,
-    event.params.tokenId,
-  );
-  const [position, tracker] = await Promise.all([
-    getRehydrated(
-      context.NonFungiblePosition,
-      "NonFungiblePosition",
-      positionId,
-    ),
-    context.NFPMPositionPendingPrincipal.get(positionId),
-  ]);
-
-  const { fees: fees0, remainingPrincipal: remaining0 } = isolateFees(
-    event.params.amount0,
-    tracker?.pendingPrincipal0 ?? 0n,
-  );
-  const { fees: fees1, remainingPrincipal: remaining1 } = isolateFees(
-    event.params.amount1,
-    tracker?.pendingPrincipal1 ?? 0n,
-  );
-  if (tracker) {
-    if (remaining0 === 0n && remaining1 === 0n) {
-      context.NFPMPositionPendingPrincipal.deleteUnsafe(positionId);
-    } else {
-      context.NFPMPositionPendingPrincipal.set({
-        ...tracker,
-        pendingPrincipal0: remaining0,
-        pendingPrincipal1: remaining1,
-      });
-    }
-  }
-
-  if (!position) {
-    context.log.error(
-      `[AeroNFPM.Collect] NonFungiblePosition ${positionId} not found in tx ${event.transaction.hash}`,
-    );
-    return;
-  }
-  if (fees0 === 0n && fees1 === 0n) return;
-
-  const timestamp = new Date(event.block.timestamp * 1000);
-  const [poolData, userData] = await Promise.all([
-    loadPoolData(
-      position.pool,
-      event.chainId,
-      context,
-      event.block.number,
-      event.block.timestamp,
-    ),
-    loadOrCreateUserData(
-      position.owner,
-      position.pool,
-      event.chainId,
-      context,
-      timestamp,
-    ),
-  ]);
-  if (!poolData) return;
-
-  const feesUSD = calculateTotalUSD(
-    fees0,
-    fees1,
-    poolData.token0Instance,
-    poolData.token1Instance,
-  );
-  await updateUserStatsPerPool(
-    {
-      incrementalTotalUnstakedFeesCollected0: fees0,
-      incrementalTotalUnstakedFeesCollected1: fees1,
-      incrementalTotalUnstakedFeesCollectedUSD: feesUSD,
-      lastActivityTimestamp: timestamp,
-    },
-    userData,
-    context,
-    timestamp,
-    poolData,
-  );
 }

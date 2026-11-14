@@ -130,6 +130,14 @@ Aero pools `CLPool.Collect` therefore no longer creates a `UserStatsPerPool` row
 for the NFPM contract; on legacy pools it still does (legacy NFPMs' Collect is
 not indexed).
 
+*Amended 2026-11-14:* the per-position tracker is gone. The NFPM's `Collect`
+reports the amounts it requested from the pool, which can exceed what the pool
+paid by a few wei (Arc tx 0x2e1346d0…: pool 83, NFPM 84), so per-user fees
+summed above the pool's. Both NFPM kinds now use the legacy hand-over:
+`CLPool.Collect` isolates the fees per (NFPM, range) and stages them in
+`NFPMCollectFeesInTx`; the NFPM's `Collect` credits them to the position owner.
+Per-user fees sum exactly to the pool's.
+
 All three entities are handler scratch state: Postgres-only and `@internal`.
 
 ### The Aero token list is a price-trust signal

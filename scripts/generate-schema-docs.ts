@@ -247,7 +247,7 @@ const CATEGORIES: { title: string; blurb: string; names: string[] }[] = [
       "AeroNFPMMintPool",
       "AeroNFPMPendingMint",
       "AeroGaugePendingReferral",
-      "NFPMPositionPendingPrincipal",
+      "NFPMCollectFeesInTx",
       "V2SwapFeesInTx",
       "TokenPricingPools",
       "TxPoolTransferRegistry",

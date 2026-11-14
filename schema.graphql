@@ -915,27 +915,13 @@ type AeroNFPMPendingMint @storage(postgres: true, clickhouse: false) @internal {
   transactionHash: String! # mint transaction
 }
 
-# Principal removed from an NFPM position (NFPM.DecreaseLiquidity amounts) and not yet collected.
-# The NFPM's Collect pays principal plus fees, so Collect minus this is the position's fees.
-# Per position (tokenId), unlike CLPositionPendingPrincipal, which is per pool-level position
-# (pool + owner + range) and therefore shared by every NFPM position with the same range.
-# Used for the Aero NFPM; deleted when fully drained.
-type NFPMPositionPendingPrincipal
-  @storage(postgres: true, clickhouse: false)
-  @internal
-{
-  id: ID! # Same as the position's id: {chainId}-{nfpmAddress}-{tokenId} (NonFungiblePositionId)
-  pendingPrincipal0: BigInt! @config(precision: 76) # token0 principal awaiting Collect
-  pendingPrincipal1: BigInt! @config(precision: 76) # token1 principal awaiting Collect
-}
-
 # V2 swap fee hand-over. A V2 pool emits Fees(sender, amount0, amount1) for the fee it takes
 # on each input token, before the swap's Sync and Swap in the same transaction. The Fees
 # handler adds the amounts here and the Swap handler reads (by primary key) and deletes them,
 # so a swap's fee USD and effective rate come from the fee actually charged. Deleted by the Swap.
-# Fees of a legacy-NFPM position, isolated by CLPool.Collect (whose `owner` is the
-# NFPM contract) and handed to the NFPM.Collect that follows in the same tx, which
-# credits them to the position's owner and deletes the row.
+# Fees of an NFPM position (legacy NFPMs and the Aero NFPM), isolated by CLPool.Collect
+# (whose `owner` is the NFPM contract) and handed to the NFPM's Collect that follows in
+# the same tx, which credits them to the position's owner and deletes the row.
 type NFPMCollectFeesInTx @storage(postgres: true, clickhouse: false) @internal {
   id: ID! # Format: {chainId}-{txHash}-{nfpmAddress} (NFPMCollectFeesInTxId)
   pool: String! # the CL pool whose Collect isolated the fees
