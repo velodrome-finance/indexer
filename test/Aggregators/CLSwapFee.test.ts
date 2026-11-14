@@ -145,23 +145,46 @@ describe("deriveCLSwapFee", () => {
       expect(r).toMatchObject({ ok: true, feeAmount1: 1n, amountIn: 1n });
     });
 
-    it("still rejects 2 wei of fee on a dust swap, and normal swaps keep the 10% cap", () => {
+    it("accepts block 24925730: 7 wei across a tick crossing pays 1 wei per step plus round-ups, fee 3", () => {
+      // tick −265331 → −265330, liquidity 232252167810690 → 232274257439628:
+      // two swap steps, each rounding its fee and its input up.
+      const r = deriveCLSwapFee({
+        amount0: -1438863906771n,
+        amount1: 7n,
+        principal0: -1438863906771n,
+        principal1: 4n,
+        walkEndLiquidity: 232274257439628n,
+        eventLiquidity: 232274257439628n,
+      });
+      expect(r).toMatchObject({ ok: true, feeAmount1: 3n, amountIn: 7n });
+    });
+
+    it("normal swaps keep the 10% cap", () => {
       expect(
         deriveCLSwapFee({
           ...base,
-          principal1: 6n,
+          principal1: 80n,
           amount0: -1n,
-          amount1: 8n,
+          amount1: 100n,
         }),
-      ).toMatchObject({ ok: false, reason: "fee_above_cap", derivedFee: 2n });
+      ).toMatchObject({ ok: false, reason: "fee_above_cap", derivedFee: 20n });
+      // At 100 wei, 10 wei of rounding is admitted, 11 is not.
       expect(
         deriveCLSwapFee({
           ...base,
-          principal1: 9n,
+          principal1: 90n,
           amount0: -1n,
-          amount1: 11n,
+          amount1: 100n,
         }),
-      ).toMatchObject({ ok: false, reason: "fee_above_cap", derivedFee: 2n });
+      ).toMatchObject({ ok: true, feeAmount1: 10n });
+      expect(
+        deriveCLSwapFee({
+          ...base,
+          principal1: 89n,
+          amount0: -1n,
+          amount1: 100n,
+        }),
+      ).toMatchObject({ ok: false, reason: "fee_above_cap", derivedFee: 11n });
     });
   });
 });
