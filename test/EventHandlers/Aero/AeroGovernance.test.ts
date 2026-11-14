@@ -292,7 +292,12 @@ describe("Aero governance", () => {
           { provider: bob, tokenId: 3n, value: 30n * E18, ts: 1n },
           2,
         ),
-        item("AeroVotingEscrow", VE, "Burn", { amount: 1n * E18 }, 3),
+        item("AeroVotingEscrow", VE, "Supply", { supply: 130n * E18 }, 3),
+      ]);
+      // The contract emits Supply (already net of the burn) before Burn.
+      const btx = await runInTx([
+        item("AeroVotingEscrow", VE, "Supply", { supply: 129n * E18 }, 1),
+        item("AeroVotingEscrow", VE, "Burn", { amount: 1n * E18 }, 2),
       ]);
       expect(
         await indexer.SAeroPosition.get(SAeroPositionId(chainId, 3n)),
@@ -301,6 +306,13 @@ describe("Aero governance", () => {
       expect(escrow?.supply).toBe(160n * E18 - 30n * E18 - 1n * E18);
       expect(escrow?.accumulatorAmount).toBe(0n);
       expect(escrow?.totalBurned).toBe(1n * E18);
+      expect(
+        await indexer.SAeroPositionEvent.get(AeroEventId(chainId, btx.hash, 2)),
+      ).toMatchObject({
+        kind: "BURN",
+        amount: 1n * E18,
+        supplyAfter: 129n * E18,
+      });
       expect(
         await indexer.SAeroPositionEvent.get(AeroEventId(chainId, wtx.hash, 2)),
       ).toMatchObject({ kind: "WITHDRAW", tokenId: 3n, amount: 30n * E18 });

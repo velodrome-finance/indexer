@@ -618,7 +618,10 @@ export async function processSAeroRebalance(
 }
 
 /**
- * Burn: protocol accumulator AERO destroyed (supply falls by the amount).
+ * Burn: protocol accumulator AERO destroyed. The VotingEscrow emits `Supply`
+ * (already net of the burn) just before `Burn` in the same transaction, so
+ * the escrow's supply is left as that event set it; subtracting the amount
+ * again would count the burn twice until the next `Supply`.
  *
  * @param ev - Event coordinates
  * @param amount - AERO burned
@@ -643,11 +646,10 @@ export async function processSAeroBurn(
     lastUpdatedTimestamp: timestamp,
   };
   context.SAeroPosition.set(updated);
-  const supplyAfter = escrow.supply - amount;
+  const supplyAfter = escrow.supply;
   persistEscrowState(
     {
       ...applyStakeChange(escrow, 0n, accumulator, updated),
-      supply: supplyAfter,
       totalBurned: escrow.totalBurned + amount,
     },
     timestamp,
@@ -665,9 +667,11 @@ export async function processSAeroBurn(
 }
 
 /**
- * Supply: the VotingEscrow's total after a deposit, withdrawal or burn. The
- * handlers above already moved the supply by the same amount; this makes the
- * contract's value authoritative and logs any drift.
+ * Supply: the VotingEscrow's total after a deposit, withdrawal or burn. For
+ * deposits and withdrawals the handlers above already moved the supply by the
+ * same amount. A burn's `Supply` comes before its `Burn`, so a shortfall of
+ * at most the accumulator's balance is that burn, not drift. The contract's
+ * value is authoritative; any other drift is logged.
  *
  * @param ev - Event coordinates
  * @param supply - Total supply after the change
@@ -681,7 +685,9 @@ export async function processSAeroSupply(
 ): Promise<void> {
   const timestamp = new Date(ev.timestamp * 1000);
   const escrow = await loadOrCreateEscrowState(ev.chainId, timestamp, context);
-  if (escrow.supply !== supply) {
+  const drift = escrow.supply - supply;
+  const pendingBurn = drift > 0n && drift <= escrow.accumulatorAmount;
+  if (drift !== 0n && !pendingBurn) {
     context.log.warn(
       `[AeroVotingEscrow.Supply] tracked supply ${escrow.supply} != emitted ${supply} on chain ${ev.chainId} (tx ${ev.transactionHash})`,
     );
