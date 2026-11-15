@@ -733,6 +733,10 @@ export async function updatePool(
  * @param context - The handler context
  * @param blockNumber - Optional block number for price refresh
  * @param blockTimestamp - Optional block timestamp for price refresh
+ * @param missingIsExpected - When true, a pool that does not exist is not
+ *   logged as an error (the caller handles it: a vote or distribution for a
+ *   root pool whose leaf mapping has not arrived yet is parked, not lost)
+ * @returns The pool with its two tokens, or null when any of them is missing
  */
 export async function loadPoolData(
   poolAddress: string,
@@ -740,6 +744,7 @@ export async function loadPoolData(
   context: handlerContext,
   blockNumber?: number,
   blockTimestamp?: number,
+  missingIsExpected = false,
 ): Promise<PoolData | null> {
   const poolId = PoolId(chainId, poolAddress);
   // Load liquidity pool aggregator and token instances efficiently
@@ -761,9 +766,11 @@ export async function loadPoolData(
 
   // Handle missing data errors
   if (!liquidityPoolAggregator) {
-    context.log.error(
-      `[loadPoolData] Pool ${poolId} not found on chain ${chainId}`,
-    );
+    if (!missingIsExpected) {
+      context.log.error(
+        `[loadPoolData] Pool ${poolId} not found on chain ${chainId}`,
+      );
+    }
     return null;
   }
 
@@ -863,12 +870,16 @@ export async function loadPoolDataOrRootCLPool(
   ).filter((mapping) => mapping.rootChainId === chainId);
 
   if (rootPoolLeafPools.length === 0) {
+    // Not a local pool and no mapping yet: a root pool whose leaf pool has not
+    // been seen. The caller parks the event (PendingVote / PendingDistribution),
+    // so this is not an error; an Optimism-only sync hit it 95,000 times.
     const poolData = await loadPoolData(
       poolAddress,
       chainId,
       context,
       blockNumber,
       blockTimestamp,
+      true,
     );
 
     if (poolData) {

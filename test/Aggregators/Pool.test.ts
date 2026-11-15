@@ -2490,6 +2490,7 @@ describe("Pool Functions", () => {
       });
       expect(mockLiquidityPoolGet).toHaveBeenCalledWith(rootPoolId);
 
+      // The caller parks the event, so a missing root pool is not an error.
       const errorMessages = mockErrorLog?.mock.calls.map((call) => call[0]);
       expect(
         errorMessages?.some(
@@ -2497,7 +2498,7 @@ describe("Pool Functions", () => {
             typeof msg === "string" &&
             msg.includes(`Pool ${rootPoolId} not found on chain ${chainId}`),
         ),
-      ).toBe(true);
+      ).toBe(false);
     });
 
     it("should return null when multiple RootPool_LeafPool entries exist", async () => {
