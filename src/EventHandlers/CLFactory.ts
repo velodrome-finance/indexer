@@ -132,7 +132,9 @@ async function handleCLPoolCreated(
   );
 
   // Only a legacy leaf pool can be the leaf of an Optimism root pool.
-  if (!isAero && event.chainId !== 10 && event.chainId !== 8453) {
+  // Widened: a chain-subset config narrows event.chainId to its own chains.
+  const chainId: number = event.chainId;
+  if (!isAero && chainId !== 10 && chainId !== 8453) {
     // TODO(ADR 0009, flow E): the leaf pool's root pool is joined in ClickHouse
     // on `rootPoolMatchingHash` (stored on this Pool) and the root factory; the
     // PendingRootPoolMapping rows written by Optimism are no longer visible here.
