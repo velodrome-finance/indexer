@@ -87,7 +87,7 @@ indexer.onEvent(
         // TODO(ADR 0009, flow D): the flush read Optimism's PendingVote /
         // PendingDistribution rows, which a leaf handler can no longer see.
         logPerChainStubOnce(
-          context.log,
+          context,
           "D",
           "V2 leaf PoolCreated: RootPool_LeafPool written on the leaf chain; pending root votes / distributions are not flushed (they stay on the root chain).",
         );

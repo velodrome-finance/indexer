@@ -670,7 +670,7 @@ async function findCanonicalCandidate(
     // hourly seed (ADR 0008). The head-of-chain replacement is decided in
     // ADR 0009.
     logPerChainStubOnce(
-      context.log,
+      context,
       "F",
       "Canonical price candidate: the source chain's Token is not read; seed and local pools only.",
     );

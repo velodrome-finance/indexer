@@ -14,7 +14,10 @@
 /** The cross-chain flows of ADR 0009. */
 export type PerChainFlow = "A" | "B" | "C" | "D" | "E" | "F" | "G";
 
-type Logger = { info: (message: string) => void };
+type StubContext = {
+  readonly isPreload: boolean;
+  readonly log: { info: (message: string) => void };
+};
 
 const reported = new Set<PerChainFlow>();
 
@@ -22,17 +25,17 @@ const reported = new Set<PerChainFlow>();
  * Logs, once per process and flow, that a stubbed cross-chain flow was
  * reached and what the stub does instead.
  *
- * @param log - The handler context's logger
+ * @param context - The handler context (a preload pass neither logs nor counts)
  * @param flow - The ADR 0009 flow letter
  * @param message - What the stub does instead of the cross-chain read/write
  * @returns Nothing; the first call per flow logs, later calls do nothing
  */
 export function logPerChainStubOnce(
-  log: Logger,
+  context: StubContext,
   flow: PerChainFlow,
   message: string,
 ): void {
-  if (reported.has(flow)) return;
+  if (context.isPreload || reported.has(flow)) return;
   reported.add(flow);
-  log.info(`[per-chain stub ${flow}] ${message}`);
+  context.log.info(`[per-chain stub ${flow}] ${message}`);
 }

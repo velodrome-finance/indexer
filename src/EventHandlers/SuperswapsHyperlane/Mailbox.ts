@@ -22,7 +22,7 @@ indexer.onEvent(
     // the migration writes per-side SuperSwap rows joined by messageId in
     // ClickHouse and drops the staging rows.
     logPerChainStubOnce(
-      context.log,
+      context,
       "G",
       "SuperSwap stitching only sees this chain's legs; cross-chain pairs stay unstitched.",
     );

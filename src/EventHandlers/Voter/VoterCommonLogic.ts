@@ -248,7 +248,7 @@ export function createPendingVoteForDeferredProcessing(
   // replaces PendingVote by a root-pool vote entity joined to the leaf pool in
   // ClickHouse.
   logPerChainStubOnce(
-    context.log,
+    context,
     "A",
     "Vote for a root pool: kept on the root chain as a PendingVote; the leaf pool is not updated.",
   );

@@ -139,7 +139,7 @@ async function handleCLPoolCreated(
     // on `rootPoolMatchingHash` (stored on this Pool) and the root factory; the
     // PendingRootPoolMapping rows written by Optimism are no longer visible here.
     logPerChainStubOnce(
-      context.log,
+      context,
       "E",
       "CL leaf PoolCreated: no PendingRootPoolMapping flush; the leaf pool carries rootPoolMatchingHash for the ClickHouse join.",
     );

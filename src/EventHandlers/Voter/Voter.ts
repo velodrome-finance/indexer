@@ -356,7 +356,7 @@ indexer.onEvent(
             // on the root chain; the leaf Pool's emission totals come from a
             // ClickHouse view instead.
             logPerChainStubOnce(
-              context.log,
+              context,
               "B",
               "DistributeReward for a root gauge: kept on the root chain as a PendingDistribution; the leaf pool is not updated.",
             );

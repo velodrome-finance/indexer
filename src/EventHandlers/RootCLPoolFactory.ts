@@ -42,7 +42,7 @@ indexer.onEvent(
       // (a root-chain row keyed by the root pool, carrying the matching hash)
       // and joined to the leaf pool in ClickHouse.
       logPerChainStubOnce(
-        context.log,
+        context,
         "C",
         "RootPoolCreated: leaf pools are not visible; stored as PendingRootPoolMapping on the root chain.",
       );
