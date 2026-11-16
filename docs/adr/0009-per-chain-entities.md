@@ -314,6 +314,24 @@ votes coalescing in `pools` / `pool_*` / `chain_*`, and `super_swaps`.
      it to `false` to run as per-chain mode will). Overrides
      `PRICING_CANONICAL_CLICKHOUSE_URL` / `_DATABASE` read the source from
      another server or database.
+   - **Measured** (Mode alone to block 47,336,000 = 2026-11-16 ~14:50 UTC,
+     shared mode, live read off, effect reading `prod/optimism`, whose
+     Optimism history ends at 2026-11-16 05:00; against the same sync at
+     60044cd): the seed hours are unchanged (WETH 2,607, XVELO 7,987
+     `canonical-seed` rows, identical), as are the `pool` hours; 94
+     token-hours that carried (59) or were unpriced (35) became
+     `canonical-snapshot` (WETH 28 between the seed's end and 06:00 on
+     11-16, plus 3 in May 2024, before the seed's start; XVELO 63 after the
+     VELO seed's end on 11-03), each equal to Optimism's `pool` snapshot of
+     the hour asked (94 of 94); after the source's last hour the 3 leaf
+     refreshes got "not yet" and carried, and none of those was cached.
+     97 effect executions for 97 token-hours that reached it (one each; the
+     preload pass did not add any), 94 cache rows. Every other table is
+     identical (51 of 57 ClickHouse history tables, every version; 57 of 60
+     Postgres tables); `Pool`, `PoolSnapshot`, `Token`, `UserStatsPerPool`
+     and their snapshots differ only in USD / price columns, in hours from the
+     first effect answer on (three tokens priced through Mode WETH become
+     `pool` where they carried before).
 4. Flip: the flag, the `chainId` codemod, delete the pending machinery, the
    leaf-field writes and the `SuperSwap` entity, migrate the tests, update
    `docs/`. Full resync (ClickHouse `ORDER BY` and Postgres layout change).
