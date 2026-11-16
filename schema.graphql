@@ -859,7 +859,7 @@ type RootGauge_RootPool {
 # from root-chain events only (ADR 0009): the votes and emissions of a leaf pool
 # live here, and the analytics layer joins them to the leaf Pool
 # (root_leaf_pools). Created at RootCLPoolFactory.RootPoolCreated (CL) or
-# RootPoolFactory.PoolCreated (V2).
+# RootPoolFactory.RootPoolCreated (V2).
 type RootPool {
   id: ID! # Format: {chainId}-{rootPoolAddress} (RootPoolId)
   chainId: Int! # root chain id (10)

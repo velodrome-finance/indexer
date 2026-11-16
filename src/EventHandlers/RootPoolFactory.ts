@@ -8,7 +8,7 @@ import {
 // carry the leaf chain; it is recovered from the pool's CREATE2 address
 // (deriveV2RootPoolLeafChain), so no other chain's rows and no RPC are needed.
 indexer.onEvent(
-  { contract: "RootPoolFactory", event: "PoolCreated" },
+  { contract: "RootPoolFactory", event: "RootPoolCreated" },
   async ({ event, context }) => {
     const { token0, token1, stable, pool } = event.params;
     const leafChainId = deriveV2RootPoolLeafChain(
@@ -20,7 +20,7 @@ indexer.onEvent(
     );
     if (leafChainId === undefined) {
       context.log.warn(
-        `[RootPoolFactory.PoolCreated] leaf chain of V2 root pool ${pool} not derivable from its address (no known leaf chain matches)`,
+        `[RootPoolFactory.RootPoolCreated] leaf chain of V2 root pool ${pool} not derivable from its address (no known leaf chain matches)`,
       );
     }
     await createRootPool(

@@ -227,7 +227,7 @@ votes coalescing in `pools` / `pool_*` / `chain_*`, and `super_swaps`.
      transaction that processed messages: Hyperlane emits `ProcessId` before
      it calls the recipient, so the swap comes later in the transaction; a
      Postgres-only `TxProcessIdRegistry` carries the message ids to it).
-   - V2 root pools come from the V2 RootPoolFactory's `PoolCreated` (new
+   - V2 root pools come from the V2 RootPoolFactory's `RootPoolCreated` (new
      config contract on Optimism). The event has no chain id; the leaf chain
      is recovered from the pool's address: CREATE2 from the factory with salt
      `keccak256(chainid, token0, token1, stable)` and an EIP-1167 clone of the

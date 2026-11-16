@@ -112,7 +112,7 @@ describe("RootPool on the root chain", () => {
             },
             {
               contract: "RootPoolFactory",
-              event: "PoolCreated",
+              event: "RootPoolCreated",
               srcAddress: ROOT_V2_FACTORY,
               logIndex: 2,
               block: block(127_697_794, 1_730_000_000),

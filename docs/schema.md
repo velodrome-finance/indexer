@@ -1525,7 +1525,7 @@ Entities not yet categorized in scripts/generate-schema-docs.ts.
 
 ### RootPool
 
-A superchain root pool on the root chain (Optimism; Base has none), written from root-chain events only (ADR 0009): the votes and emissions of a leaf pool live here, and the analytics layer joins them to the leaf Pool (root_leaf_pools). Created at RootCLPoolFactory.RootPoolCreated (CL) or RootPoolFactory.PoolCreated (V2).
+A superchain root pool on the root chain (Optimism; Base has none), written from root-chain events only (ADR 0009): the votes and emissions of a leaf pool live here, and the analytics layer joins them to the leaf Pool (root_leaf_pools). Created at RootCLPoolFactory.RootPoolCreated (CL) or RootPoolFactory.RootPoolCreated (V2).
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |

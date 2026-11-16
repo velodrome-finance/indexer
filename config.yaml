@@ -36,12 +36,13 @@ contracts:
     events:
       - event: RootPoolCreated
   # Superchain V2 RootPoolFactory (Optimism): creates the V2 root pools whose
-  # votes and emissions RootPool carries (ADR 0009). Same PoolCreated as a V2
-  # PoolFactory; the leaf chain is not in the event (see RootPoolLogic.ts).
+  # votes and emissions RootPool carries (ADR 0009). Its event is RootPoolCreated with
+  # the fields of a V2 PoolCreated (topic 0xa9273d61…); the leaf chain is not in it
+  # (see RootPoolLogic.ts).
   - name: RootPoolFactory
     handler: src/EventHandlers/RootPoolFactory.ts
     events:
-      - event: "PoolCreated(address indexed token0, address indexed token1, bool indexed stable, address pool, uint256 length)"
+      - event: "RootPoolCreated(address indexed token0, address indexed token1, bool indexed stable, address pool, uint256 length)"
   - name: CLFactory
     abi_file_path: abis/CLFactory.json
     handler: src/EventHandlers/CLFactory.ts

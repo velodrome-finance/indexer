@@ -86,7 +86,7 @@ export const RootPoolVoteId = (
  *
  * @param factory - The RootPoolFactory
  * @param leafChainId - Leaf chain id (the salt's chainid)
- * @param token0 - token0 (sorted, as in PoolCreated)
+ * @param token0 - token0 (sorted, as in RootPoolCreated)
  * @param token1 - token1
  * @param stable - Stable pool
  * @param implementation - The factory's clone implementation
@@ -125,11 +125,11 @@ export function predictV2RootPoolAddress(
  * The leaf chain of a V2 root pool, recovered from its address: the one known
  * leaf chain whose CREATE2 salt gives that address.
  *
- * @param factory - The RootPoolFactory that emitted PoolCreated
- * @param rootPoolAddress - The root pool from PoolCreated
- * @param token0 - token0 from PoolCreated
- * @param token1 - token1 from PoolCreated
- * @param stable - stable from PoolCreated
+ * @param factory - The RootPoolFactory that emitted RootPoolCreated
+ * @param rootPoolAddress - The root pool from RootPoolCreated
+ * @param token0 - token0 from RootPoolCreated
+ * @param token1 - token1 from RootPoolCreated
+ * @param stable - stable from RootPoolCreated
  * @param candidates - Leaf chains to try
  * @returns The leaf chain id, or undefined when no candidate (or more than one) matches
  */
