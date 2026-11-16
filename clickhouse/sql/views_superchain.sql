@@ -2,10 +2,10 @@
 -- indexer has RootPool. Placeholders as in views.sql.
 --
 -- A superchain leaf pool's votes and emissions happen on the root chain (Optimism) against a
--- placeholder root pool. The indexer stores them on the root chain (RootPool, RootPoolVote)
--- and these views join them to the leaf pool. Until the per-chain flip the indexer also writes
--- the same numbers onto the leaf Pool (pools.votes / emissions_*); `leaf_pool_root_totals`
--- shows both side by side.
+-- placeholder root pool. The indexer stores them on the root chain only (RootPool,
+-- RootPoolVote; per-chain entities, ADR 0009) and these views join them to the leaf pool. They
+-- replace the empty leaf_pool_root_* views of views.sql, through which pools, pool_hourly and
+-- pool_daily show a leaf pool's root-side votes and emissions.
 --
 -- Big integers are exact Int256 (*_raw, as envio stored them) with Float64 companions in whole
 -- units (/ 1e18) like the other views.
@@ -80,9 +80,8 @@ INNER JOIN (
 ) AS m ON m.root_chain_id = r.root_chain_id AND m.root_pool_address = r.root_pool_address
 WHERE NOT r.is_cl AND (r.leaf_chain_id IS NULL OR r.leaf_chain_id = m.leaf_chain_id);
 
--- Every leaf pool with a root pool: the root-side vote weight and emissions (the replacement for
--- the leaf Pool's fields at the per-chain flip) next to what the indexer stores on the leaf Pool
--- today (stored_*; filled by the cross-chain handlers until the flip).
+-- Every leaf pool with a root pool: the root-side vote weight and emissions (what the leaf Pool
+-- stored before the per-chain flip).
 CREATE OR REPLACE VIEW {{db}}.leaf_pool_root_totals AS
 SELECT
   m.leaf_chain_id AS leaf_chain_id,
@@ -98,15 +97,43 @@ SELECT
   r.emissions_total AS emissions_total,
   r.emissions_usd_raw AS emissions_usd_raw,
   r.emissions_usd_total AS emissions_usd_total,
-  r.distributions_total AS distributions_total,
-  p.votes AS stored_votes_raw,
-  p.emissions AS stored_emissions_raw,
-  p.emissions_usd AS stored_emissions_usd_raw
+  r.distributions_total AS distributions_total
 FROM {{db}}.root_leaf_pools AS m
 INNER JOIN {{db}}.root_pools AS r
-  ON r.root_chain_id = m.root_chain_id AND r.root_pool_address = m.root_pool_address
-LEFT JOIN (SELECT chain_id, pool_address, votes, emissions, emissions_usd FROM {{db}}._pool FINAL) AS p
-  ON p.chain_id = m.leaf_chain_id AND p.pool_address = m.leaf_pool_address;
+  ON r.root_chain_id = m.root_chain_id AND r.root_pool_address = m.root_pool_address;
+
+-- A leaf pool's root pool series, per hour / day in which the root pool changed: end-of-period
+-- vote weight and cumulative emissions, and the emissions in the period (from the layer's
+-- _root_pool_hour / _root_pool_day, exact like _pool_hour).
+CREATE OR REPLACE VIEW {{db}}.leaf_pool_root_hourly AS
+SELECT
+  m.leaf_chain_id AS leaf_chain_id,
+  m.leaf_pool_address AS leaf_pool_address,
+  m.root_pool_address AS root_pool_address,
+  h.period AS period,
+  h.votes AS votes_raw,
+  h.emissions AS emissions_raw,
+  h.emissions_usd AS emissions_usd_raw,
+  h.emissions - h.prev_emissions AS emissions_flow_raw,
+  h.emissions_usd - h.prev_emissions_usd AS emissions_usd_flow_raw
+FROM {{db}}.root_leaf_pools AS m
+INNER JOIN (SELECT * FROM {{db}}._root_pool_hour FINAL) AS h
+  ON h.chain_id = m.root_chain_id AND h.root_pool_address = m.root_pool_address;
+
+CREATE OR REPLACE VIEW {{db}}.leaf_pool_root_daily AS
+SELECT
+  m.leaf_chain_id AS leaf_chain_id,
+  m.leaf_pool_address AS leaf_pool_address,
+  m.root_pool_address AS root_pool_address,
+  h.period AS period,
+  h.votes AS votes_raw,
+  h.emissions AS emissions_raw,
+  h.emissions_usd AS emissions_usd_raw,
+  h.emissions - h.prev_emissions AS emissions_flow_raw,
+  h.emissions_usd - h.prev_emissions_usd AS emissions_usd_flow_raw
+FROM {{db}}.root_leaf_pools AS m
+INNER JOIN (SELECT * FROM {{db}}._root_pool_day FINAL) AS h
+  ON h.chain_id = m.root_chain_id AND h.root_pool_address = m.root_pool_address;
 
 -- One veNFT's current vote on a root pool (RootPoolVote), with the leaf pool it stands for.
 CREATE OR REPLACE VIEW {{db}}.root_pool_votes AS
@@ -130,8 +157,12 @@ LEFT JOIN {{db}}.root_leaf_pools AS m
 WHERE v.envio_change = 'SET';
 
 -- SuperSwaps stitched from the two legs each chain writes for itself (SuperSwapOriginLeg,
--- SuperSwapDestinationLeg), by message id. Like the SuperSwap entity: per origin transaction,
--- the first dispatched message (dispatch_index) that reached a destination oUSDT swap.
+-- SuperSwapDestinationLeg), by message id: the replacement of the SuperSwap entity (removed at
+-- the per-chain flip, ADR 0009), which it reproduces field for field, plus the SuperSwaps the
+-- handler-side stitching lost when the origin chain was processed before the destination. Like
+-- the entity: per origin transaction, the first dispatched message (dispatch_index) that
+-- reached a destination oUSDT swap. The entity's single `timestamp` is origin_timestamp or
+-- destination_timestamp (it took whichever side the indexer processed last).
 CREATE OR REPLACE VIEW {{db}}.super_swap_legs AS
 SELECT
   o.messageId AS message_id,

@@ -1,6 +1,8 @@
 # ADR 0004: Canonical cross-chain sources compete on depth
 
-- **Status:** Accepted (2026-11-13). Amends ADR 0003's rebind fallback.
+- **Status:** Superseded (2026-11-16) by ADR 0009 (per-chain entities): the live
+  read of the source chain's `Token` is removed. Accepted 2026-11-13; amended
+  ADR 0003's rebind fallback.
 
 ## Context
 
@@ -65,3 +67,17 @@ The depth floors are unchanged.
   the same hour (within the ±2 h band the two prices should agree closely).
 - Tokens not on the equivalence list (USDC.e and MTL on Metal, for example)
   still depend on local depth.
+
+## Amendment (2026-11-16): superseded by per-chain entities (ADR 0009)
+
+With every entity per-chain a handler cannot read another chain's `Token`, so
+the live canonical candidate is gone, and with it the `canonical` price source
+and the `PRICING_CANONICAL_LIVE_READ` switch (ADR 0009 step 4). A leaf token
+with a canonical source now resolves: local pools (deepest qualifying), then
+the committed hourly seed of the source (`canonical-seed`, ADR 0008), then the
+source's own hourly `TokenPriceSnapshot` read from this deployment's ClickHouse
+by the `getCanonicalSourcePrice` effect (`canonical-snapshot`, ADR 0009 flow F),
+then two-hop routes, then carry. The source never competes with local pools on
+depth any more: it is a fallback, like the seed. The consequence above about
+chain interleaving no longer applies to the live source; the effect's
+remaining dependence on the source chain's progress is described in ADR 0009.
