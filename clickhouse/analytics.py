@@ -447,27 +447,40 @@ def refresh_rows(ctx: Ctx, e: Entity, instance: str) -> str:
     read the whole table: per-chain sequences overlap, so no constant bound fits every chain.)
     Shared: one branch, the sequence 0. Per-chain: CHAIN_SLOTS branches, the n-th taking the
     n-th chain of envio_chains; an unused branch has frontier 0 and reads nothing.
+
+    Two phases, as in the backfill: the branches read only the key columns to find the last
+    checkpoint per key, and the full rows are then fetched by primary key (id,
+    envio_checkpoint_id). Narrow branches also keep planning cheap with many slots.
     """
     only_set = "" if e.mode == "latest" else " AND envio_change = 'SET'"
     period = f", {e.period_expr} AS _period" if e.mode != "latest" else ""
     h = f"{q(ctx.src)}.{q(ctx.hist(e))}"
     alive = f"(SELECT any(instance) FROM {q(ctx.src)}.envio_info) = {lit(instance)}"
+    scope = ctx.scope_cols()
     slots = CHAIN_SLOTS if ctx.per_chain() else 1
+    narrow = ", ".join([*scope, "id", "envio_checkpoint_id"]) + period
     branches = []
     for i in range(1, slots + 1):
         c = f"__chains[{i}]"
         branches.append(
-            f"  SELECT *{period} FROM {h}\n"
-            f"  WHERE {ctx.scope_src()} = {c} AND envio_checkpoint_id > __wm[{c}]\n"
-            f"    AND envio_checkpoint_id <= least(__fr[{c}], __wm[{c}] + toUInt64({MAX_CHECKPOINTS_PER_REFRESH})){only_set}\n"
-            f"    AND {alive}"
+            f"    SELECT {narrow} FROM {h}\n"
+            f"    WHERE {ctx.scope_src()} = {c} AND envio_checkpoint_id > __wm[{c}]\n"
+            f"      AND envio_checkpoint_id <= least(__fr[{c}], __wm[{c}] + toUInt64({MAX_CHECKPOINTS_PER_REFRESH})){only_set}\n"
+            f"      AND {alive}"
         )
-    key = ", ".join([*ctx.scope_cols(), "id"] + ([] if e.mode == "latest" else ["_period"]))
+    key = ", ".join([*scope, "id"] + ([] if e.mode == "latest" else ["_period"]))
+    latest = (
+        "  SELECT {cols} FROM (\n" + "\n    UNION ALL\n".join(branches) + "\n  )\n"
+        f"  ORDER BY {key}, envio_checkpoint_id DESC LIMIT 1 BY {key}"
+    )
+    # the tuple's id and envio_checkpoint_id reach the primary key; per-chain it also carries
+    # the chain, since the same (id, checkpoint) may exist on two chains
+    tup = ", ".join([*scope, "id", "envio_checkpoint_id"])
+    where = f"({tup}) IN (\n{latest.format(cols=tup)}\n)"
     return (
         f"WITH {ctx.frontier_map_sql()} AS __fr, {watermark_map_sql(ctx, e)} AS __wm,\n"
         f"  arraySort(mapKeys(__fr)) AS __chains\n"
-        f"SELECT * FROM (\n" + "\n  UNION ALL\n".join(branches) + "\n)\n"
-        f"ORDER BY {key}, envio_checkpoint_id DESC LIMIT 1 BY {key}"
+        f"SELECT *{period} FROM {h}\nWHERE {where}"
     )
 
 

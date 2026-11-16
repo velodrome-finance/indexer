@@ -139,21 +139,39 @@ server.
 ## How the layer stays exact
 
 **What envio writes.** Each batch is inserted into the history tables (one row per entity per
-block it changed in, `envio_change` = `SET` or `DELETE`, `envio_checkpoint_id` increasing,
-shared by all chains), then one row per chain into `envio_chains` (a `ReplacingMergeTree`) moves
-the *commit frontier*, the highest committed checkpoint. Rows above the frontier belong to a
-batch still in flight; if the indexer dies before committing, the next start deletes them
-(`ALTER TABLE … DELETE` on resume) and re-runs the batch, reusing the same checkpoint ids. A
-reorg deletes nothing in ClickHouse: envio writes the restored state (or a `DELETE` for entities
-the reorg created) as new rows at a later checkpoint.
+block it changed in, `envio_change` = `SET` or `DELETE`, `envio_checkpoint_id` increasing),
+then one row per chain into `envio_chains` (a `ReplacingMergeTree`) moves the *commit
+frontier*, the highest committed checkpoint. Rows above the frontier belong to a batch still in
+flight; if the indexer dies before committing, the next start deletes them (`ALTER TABLE …
+DELETE` on resume) and re-runs the batch, reusing the same checkpoint ids. A reorg deletes
+nothing in ClickHouse: envio writes the restored state (or a `DELETE` for entities the reorg
+created) as new rows at a later checkpoint.
+
+**Checkpoint sequences.** With entities shared across chains (envio's default) the checkpoint
+ids form one sequence for the whole indexer and the frontier is `max(checkpoint_id)` over
+`envio_chains`. With `disable_default_cross_chain: true` (ADR 0009) every chain has its own
+sequence: ids start at 1 on each chain and overlap, a chain's rows are committed up to its own
+`envio_chains.checkpoint_id`, chains advance independently, and a chain can be added later
+(`envio start --chain`) with a sequence that starts again at 1. The layer reads the mode off
+envio's own entity views (per-chain views pick rows with `envio_frontier[chainId]`, shared
+ones with `max(checkpoint_id)`; `ANALYTICS_CHECKPOINT_SEQUENCE=per-chain|shared` overrides) and
+keys every frontier and watermark by the row's sequence: its chain when per-chain (envio's
+`chainId` on history rows, `chain_id` in the layer's tables), the constant 0 when shared. In
+shared mode that is exactly the single-sequence logic, and the tables' definitions are
+unchanged; per-chain, the tables are also partitioned by `chain_id`. `install` stores the mode
+in `_meta` and rebuilds when it changes.
 
 **What the layer does.** Each storage table is a `ReplacingMergeTree(_version, _deleted)` keyed
 by the entity's natural key (derived from envio's id, so `DELETE` rows, which carry only the
-id, land on the right key). `_version` is `envio_checkpoint_id`, `_deleted` is
-`envio_change = 'DELETE'`. Its refresh reads only history rows with
-`watermark < envio_checkpoint_id <= frontier`, where the watermark is the newest version the
-table already holds (minus one, so a refresh that died half way through a checkpoint is
-completed). Consequences:
+id, land on the right key; the key includes the chain). `_version` is `envio_checkpoint_id`,
+`_deleted` is `envio_change = 'DELETE'`. Its refresh reads, per sequence, only history rows
+with `watermark < envio_checkpoint_id <= frontier`, where the watermark is the newest version
+the table already holds for that sequence (minus one, so a refresh that died half way through
+a checkpoint is completed). Per-chain, each chain's window is its own `UNION ALL` branch with
+constant bounds, so the checkpoint skip index still prunes (the per-chain windows overlap, so no
+single range would); the branches are slots filled at refresh time with the n-th chain of
+`envio_chains` (`ANALYTICS_CHAIN_SLOTS`, default 32, and `status` warns beyond), so a chain
+added to the indexer is loaded by the running refreshes without a reinstall. Consequences:
 
 - a row is never loaded before envio committed it, so **readers never see uncommitted rows**;
   rows a crash left above the frontier are deleted by envio before the frontier can pass them,
@@ -165,9 +183,9 @@ completed). Consequences:
 - a refresh is idempotent (loading a row twice changes nothing), so retries are safe.
 
 The watermark comes from part metadata (the tables are partitioned by
-`intDiv(_version, 10^12)`, one partition in practice, so `max(_version)` is read from the parts'
-min/max index, not from the column), and the history's checkpoint skip index limits a refresh
-to the granules that changed.
+`intDiv(_version, 10^12)`, one partition in practice, and per-chain also by `chain_id`, so
+`max(_version)` per sequence is read from the parts' min/max index, not from the column), and
+the history's checkpoint skip index limits a refresh to the granules that changed.
 
 The pool series (`_pool_hour`, `_pool_day`) and the Aero series (`_aero_gauge_day`,
 `_aero_leaf_voter_day`) use the same machinery with the key `(entity, period)`: the row kept for
@@ -184,13 +202,18 @@ within a minute or two of the frontier; over 30 minutes the 26 refreshes took 0.
 per run (mean), reading up to 460 k rows to write about 1 k (the series also read the previous
 period of each pool they touch). At the head of a live chain the windows are far smaller.
 
-**The proof.** `analytics.py verify` stops the refreshes, takes each table's watermark `W`,
-and compares the table, read with `FINAL`, against an independent computation over envio's
-history: per id (per id and period for the series), `argMax` of every raw envio column by
-`envio_checkpoint_id` over rows with checkpoint `<= W`, keeping ids whose latest change is a
-`SET`; for the series also the previous period's values (`lagInFrame` over the periods). Both
-sides are compared as text, column by column, so a lossy cast would show up too. It reports
-keys missing from the layer, extra keys and mismatches per column. Results:
+**The proof.** `analytics.py verify` stops the refreshes, takes each table's watermark `W`
+per sequence (capped at that sequence's commit frontier, so a version loaded before envio
+committed it counts as a mismatch), and compares the table, read with `FINAL`, against an
+independent computation over envio's history: per id (per id and period for the series),
+`argMax` of every raw envio column by `envio_checkpoint_id` over rows with checkpoint `<= W` of
+their sequence, keeping ids whose latest change is a `SET`; for the series also the previous
+period's values (`lagInFrame` over the periods). Both sides are compared as text, column by
+column, so a lossy cast would show up too. It reports keys missing from the layer, extra keys
+and mismatches per column. `verify` checks the state the layer holds; how far it trails the
+indexer is `status`: per table, the source rows between each sequence's watermark and
+frontier (`source_rows_behind`) and the sequences holding a version above their frontier
+(`ahead_of_frontier`). Results:
 
 <!-- VERIFY:BEGIN -->
 | database | how the layer was loaded | keys compared | result |
@@ -199,12 +222,17 @@ keys missing from the layer, extra keys and mismatches per column. Results:
 | Aero sync (`velo_aero_all`, a397cc0, seven Aero chains) | backfill at checkpoint 103 k, then refreshes up to 672 k while the indexer was backfilling | 1,096 pools, 148,196 user-pool rows, 31,414 positions, 36,878 pool-hours, every Aero table (477 gauges, 17,324 sAERO positions, 28,527 root allocations, 23,643 leaf allocations, 2,170 gauge-days, …) | all equal |
 | three-chain sync (`velo_verify`, 4b48e15) | backfill | 906,204 user-pool rows, 597,097 pool-hours, … | all equal |
 | Metal sync with the proposed schema (custom `orderBy`, `Decimal(38,0)` sources) | backfill | 18 pools, 3,733 user-pool rows, 512 positions, 54,363 token prices, 30,960 pool-hours | all equal |
+| Metal, shared sequence (`velo_pc_s`, 9a5d3ad), 2026-11-16 | the previous layer version installed, then upgraded in place (no table rebuilt, refreshes replaced) | 18 pools, 3,726 user-pool rows, 512 positions, 53,102 token prices, 30,960 pool-hours, 4,037 pool-days | all equal |
+| per-chain sequences (`velo_pc_a`, ADR 0009 proof branch): Metal + Mode, then Lisk and Superseed each added with `envio start --chain` while the refreshes ran, verified during and after each add | backfill at 1750:158,754 / 34443:2,404,056, then refreshes | 287 pools, 547,351 user-pool rows, 34,096 positions, 434,937 token prices, 539,931 pool-hours, 54,315 pool-days | all equal. The previous layer version on the same database lost every row a later-added chain wrote below the other chains' checkpoints: 14 of 81 Lisk pools, 274,781 user-pool rows, all of Superseed |
 <!-- VERIFY:END -->
 
 `clickhouse/tests/test_mechanism.py` plays the edge cases on a synthetic envio database (rows
 above the frontier; a `DELETE`; a crash whose rows envio trims and re-writes under reused
 checkpoint ids; a reorg rollback; hourly series and their `prev_` values across refreshes; an
-indexer reset) and runs `verify` after each step. All checks pass.
+indexer reset) and runs `verify` after each step. With `--template-per-chain <a per-chain envio
+database>` it plays the per-chain cases too: chains at different frontiers with overlapping
+checkpoint ids, a chain lagging far behind another, a chain added later, a crash trim and a
+reorg rollback on one chain only, and per-chain hourly series. All checks pass.
 
 ## Object catalogue
 

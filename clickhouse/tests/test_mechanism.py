@@ -204,7 +204,7 @@ def per_chain(ch, template: str, failures: list, keep: bool):
     # --- P1: two chains, overlapping checkpoint ids, different frontiers
     f.pool_row(50, 1, T0 + 10, pid=A_)
     f.pool_row(90, 2, T0 + 20, pid=A_)
-    f.pool_row(120, 3, T0 + 30, pid=A_)  # above A's frontier: in flight
+    f.pool_row(120, 3, T0 + 30, pid=A_)  # above A's frontier: in flight (committed once A reaches 150)
     f.pool_row(5, 10, T0 + 15, pid=B_)  # same checkpoint ids as A's, other sequence
     f.pool_row(8, 11, T0 + 25, pid=B_)
     f.pool_row(20, 99, T0 + H + 5, pid=B_)  # above B's frontier (10), below A's (100): in flight
@@ -263,7 +263,7 @@ def per_chain(ch, template: str, failures: list, keep: bool):
     hours = ch.rows(f"SELECT chain_id, toUnixTimestamp(period) - {T0} AS h, toString(tvl_usd) AS v, toString(prev_tvl_usd) AS p "
                     f"FROM {DB_PC}._pool_hour FINAL ORDER BY chain_id, period")
     f.check("P5 hourly series per chain", [(int(r["chain_id"]), int(r["h"]), int(r["v"]), int(r["p"])) for r in hours],
-            [(1135, 0, 30, 0), (1135, H, 31, 30), (1750, 0, 2, 0), (1750, 2 * H, 4, 2), (34443, 0, 11, 0), (34443, H, 12, 11)])
+            [(1135, 0, 30, 0), (1135, H, 31, 30), (1750, 0, 3, 0), (1750, 2 * H, 4, 3), (34443, 0, 11, 0), (34443, H, 12, 11)])
     f.check("P5 status: nothing behind or ahead", f.quiet_status()[:2], ([], []))
     f.check("P5 verify", f.verify(), True)
     if not keep:
