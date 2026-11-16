@@ -946,10 +946,7 @@ type SuperSwapDestinationLeg
 
 # Hyperlane messages processed in a transaction (Mailbox.ProcessId), so the
 # first oUSDT swap of that transaction can write its SuperSwapDestinationLeg.
-type TxProcessIdRegistry
-  @storage(postgres: true, clickhouse: false)
-  @internal
-{
+type TxProcessIdRegistry @storage(postgres: true, clickhouse: false) @internal {
   id: ID! # Format: {chainId}-{transactionHash}
   messageIds: [String!]! # message ids processed in this tx, in processing order
   timestamp: Timestamp! # block time of the tx
