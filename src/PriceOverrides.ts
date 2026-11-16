@@ -563,47 +563,14 @@ const BLACKLIST: ReadonlySet<string> = new Set([
     8453,
     toChecksumAddress("0x23FA9a1a634222C03F3C02124242DFf56bD90787"),
   ), // BAIBAI
-  // Issue #786: frozen oracle-route constants on WHITELISTED tokens. Distinct
-  // from every entry above (which are wrong-HIGH in absolute per-token terms
-  // and surface via the `pricePerUSDNew > 10^28` enumeration). Here the route
-  // returns a flat wrong-high constant that is SMALL per-token — PEPE froze at
-  // ~$0.259302, wOptiDoge at ~$0.0515 — so it is invisible to both the >$10^28
-  // sweep and the absolute price ceiling, and the spike-guard/re-anchor logic
-  // (#784/#785) cannot see it either: the oracle keeps returning the stuck
-  // value, so every read AGREES with the bad anchor (no upward disagreement to
-  // re-anchor against). Because both tokens are protocol-whitelisted, the
-  // frozen value leaks straight into USD aggregates (#786 reports ~$238B
-  // phantom TVL across WETH/PEPE, PEPE/GIZA, VELO/wOptiDoge, WETH/wOptiDoge).
-  // Blacklisting forces price 0 → trust-gated out of USD → pool TVL routes
-  // through the counterparty leg. The root question — WHY the connector route
-  // freezes at a constant for these two — is tracked as a separate
-  // investigation (see #786 cross-reference); this is the immediate stopgap.
-  TokenId(
-    8453,
-    toChecksumAddress("0x52b492a33E447Cdb854c7FC19F1e57E8BfA1777D"),
-  ), // PEPE / Base (whitelisted; frozen route)
-  TokenId(10, toChecksumAddress("0xC26921B5b9ee80773774d36C84328ccb22c3a819")), // wOptiDoge / Optimism (whitelisted; frozen route)
-  // Issue #901: the Base token at 0x940A319B… (symbol DEUS, 874M supply) is a
-  // SEPARATE, REAL token from canonical DEUS Finance — it merely shares the DEUS
-  // symbol. Canonical DEUS lives at 0xDE5ed76E7c05eC5e4572CfC88d1ACEA165109E44 on
-  // Base, is priced correctly (~$2.31), and is left untouched. The 0x940A319B
-  // token is whitelisted with a price anchor FROZEN at ~$0.528 while its own
-  // VIRTUAL/USDC pools imply ~$0.0229 (a 23× overprice) — the same frozen-anchor
-  // failure mode as the #786 PEPE/wOptiDoge entries above, not a worthless spoof.
-  // The frozen anchor inflates the VIRTUAL/DEUS V2 pool TVL to ~$8.2M (true
-  // ~$683k); #892/#897's directional cap misses it because VIRTUAL isn't a
-  // hard-anchor (stablecoin/WETH) counterparty. With no price-pin mechanism and
-  // nothing priced at ~$0.0229 to rebind to, blacklisting (price → 0) is the only
-  // available lever. It is lossy: it also zeroes the token's real ~$0.0229 leg, so
-  // the pool then UNDERCOUNTS (~$341k) instead of reporting the true ~$683k — a
-  // ~2× undercount accepted in place of a ~12× overcount, pending a proper
-  // re-anchor mechanism (tracked with the #786 frozen-route root cause). Volume
-  // and fees are unaffected: the min-of-legs picker and 10× out-of-band fee guard
-  // already discard the bad price; only TVL (sum-of-legs, ungated) was wrong.
-  TokenId(
-    8453,
-    toChecksumAddress("0x940A319B75861014A220D9c6c144d108552B089B"),
-  ), // DEUS (real token, frozen anchor 23× high; distinct from canonical DEUS Finance)
+  // Removed 2026-11-16 (issues #786, #901): PEPE on Base (0x52b4…777D),
+  // wOptiDoge on Optimism (0xC269…a819) and the DEUS-symbol token on Base
+  // (0x940A…089B) were blacklisted as a stopgap because the on-chain oracle's
+  // route for them froze at a wrong constant. They are real, whitelisted tokens
+  // with deep pools (priced-side depth up to $403K, $146K and $692K; above $5K
+  // for 4,412, 13,096 and 5,469 hours). Prices now come from those pools each
+  // hour (ADR 0003), so there is no anchor to freeze, and the blacklist only
+  // zeroed their side of the pools' TVL.
 ]);
 
 /**

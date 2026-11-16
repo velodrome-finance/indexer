@@ -89,49 +89,30 @@ describe("PriceOverrides", () => {
       },
     );
 
-    // Issue #786: whitelisted tokens whose oracle route froze at a wrong-high
-    // but small per-token constant (invisible to the >$10^28 sweep). Blacklist
-    // is the immediate stopgap that trust-gates them out of USD aggregates.
-    it("returns true for PEPE on Base (frozen route, issue #786)", () => {
-      expect(
-        isBlacklistedToken(
-          8453,
-          toChecksumAddress("0x52b492a33E447Cdb854c7FC19F1e57E8BfA1777D"),
-        ),
-      ).toBe(true);
-    });
-
-    it("returns true for wOptiDoge on Optimism (frozen route, issue #786)", () => {
-      expect(
-        isBlacklistedToken(
-          10,
-          toChecksumAddress("0xC26921B5b9ee80773774d36C84328ccb22c3a819"),
-        ),
-      ).toBe(true);
-    });
-
-    it("scopes #786 entries by chainId (PEPE/Base not blacklisted on Optimism)", () => {
-      expect(
-        isBlacklistedToken(
-          10,
-          toChecksumAddress("0x52b492a33E447Cdb854c7FC19F1e57E8BfA1777D"),
-        ),
-      ).toBe(false);
-    });
-
-    // Issue #901: 0x940A319B… (symbol DEUS, 874M supply) is a SEPARATE real token
-    // from canonical DEUS Finance — same symbol, anchor frozen at ~$0.528 vs
-    // ~$0.0229 pool-implied (#786 frozen-anchor class, not a worthless spoof).
-    // Blacklist forces its price to 0 so the inflated VIRTUAL/DEUS TVL routes
-    // through the counterparty leg.
-    it("returns true for the frozen-anchor DEUS token on Base (issue #901)", () => {
-      expect(
-        isBlacklistedToken(
-          8453,
-          toChecksumAddress("0x940A319B75861014A220D9c6c144d108552B089B"),
-        ),
-      ).toBe(true);
-    });
+    // Issues #786 and #901: three real, whitelisted tokens were blacklisted as
+    // a stopgap for an oracle route frozen at a wrong constant. With prices
+    // derived from pools (ADR 0003) there is no anchor to freeze, so the
+    // entries are gone and the tokens are priced like any other.
+    it.each([
+      [8453, "0x52b492a33E447Cdb854c7FC19F1e57E8BfA1777D", "PEPE on Base"],
+      [
+        10,
+        "0xC26921B5b9ee80773774d36C84328ccb22c3a819",
+        "wOptiDoge on Optimism",
+      ],
+      [
+        8453,
+        "0x940A319B75861014A220D9c6c144d108552B089B",
+        "DEUS-symbol token on Base",
+      ],
+    ] as const)(
+      "no longer blacklists %s %s (%s)",
+      (chainId, address, _label) => {
+        expect(isBlacklistedToken(chainId, toChecksumAddress(address))).toBe(
+          false,
+        );
+      },
+    );
 
     it("does not blacklist the canonical AERO on Base", () => {
       expect(
