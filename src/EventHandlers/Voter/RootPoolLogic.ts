@@ -30,7 +30,10 @@ import { getTrustedUSD } from "../../PriceTrust";
 import { VoterEventType } from "./VoterCommonLogic";
 
 /** The superchain root chain (Optimism). Base has no root pools. */
-export const SUPERCHAIN_ROOT_CHAIN_ID = 10;
+// Typed `number`, not the literal 10: envio narrows `event.chainId` to the chains
+// in the config, and its start-up type check rejects a comparison with a chain
+// the config does not contain (an indexer run on a chain subset without Optimism).
+export const SUPERCHAIN_ROOT_CHAIN_ID: number = 10;
 
 /**
  * Implementation the superchain V2 RootPoolFactory

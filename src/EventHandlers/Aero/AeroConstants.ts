@@ -14,7 +14,7 @@ import {
  */
 
 /** Base: the root chain (root Voter, VotingEscrow, Minter). */
-export const AERO_ROOT_CHAIN_ID = 8453;
+export const AERO_ROOT_CHAIN_ID: number = 8453;
 
 /**
  * The LeafVoter's idle sink (`ZERO_GAUGE` in ProtocolConstants.sol): weight
