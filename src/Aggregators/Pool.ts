@@ -136,6 +136,8 @@ export interface PoolDiff {
   incrementalNumberOfGaugeRewardClaims: bigint;
   incrementalTotalGaugeRewardsClaimedUSD: bigint;
   incrementalTotalGaugeRewardsClaimed: bigint;
+  incrementalTotalGaugeEarlyWithdrawPenalties: bigint;
+  incrementalTotalGaugeEarlyWithdrawPenaltiesUSD: bigint;
   incrementalCurrentLiquidityStaked: bigint;
   currentTotalLiquidityUSD: bigint;
   currentLiquidityStakedUSD: bigint;
@@ -524,6 +526,12 @@ export async function updatePool(
     totalGaugeRewardsClaimed:
       (diff.incrementalTotalGaugeRewardsClaimed ?? 0n) +
       current.totalGaugeRewardsClaimed,
+    totalGaugeEarlyWithdrawPenalties:
+      (diff.incrementalTotalGaugeEarlyWithdrawPenalties ?? 0n) +
+      current.totalGaugeEarlyWithdrawPenalties,
+    totalGaugeEarlyWithdrawPenaltiesUSD:
+      (diff.incrementalTotalGaugeEarlyWithdrawPenaltiesUSD ?? 0n) +
+      current.totalGaugeEarlyWithdrawPenaltiesUSD,
     currentLiquidityStaked:
       (diff.incrementalCurrentLiquidityStaked ?? 0n) +
       current.currentLiquidityStaked,
@@ -1097,6 +1105,8 @@ export function createPoolEntity(params: {
     numberOfGaugeRewardClaims: 0n,
     totalGaugeRewardsClaimedUSD: 0n,
     totalGaugeRewardsClaimed: 0n,
+    totalGaugeEarlyWithdrawPenalties: 0n,
+    totalGaugeEarlyWithdrawPenaltiesUSD: 0n,
     currentLiquidityStaked: 0n,
     currentLiquidityStakedUSD: 0n,
     // Voting Reward fields

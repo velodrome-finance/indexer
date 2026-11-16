@@ -386,11 +386,11 @@ indexer.onEvent(
       context,
     );
 
-    const result = await computeVoterDistributeValues(
+    const result = computeVoterDistributeValues(
       updatedRewardToken,
+      currentLiquidityPool,
       event.params.gauge,
       event.params.amount,
-      event.block.number,
       eventChainId,
       context,
       currentLiquidityPool.gaugeIsAlive ?? false,

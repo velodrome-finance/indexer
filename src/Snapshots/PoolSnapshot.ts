@@ -72,6 +72,9 @@ export function createPoolSnapshot(
     numberOfGaugeRewardClaims: entity.numberOfGaugeRewardClaims,
     totalGaugeRewardsClaimedUSD: entity.totalGaugeRewardsClaimedUSD,
     totalGaugeRewardsClaimed: entity.totalGaugeRewardsClaimed,
+    totalGaugeEarlyWithdrawPenalties: entity.totalGaugeEarlyWithdrawPenalties,
+    totalGaugeEarlyWithdrawPenaltiesUSD:
+      entity.totalGaugeEarlyWithdrawPenaltiesUSD,
     currentLiquidityStaked: entity.currentLiquidityStaked,
     currentLiquidityStakedUSD: entity.currentLiquidityStakedUSD,
     timestamp: epoch,

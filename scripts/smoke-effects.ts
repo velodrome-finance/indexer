@@ -18,7 +18,6 @@ import { getRpcStats } from "../src/Effects/RpcGateway";
 import { getSwapFee } from "../src/Effects/SwapFee";
 import { getTokenDetails, getTokenPrice } from "../src/Effects/Token";
 import { getTokenMetadata } from "../src/Effects/TokenMetadata";
-import { getTokensDeposited } from "../src/Effects/Voter";
 
 const CHAIN_ID = 10;
 const LISK_CHAIN_ID = 1135;
@@ -38,9 +37,6 @@ const CL_FACTORY_OPTIMISM = toChecksumAddress(
 );
 const POOL_OPTIMISM = toChecksumAddress(
   "0x478946bcd4a5a22b316470f5486fafb928c0ba25",
-);
-const GAUGE_OPTIMISM = toChecksumAddress(
-  "0xa75127121d28a9BF848F3B70e7Eea26570aa7700",
 );
 const VELO = toChecksumAddress("0x9560e827aF36c94D2Ac33a39bCE1Fe78631088Db");
 const BLOCK_NUMBER = 130_000_000;
@@ -118,12 +114,6 @@ async function main(): Promise<void> {
     token0: EZETH_MODE,
     token1: WETH,
     type: 0,
-  });
-  await run("getTokensDeposited", getTokensDeposited, {
-    rewardTokenAddress: VELO,
-    gaugeAddress: GAUGE_OPTIMISM,
-    blockNumber: BLOCK_NUMBER,
-    eventChainId: CHAIN_ID,
   });
   console.log("\nRPC stats:", JSON.stringify(getRpcStats()));
 }

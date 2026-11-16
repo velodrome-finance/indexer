@@ -11,7 +11,6 @@ import {
   RootGaugeRootPoolId,
   isKnownSinkRootPool,
 } from "../../Constants";
-import { getTokensDeposited } from "../../Effects/Index";
 import type { handlerContext } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
 import { normalizeTokenAmountTo1e18 } from "../../Helpers";
@@ -19,6 +18,10 @@ import { getTrustedUSD } from "../../PriceTrust";
 
 export interface VoterCommonResult {
   isAlive: boolean;
+  /**
+   * The gauge's reward-token balance after this distribution, derived from
+   * events, in raw reward-token units (written to `Pool.totalVotesDeposited`).
+   */
   tokensDeposited: bigint;
   normalizedEmissionsAmount: bigint;
   normalizedEmissionsAmountUsd: bigint;
@@ -30,30 +33,41 @@ export enum VoterEventType {
   ABSTAINED = "Abstained",
 }
 
-export async function computeVoterDistributeValues(
+/**
+ * Computes the pool updates for a Voter DistributeReward: the emission (1e18
+ * and USD) and the gauge's reward-token balance after it.
+ *
+ * The balance is derived from the pool's own event totals instead of read
+ * over RPC: everything that entered the gauge (`totalEmissions` including
+ * this distribution, `totalEmissionsRedistributed`) minus everything that
+ * left it (`totalEmissionsForfeited`, `totalGaugeRewardsClaimed`,
+ * `totalGaugeEarlyWithdrawPenalties`). This is `rewardToken.balanceOf(gauge)`
+ * for a gauge whose reward token only moves through those events. Amounts
+ * are combined in 1e18 units (`totalEmissions` is stored normalized; the
+ * other totals are raw reward-token units and are normalized with the reward
+ * token's decimals) and the result is returned in raw reward-token units, as
+ * the RPC read returned it. A negative result (totals missing an outflow) is
+ * clamped to 0 with a warning. For a leaf pool (the pool's chain differs from
+ * the distribution's chain) the balance is 0: see the comment in the body.
+ *
+ * @param rewardToken - The chain's legacy reward token (decimals and price)
+ * @param pool - The pool whose gauge received the distribution, before this distribution
+ * @param gaugeAddress - The distributing gauge (for the warning only)
+ * @param amountEmittedRaw - `event.params.amount`, raw reward-token units
+ * @param chainId - Chain of the DistributeReward (for the warning only)
+ * @param context - Handler context (logging)
+ * @param gaugeIsAlive - Gauge liveness to carry into the result
+ * @returns The emission amounts and the derived gauge balance with its USD value
+ */
+export function computeVoterDistributeValues(
   rewardToken: Token,
+  pool: Pool,
   gaugeAddress: string,
   amountEmittedRaw: bigint, // event.params.amount (reward token units)
-  blockNumber: number,
   chainId: number,
   context: handlerContext,
   gaugeIsAlive: boolean,
-): Promise<VoterCommonResult> {
-  const tokensDepositedResult = await context.effect(getTokensDeposited, {
-    rewardTokenAddress: rewardToken.address,
-    gaugeAddress,
-    blockNumber,
-    eventChainId: chainId,
-  });
-
-  const tokensDeposited = tokensDepositedResult ?? 0n;
-
-  if (tokensDepositedResult === undefined) {
-    context.log.error(
-      `Failed to fetch tokensDeposited for gauge ${gaugeAddress} on chain ${chainId}, using default: 0n`,
-    );
-  }
-
+): VoterCommonResult {
   const rewardTokenDecimals = Number(rewardToken.decimals);
 
   const normalizedEmissionsAmount = normalizeTokenAmountTo1e18(
@@ -66,8 +80,34 @@ export async function computeVoterDistributeValues(
     rewardToken,
   );
 
+  // A superchain leaf pool: the distribution is on the root chain and the
+  // claims are on the leaf chain, and Envio does not keep the two in time
+  // order during a backfill, so the totals cannot be combined. The RPC read
+  // this replaces returned the root gauge's balance there, which is about 0
+  // once the tokens are bridged; keep 0.
+  const isLeafPool = pool.chainId !== chainId;
+  const toE18 = (raw: bigint) =>
+    normalizeTokenAmountTo1e18(raw, rewardTokenDecimals);
+  const balanceE18 = isLeafPool
+    ? 0n
+    : pool.totalEmissions +
+      normalizedEmissionsAmount +
+      toE18(pool.totalEmissionsRedistributed) -
+      toE18(pool.totalEmissionsForfeited) -
+      toE18(pool.totalGaugeRewardsClaimed) -
+      toE18(pool.totalGaugeEarlyWithdrawPenalties);
+  if (balanceE18 < 0n) {
+    context.log.warn(
+      `[computeVoterDistributeValues] Derived reward-token balance of gauge ${gaugeAddress} (pool ${pool.id}) on chain ${chainId} is negative (${balanceE18}, 1e18 units); using 0`,
+    );
+  }
+  const tokensDeposited =
+    balanceE18 > 0n
+      ? (balanceE18 * 10n ** BigInt(rewardTokenDecimals)) / 10n ** 18n
+      : 0n;
+
   const normalizedVotesDepositedAmountUsd = getTrustedUSD(
-    BigInt(tokensDeposited.toString()),
+    tokensDeposited,
     rewardToken,
   );
 

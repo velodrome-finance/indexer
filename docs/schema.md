@@ -68,8 +68,8 @@ Latest-state entities that hold the headline metrics most consumers query.
 | `numberOfSwapFeeFallbacks` | `BigInt!` | CL only: swaps whose fee could not be derived from the swap (tick-map walk disagreed with the event's liquidity, or the derived fee was negative or above 10% of the input) and were valued with the stored currentFee instead. Should stay 0 on a from-creation sync |
 | `token0Price` | `BigInt!` | price of token0 relative to token1 |
 | `token1Price` | `BigInt!` | price of token1 relative to token0 |
-| `totalVotesDeposited` | `BigInt!` | total votes deposited in veToken units (legacy weekly Voter votes; 0 on AERO pools: Aero has no weekly votes; sAERO allocations are in AeroLeafAllocation / AeroGauge.totalAllocated) |
-| `totalVotesDepositedUSD` | `BigInt!` | total votes deposited in USD (0 on AERO pools, see totalVotesDeposited) |
+| `totalVotesDeposited` | `BigInt!` | the gauge's undistributed reward-token balance (VELO on Optimism, AERO on Base; raw units, 18-dec) as of its last DistributeReward, derived from events; 0 on AERO pools (see AeroGauge) |
+| `totalVotesDepositedUSD` | `BigInt!` | totalVotesDeposited in USD at the reward token's price at that DistributeReward (0 on AERO pools) |
 | `totalEmissions` | `BigInt!` | total emissions for the pool in reward token units (VELO form Optimism and AERO for Base); 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
 | `totalEmissionsUSD` | `BigInt!` | total emissions for the pool in USD. totalEmissions* are legacy-gauge emissions; 0 on AERO pools (Aero emissions are minted on claim: see AeroGauge, ADR 0006) |
 | `totalEmissionsRedistributed` | `BigInt!` | cumulative reward tokens this pool's gauge received from the Redistributor (Redistributed events); AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
@@ -100,6 +100,8 @@ Latest-state entities that hold the headline metrics most consumers query.
 | `numberOfGaugeRewardClaims` | `BigInt!` | number of gauge reward claims |
 | `totalGaugeRewardsClaimedUSD` | `BigInt!` | total gauge rewards claimed in USD |
 | `totalGaugeRewardsClaimed` | `BigInt!` | total gauge rewards claimed in reward-token units — AERO on Base, VELO on Optimism (18-dec); single reward token per chain, coherent within a chain, NOT summable across chains (see #813) |
+| `totalGaugeEarlyWithdrawPenalties` | `BigInt!` | total reward tokens forfeited as early-withdraw penalties on legacy CL gauges (CLGauge.EarlyWithdrawPenalty, Gauges V3 min stake time); the gauge sends them to the chain's Minter in the same tx. Same units as totalGaugeRewardsClaimed, which they are not part of. 0 on AERO pools (see AeroGauge.totalEarlyWithdrawPenalty) |
+| `totalGaugeEarlyWithdrawPenaltiesUSD` | `BigInt!` | totalGaugeEarlyWithdrawPenalties in USD at the reward token's price at each penalty |
 | `currentLiquidityStaked` | `BigInt!` | current liquidity staked in gauge in token units |
 | `currentLiquidityStakedUSD` | `BigInt!` | current liquidity staked in gauge in USD |
 | `bribeVotingRewardAddress` | `String` | address of the bribe voting reward contract for this pool _(indexed)_ |
@@ -169,6 +171,8 @@ Entity for tracking user activity and positions in specific pools
 | `numberOfGaugeRewardClaims` | `BigInt!` | number of gauge reward claims |
 | `totalGaugeRewardsClaimedUSD` | `BigInt!` | total gauge rewards claimed in USD |
 | `totalGaugeRewardsClaimed` | `BigInt!` | total gauge rewards claimed in reward-token units — AERO on Base, VELO on Optimism (18-dec); single reward token per chain, coherent within a chain, NOT summable across chains (see #813) |
+| `totalGaugeEarlyWithdrawPenalties` | `BigInt!` | total reward tokens forfeited as early-withdraw penalties on legacy CL gauges (CLGauge.EarlyWithdrawPenalty, Gauges V3 min stake time); the gauge sends them to the chain's Minter in the same tx. Same units as totalGaugeRewardsClaimed, which they are not part of. 0 on AERO pools (see AeroGauge.totalEarlyWithdrawPenalty) |
+| `totalGaugeEarlyWithdrawPenaltiesUSD` | `BigInt!` | totalGaugeEarlyWithdrawPenalties in USD at the reward token's price at each penalty |
 | `totalStakedFeesCollected0` | `BigInt!` | pool fees (token0) collected by this user from staked position (CollectFees) |
 | `totalStakedFeesCollected1` | `BigInt!` | pool fees (token1) collected by this user from staked position (CollectFees) |
 | `totalStakedFeesCollectedUSD` | `BigInt!` | pool fees in USD collected by this user from staked position (CollectFees) - position earned vs totalGaugeRewardsClaimed (emissions received) |
@@ -304,8 +308,8 @@ Snapshot of the LiquidityPool entity
 | `numberOfSwaps` | `BigInt!` | total number of swaps in the pool |
 | `token0Price` | `BigInt!` | price of token0 relative to token1 |
 | `token1Price` | `BigInt!` | price of token1 relative to token0 |
-| `totalVotesDeposited` | `BigInt!` | total votes deposited in veToken units |
-| `totalVotesDepositedUSD` | `BigInt!` | total votes deposited in USD |
+| `totalVotesDeposited` | `BigInt!` | the gauge's undistributed reward-token balance as of its last DistributeReward, derived from events (see Pool.totalVotesDeposited); not a vote weight: see veNFTamountStaked |
+| `totalVotesDepositedUSD` | `BigInt!` | totalVotesDeposited in USD at that DistributeReward |
 | `totalEmissions` | `BigInt!` | total emissions for the pool in reward token units (VELO form Optimism and AERO for Base); 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
 | `totalEmissionsUSD` | `BigInt!` | total emissions for the pool in USD |
 | `totalEmissionsRedistributed` | `BigInt!` | cumulative reward tokens this pool's gauge received from the Redistributor at snapshot time; AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
@@ -319,6 +323,8 @@ Snapshot of the LiquidityPool entity
 | `numberOfGaugeRewardClaims` | `BigInt!` | number of gauge reward claims |
 | `totalGaugeRewardsClaimedUSD` | `BigInt!` | total gauge rewards claimed in USD |
 | `totalGaugeRewardsClaimed` | `BigInt!` | total gauge rewards claimed in reward-token units — AERO on Base, VELO on Optimism (18-dec); single reward token per chain, coherent within a chain, NOT summable across chains (see #813) |
+| `totalGaugeEarlyWithdrawPenalties` | `BigInt!` | total reward tokens forfeited as early-withdraw penalties on legacy CL gauges (CLGauge.EarlyWithdrawPenalty, Gauges V3 min stake time); the gauge sends them to the chain's Minter in the same tx. Same units as totalGaugeRewardsClaimed, which they are not part of. 0 on AERO pools (see AeroGauge.totalEarlyWithdrawPenalty) |
+| `totalGaugeEarlyWithdrawPenaltiesUSD` | `BigInt!` | totalGaugeEarlyWithdrawPenalties in USD at the reward token's price at each penalty |
 | `currentLiquidityStaked` | `BigInt!` | current liquidity staked in gauge in token units |
 | `currentLiquidityStakedUSD` | `BigInt!` | current liquidity staked in gauge in USD |
 | `timestamp` | `Timestamp!` | timestamp of last update |
@@ -401,6 +407,8 @@ Snapshot of UserStatsPerPool at an epoch (invariant fields + position params for
 | `numberOfGaugeRewardClaims` | `BigInt!` | number of gauge reward claims |
 | `totalGaugeRewardsClaimedUSD` | `BigInt!` | total gauge rewards claimed in USD |
 | `totalGaugeRewardsClaimed` | `BigInt!` | total gauge rewards claimed in reward-token units — AERO on Base, VELO on Optimism (18-dec); single reward token per chain, coherent within a chain, NOT summable across chains (see #813) |
+| `totalGaugeEarlyWithdrawPenalties` | `BigInt!` | total reward tokens forfeited as early-withdraw penalties on legacy CL gauges (CLGauge.EarlyWithdrawPenalty, Gauges V3 min stake time); the gauge sends them to the chain's Minter in the same tx. Same units as totalGaugeRewardsClaimed, which they are not part of. 0 on AERO pools (see AeroGauge.totalEarlyWithdrawPenalty) |
+| `totalGaugeEarlyWithdrawPenaltiesUSD` | `BigInt!` | totalGaugeEarlyWithdrawPenalties in USD at the reward token's price at each penalty |
 | `totalStakedFeesCollected0` | `BigInt!` | pool fees (token0) collected by this user from staked position (CollectFees) |
 | `totalStakedFeesCollected1` | `BigInt!` | pool fees (token1) collected by this user from staked position (CollectFees) |
 | `totalStakedFeesCollectedUSD` | `BigInt!` | pool fees in USD collected by this user from staked position (CollectFees) |

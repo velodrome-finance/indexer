@@ -183,6 +183,8 @@ export function setupCommon() {
     numberOfGaugeRewardClaims: 0n,
     totalGaugeRewardsClaimedUSD: 0n,
     totalGaugeRewardsClaimed: 0n,
+    totalGaugeEarlyWithdrawPenalties: 0n,
+    totalGaugeEarlyWithdrawPenaltiesUSD: 0n,
     currentLiquidityStaked: 0n,
     currentLiquidityStakedUSD: 0n,
 
@@ -285,6 +287,8 @@ export function setupCommon() {
     numberOfGaugeRewardClaims: 0n,
     totalGaugeRewardsClaimedUSD: 0n,
     totalGaugeRewardsClaimed: 0n,
+    totalGaugeEarlyWithdrawPenalties: 0n,
+    totalGaugeEarlyWithdrawPenaltiesUSD: 0n,
     totalStakedFeesCollected0: 0n,
     totalStakedFeesCollected1: 0n,
     totalStakedFeesCollectedUSD: 0n,

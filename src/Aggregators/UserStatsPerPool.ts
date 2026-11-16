@@ -35,6 +35,8 @@ export interface UserStatsPerPoolDiff {
   incrementalNumberOfGaugeRewardClaims: bigint;
   incrementalTotalGaugeRewardsClaimedUSD: bigint;
   incrementalTotalGaugeRewardsClaimed: bigint;
+  incrementalTotalGaugeEarlyWithdrawPenalties: bigint;
+  incrementalTotalGaugeEarlyWithdrawPenaltiesUSD: bigint;
   incrementalTotalStakedFeesCollected0: bigint;
   incrementalTotalStakedFeesCollected1: bigint;
   incrementalTotalStakedFeesCollectedUSD: bigint;
@@ -155,6 +157,8 @@ export function createUserStatsPerPoolEntity(
     numberOfGaugeRewardClaims: 0n,
     totalGaugeRewardsClaimedUSD: 0n,
     totalGaugeRewardsClaimed: 0n,
+    totalGaugeEarlyWithdrawPenalties: 0n,
+    totalGaugeEarlyWithdrawPenaltiesUSD: 0n,
     totalStakedFeesCollected0: 0n,
     totalStakedFeesCollected1: 0n,
     totalStakedFeesCollectedUSD: 0n,
@@ -394,6 +398,16 @@ export async function updateUserStatsPerPool(
         ? current.totalGaugeRewardsClaimed +
           diff.incrementalTotalGaugeRewardsClaimed
         : current.totalGaugeRewardsClaimed,
+    totalGaugeEarlyWithdrawPenalties:
+      diff.incrementalTotalGaugeEarlyWithdrawPenalties !== undefined
+        ? current.totalGaugeEarlyWithdrawPenalties +
+          diff.incrementalTotalGaugeEarlyWithdrawPenalties
+        : current.totalGaugeEarlyWithdrawPenalties,
+    totalGaugeEarlyWithdrawPenaltiesUSD:
+      diff.incrementalTotalGaugeEarlyWithdrawPenaltiesUSD !== undefined
+        ? current.totalGaugeEarlyWithdrawPenaltiesUSD +
+          diff.incrementalTotalGaugeEarlyWithdrawPenaltiesUSD
+        : current.totalGaugeEarlyWithdrawPenaltiesUSD,
     totalStakedFeesCollected0:
       diff.incrementalTotalStakedFeesCollected0 !== undefined
         ? current.totalStakedFeesCollected0 +

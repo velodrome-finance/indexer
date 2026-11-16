@@ -15,6 +15,7 @@ import {
   isRootGauge,
   processGaugeClaimRewards,
   processGaugeDeposit,
+  processGaugeEarlyWithdrawPenalty,
   processGaugeWithdraw,
 } from "../../../src/EventHandlers/Gauges/GaugeSharedLogic";
 import {
@@ -735,6 +736,63 @@ describe("GaugeSharedLogic", () => {
       expect(logErrorSpy).not.toHaveBeenCalled();
       const updatedPool = store.get(`Pool:${mockPool.id}`);
       expect(updatedPool?.numberOfGaugeRewardClaims).toBe(0n);
+    });
+
+    it("should skip an early-withdraw penalty without error when gauge is root gauge", async () => {
+      const logErrorSpy = vi.fn();
+      const baseCtx = createContextWithRootGauge();
+      const ctx = {
+        ...baseCtx,
+        log: { ...baseCtx.log, error: logErrorSpy },
+      };
+
+      await processGaugeEarlyWithdrawPenalty(
+        {
+          gaugeAddress: rootGaugeAddress,
+          userAddress: mockUserAddress,
+          chainId: mockChainId,
+          blockNumber: 100,
+          timestamp: 1000000,
+          amount: 1000000000000000000000n,
+          tokenId: 1n,
+        },
+        ctx,
+        "TestGaugeEarlyWithdrawPenalty",
+      );
+
+      expect(logErrorSpy).not.toHaveBeenCalled();
+      const updatedPool = store.get(`Pool:${mockPool.id}`);
+      expect(updatedPool?.totalGaugeEarlyWithdrawPenalties).toBe(0n);
+      expect(updatedPool?.totalGaugeEarlyWithdrawPenaltiesUSD).toBe(0n);
+    });
+  });
+
+  describe("processGaugeEarlyWithdrawPenalty", () => {
+    it("logs and skips a penalty for a gauge with no pool that is not a root gauge", async () => {
+      const logErrorSpy = vi.fn();
+      const unknownGauge = toChecksumAddress(
+        "0x9999999999999999999999999999999999999999",
+      );
+
+      await processGaugeEarlyWithdrawPenalty(
+        {
+          gaugeAddress: unknownGauge,
+          userAddress: mockUserAddress,
+          chainId: mockChainId,
+          blockNumber: 100,
+          timestamp: 1000000,
+          amount: 1000000000000000000000n,
+          tokenId: 1n,
+        },
+        { ...mockContext, log: { ...mockContext.log, error: logErrorSpy } },
+        "TestGaugeEarlyWithdrawPenalty",
+      );
+
+      expect(logErrorSpy).toHaveBeenCalledWith(
+        `TestGaugeEarlyWithdrawPenalty: Pool not found for gauge address ${unknownGauge} on chain ${mockChainId}`,
+      );
+      const updatedPool = store.get(`Pool:${mockPool.id}`);
+      expect(updatedPool?.totalGaugeEarlyWithdrawPenalties).toBe(0n);
     });
   });
 

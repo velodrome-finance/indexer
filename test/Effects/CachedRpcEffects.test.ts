@@ -1,6 +1,6 @@
 /**
  * Cache correctness for the effects that used to persist transient failures
- * (getRootPoolAddress, getTokensDeposited, getSwapFee): a default produced by
+ * (getRootPoolAddress, getSwapFee): a default produced by
  * an RPC outage must leave `context.cache === false`; real answers and
  * deterministic reverts stay cached.
  */
@@ -9,7 +9,6 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { getLegacyConstants, toChecksumAddress } from "../../src/Constants";
 import { getRootPoolAddress } from "../../src/Effects/RootPool";
 import { getSwapFee } from "../../src/Effects/SwapFee";
-import { getTokensDeposited } from "../../src/Effects/Voter";
 import {
   captureReadError,
   failingViemClient,
@@ -45,20 +44,6 @@ const cases = [
     answer: ROOT,
     expected: ROOT,
     defaultValue: "",
-  },
-  {
-    name: "getTokensDeposited",
-    chainId: 10,
-    effect: getTokensDeposited,
-    input: {
-      rewardTokenAddress: A,
-      gaugeAddress: B,
-      blockNumber: 100,
-      eventChainId: 10,
-    },
-    answer: 42n,
-    expected: 42n,
-    defaultValue: undefined,
   },
   {
     name: "getSwapFee",
