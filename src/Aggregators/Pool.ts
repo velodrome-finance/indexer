@@ -5,7 +5,6 @@ import {
   PoolId,
   TEN_TO_THE_18_BI,
   TokenId,
-  isKnownSinkRootPool,
 } from "../Constants";
 import { getRehydrated, getWhereRehydrated } from "../EntityTimestamps";
 import type { handlerContext } from "../EntityTypes";
@@ -188,44 +187,6 @@ export interface PoolData {
   token0Instance: Token;
   token1Instance: Token;
   liquidityPoolAggregator: Pool;
-}
-
-export enum LoadPoolDataOrRootCLPoolFailureReason {
-  MAPPING_NOT_FOUND = "MAPPING_NOT_FOUND",
-  MULTIPLE_MAPPINGS = "MULTIPLE_MAPPINGS",
-  LEAF_POOL_NOT_FOUND = "LEAF_POOL_NOT_FOUND",
-  SINK_ROOT_POOL = "SINK_ROOT_POOL",
-}
-
-export type LoadPoolDataOrRootCLPoolResult =
-  | { ok: true; poolData: PoolData }
-  | {
-      ok: false;
-      reason: LoadPoolDataOrRootCLPoolFailureReason.MAPPING_NOT_FOUND;
-    }
-  | {
-      ok: false;
-      reason: LoadPoolDataOrRootCLPoolFailureReason.MULTIPLE_MAPPINGS;
-    }
-  | {
-      ok: false;
-      reason: LoadPoolDataOrRootCLPoolFailureReason.LEAF_POOL_NOT_FOUND;
-    }
-  | {
-      ok: false;
-      reason: LoadPoolDataOrRootCLPoolFailureReason.SINK_ROOT_POOL;
-    };
-
-export function isMissingRootPoolMapping(
-  result: LoadPoolDataOrRootCLPoolResult,
-): result is {
-  ok: false;
-  reason: LoadPoolDataOrRootCLPoolFailureReason.MAPPING_NOT_FOUND;
-} {
-  return (
-    !result.ok &&
-    result.reason === LoadPoolDataOrRootCLPoolFailureReason.MAPPING_NOT_FOUND
-  );
 }
 
 /**
@@ -742,8 +703,8 @@ export async function updatePool(
  * @param blockNumber - Optional block number for price refresh
  * @param blockTimestamp - Optional block timestamp for price refresh
  * @param missingIsExpected - When true, a pool that does not exist is not
- *   logged as an error (the caller handles it: a vote or distribution for a
- *   root pool whose leaf mapping has not arrived yet is parked, not lost)
+ *   logged as an error (the caller handles it: a Voter event for a root pool
+ *   or a sink has no local Pool)
  * @returns The pool with its two tokens, or null when any of them is missing
  */
 export async function loadPoolData(
@@ -842,96 +803,6 @@ export async function loadPoolData(
     token0Instance: updatedToken0,
     token1Instance: updatedToken1,
   };
-}
-
-/**
- * Attempts to load pool data, and if not found, checks if it's a RootCLPool
- * and loads the corresponding leaf pool data instead.
- *
- * @param poolAddress - The pool address to load
- * @param chainId - The chain ID
- * @param context - The handler context
- * @param blockNumber - Optional block number for price refresh
- * @param blockTimestamp - Optional block timestamp for price refresh
- * @returns Discriminated result: ok + poolData, or ok false with reason (MAPPING_NOT_FOUND, MULTIPLE_MAPPINGS, LEAF_POOL_NOT_FOUND)
- */
-export async function loadPoolDataOrRootCLPool(
-  poolAddress: string,
-  chainId: number,
-  context: handlerContext,
-  blockNumber?: number,
-  blockTimestamp?: number,
-): Promise<LoadPoolDataOrRootCLPoolResult> {
-  if (isKnownSinkRootPool(chainId, poolAddress)) {
-    return {
-      ok: false,
-      reason: LoadPoolDataOrRootCLPoolFailureReason.SINK_ROOT_POOL,
-    };
-  }
-
-  // The mapping is looked up by bare address, so keep only rows whose root
-  // chain is the chain this event came from.
-  const rootPoolLeafPools = (
-    (await context.RootPool_LeafPool.getWhere({
-      rootPoolAddress: { _eq: poolAddress },
-    })) ?? []
-  ).filter((mapping) => mapping.rootChainId === chainId);
-
-  if (rootPoolLeafPools.length === 0) {
-    // Not a local pool and no mapping yet: a root pool whose leaf pool has not
-    // been seen. The caller parks the event (PendingVote / PendingDistribution),
-    // so this is not an error; an Optimism-only sync hit it 95,000 times.
-    const poolData = await loadPoolData(
-      poolAddress,
-      chainId,
-      context,
-      blockNumber,
-      blockTimestamp,
-      true,
-    );
-
-    if (poolData) {
-      return { ok: true, poolData };
-    }
-
-    return {
-      ok: false,
-      reason: LoadPoolDataOrRootCLPoolFailureReason.MAPPING_NOT_FOUND,
-    };
-  }
-
-  if (rootPoolLeafPools.length !== 1) {
-    context.log.error(
-      `[loadPoolDataOrRootCLPool] Expected exactly one RootPool_LeafPool for pool ${poolAddress} on chain ${chainId}`,
-    );
-    return {
-      ok: false,
-      reason: LoadPoolDataOrRootCLPoolFailureReason.MULTIPLE_MAPPINGS,
-    };
-  }
-
-  const rootPoolLeafPool = rootPoolLeafPools[0];
-  const leafPoolAddress = rootPoolLeafPool.leafPoolAddress;
-  const leafChainId = rootPoolLeafPool.leafChainId;
-  // Don't pass blockNumber/blockTimestamp: they belong to the caller's chain
-  // and cannot be used for RPC queries on the leaf chain.
-  const leafPoolData = await loadPoolData(
-    leafPoolAddress,
-    leafChainId,
-    context,
-  );
-
-  if (!leafPoolData) {
-    context.log.error(
-      `[loadPoolDataOrRootCLPool] Leaf pool data not found for pool ${leafPoolAddress} on chain ${leafChainId}`,
-    );
-    return {
-      ok: false,
-      reason: LoadPoolDataOrRootCLPoolFailureReason.LEAF_POOL_NOT_FOUND,
-    };
-  }
-
-  return { ok: true, poolData: leafPoolData };
 }
 
 /**

@@ -3,7 +3,6 @@ import type { OUSDTBridgedTransaction } from "envio";
 import { OUSDT_ADDRESS } from "../../Constants";
 import { domainToChainId } from "./HyperlaneDomain";
 import { writeSuperSwapOriginLegs } from "./SuperSwapLegLogic";
-import { handleCrossChainSwapEvent } from "./SuperSwapLogic";
 
 indexer.onEvent(
   { contract: "VelodromeUniversalRouter", event: "UniversalRouterBridge" },
@@ -34,13 +33,6 @@ indexer.onEvent(
     await writeSuperSwapOriginLegs(
       event.chainId,
       event.transaction.hash,
-      domainToChainId(event.params.destinationDomain),
-      event.block.timestamp,
-      context,
-    );
-    await handleCrossChainSwapEvent(
-      event.transaction.hash,
-      event.chainId,
       domainToChainId(event.params.destinationDomain),
       event.block.timestamp,
       context,

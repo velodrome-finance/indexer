@@ -736,24 +736,6 @@ type PoolLauncherConfig {
   pairableTokens: [String!]! # Whitelisted tokens an emerging-token pool may be paired against on this launcher
 }
 
-# A superswap is characterized by 3 steps:
-# 1. Original asset is swapped for oUSDT on the source chain.
-# 2. The oUSDT is then bridged through Hyperlane to the destination chain.
-# 3. Bridged oUSDT is then swapped into the preferred asset on the destination chain.
-type SuperSwap {
-  id: ID! # Format: {messageId} — globally unique Hyperlane message identifier
-  originChainId: BigInt! @config(precision: 24) # Chain ID where the swap originated
-  destinationChainId: BigInt! @config(precision: 24) # Resolved EVM chain ID of the swap target/recipient (mapped from the Hyperlane domain via domainToChainId)
-  sender: String! # Original sender address initiating the swap
-  recipient: String! # The recipient address on the destination chain
-  oUSDTamount: BigInt! @config(precision: 76) # Amount of oUSDT swapped (already normalized to token decimals)
-  sourceChainToken: String! # Token that gets swapped by oUSDT on source chain, i.e., Token A -> oUSDT on source chain
-  sourceChainTokenAmountSwapped: BigInt! @config(precision: 76) # Amount of sourceChainToken that was swapped for oUSDT on the source chain
-  destinationChainToken: String! # Token that gets swapped by oUSDT on destination chain, i.e., oUSDT -> Token B on destination chain
-  destinationChainTokenAmountSwapped: BigInt! @config(precision: 76) # Amount of destinationChainToken that was received from swapping oUSDT on the destination chain
-  timestamp: Timestamp! # Block timestamp of the swap event
-}
-
 type OUSDTBridgedTransaction {
   id: ID! # Format: transaction hash (unique per bridge tx)
   transactionHash: String! @index # Transaction hash
@@ -788,41 +770,20 @@ type CLGaugeConfig {
   lastUpdatedTimestamp: Timestamp! # Timestamp of the last CLGaugeConfig update
 }
 
-# Keyed by the Hyperlane messageId, which is globally unique (keccak256 of the
-# packed message, including origin domain and the origin Mailbox's nonce), so
-# the ProcessId consumer resolves it with a primary-key read.
-type DispatchId_event @storage(postgres: true, clickhouse: false) @internal {
-  id: ID! # Format: {messageId}
-  chainId: Int! # Chain ID where the message was dispatched (origin chain)
-  transactionHash: String! # Transaction hash of the dispatch transaction
-  messageId: String! # Unique message ID identifying the cross-chain message in Hyperlane
-}
-
-# Keyed by the Hyperlane messageId: a Mailbox delivers a message at most once.
-type ProcessId_event @storage(postgres: true, clickhouse: false) @internal {
-  id: ID! # Format: {messageId}
-  chainId: Int! # Chain ID where the message was processed (destination chain)
-  transactionHash: String! # Transaction hash of the process transaction
-  messageId: String! # Unique message ID identifying the cross-chain message in Hyperlane (matches DispatchId messageId)
-}
-
-# Per-transaction registry of the messageIds dispatched in a tx, so the
-# CrossChainSwap / ProcessId consumers find a source tx's DispatchId_event rows
-# with primary-key reads instead of DispatchId_event.getWhere({ transactionHash }).
-# Append-only: consumers PK-get each DispatchId_event and skip consumed
-# (deleted) ones; the row is deleted once every listed message is consumed.
+# Per-transaction registry of the Hyperlane messageIds dispatched in a tx
+# (Mailbox.DispatchId), so the CrossChainSwap later in the tx writes one
+# SuperSwapOriginLeg per message with a primary-key read. Append-only.
 type TxDispatchIdRegistry
   @storage(postgres: true, clickhouse: false)
   @internal
 {
   id: ID! # Format: {transactionHash}
-  messageIds: [String!]! # DispatchId_event ids (= messageIds) dispatched in this tx, in processing order
+  messageIds: [String!]! # Hyperlane message ids dispatched in this tx, in processing order
 }
 
-# The first oUSDT swap recorded in a transaction, so the SuperSwap stitching
-# resolves "the oUSDT swap of tx X" with a primary-key read instead of
-# OUSDTSwaps.getWhere({ transactionHash })[0]. Written only when absent, so it
-# holds the first swap in processing order (the row getWhere returned first).
+# The first oUSDT swap recorded in a transaction, so the SuperSwap legs resolve
+# "the oUSDT swap of tx X" with a primary-key read. Written only when absent, so
+# it holds the first swap in processing order.
 type TxOUSDTSwapRegistry @storage(postgres: true, clickhouse: false) @internal {
   id: ID! # Format: {transactionHash}
   swapId: String! # OUSDTSwaps id of the first oUSDT swap recorded in this tx
@@ -842,6 +803,11 @@ type ALM_TotalSupplyLimitUpdated_event
   transactionHash: String! # Transaction hash of the event
 }
 
+# A superchain leaf V2 pool's root pool, written by the leaf chain at its V2
+# PoolFactory.PoolCreated (ADR 0009, flow D; the root pool's address is the root
+# factory's CREATE2 address for the leaf chain and pair). CL leaf pools have no
+# row: the analytics layer matches them to their RootPool by rootPoolMatchingHash
+# and factory (root_leaf_pools).
 type RootPool_LeafPool {
   id: ID! # Format: {rootChainId}-{leafChainId}-{rootPoolAddress}-{leafPoolAddress} (RootPoolLeafPoolId)
   rootChainId: Int! # Optimism chain ID
@@ -850,7 +816,7 @@ type RootPool_LeafPool {
   leafPoolAddress: String! # Actual real pool that is deployed on leaf chain
 }
 
-# Maps root gauge (RootGauge/RootCLGauge on OP) to root pool for DistributeReward cross-chain resolution
+# Maps a root gauge (RootGauge/RootCLGauge on Optimism) to its root pool, so a DistributeReward reaches the RootPool
 type RootGauge_RootPool {
   id: ID! # Unique identifier, formatted as {rootChainId}-{rootGaugeAddress}
   rootChainId: Int! # Chain ID of the root chain (typically Optimism)
@@ -955,19 +921,6 @@ type TxProcessIdRegistry @storage(postgres: true, clickhouse: false) @internal {
   timestamp: Timestamp! # block time of the tx
 }
 
-# Deferred vote: stored when Voted/Abstained fires but RootPool_LeafPool mapping does not exist yet
-type PendingVote @storage(postgres: true, clickhouse: false) @internal {
-  id: ID! # Format: {chainId}-{rootPoolAddress}-{tokenId}-{txHash}-{logIndex}
-  chainId: Int! # Chain ID for which the vote was intended
-  rootPoolAddress: String! @index # Address of the root pool being voted on
-  tokenId: BigInt! @config(precision: 76) # veNFT Token ID that cast the vote
-  weight: BigInt! @config(precision: 76) # Weight of the vote in veToken units
-  eventType: String! # "Voted" | "Abstained"
-  timestamp: Timestamp! # Timestamp when the vote event occurred
-  blockNumber: BigInt! @config(precision: 76) # Block number in which the vote was submitted
-  transactionHash: String! # Transaction hash of the vote event
-}
-
 # Deferred CL pool initialization state: stored when CLPool.Initialize fires
 # BEFORE CLFactory.PoolCreated has created the Pool.
 # Aerodrome Slipstream emits Initialize from the pool inside the same tx as
@@ -983,34 +936,6 @@ type CLPoolPendingInitialize
   poolAddress: String! # address of the CL pool awaiting PoolCreated
   sqrtPriceX96: BigInt! @config(precision: 76) # initial sqrt price (Q96 fixed point) from the Initialize event
   tick: BigInt! @config(precision: 24) # initial tick from the Initialize event
-}
-
-# Deferred RootPool->LeafPool mapping: stored when RootPoolCreated fires but no Pool exists yet
-type PendingRootPoolMapping
-  @storage(postgres: true, clickhouse: false)
-  @internal
-{
-  id: ID! # Format: {rootChainId}-{rootPoolAddress}
-  rootChainId: Int! # Chain ID where the root pool exists (typically Optimism)
-  rootPoolAddress: String! # Address of the root pool (matches RootPool_LeafPool)
-  rootFactoryAddress: String! # RootCLPoolFactory that emitted RootPoolCreated; only a leaf pool created by the leaf CLFactory at this same address may claim the mapping
-  leafChainId: Int! # Chain ID where the leaf pool will be created
-  token0: String! # Address of token0 in the root/leaf pool
-  token1: String! # Address of token1 in the root/leaf pool
-  tickSpacing: BigInt! @config(precision: 24) # Tick spacing assigned for the pool
-  rootPoolMatchingHash: String! @index # {leafChainId}_{token0}_{token1}_{tickSpacing}  # Used for quick matching in Pool
-}
-
-# Deferred distribution: stored when DistributeReward fires for a root gauge but RootPool_LeafPool mapping does not exist yet
-type PendingDistribution @storage(postgres: true, clickhouse: false) @internal {
-  id: ID! # Format: {rootChainId}-{rootPoolAddress}-{blockNumber}-{logIndex}
-  rootChainId: Int! # Chain ID where the root gauge and pool exist
-  rootPoolAddress: String! @index # Address of the root pool (matches RootPool_LeafPool)
-  gaugeAddress: String! # Gauge that emitted DistributeReward
-  amount: BigInt! @config(precision: 76) # Reward amount from event
-  blockNumber: BigInt! @config(precision: 76) # Block number of the event
-  blockTimestamp: Timestamp! # Block timestamp of the event
-  logIndex: Int! # Log index for uniqueness within block
 }
 
 # Default fee of a V2 pool factory for one pool type, from its SetDefaultFee events (leaf

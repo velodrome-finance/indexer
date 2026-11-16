@@ -14,7 +14,6 @@ import { getGateDecisionFromSignals } from "./PriceTrust";
 import { lookupCanonicalSeedPrice } from "./Pricing/CanonicalPriceSeed";
 import {
   type PricingCandidate,
-  buildCanonicalCandidate,
   buildPricingCandidate,
   combineTwoHopCandidate,
   selectPricingCandidate,
@@ -143,34 +142,29 @@ export async function createTokenEntity(
 /**
  * Refreshes a token's USD price from indexed pool state, at most once per
  * token per clock hour (docs/adr/0003-pool-derived-token-prices.md,
- * docs/adr/0004-canonical-cross-chain-price-candidates.md). No RPC is
- * involved: the price comes from entities already in the store.
+ * docs/adr/0009-per-chain-entities.md flow F). No RPC is involved: the price
+ * comes from this chain's entities, the committed seed and, for a canonical
+ * source on another chain, this deployment's ClickHouse.
  *
  * Resolution order on a due refresh:
  *
  * 1. Operator blacklist (src/PriceOverrides.ts) → 0 (`override`).
  * 2. Tier 0 (destination token / stablecoins) → exactly $1 (`pinned`).
- * 3. Candidates, deepest qualifying one wins:
- *    - every pool registered for the token in `TokenPricingPools`
- *      (counterparty in a strictly lower tier) offers pool ratio ×
- *      counterparty USD price, at the counterparty-side depth. Each
- *      counterparty is refreshed first when it is itself due, and a
- *      counterparty whose last success is more than 2 h old (it is only
- *      carrying) is skipped, so the token is never priced off a stale base;
- *      the tier rule bounds that recursion at three levels;
- *    - a token with a canonical source on another chain (src/PriceOverrides.ts:
- *      WETH on ETH-equivalent leaf chains → Optimism WETH, XVELO → Optimism
- *      VELO, …) also gets that source's stored price at its stored
- *      `pricingDepthUSD`, if the source's last success is within ±2 h of this
- *      block. The source is read, never refreshed, so this cannot recurse.
- *      `PRICING_CANONICAL_LIVE_READ=false` skips this read (per-chain mode
- *      cannot make it).
- *    A candidate must pass the chain's depth floor, the 1000× imbalance bound
- *    and the $1M ceiling (`pool` / `canonical`).
- * 3b. A token with a canonical source whose live price is outside the ±2 h
- *    window (always the case in a backfill), when nothing in step 3
- *    qualified: the committed hourly seed's price of the source for this
- *    block's hour, if the seed covers it (`canonical-seed`, ADR 0008).
+ * 3. Local pools, deepest qualifying one wins: every pool registered for the
+ *    token in `TokenPricingPools` (counterparty in a strictly lower tier)
+ *    offers pool ratio × counterparty USD price, at the counterparty-side
+ *    depth. Each counterparty is refreshed first when it is itself due, and a
+ *    counterparty whose last success is more than 2 h old (it is only
+ *    carrying) is skipped, so the token is never priced off a stale base; the
+ *    tier rule bounds that recursion at three levels. A candidate must pass
+ *    the chain's depth floor, the 1000× imbalance bound and the $1M ceiling
+ *    (`pool`).
+ * 3b. A token with a canonical source on another chain (src/PriceOverrides.ts:
+ *    WETH on ETH-equivalent leaf chains → Optimism WETH, XVELO → Optimism
+ *    VELO, …), when nothing in step 3 qualified: the committed hourly seed's
+ *    price of the source for this block's hour, if the seed covers it
+ *    (`canonical-seed`, ADR 0008). The source chain's `Token` is never read
+ *    (per-chain entities, ADR 0009).
  * 3c. Same case, the seed has no hour: the source's own hourly
  *    `TokenPriceSnapshot` for the last complete hour before this block, read
  *    from ClickHouse by the cached cross-chain `getCanonicalSourcePrice`
@@ -190,8 +184,7 @@ export async function createTokenEntity(
  *
  * Two clocks (#694): `lastUpdatedTimestamp` advances on every due refresh
  * (it is the throttle); `lastSuccessfulPriceTimestamp` only on steps 2–3.
- * `pricingDepthUSD` stores the winning depth so this token can serve as a
- * canonical source elsewhere.
+ * `pricingDepthUSD` stores the winning pool depth.
  * Every due refresh writes exactly one TokenPriceSnapshot, keyed by the clock
  * hour; a throttled call writes nothing.
  *
@@ -212,15 +205,6 @@ export async function refreshTokenPrice(
   chainId: number,
   context: handlerContext,
 ): Promise<Token> {
-  if (token.chainId !== chainId) {
-    // A token's price clock may only advance with its own chain's block time.
-    // The caller's block number / timestamp belong to `chainId`, so refuse
-    // rather than stamp this token with another chain's clock.
-    context.log.error(
-      `[refreshTokenPrice] Refusing to refresh ${token.id} with chain ${chainId}'s block time`,
-    );
-    return token;
-  }
   const healed = await healTokenMetadata(token, chainId, context);
   const blockTimestampMs = blockTimestamp * 1000;
   if (!isPriceRefreshDue(healed.lastUpdatedTimestamp, blockTimestampMs)) {
@@ -264,8 +248,8 @@ export async function refreshTokenPrice(
 
 /**
  * Whether {@link refreshTokenPrice} would return `token` unchanged without any
- * read or write: the token belongs to `chainId`, its metadata is complete (so
- * the heal is skipped) and its price is not due this clock hour. Exact by
+ * read or write: its metadata is complete (so the heal is skipped) and its
+ * price is not due this clock hour. Exact by
  * construction — these are the conditions under which `refreshTokenPrice`
  * returns its input — so a caller may skip the async call when it holds.
  *
@@ -280,7 +264,6 @@ export function isTokenRefreshNoop(
   chainId: number,
 ): boolean {
   return (
-    token.chainId === chainId &&
     Boolean(token.symbol && token.name) &&
     !isPriceRefreshDue(token.lastUpdatedTimestamp, blockTimestamp * 1000)
   );
@@ -385,17 +368,7 @@ async function resolveTokenPrice(
   }
 
   const minDepthUSD = getMinPricingDepthUSD(chainId);
-  const [pools, canonical] = await Promise.all([
-    loadRegisteredPools(token, context),
-    findCanonicalCandidate(
-      token,
-      chainId,
-      blockTimestamp * 1000,
-      context,
-      getCanonicalPriceSettings().liveRead,
-    ),
-  ]);
-  const canonicalCandidate = canonical?.candidate;
+  const pools = await loadRegisteredPools(token, context);
   const poolCandidates = await findPoolCandidates(
     token,
     tier,
@@ -405,26 +378,18 @@ async function resolveTokenPrice(
     chainId,
     context,
   );
-  // Pools first, so a depth tie keeps the local route.
-  let best = selectPricingCandidate(
-    canonicalCandidate
-      ? [...poolCandidates, canonicalCandidate]
-      : poolCandidates,
-    minDepthUSD,
-  );
-  if (!best && canonical && !canonicalCandidate) {
-    // The live source is outside its ±2 h window (a backfill: chains are not
-    // processed in time order), so take the committed hourly seed's price of
-    // the source for this block's hour, if the seed covers it (ADR 0008).
-    const seed = lookupCanonicalSeedPrice(
-      canonical.sourceId,
-      blockTimestamp * 1000,
-    );
+  let best = selectPricingCandidate(poolCandidates, minDepthUSD);
+  const canonical = getCanonicalSource(chainId, token.address);
+  if (!best && canonical) {
+    // No local pool qualified: the committed hourly seed's price of the
+    // canonical source for this block's hour, if the seed covers it (ADR 0008).
+    const sourceId = TokenId(canonical.chainId, canonical.address);
+    const seed = lookupCanonicalSeedPrice(sourceId, blockTimestamp * 1000);
     if (seed) {
       return {
         kind: "seed",
         priceUSD: seed.priceUSD,
-        sourceId: canonical.sourceId,
+        sourceId,
         seedHourMs: seed.hourMs,
       };
     }
@@ -432,7 +397,7 @@ async function resolveTokenPrice(
     // (ADR 0009, flow F).
     const snapshot = await findCanonicalSnapshotPrice(
       token,
-      canonical.sourceId,
+      sourceId,
       blockTimestamp * 1000,
       context,
     );
@@ -440,7 +405,7 @@ async function resolveTokenPrice(
       return {
         kind: "snapshot",
         priceUSD: snapshot.priceUSD,
-        sourceId: canonical.sourceId,
+        sourceId,
         seedHourMs: snapshot.sourceHourMs,
       };
     }
@@ -671,44 +636,6 @@ async function findPoolCandidates(
     if (candidate) candidates.push(candidate);
   }
   return candidates;
-}
-
-/**
- * The canonical cross-chain candidate (src/PriceOverrides.ts): the same asset's
- * stored price on its canonical chain, valued at that token's stored
- * `pricingDepthUSD`, when its last success is time-aligned with this block
- * (see `buildCanonicalCandidate`). The source is never refreshed from here —
- * its chain has its own block clock — so the cross-chain read cannot recurse.
- *
- * @param token - The token being priced
- * @param chainId - Chain the token lives on
- * @param blockTimestampMs - Current block timestamp in milliseconds
- * @param context - Envio handler context
- * @param liveRead - Whether to read the source chain's Token row at all
- *   (`PRICING_CANONICAL_LIVE_READ`); without it there is never a live candidate
- * @returns `undefined` when the token has no canonical source; otherwise the
- *   source id and the live candidate (`undefined` when the source is missing,
- *   unpriced or outside the ±2 h window, or the read is off — the cases the
- *   hourly seed and the snapshot effect cover)
- */
-async function findCanonicalCandidate(
-  token: Token,
-  chainId: number,
-  blockTimestampMs: number,
-  context: handlerContext,
-  liveRead: boolean,
-): Promise<
-  { sourceId: string; candidate: PricingCandidate | undefined } | undefined
-> {
-  const source = getCanonicalSource(chainId, token.address);
-  if (!source) return undefined;
-  const sourceId = TokenId(source.chainId, source.address);
-  if (!liveRead) return { sourceId, candidate: undefined };
-  const sourceToken = await getRehydrated(context.Token, "Token", sourceId);
-  return {
-    sourceId,
-    candidate: buildCanonicalCandidate(sourceToken, blockTimestampMs),
-  };
 }
 
 /**
