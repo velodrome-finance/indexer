@@ -215,6 +215,34 @@ votes coalescing in `pools` / `pool_*` / `chain_*`, and `super_swaps`.
    the existing flows; add `root_leaf_pool`, `_root_pool`, `super_swaps`; on a
    sync with Optimism and the leaves, check the views equal today's leaf
    fields and `SuperSwap` rows.
+   **Built (2026-11-16, branch `perchain/root-side`)**, with these changes to
+   the plan above:
+   - The root-side vote rows are a separate entity, `RootPoolVote`, not
+     `VeNFTPoolVote`: the veNFT Transfer handler moves every VeNFTPoolVote's
+     weight between the owners' `UserStatsPerPool` rows and would create user
+     rows for root pools.
+   - The SuperSwap legs are `SuperSwapOriginLeg` (written at
+     `CrossChainSwap`, one per dispatched message, with its dispatch index)
+     and `SuperSwapDestinationLeg` (written at the first oUSDT swap of a
+     transaction that processed messages: Hyperlane emits `ProcessId` before
+     it calls the recipient, so the swap comes later in the transaction; a
+     Postgres-only `TxProcessIdRegistry` carries the message ids to it).
+   - V2 root pools come from the V2 RootPoolFactory's `PoolCreated` (new
+     config contract on Optimism). The event has no chain id; the leaf chain
+     is recovered from the pool's address: CREATE2 from the factory with salt
+     `keccak256(chainid, token0, token1, stable)` and an EIP-1167 clone of the
+     factory's implementation. This matched all 58 V2 root pools on Optimism
+     and 170 of 170 leaf `getRootPoolAddress` answers, so the leaf-side RPC
+     effect could be replaced by the same computation later.
+   - Base has no root pools: no `RootPoolCreated` on Base up to block
+     38,500,000, and the one Base gauge whose pool is not a Base pool is a
+     known sink (`KNOWN_SINK_ROOT_POOLS`).
+   - Views: `root_pools`, `root_leaf_pools`, `leaf_pool_root_totals`,
+     `root_pool_votes`, `super_swap_legs` (`clickhouse/sql/views_superchain.sql`).
+   - ClickHouse `orderBy: ["chainId", …]` on a ClickHouse-only entity resolves
+     to envio's own `chainId` column in per-chain mode as well (checked on the
+     probe project: sort key `chainId, blockNumber, envio_checkpoint_id`), so
+     the layouts need no change at the flip.
 3. Pricing: the effect, the successor of ADR 0004; compare head prices with
    and without it.
 4. Flip: the flag, the `chainId` codemod, delete the pending machinery, the
