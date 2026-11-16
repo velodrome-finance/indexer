@@ -22,6 +22,7 @@ import {
   PRICE_TRUST_OUTCOME,
   PRICE_TRUST_REASON,
 } from "../../../src/PriceTrust";
+import type { WithChain } from "../../testHelpers";
 import { type MockPool, setupCommon } from "../Pool/common";
 
 describe("GaugeSharedLogic", () => {
@@ -38,7 +39,7 @@ describe("GaugeSharedLogic", () => {
   );
   const mockTimestamp = new Date(1000000 * 1000);
 
-  const mockToken0: Token = {
+  const mockToken0: WithChain<Token> = {
     ...mockToken0Data,
     id: "0x3333333333333333333333333333333333333333-8453",
     address: toChecksumAddress("0x3333333333333333333333333333333333333333"),
@@ -51,7 +52,7 @@ describe("GaugeSharedLogic", () => {
     isWhitelisted: true,
   };
 
-  const mockToken1: Token = {
+  const mockToken1: WithChain<Token> = {
     ...mockToken1Data,
     id: "0x4444444444444444444444444444444444444444-8453",
     address: toChecksumAddress("0x4444444444444444444444444444444444444444"),
@@ -68,7 +69,7 @@ describe("GaugeSharedLogic", () => {
   let mockUserStatsPerPool: ReturnType<
     ReturnType<typeof setupCommon>["createMockUserStatsPerPool"]
   >;
-  let mockRewardToken: Token;
+  let mockRewardToken: WithChain<Token>;
   // biome-ignore lint/suspicious/noExplicitAny: Mock context for testing - complex type intersection would be overly verbose
   let store: Map<string, any>;
   // biome-ignore lint/suspicious/noExplicitAny: Mock context for testing - complex type intersection would be overly verbose

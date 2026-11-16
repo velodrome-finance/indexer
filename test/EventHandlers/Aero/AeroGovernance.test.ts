@@ -1,4 +1,3 @@
-import type { Token } from "envio";
 import { createTestIndexer } from "envio";
 import {
   POOL_DEPLOYMENT,
@@ -119,7 +118,7 @@ describe("Aero governance", () => {
       ...mockToken0Data,
       id: TokenId(chainId, mockToken0Data.address),
       chainId,
-    } as Token);
+    });
   });
 
   describe("sAERO positions (VotingEscrow)", () => {

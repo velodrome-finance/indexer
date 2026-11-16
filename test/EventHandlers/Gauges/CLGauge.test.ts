@@ -6,6 +6,7 @@ import {
   toChecksumAddress,
 } from "../../../src/Constants";
 import { registerVoterGauge } from "../../registerDynamicContracts";
+import type { WithChain } from "../../testHelpers";
 import { setupCommon } from "../Pool/common";
 
 describe("CLGauge Event Handlers", () => {
@@ -199,7 +200,7 @@ describe("CLGauge Event Handlers", () => {
     const blockNumber = 150_964_133;
     const rewardTokenAddress =
       getLegacyConstants(mockChainId).rewardToken(blockNumber);
-    const rewardToken: Token = {
+    const rewardToken: WithChain<Token> = {
       ...mockToken0Data,
       id: TokenId(mockChainId, rewardTokenAddress),
       address: rewardTokenAddress,

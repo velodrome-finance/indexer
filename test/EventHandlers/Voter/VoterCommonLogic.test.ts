@@ -1,21 +1,13 @@
-import type { PendingVote, Token, VeNFTState } from "envio";
-import * as PoolModule from "../../../src/Aggregators/Pool";
-import {
-  PendingVoteId,
-  RootGaugeRootPoolId,
-  toChecksumAddress,
-} from "../../../src/Constants";
+import type { Token, VeNFTState } from "envio";
+import { toChecksumAddress } from "../../../src/Constants";
 import { getTokenDetails } from "../../../src/Effects/Index";
 import type { handlerContext } from "../../../src/EntityTypes";
-import type { Pool } from "../../../src/EntityTypes";
 import type { VoterCommonResult } from "../../../src/EventHandlers/Voter/VoterCommonLogic";
 import {
   VoterEventType,
   buildPoolDiffFromDistribute,
   computeVoterDistributeValues,
   computeVoterRelatedEntitiesDiff,
-  createPendingVoteForDeferredProcessing,
-  resolveLeafPoolForRootGauge,
 } from "../../../src/EventHandlers/Voter/VoterCommonLogic";
 import { setupCommon } from "../Pool/common";
 
@@ -68,7 +60,6 @@ describe("computeVoterDistributeValues", () => {
     ({
       id: "token-1",
       address: toChecksumAddress("0x0000000000000000000000000000000000000001"),
-      chainId: 1,
       decimals: 18n,
       pricePerUSDNew: 2n * E18, // $2 in 1e18
       lastUpdatedTimestamp: new Date(0),
@@ -138,37 +129,6 @@ describe("computeVoterDistributeValues", () => {
     // 10 + 2 + 1 - 4 - 0.5 = 8.5 tokens, in raw 6-decimal units
     expect(result.tokensDeposited).toBe(8_500_000n);
     expect(result.normalizedVotesDepositedAmountUsd).toBe(85n * 10n ** 17n);
-  });
-
-  it("reports 0 for a leaf pool (pool on another chain than the distribution), without warning", () => {
-    const logs = {
-      warns: [] as string[],
-      infos: [] as string[],
-      errors: [] as string[],
-    };
-    const pool = createMockPool({
-      chainId: 34443,
-      totalEmissions: E18,
-      totalEmissionsRedistributed: 0n,
-      totalEmissionsForfeited: 0n,
-      totalGaugeRewardsClaimed: 5n * E18, // leaf claims ahead of root distributions
-      totalGaugeEarlyWithdrawPenalties: 0n,
-    });
-
-    const result = computeVoterDistributeValues(
-      makeToken({ decimals: 18n, pricePerUSDNew: 2n * E18 }),
-      pool,
-      gauge,
-      3n * E18,
-      10,
-      makeMockContext({ logs }),
-      true,
-    );
-
-    expect(result.tokensDeposited).toBe(0n);
-    expect(result.normalizedVotesDepositedAmountUsd).toBe(0n);
-    expect(result.normalizedEmissionsAmount).toBe(3n * E18);
-    expect(logs.warns).toHaveLength(0);
   });
 
   it("clamps a negative derived balance to zero and warns", () => {
@@ -264,37 +224,20 @@ describe("buildPoolDiffFromDistribute", () => {
     expect(diff.lastUpdatedTimestamp).toEqual(new Date(ts));
     expect(diff.gaugeAddress).toBe(gaugeAddress);
   });
-
-  it("omits gaugeAddress when not provided (cross-chain case)", () => {
-    const res: VoterCommonResult = {
-      isAlive: true,
-      tokensDeposited: 5n,
-      normalizedEmissionsAmount: 1n,
-      normalizedEmissionsAmountUsd: 2n,
-      normalizedVotesDepositedAmountUsd: 10n,
-    };
-    const ts = 1_700_000_000_000;
-    const diff = buildPoolDiffFromDistribute(res, ts);
-    expect(diff.totalVotesDeposited).toBe(5n);
-    expect(diff.gaugeAddress).toBeUndefined();
-    // The key must be ABSENT, not present-with-undefined: a cross-chain
-    // DistributeReward spreads this diff onto the existing leaf pool, so the
-    // leaf's gaugeAddress is preserved only because the key is omitted here.
-    expect(Object.hasOwn(diff, "gaugeAddress")).toBe(false);
-  });
 });
 
 describe("computeVoterRelatedEntitiesDiff", () => {
   const mockVeNFTState: VeNFTState = {
     id: "10-1",
-    chainId: 10,
     tokenId: 1n,
     owner: toChecksumAddress("0x2222222222222222222222222222222222222222"),
     locktime: 100n,
+    isPermanent: false,
     lastUpdatedTimestamp: new Date(1000),
     totalValueLocked: 1000n,
     isAlive: true,
-  } as VeNFTState;
+    lastSnapshotTimestamp: undefined,
+  };
 
   const timestamp = new Date(2000);
 
@@ -336,350 +279,5 @@ describe("computeVoterRelatedEntitiesDiff", () => {
     );
     expect(result.veNFTPoolVoteDiff.incrementalVeNFTamountStaked).toBe(-100n);
     expect(result.veNFTPoolVoteDiff.veNFTStateId).toBe("10-1");
-  });
-});
-
-describe("createPendingVoteForDeferredProcessing", () => {
-  const chainId = 10;
-  const rootPoolAddress = toChecksumAddress(
-    "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
-  );
-  const tokenId = 1n;
-  const weight = 100n;
-  const timestamp = new Date(1000000 * 1000);
-  const blockNumber = 123456;
-  const transactionHash =
-    "0x133260f0f7bf0a06d262f09b064a35d3c63178c6b5fd8e4798ba780f357dc7bd";
-  const logIndex = 1;
-
-  function makePendingVoteContext(): {
-    context: handlerContext;
-    pendingVoteSets: PendingVote[];
-    warns: string[];
-  } {
-    const pendingVoteSets: PendingVote[] = [];
-    const warns: string[] = [];
-    const context = {
-      PendingVote: {
-        set: (pv: PendingVote) => {
-          pendingVoteSets.push(pv);
-        },
-      },
-      log: {
-        warn: (msg: unknown) => warns.push(String(msg)),
-        info: () => {},
-        error: () => {},
-      },
-    } as unknown as handlerContext;
-    return { context, pendingVoteSets, warns };
-  }
-
-  it("should call PendingVote.set with correct payload for Voted", () => {
-    const { context, pendingVoteSets, warns } = makePendingVoteContext();
-
-    createPendingVoteForDeferredProcessing(
-      context,
-      chainId,
-      rootPoolAddress,
-      tokenId,
-      weight,
-      VoterEventType.VOTED,
-      timestamp,
-      blockNumber,
-      transactionHash,
-      logIndex,
-    );
-
-    expect(pendingVoteSets).toHaveLength(1);
-    const pv = pendingVoteSets[0];
-    expect(pv.id).toBe(
-      PendingVoteId(
-        chainId,
-        rootPoolAddress,
-        tokenId,
-        transactionHash,
-        logIndex,
-      ),
-    );
-    expect(pv.chainId).toBe(chainId);
-    expect(pv.rootPoolAddress).toBe(rootPoolAddress);
-    expect(pv.tokenId).toBe(tokenId);
-    expect(pv.weight).toBe(weight);
-    expect(pv.eventType).toBe("Voted");
-    expect(pv.timestamp).toEqual(timestamp);
-    expect(pv.blockNumber).toBe(BigInt(blockNumber));
-    expect(pv.transactionHash).toBe(transactionHash);
-  });
-
-  it("should call PendingVote.set with correct payload for Abstained", () => {
-    const { context, pendingVoteSets, warns } = makePendingVoteContext();
-
-    createPendingVoteForDeferredProcessing(
-      context,
-      chainId,
-      rootPoolAddress,
-      tokenId,
-      weight,
-      VoterEventType.ABSTAINED,
-      timestamp,
-      blockNumber,
-      transactionHash,
-      logIndex,
-    );
-
-    expect(pendingVoteSets).toHaveLength(1);
-    const pv = pendingVoteSets[0];
-    expect(pv.eventType).toBe("Abstained");
-  });
-});
-
-describe("resolveLeafPoolForRootGauge", () => {
-  const chainId = 10;
-  const gaugeAddress = toChecksumAddress(
-    "0xfcD11ec7E9536e7B21C0FA98b95dAF81C0448f33",
-  );
-  const rootPoolAddress = toChecksumAddress(
-    "0x0000000000000000000000000000000000000abc",
-  );
-  const leafPoolAddress = toChecksumAddress(
-    "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  );
-  const leafChainId = 252;
-  const blockNumber = 1000;
-  const blockTimestamp = 2000;
-
-  function makeResolveContext(overrides: {
-    rootGaugeMapping?: { rootPoolAddress: string } | null;
-    rootPoolLeafPools?: {
-      leafPoolAddress: string;
-      leafChainId: number;
-      rootChainId?: number;
-    }[];
-    /** When true, getWhere returns null (covers ?? [] branch). */
-    getWhereReturnsNull?: boolean;
-    warns?: string[];
-  }): handlerContext {
-    const warns = overrides.warns ?? [];
-    const rootGaugeMapping = overrides.rootGaugeMapping ?? null;
-    // Mappings default to the root chain the resolution runs on.
-    const rootPoolLeafPools = (overrides.rootPoolLeafPools ?? []).map(
-      (mapping) => ({ rootChainId: chainId, ...mapping }),
-    );
-    const getWhereValue = overrides.getWhereReturnsNull
-      ? null
-      : rootPoolLeafPools;
-
-    return {
-      RootGauge_RootPool: {
-        get: vi.fn().mockImplementation(async (id: string) => {
-          expect(id).toBe(RootGaugeRootPoolId(chainId, gaugeAddress));
-          return rootGaugeMapping ?? undefined;
-        }),
-      },
-      RootPool_LeafPool: {
-        getWhere: vi.fn().mockResolvedValue(getWhereValue),
-      },
-      log: {
-        warn: vi.fn((msg: unknown) => warns.push(String(msg))),
-        info: vi.fn(),
-        error: vi.fn(),
-      },
-    } as unknown as handlerContext;
-  }
-
-  const runResolve = (context: handlerContext) =>
-    resolveLeafPoolForRootGauge(context, chainId, gaugeAddress);
-
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("returns null and logs when RootGauge_RootPool has no mapping", async () => {
-    const warns: string[] = [];
-    const context = makeResolveContext({ warns });
-
-    const result = await runResolve(context);
-
-    expect(result).toBeNull();
-    expect(warns).toHaveLength(1);
-    expect(warns[0]).toContain("No pool address found for the gauge address");
-    expect(warns[0]).toContain(gaugeAddress);
-    expect(warns[0]).toContain(String(chainId));
-  });
-
-  it("returns null and logs when RootPool_LeafPool count is not exactly one (zero)", async () => {
-    const warns: string[] = [];
-    const context = makeResolveContext({
-      rootGaugeMapping: { rootPoolAddress },
-      rootPoolLeafPools: [],
-      warns,
-    });
-
-    const result = await runResolve(context);
-
-    expect(result).toBeNull();
-    expect(warns).toHaveLength(1);
-    expect(warns[0]).toContain(
-      "RootPool_LeafPool mapping not found or ambiguous",
-    );
-    expect(warns[0]).toContain("count: 0");
-  });
-
-  it("returns null and logs when RootPool_LeafPool getWhere returns null (?? [] branch)", async () => {
-    const warns: string[] = [];
-    const context = makeResolveContext({
-      rootGaugeMapping: { rootPoolAddress },
-      getWhereReturnsNull: true,
-      warns,
-    });
-
-    const result = await runResolve(context);
-
-    expect(result).toBeNull();
-    expect(warns).toHaveLength(1);
-    expect(warns[0]).toContain(
-      "RootPool_LeafPool mapping not found or ambiguous",
-    );
-    expect(warns[0]).toContain("count: 0");
-  });
-
-  it("returns null and logs when RootPool_LeafPool count is not exactly one (multiple)", async () => {
-    const warns: string[] = [];
-    const context = makeResolveContext({
-      rootGaugeMapping: { rootPoolAddress },
-      rootPoolLeafPools: [
-        { leafPoolAddress: "0x111", leafChainId: 252 },
-        { leafPoolAddress: "0x222", leafChainId: 252 },
-      ],
-      warns,
-    });
-
-    const result = await runResolve(context);
-
-    expect(result).toBeNull();
-    expect(warns).toHaveLength(1);
-    expect(warns[0]).toContain("count: 2");
-  });
-
-  it("returns null and logs when loadPoolData returns null", async () => {
-    vi.spyOn(PoolModule, "loadPoolData").mockResolvedValue(null);
-
-    const warns: string[] = [];
-    const context = makeResolveContext({
-      rootGaugeMapping: { rootPoolAddress },
-      rootPoolLeafPools: [{ leafPoolAddress, leafChainId }],
-      warns,
-    });
-
-    const result = await runResolve(context);
-
-    expect(result).toBeNull();
-    expect(warns).toHaveLength(1);
-    expect(warns[0]).toContain("Leaf pool data not found");
-    expect(warns[0]).toContain(leafPoolAddress);
-    expect(warns[0]).toContain(String(leafChainId));
-  });
-
-  it("short-circuits silently when rootPoolAddress is a known sink", async () => {
-    // Known sink per src/Constants.ts KNOWN_SINK_ROOT_POOLS (OP).
-    const sinkRootPoolAddress = toChecksumAddress(
-      "0x333030A736B47D20346d82A473680658ac1C2b88",
-    );
-    const warns: string[] = [];
-    const context = makeResolveContext({
-      rootGaugeMapping: { rootPoolAddress: sinkRootPoolAddress },
-      warns,
-    });
-
-    const result = await runResolve(context);
-
-    expect(result).toBeNull();
-    // No warn logs and no RootPool_LeafPool lookup for known sinks.
-    expect(warns).toHaveLength(0);
-    expect(
-      vi.mocked(context.RootPool_LeafPool.getWhere),
-    ).not.toHaveBeenCalled();
-  });
-
-  it("ignores a RootPool_LeafPool mapping whose root side is another chain", async () => {
-    const loadPoolDataSpy = vi.spyOn(PoolModule, "loadPoolData");
-    const warns: string[] = [];
-    const context = makeResolveContext({
-      rootGaugeMapping: { rootPoolAddress },
-      rootPoolLeafPools: [{ leafPoolAddress, leafChainId, rootChainId: 8453 }],
-      warns,
-    });
-
-    const result = await runResolve(context);
-
-    expect(result).toBeNull();
-    expect(warns).toHaveLength(1);
-    expect(warns[0]).toContain("count: 0");
-    expect(loadPoolDataSpy).not.toHaveBeenCalled();
-  });
-
-  it("selects the mapping for its own root chain when another chain has one for the same address", async () => {
-    const mockPool = {
-      id: `${leafChainId}-${leafPoolAddress}`,
-      poolAddress: leafPoolAddress,
-      chainId: leafChainId,
-    } as unknown as Pool;
-    vi.spyOn(PoolModule, "loadPoolData").mockResolvedValue({
-      liquidityPoolAggregator: mockPool,
-      token0Instance: {} as Token,
-      token1Instance: {} as Token,
-    });
-    const context = makeResolveContext({
-      rootGaugeMapping: { rootPoolAddress },
-      rootPoolLeafPools: [
-        { leafPoolAddress: "0x111", leafChainId: 57073, rootChainId: 8453 },
-        { leafPoolAddress, leafChainId },
-      ],
-    });
-
-    const result = await runResolve(context);
-
-    expect(result?.pool).toBe(mockPool);
-    expect(PoolModule.loadPoolData).toHaveBeenCalledWith(
-      leafPoolAddress,
-      leafChainId,
-      context,
-    );
-  });
-
-  it("returns leaf pool and isCrossChain when resolution succeeds", async () => {
-    const mockPool = {
-      id: `10-${leafPoolAddress}`,
-      poolAddress: leafPoolAddress,
-      chainId: leafChainId,
-    } as unknown as Pool;
-
-    vi.spyOn(PoolModule, "loadPoolData").mockResolvedValue({
-      liquidityPoolAggregator: mockPool,
-      token0Instance: {} as Token,
-      token1Instance: {} as Token,
-    });
-
-    const context = makeResolveContext({
-      rootGaugeMapping: { rootPoolAddress },
-      rootPoolLeafPools: [{ leafPoolAddress, leafChainId }],
-    });
-
-    const result = await runResolve(context);
-
-    expect(result).not.toBeNull();
-    expect(result?.pool).toBe(mockPool);
-    expect(result?.isCrossChain).toBe(true);
-    expect(PoolModule.loadPoolData).toHaveBeenCalledWith(
-      leafPoolAddress,
-      leafChainId,
-      context,
-    );
-
-    // Cross-chain fix: loadPoolData must NOT receive blockNumber/blockTimestamp
-    // because they belong to the root chain and would cause "Unknown block" errors
-    // on the leaf chain's RPC.
-    const callArgs = vi.mocked(PoolModule.loadPoolData).mock.calls[0];
-    expect(callArgs).toHaveLength(3);
   });
 });

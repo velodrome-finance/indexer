@@ -1,7 +1,11 @@
 import type { UserStatsPerPool } from "envio";
 import { updateUserStatsPerPool } from "../../src/Aggregators/UserStatsPerPool";
-import { toChecksumAddress } from "../../src/Constants";
+import {
+  UserStatsPerPoolSnapshotId,
+  toChecksumAddress,
+} from "../../src/Constants";
 import type { handlerContext } from "../../src/EntityTypes";
+import { getSnapshotEpoch } from "../../src/Snapshots/Shared";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("UserStatsPerPool Liquidity Logic", () => {
@@ -47,6 +51,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         userStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
 
       expect(result.totalLiquidityAddedUSD).toBe(1000n);
@@ -55,7 +60,12 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         expect.objectContaining({
           userAddress: mockUserAddress,
           poolAddress: mockPoolAddress,
-          chainId: mockChainId,
+          id: UserStatsPerPoolSnapshotId(
+            mockChainId,
+            mockUserAddress,
+            mockPoolAddress,
+            getSnapshotEpoch(mockTimestamp).getTime(),
+          ),
           totalLiquidityAddedUSD: 1000n,
           totalLiquidityRemovedUSD: 0n,
         }),
@@ -73,6 +83,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         userStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
 
       expect(userStats.totalLiquidityAddedUSD).toBe(1000n);
@@ -85,6 +96,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         userStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
 
       expect(userStats.totalLiquidityAddedUSD).toBe(1500n);
@@ -104,6 +116,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         userStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
 
       expect(result.totalLiquidityAddedUSD).toBe(0n);
@@ -121,6 +134,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         userStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
 
       expect(userStats.totalLiquidityRemovedUSD).toBe(300n);
@@ -133,6 +147,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         userStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
 
       expect(userStats.totalLiquidityRemovedUSD).toBe(500n);
@@ -152,6 +167,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         userStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
 
       userStats = await updateUserStatsPerPool(
@@ -162,6 +178,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         userStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
 
       expect(userStats.totalLiquidityAddedUSD).toBe(1000n);
@@ -179,6 +196,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         userStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
 
       userStats = await updateUserStatsPerPool(
@@ -189,6 +207,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         userStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
 
       userStats = await updateUserStatsPerPool(
@@ -199,6 +218,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         userStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
 
       userStats = await updateUserStatsPerPool(
@@ -209,6 +229,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         userStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
 
       expect(userStats.totalLiquidityAddedUSD).toBe(1500n); // 1000 + 500
@@ -226,6 +247,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         userStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
 
       expect(result.totalLiquidityAddedUSD).toBe(0n);
@@ -244,6 +266,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         userStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
 
       expect(result.totalLiquidityAddedUSD).toBe(largeAmount);
@@ -280,6 +303,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         userStats,
         clampContext,
         mockTimestamp,
+        mockChainId,
       );
 
       expect(result.lpBalance).toBe(0n);
@@ -309,6 +333,7 @@ describe("UserStatsPerPool Liquidity Logic", () => {
         userStats,
         clampContext,
         mockTimestamp,
+        mockChainId,
       );
 
       expect(result.almLpAmount).toBe(0n);

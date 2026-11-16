@@ -66,6 +66,7 @@ describe("UserStatsPerPool stakedCLPositionTokenIds", () => {
         userStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
       expect(result.stakedCLPositionTokenIds).toEqual([1n, 2n, 3n]);
     });
@@ -79,6 +80,7 @@ describe("UserStatsPerPool stakedCLPositionTokenIds", () => {
         userStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
       expect(result.stakedCLPositionTokenIds).toEqual([10n, 20n]);
     });
@@ -95,6 +97,7 @@ describe("UserStatsPerPool stakedCLPositionTokenIds", () => {
         userStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
       expect(result.stakedCLPositionTokenIds).toEqual([]);
     });
@@ -116,6 +119,7 @@ describe("UserStatsPerPool stakedCLPositionTokenIds", () => {
         userStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
       expect(result.stakedCLPositionTokenIds).toEqual([42n]);
     });
@@ -137,6 +141,7 @@ describe("UserStatsPerPool stakedCLPositionTokenIds", () => {
         userStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
       expect(userStats.stakedCLPositionTokenIds).toEqual([42n]);
 
@@ -151,6 +156,7 @@ describe("UserStatsPerPool stakedCLPositionTokenIds", () => {
         userStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
       expect(userStats.stakedCLPositionTokenIds).toEqual([42n, 99n]);
     });
@@ -173,6 +179,7 @@ describe("UserStatsPerPool stakedCLPositionTokenIds", () => {
         userStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
       expect(result.stakedCLPositionTokenIds).toEqual([99n]);
     });
@@ -193,6 +200,7 @@ describe("UserStatsPerPool stakedCLPositionTokenIds", () => {
         userStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
       expect(result.stakedCLPositionTokenIds).toEqual([]);
     });
@@ -212,6 +220,7 @@ describe("UserStatsPerPool stakedCLPositionTokenIds", () => {
         userStats,
         mockContext,
         snapshotTimestamp,
+        mockChainId,
       );
 
       expect(mockContext.UserStatsPerPoolSnapshot.set).toHaveBeenCalledWith(

@@ -202,6 +202,7 @@ describe("CLPoolBurnLogic", () => {
           mockPool.reserve1 - mockEvent.params.amount1,
           tokenWithDifferentDecimals,
           mockToken1,
+          mockEvent.chainId,
         ),
       };
 

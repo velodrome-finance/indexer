@@ -1,4 +1,3 @@
-import type { Token } from "envio";
 import { createTestIndexer } from "envio";
 import {
   AERO_NFPM_ADDRESS,
@@ -59,7 +58,7 @@ describe("AeroNFPM positions", () => {
         ...t,
         id: TokenId(chainId, t.address),
         chainId,
-      } as Token);
+      });
     }
     for (const p of [poolAddress, otherPool]) {
       indexer.Pool.set(

@@ -3,6 +3,7 @@ import { createTestIndexer } from "envio";
 import { TokenId, toChecksumAddress } from "../../../src/Constants";
 import * as VotingRewardSharedLogic from "../../../src/EventHandlers/VotingReward/VotingRewardSharedLogic";
 import { registerVoterGauge } from "../../registerDynamicContracts";
+import type { WithChain } from "../../testHelpers";
 import { type MockPool, setupCommon } from "../Pool/common";
 
 describe("BribesVotingReward Events", () => {
@@ -30,7 +31,7 @@ describe("BribesVotingReward Events", () => {
   let userStats: ReturnType<
     ReturnType<typeof setupCommon>["createMockUserStatsPerPool"]
   >;
-  let rewardToken: Token;
+  let rewardToken: WithChain<Token>;
 
   beforeEach(async () => {
     vi.restoreAllMocks();
@@ -69,13 +70,13 @@ describe("BribesVotingReward Events", () => {
       // must be set in lockstep with `lastUpdatedTimestamp` for the throttle to
       // preserve `pricePerUSDNew` (the heal-on-read otherwise bypasses it).
       lastSuccessfulPriceTimestamp: new Date(1000000 * 1000),
-    } as Token;
+    } as WithChain<Token>;
 
     // Set up entities in test indexer
     indexer.Pool.set(liquidityPool);
     indexer.UserStatsPerPool.set(userStats);
-    indexer.Token.set(mockToken0Data as Token);
-    indexer.Token.set(mockToken1Data as Token);
+    indexer.Token.set(mockToken0Data);
+    indexer.Token.set(mockToken1Data);
     indexer.Token.set(rewardToken);
   });
 

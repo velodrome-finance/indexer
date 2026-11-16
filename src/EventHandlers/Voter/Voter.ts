@@ -36,6 +36,7 @@ import {
   SUPERCHAIN_ROOT_CHAIN_ID,
   applyRootPoolDistribution,
   applyRootPoolVote,
+  loadRootPoolByGauge,
   setRootPoolGauge,
 } from "./RootPoolLogic";
 import {
@@ -248,7 +249,12 @@ indexer.onEvent(
     ]);
 
     if (!poolEntity) {
-      if (chainId !== SUPERCHAIN_ROOT_CHAIN_ID) {
+      // Only a root gauge's RootPool takes it: refresh the reward token for
+      // nothing else (an unknown or sink gauge is ignored without a write).
+      if (
+        chainId !== SUPERCHAIN_ROOT_CHAIN_ID ||
+        !(await loadRootPoolByGauge(chainId, event.params.gauge, context))
+      ) {
         return;
       }
       const pricedRewardToken = rewardToken

@@ -26,7 +26,11 @@ describe("UserStatsPerPoolSnapshot", () => {
       const timestamp = new Date(baseTimestamp.getTime() + 45 * 60 * 1000);
       const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 4;
 
-      const snapshot = createUserStatsPerPoolSnapshot(entity, timestamp);
+      const snapshot = createUserStatsPerPoolSnapshot(
+        entity,
+        timestamp,
+        entity.chainId,
+      );
 
       expect(snapshot.id).toBe(
         UserStatsPerPoolSnapshotId(
@@ -44,11 +48,16 @@ describe("UserStatsPerPoolSnapshot", () => {
         almLpAmount: 1000n,
         totalFeesContributedUSD: 100n,
       });
-      const snapshot = createUserStatsPerPoolSnapshot(entity, baseTimestamp);
+      const snapshot = createUserStatsPerPoolSnapshot(
+        entity,
+        baseTimestamp,
+        entity.chainId,
+      );
 
       expect(snapshot.userAddress).toBe(entity.userAddress);
       expect(snapshot.poolAddress).toBe(entity.poolAddress);
-      expect(snapshot.chainId).toBe(entity.chainId);
+      // Per-chain mode: the chain lives in envio's own column, not on the row.
+      expect(snapshot).not.toHaveProperty("chainId");
       expect(snapshot.almLpAmount).toBe(1000n);
       expect(snapshot.totalFeesContributedUSD).toBe(
         entity.totalFeesContributedUSD,
@@ -71,7 +80,7 @@ describe("UserStatsPerPoolSnapshot", () => {
     const timestamp = new Date(baseTimestamp.getTime() + 45 * 60 * 1000);
     const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 4;
 
-    setUserStatsPerPoolSnapshot(entity, timestamp, context);
+    setUserStatsPerPoolSnapshot(entity, timestamp, context, entity.chainId);
 
     expect(context.UserStatsPerPoolSnapshot.set).toHaveBeenCalledTimes(1);
     expect(context.UserStatsPerPoolSnapshot.set).toHaveBeenCalledWith(
@@ -97,7 +106,7 @@ describe("UserStatsPerPoolSnapshot", () => {
     });
     const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 4;
 
-    setUserStatsPerPoolSnapshot(entity, baseTimestamp, context);
+    setUserStatsPerPoolSnapshot(entity, baseTimestamp, context, entity.chainId);
     expect(context.UserStatsPerPoolSnapshot.set).toHaveBeenCalledTimes(1);
     expect(context.UserStatsPerPoolSnapshot.set).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -110,7 +119,6 @@ describe("UserStatsPerPoolSnapshot", () => {
         timestamp: new Date(expectedEpochMs),
         userAddress: entity.userAddress,
         poolAddress: entity.poolAddress,
-        chainId: entity.chainId,
         almLpAmount: 1000n,
         totalFeesContributedUSD: entity.totalFeesContributedUSD,
         lastAlmActivityTimestamp: entity.lastAlmActivityTimestamp,

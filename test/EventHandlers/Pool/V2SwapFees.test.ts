@@ -13,6 +13,7 @@ import {
 import { deriveV2FeeRate } from "../../../src/EventHandlers/Pool/PoolSwapLogic";
 import * as PriceOracle from "../../../src/PriceOracle";
 import { registerPool } from "../../registerDynamicContracts";
+import type { WithChain } from "../../testHelpers";
 import { setupCommon } from "./common";
 import "../../eventHandlersRegistration";
 
@@ -101,10 +102,10 @@ describe("V2 swap fees from Fees events", () => {
 
   async function run(
     items: unknown[],
-    token1: Token = mockToken1Data as Token,
+    token1: WithChain<Token> = mockToken1Data,
   ): Promise<void> {
     indexer.Pool.set(storedPool);
-    indexer.Token.set(mockToken0Data as Token);
+    indexer.Token.set(mockToken0Data);
     indexer.Token.set(token1);
     await indexer.process({
       // biome-ignore lint/suspicious/noExplicitAny: mixed Fees / Swap items
@@ -157,8 +158,8 @@ describe("V2 swap fees from Fees events", () => {
   it("untrusted input leg: fee scaled from the trusted volume, not the stored rate", async () => {
     // token1 is untrusted and is the input; volume falls back to the trusted
     // token0 leg ($100 out), and the fee is that × feeIn / amountIn = 2%.
-    const untrusted: Token = {
-      ...(mockToken1Data as Token),
+    const untrusted: WithChain<Token> = {
+      ...mockToken1Data,
       isWhitelisted: false,
       priceTrustOutcome: "UNTRUSTED",
       priceTrustReason: "NON_WL",

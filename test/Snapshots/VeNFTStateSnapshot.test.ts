@@ -36,7 +36,11 @@ describe("VeNFTStateSnapshot", () => {
       const timestamp = new Date(baseTimestamp.getTime() + 10 * 60 * 1000);
       const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 2;
 
-      const snapshot = createVeNFTStateSnapshot(entity, timestamp);
+      const snapshot = createVeNFTStateSnapshot(
+        entity,
+        timestamp,
+        entity.chainId,
+      );
 
       expect(snapshot.id).toBe(
         VeNFTStateSnapshotId(entity.chainId, entity.tokenId, expectedEpochMs),
@@ -50,9 +54,14 @@ describe("VeNFTStateSnapshot", () => {
         locktime: 1n,
         isAlive: false,
       });
-      const snapshot = createVeNFTStateSnapshot(entity, baseTimestamp);
+      const snapshot = createVeNFTStateSnapshot(
+        entity,
+        baseTimestamp,
+        entity.chainId,
+      );
 
-      expect(snapshot.chainId).toBe(entity.chainId);
+      // Per-chain mode: the chain lives in envio's own column, not on the row.
+      expect(snapshot).not.toHaveProperty("chainId");
       expect(snapshot.tokenId).toBe(entity.tokenId);
       expect(snapshot.owner).toBe(entity.owner);
       expect(snapshot.totalValueLocked).toBe(entity.totalValueLocked);
@@ -65,7 +74,11 @@ describe("VeNFTStateSnapshot", () => {
         isPermanent: true,
         locktime: 0n,
       });
-      const snapshot = createVeNFTStateSnapshot(entity, baseTimestamp);
+      const snapshot = createVeNFTStateSnapshot(
+        entity,
+        baseTimestamp,
+        entity.chainId,
+      );
       expect(snapshot.isPermanent).toBe(true);
       expect(snapshot.locktime).toBe(0n);
     });
@@ -80,7 +93,12 @@ describe("VeNFTStateSnapshot", () => {
     );
     const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 3;
 
-    await setVeNFTStateSnapshot(entity, midEpochTimestamp, context);
+    await setVeNFTStateSnapshot(
+      entity,
+      midEpochTimestamp,
+      context,
+      entity.chainId,
+    );
 
     expect(context.VeNFTStateSnapshot.set).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -103,7 +121,7 @@ describe("VeNFTStateSnapshot", () => {
     const timestamp = new Date(baseTimestamp.getTime() + 10 * 60 * 1000);
     const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 2;
 
-    await setVeNFTStateSnapshot(entity, timestamp, context);
+    await setVeNFTStateSnapshot(entity, timestamp, context, entity.chainId);
 
     expect(context.VeNFTStateSnapshot.set).toHaveBeenCalledTimes(1);
     expect(context.VeNFTStateSnapshot.set).toHaveBeenCalledWith(
@@ -127,7 +145,7 @@ describe("VeNFTStateSnapshot", () => {
     });
     const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 2;
 
-    await setVeNFTStateSnapshot(entity, baseTimestamp, context);
+    await setVeNFTStateSnapshot(entity, baseTimestamp, context, entity.chainId);
 
     expect(context.VeNFTStateSnapshot.set).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -137,7 +155,6 @@ describe("VeNFTStateSnapshot", () => {
           expectedEpochMs,
         ),
         timestamp: new Date(expectedEpochMs),
-        chainId: entity.chainId,
         tokenId: entity.tokenId,
         owner: entity.owner,
         totalValueLocked: entity.totalValueLocked,
@@ -152,7 +169,7 @@ describe("VeNFTStateSnapshot", () => {
     const context = createVeNFTSnapshotContext();
     const entity = common.createMockVeNFTState();
 
-    await setVeNFTStateSnapshot(entity, baseTimestamp, context);
+    await setVeNFTStateSnapshot(entity, baseTimestamp, context, entity.chainId);
 
     expect(context.VeNFTPoolVote.getWhere).toHaveBeenCalledWith({
       veNFTState_id: { _eq: entity.id },
@@ -177,7 +194,7 @@ describe("VeNFTStateSnapshot", () => {
     const entity = common.createMockVeNFTState();
     const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 2;
 
-    await setVeNFTStateSnapshot(entity, baseTimestamp, context);
+    await setVeNFTStateSnapshot(entity, baseTimestamp, context, entity.chainId);
 
     expect(context.VeNFTPoolVoteSnapshot.set).toHaveBeenCalledTimes(2);
     expect(context.VeNFTPoolVoteSnapshot.set).toHaveBeenNthCalledWith(
@@ -189,7 +206,6 @@ describe("VeNFTStateSnapshot", () => {
           common.mockLiquidityPoolData.poolAddress,
           expectedEpochMs,
         ),
-        chainId: entity.chainId,
         tokenId: entity.tokenId,
         poolAddress: common.mockLiquidityPoolData.poolAddress,
         veNFTamountStaked: 100n,
@@ -210,7 +226,6 @@ describe("VeNFTStateSnapshot", () => {
           secondaryPoolAddress,
           expectedEpochMs,
         ),
-        chainId: entity.chainId,
         tokenId: entity.tokenId,
         poolAddress: secondaryPoolAddress,
         veNFTamountStaked: 250n,

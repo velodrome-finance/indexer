@@ -89,6 +89,7 @@ describe("Pool MintWithRecipient Event (#886 superchain-leaf 4-arg Mint)", () =>
       amount1,
       commonData.mockToken0Data,
       commonData.mockToken1Data,
+      chainId,
     );
     expect(userStats?.totalLiquidityAddedUSD).toBe(expectedUSD);
     expect(userStats?.totalLiquidityAddedUSD).toBe(3000n * TEN_TO_THE_18_BI);

@@ -29,7 +29,6 @@ describe("VeNFTPoolVote", () => {
 
   const mockVeNFTState: VeNFTState = {
     id: VeNFTId(chainId, tokenId),
-    chainId,
     tokenId,
     owner: toChecksumAddress("0x1111111111111111111111111111111111111111"),
     locktime: 100n,

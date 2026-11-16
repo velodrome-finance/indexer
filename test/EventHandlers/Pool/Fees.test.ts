@@ -1,10 +1,11 @@
-import type { Token, UserStatsPerPool } from "envio";
+import type { UserStatsPerPool } from "envio";
 import { createTestIndexer } from "envio";
 import { UserStatsPerPoolId, toChecksumAddress } from "../../../src/Constants";
 import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
 import type { Pool as PoolEntity } from "../../../src/EntityTypes";
 import * as PoolFeesLogic from "../../../src/EventHandlers/Pool/PoolFeesLogic";
 import { registerPool } from "../../registerDynamicContracts";
+import type { WithChain } from "../../testHelpers";
 import { setupCommon } from "./common";
 
 describe("Pool Fees Event", () => {
@@ -34,13 +35,13 @@ describe("Pool Fees Event", () => {
       10n ** mockToken1Data.decimals;
 
   let updatedPool: PoolEntity | undefined;
-  let createdUserStats: UserStatsPerPool | undefined;
+  let createdUserStats: WithChain<UserStatsPerPool> | undefined;
 
   beforeEach(async () => {
     indexer = createTestIndexer();
     await registerPool(indexer, chainId, mockLiquidityPoolData.poolAddress);
-    indexer.Token.set(mockToken0Data as Token);
-    indexer.Token.set(mockToken1Data as Token);
+    indexer.Token.set(mockToken0Data);
+    indexer.Token.set(mockToken1Data);
     indexer.Pool.set(mockLiquidityPoolData);
 
     await indexer.process({
@@ -180,8 +181,8 @@ describe("Pool Fees Event", () => {
       chainId,
       mockLiquidityPoolData.poolAddress,
     );
-    existingUserIndexer.Token.set(mockToken0Data as Token);
-    existingUserIndexer.Token.set(mockToken1Data as Token);
+    existingUserIndexer.Token.set(mockToken0Data);
+    existingUserIndexer.Token.set(mockToken1Data);
     existingUserIndexer.Pool.set(mockLiquidityPoolData);
     existingUserIndexer.UserStatsPerPool.set(existingUserStats);
 
@@ -267,8 +268,8 @@ describe("Pool Fees Event", () => {
         chainId,
         mockLiquidityPoolData.poolAddress,
       );
-      feesIndexer.Token.set(mockToken0Data as Token);
-      feesIndexer.Token.set(mockToken1Data as Token);
+      feesIndexer.Token.set(mockToken0Data);
+      feesIndexer.Token.set(mockToken1Data);
       feesIndexer.Pool.set(mockLiquidityPoolData);
 
       await feesIndexer.process({
@@ -332,8 +333,8 @@ describe("Pool Fees Event", () => {
         chainId,
         mockLiquidityPoolData.poolAddress,
       );
-      freshIndexer.Token.set(mockToken0Data as Token);
-      freshIndexer.Token.set(mockToken1Data as Token);
+      freshIndexer.Token.set(mockToken0Data);
+      freshIndexer.Token.set(mockToken1Data);
 
       await freshIndexer.process({
         chains: {

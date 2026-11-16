@@ -1,4 +1,3 @@
-import type { Token } from "envio";
 import { createTestIndexer } from "envio";
 import {
   applyPositionToEdges,
@@ -104,8 +103,8 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
     });
 
     indexer.Pool.set(liquidityPool);
-    indexer.Token.set(mockToken0Data as Token);
-    indexer.Token.set(mockToken1Data as Token);
+    indexer.Token.set(mockToken0Data);
+    indexer.Token.set(mockToken1Data);
 
     // 100 synthetic positions with varied tick ranges — enough for sorted-insert
     // collisions and removals to exercise the invariants.
@@ -396,8 +395,8 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
         liquidityInRange: 500n,
       });
       indexer.Pool.set(liquidityPool);
-      indexer.Token.set(mockToken0Data as Token);
-      indexer.Token.set(mockToken1Data as Token);
+      indexer.Token.set(mockToken0Data);
+      indexer.Token.set(mockToken1Data);
 
       // Position spans tick 0 — it is in-range at the default tick=0n.
       const tickLower = -100n;
@@ -486,8 +485,8 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
         stakedLiquidityInRange: 999_999n,
       });
       indexer.Pool.set(liquidityPool);
-      indexer.Token.set(mockToken0Data as Token);
-      indexer.Token.set(mockToken1Data as Token);
+      indexer.Token.set(mockToken0Data);
+      indexer.Token.set(mockToken1Data);
 
       // Degenerate position (tickLower >= tickUpper). Real chains wouldn't
       // mint this, but the rejection path is the structural concern — any
@@ -693,8 +692,8 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
         liquidityInRange: 500n,
       });
       indexer.Pool.set(liquidityPool);
-      indexer.Token.set(mockToken0Data as Token);
-      indexer.Token.set(mockToken1Data as Token);
+      indexer.Token.set(mockToken0Data);
+      indexer.Token.set(mockToken1Data);
 
       const tickLower = -100n;
       const tickUpper = 100n;
@@ -848,8 +847,8 @@ describe("CLStakedLiquidity edge-list sanity (#649)", () => {
         nfpmAddress: defaultNfpmAddress,
       });
       indexer.Pool.set(liquidityPool);
-      indexer.Token.set(mockToken0Data as Token);
-      indexer.Token.set(mockToken1Data as Token);
+      indexer.Token.set(mockToken0Data);
+      indexer.Token.set(mockToken1Data);
 
       const tickLower = -100n;
       const tickUpper = 100n;

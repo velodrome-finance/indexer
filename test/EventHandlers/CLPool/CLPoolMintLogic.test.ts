@@ -246,7 +246,6 @@ describe("CLPoolMintLogic", () => {
         address: LFI as `0x${string}`,
         symbol: "LFI",
         name: "LFI",
-        chainId: BASE,
         decimals: 18n,
         pricePerUSDNew: 24n * TEN_TO_THE_18_BI, // poisoned oracle ~$24
         isWhitelisted: true,
@@ -257,7 +256,6 @@ describe("CLPoolMintLogic", () => {
         address: USDC as `0x${string}`,
         symbol: "USDC",
         name: "USD Coin",
-        chainId: BASE,
         decimals: 6n,
         pricePerUSDNew: 1n * TEN_TO_THE_18_BI,
         isWhitelisted: true,
@@ -267,7 +265,6 @@ describe("CLPoolMintLogic", () => {
       // ratio implies LFI ≈ $0.00006 against the $1 USDC anchor.
       const basePool = {
         ...mockLiquidityPoolData,
-        chainId: BASE,
         isCL: true,
         token0_id: TokenId(BASE, LFI),
         token1_id: TokenId(BASE, USDC),

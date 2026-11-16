@@ -103,7 +103,7 @@ describe("SuperSwap origin legs", () => {
     ).toBe(2);
     const legs = stores("SuperSwapOriginLeg");
     expect(legs.get(SuperSwapLegId(34443, "0xm2"))).toMatchObject({
-      chainId: 34443,
+      id: "34443-0xm2",
       messageId: "0xm2",
       dispatchIndex: 1,
       destinationChainId: 1750n,
@@ -140,7 +140,7 @@ describe("SuperSwap destination legs", () => {
     expect(
       stores("SuperSwapDestinationLeg").get(SuperSwapLegId(1750, "0xm1")),
     ).toMatchObject({
-      chainId: 1750,
+      id: "1750-0xm1",
       messageId: "0xm1",
       transactionHash: "0xdst",
       destinationChainToken: TOKEN_B,

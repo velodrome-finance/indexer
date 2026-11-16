@@ -6,7 +6,7 @@ import {
   toChecksumAddress,
 } from "../../../src/Constants";
 import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
-import { setupPool } from "../../testHelpers";
+import { type WithChain, setupPool } from "../../testHelpers";
 import { setupCommon } from "../Pool/common";
 
 describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
@@ -43,7 +43,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       const indexer = createTestIndexer();
 
       // Pre-populate with NonFungiblePosition (created by CLPool handlers)
-      const mockNFPM: NonFungiblePosition = {
+      const mockNFPM: WithChain<NonFungiblePosition> = {
         id: NonFungiblePositionId(chainId, nfpmAddress, tokenId),
         chainId,
         tokenId,
@@ -69,6 +69,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       const totalSupplyEventId = ALMLPWrapperId(chainId, lpWrapperAddress);
       indexer.ALM_TotalSupplyLimitUpdated_event.set({
         id: totalSupplyEventId,
+        chainId,
         lpWrapperAddress: toChecksumAddress(lpWrapperAddress),
         currentTotalSupplyLPTokens: 5000n * 10n ** 18n,
         transactionHash: transactionHash,
@@ -355,7 +356,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       const indexer = createTestIndexer();
 
       // Create multiple NonFungiblePositions with same transaction hash but different properties
-      const matchingNFPM: NonFungiblePosition = {
+      const matchingNFPM: WithChain<NonFungiblePosition> = {
         id: NonFungiblePositionId(chainId, nfpmAddress, tokenId),
         chainId,
         tokenId,
@@ -374,7 +375,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
         isStakedInGauge: false,
       };
 
-      const nonMatchingNFPM1: NonFungiblePosition = {
+      const nonMatchingNFPM1: WithChain<NonFungiblePosition> = {
         ...matchingNFPM,
         id: NonFungiblePositionId(chainId, nfpmAddress, tokenId + 1n),
         tokenId: tokenId + 1n,
@@ -382,7 +383,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
         mintTransactionHash: transactionHash,
       };
 
-      const nonMatchingNFPM2: NonFungiblePosition = {
+      const nonMatchingNFPM2: WithChain<NonFungiblePosition> = {
         ...matchingNFPM,
         id: NonFungiblePositionId(chainId, nfpmAddress, tokenId + 2n),
         tokenId: tokenId + 2n,
@@ -399,6 +400,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       const totalSupplyEventId = ALMLPWrapperId(chainId, lpWrapperAddress);
       indexer.ALM_TotalSupplyLimitUpdated_event.set({
         id: totalSupplyEventId,
+        chainId,
         lpWrapperAddress: toChecksumAddress(lpWrapperAddress),
         currentTotalSupplyLPTokens: 5000n * 10n ** 18n,
         transactionHash: transactionHash,
@@ -475,7 +477,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       const indexer = createTestIndexer();
 
       // Create NonFungiblePosition with matching properties except token0
-      const nonMatchingNFPM: NonFungiblePosition = {
+      const nonMatchingNFPM: WithChain<NonFungiblePosition> = {
         id: NonFungiblePositionId(chainId, nfpmAddress, tokenId),
         chainId,
         tokenId,
@@ -554,7 +556,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       const indexer = createTestIndexer();
 
       // Create NonFungiblePosition with matching properties except token1
-      const nonMatchingNFPM: NonFungiblePosition = {
+      const nonMatchingNFPM: WithChain<NonFungiblePosition> = {
         id: NonFungiblePositionId(chainId, nfpmAddress, tokenId),
         chainId,
         tokenId,
@@ -633,7 +635,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       const indexer = createTestIndexer();
 
       // Create NonFungiblePosition with matching tickLower but different tickUpper
-      const nonMatchingNFPM: NonFungiblePosition = {
+      const nonMatchingNFPM: WithChain<NonFungiblePosition> = {
         id: NonFungiblePositionId(chainId, nfpmAddress, tokenId),
         chainId,
         tokenId,
@@ -712,7 +714,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       const indexer = createTestIndexer();
 
       // Pre-populate with NonFungiblePosition but NOT TotalSupplyLimitUpdated event
-      const mockNFPM: NonFungiblePosition = {
+      const mockNFPM: WithChain<NonFungiblePosition> = {
         id: NonFungiblePositionId(chainId, nfpmAddress, tokenId),
         chainId,
         tokenId,
@@ -791,7 +793,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       const indexer = createTestIndexer();
 
       // Pre-populate with NonFungiblePosition
-      const mockNFPM: NonFungiblePosition = {
+      const mockNFPM: WithChain<NonFungiblePosition> = {
         id: NonFungiblePositionId(chainId, nfpmAddress, tokenId),
         chainId,
         tokenId,
@@ -817,6 +819,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       const totalSupplyEventId = ALMLPWrapperId(chainId, lpWrapperAddress);
       indexer.ALM_TotalSupplyLimitUpdated_event.set({
         id: totalSupplyEventId,
+        chainId,
         lpWrapperAddress: toChecksumAddress(lpWrapperAddress),
         currentTotalSupplyLPTokens: 5000n * 10n ** 18n,
         transactionHash: "0xdifferenthash", // Different hash - tests second part of OR condition
@@ -880,7 +883,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       const indexer = createTestIndexer();
 
       // Create two NonFungiblePositions with identical matching properties
-      const matchingNFPM1: NonFungiblePosition = {
+      const matchingNFPM1: WithChain<NonFungiblePosition> = {
         id: NonFungiblePositionId(chainId, nfpmAddress, tokenId),
         chainId,
         tokenId,
@@ -899,7 +902,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
         isStakedInGauge: false,
       };
 
-      const matchingNFPM2: NonFungiblePosition = {
+      const matchingNFPM2: WithChain<NonFungiblePosition> = {
         ...matchingNFPM1,
         id: NonFungiblePositionId(chainId, nfpmAddress, tokenId + 1n),
         tokenId: tokenId + 1n,
@@ -914,6 +917,7 @@ describe("ALMDeployFactoryV2 StrategyCreated Event", () => {
       const totalSupplyEventId = ALMLPWrapperId(chainId, lpWrapperAddress);
       indexer.ALM_TotalSupplyLimitUpdated_event.set({
         id: totalSupplyEventId,
+        chainId,
         lpWrapperAddress: toChecksumAddress(lpWrapperAddress),
         currentTotalSupplyLPTokens: 5000n * 10n ** 18n,
         transactionHash: transactionHash,

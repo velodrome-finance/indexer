@@ -1,4 +1,3 @@
-import type { Token } from "envio";
 import { createTestIndexer } from "envio";
 import {
   TEN_TO_THE_6_BI,
@@ -41,8 +40,8 @@ describe("CLPool direct (non-NFPM) liquidity attribution (#790)", () => {
     pool = createMockPool({ isCL: true });
     await registerCLPool(indexer, chainId, pool.poolAddress);
     indexer.Pool.set(pool);
-    indexer.Token.set(mockToken0Data as Token);
-    indexer.Token.set(mockToken1Data as Token);
+    indexer.Token.set(mockToken0Data);
+    indexer.Token.set(mockToken1Data);
   });
 
   it("attributes a direct Mint to the owner's UserStatsPerPool added-flow", async () => {

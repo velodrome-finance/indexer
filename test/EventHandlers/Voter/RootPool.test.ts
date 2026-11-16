@@ -278,10 +278,17 @@ describe("RootPool on the root chain", () => {
     expect(cl?.totalEmissionsUSD).toBe(0n);
   });
 
-  it("keeps the existing cross-chain path: votes without a leaf mapping stay pending", async () => {
+  it("writes only RootPool / RootPoolVote / RootGauge_RootPool: no leaf Pool, user, VeNFTPoolVote or mapping row", async () => {
     const indexer = await run();
-    // no VeNFTState in this test, so the leaf path drops them exactly as before
-    expect(await indexer.PendingVote.getAll()).toHaveLength(0);
-    expect(await indexer.PendingDistribution.getAll()).toHaveLength(2);
+    // ADR 0009 flows A-C: the root chain never writes the leaf side.
+    expect(await indexer.Pool.getAll()).toEqual([]);
+    expect(await indexer.UserStatsPerPool.getAll()).toEqual([]);
+    expect(await indexer.VeNFTPoolVote.getAll()).toEqual([]);
+    expect(await indexer.RootPool_LeafPool.getAll()).toEqual([]);
+    expect(await indexer.RootPool.getAll()).toHaveLength(2);
+    expect(await indexer.RootPoolVote.getAll()).toHaveLength(2);
+    expect(
+      (await indexer.RootGauge_RootPool.getAll()).map((r) => r.rootPoolAddress),
+    ).toEqual(expect.arrayContaining([clRoot, v2Root]));
   });
 });

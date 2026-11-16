@@ -24,7 +24,11 @@ describe("NonFungiblePositionSnapshot", () => {
       const timestamp = new Date(baseTimestamp.getTime() + 20 * 60 * 1000);
       const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 6;
 
-      const snapshot = createNonFungiblePositionSnapshot(entity, timestamp);
+      const snapshot = createNonFungiblePositionSnapshot(
+        entity,
+        timestamp,
+        entity.chainId,
+      );
 
       expect(snapshot.id).toBe(
         NonFungiblePositionSnapshotId(
@@ -42,9 +46,14 @@ describe("NonFungiblePositionSnapshot", () => {
         liquidity: 5000n,
         tickLower: -200n,
       });
-      const snapshot = createNonFungiblePositionSnapshot(entity, baseTimestamp);
+      const snapshot = createNonFungiblePositionSnapshot(
+        entity,
+        baseTimestamp,
+        entity.chainId,
+      );
 
-      expect(snapshot.chainId).toBe(entity.chainId);
+      // Per-chain mode: the chain lives in envio's own column, not on the row.
+      expect(snapshot).not.toHaveProperty("chainId");
       expect(snapshot.tokenId).toBe(entity.tokenId);
       expect(snapshot.pool).toBe(entity.pool);
       expect(snapshot.liquidity).toBe(5000n);
@@ -62,10 +71,12 @@ describe("NonFungiblePositionSnapshot", () => {
       const snapshotStaked = createNonFungiblePositionSnapshot(
         entityStaked,
         baseTimestamp,
+        entityStaked.chainId,
       );
       const snapshotUnstaked = createNonFungiblePositionSnapshot(
         entityUnstaked,
         baseTimestamp,
+        entityUnstaked.chainId,
       );
 
       expect(snapshotStaked.isStakedInGauge).toBe(true);
@@ -81,7 +92,7 @@ describe("NonFungiblePositionSnapshot", () => {
     const timestamp = new Date(baseTimestamp.getTime() + 20 * 60 * 1000);
     const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 6;
 
-    setNonFungiblePositionSnapshot(entity, timestamp, context);
+    setNonFungiblePositionSnapshot(entity, timestamp, context, entity.chainId);
 
     expect(context.NonFungiblePositionSnapshot.set).toHaveBeenCalledTimes(1);
     expect(context.NonFungiblePositionSnapshot.set).toHaveBeenCalledWith(
@@ -119,10 +130,18 @@ describe("NonFungiblePositionSnapshot", () => {
       pool: toChecksumAddress("0xBbBb000000000000000000000000000000000002"),
     });
 
-    const snapshotA = createNonFungiblePositionSnapshot(entityA, baseTimestamp);
-    const snapshotB = createNonFungiblePositionSnapshot(entityB, baseTimestamp);
+    const snapshotA = createNonFungiblePositionSnapshot(
+      entityA,
+      baseTimestamp,
+      entityA.chainId,
+    );
+    const snapshotB = createNonFungiblePositionSnapshot(
+      entityB,
+      baseTimestamp,
+      entityB.chainId,
+    );
 
-    expect(snapshotA.chainId).toBe(snapshotB.chainId);
+    expect(entityA.chainId).toBe(entityB.chainId);
     expect(snapshotA.tokenId).toBe(snapshotB.tokenId);
     expect(snapshotA.timestamp.getTime()).toBe(snapshotB.timestamp.getTime());
     expect(snapshotA.id).not.toBe(snapshotB.id);
@@ -135,7 +154,12 @@ describe("NonFungiblePositionSnapshot", () => {
     const entity = common.createMockNonFungiblePosition({ liquidity: 5000n });
     const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 6;
 
-    setNonFungiblePositionSnapshot(entity, baseTimestamp, context);
+    setNonFungiblePositionSnapshot(
+      entity,
+      baseTimestamp,
+      context,
+      entity.chainId,
+    );
 
     expect(context.NonFungiblePositionSnapshot.set).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -146,7 +170,6 @@ describe("NonFungiblePositionSnapshot", () => {
           expectedEpochMs,
         ),
         timestamp: new Date(expectedEpochMs),
-        chainId: entity.chainId,
         tokenId: entity.tokenId,
         pool: entity.pool,
         liquidity: 5000n,

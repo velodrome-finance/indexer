@@ -1,4 +1,3 @@
-import type { Token } from "envio";
 import { createTestIndexer } from "envio";
 import {
   ALMLPWrapperId,
@@ -56,7 +55,7 @@ describe("ALM_LP_Wrapper.liquidity follows the strategy position", () => {
         ...t,
         id: TokenId(chainId, t.address),
         chainId,
-      } as Token);
+      });
     }
     indexer.Pool.set(
       createMockPool({

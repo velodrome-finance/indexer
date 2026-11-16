@@ -8,7 +8,8 @@ import {
   getLegacyConstants,
   toChecksumAddress,
 } from "../../../src/Constants";
-import { withLegacyRewardToken } from "../../testHelpers";
+import { RootPoolId } from "../../../src/EventHandlers/Voter/RootPoolLogic";
+import { type WithChain, withLegacyRewardToken } from "../../testHelpers";
 import { setupCommon } from "../Pool/common";
 
 /**
@@ -18,10 +19,8 @@ import { setupCommon } from "../Pool/common";
  * conversion uses the reward token's price (VELO / xVELO / AERO), not the
  * pool's token0/token1 prices.
  *
- * Unlike the existing DistributeReward suite (which spies on
- * `findPoolByGaugeAddress` and is therefore `it.skip`'d because vi.spyOn
- * can't intercept tsx-loaded modules in envio v3 alpha.18), this test wires
- * the pool's `gaugeAddress` to the event's gauge param so the real
+ * The test wires the pool's `gaugeAddress` to the event's gauge param (vi.spyOn
+ * cannot intercept the handler's module imports) so the real
  * `findPoolByGaugeAddress` lookup succeeds via mockDb. That lets the full
  * `Voter.DistributeReward` handler run end-to-end through
  * `mockDb.processEvents` without spying.
@@ -57,7 +56,9 @@ describe("Voter.DistributeReward → totalEmissionsUSD regression (#673)", () =>
     vi.restoreAllMocks();
   });
 
-  function makeRewardToken(overrides?: Partial<Token>): Token {
+  function makeRewardToken(
+    overrides?: Partial<WithChain<Token>>,
+  ): WithChain<Token> {
     return {
       id: TokenId(chainId, rewardTokenAddress),
       address: rewardTokenAddress,
@@ -75,7 +76,7 @@ describe("Voter.DistributeReward → totalEmissionsUSD regression (#673)", () =>
       // which would zero out the seeded price.
       lastSuccessfulPriceTimestamp: new Date(blockTimestamp * 1000),
       ...overrides,
-    } as Token;
+    } as WithChain<Token>;
   }
 
   it("writes totalEmissionsUSD = emission * reward-token price when price is non-zero", async () => {
@@ -242,5 +243,113 @@ describe("Voter.DistributeReward → totalEmissionsUSD regression (#673)", () =>
     const updatedPool = await indexer.Pool.get(PoolId(chainId, poolAddress));
     expect(updatedPool?.totalEmissions).toBe(amountEmitted);
     expect(updatedPool?.totalEmissionsUSD).toBe(0n);
+  });
+
+  // A root gauge on Optimism (a superchain leaf pool's gauge): no local Pool
+  // has it, so the distribution goes to its RootPool, valued with the reward
+  // token refreshed at this event (ADR 0009, flow B). No Pool is written.
+  it("adds a root gauge's distribution to its RootPool, valued with the reward token refreshed at the event", async () => {
+    const rootCLPoolFactory = toChecksumAddress(
+      "0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F",
+    );
+    const rootPool = toChecksumAddress(
+      "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
+    );
+    const zero = "0x0000000000000000000000000000000000000000";
+    const twoHoursBefore = new Date((blockTimestamp - 7200) * 1000);
+    const rewardToken = makeRewardToken({
+      pricePerUSDNew: 3n * 10n ** 18n, // $3, last priced two hours ago
+      lastUpdatedTimestamp: twoHoursBefore,
+      lastSuccessfulPriceTimestamp: twoHoursBefore,
+    });
+    const amountEmitted = 1000n * 10n ** 18n;
+
+    const indexer = createTestIndexer();
+    indexer.Token.set(rewardToken);
+
+    await indexer.process({
+      chains: {
+        [chainId]: {
+          simulate: [
+            {
+              contract: "RootCLPoolFactory",
+              event: "RootPoolCreated",
+              srcAddress: rootCLPoolFactory,
+              logIndex: 0,
+              block: {
+                number: blockNumber - 10,
+                timestamp: blockTimestamp - 20,
+                hash: "0xblockhash0",
+              },
+              params: {
+                token0: toChecksumAddress(
+                  "0xFc00000000000000000000000000000000000001",
+                ),
+                token1: toChecksumAddress(
+                  "0xFC00000000000000000000000000000000000006",
+                ),
+                tickSpacing: 100n,
+                chainid: 252n,
+                pool: rootPool,
+              },
+            },
+            {
+              contract: "Voter",
+              event: "GaugeCreated",
+              srcAddress: voterAddress,
+              logIndex: 0,
+              block: {
+                number: blockNumber - 5,
+                timestamp: blockTimestamp - 10,
+                hash: "0xblockhash1",
+              },
+              params: {
+                poolFactory: zero,
+                votingRewardsFactory: zero,
+                gaugeFactory: zero,
+                pool: rootPool,
+                bribeVotingReward: zero,
+                feeVotingReward: zero,
+                gauge: gaugeAddress,
+                creator: zero,
+              },
+            },
+            {
+              contract: "Voter",
+              event: "DistributeReward",
+              srcAddress: voterAddress,
+              logIndex: 0,
+              block: {
+                number: blockNumber,
+                timestamp: blockTimestamp,
+                hash: "0xblockhash",
+              },
+              params: {
+                gauge: gaugeAddress,
+                amount: amountEmitted,
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    const updatedRootPool = await indexer.RootPool.get(
+      RootPoolId(chainId, rootPool),
+    );
+    expect(updatedRootPool?.gaugeAddress).toBe(gaugeAddress);
+    expect(updatedRootPool?.totalEmissions).toBe(amountEmitted);
+    expect(updatedRootPool?.totalEmissionsUSD).toBe(3000n * 10n ** 18n);
+    expect(updatedRootPool?.numberOfDistributions).toBe(1n);
+    // The reward token was refreshed at this event (its price carried, no
+    // pool to price it from in this test).
+    const refreshed = await indexer.Token.get(
+      TokenId(chainId, rewardTokenAddress),
+    );
+    expect(refreshed?.lastUpdatedTimestamp).toEqual(
+      new Date(blockTimestamp * 1000),
+    );
+    expect(refreshed?.pricePerUSDNew).toBe(3n * 10n ** 18n);
+    expect(await indexer.Pool.getAll()).toEqual([]);
   });
 });

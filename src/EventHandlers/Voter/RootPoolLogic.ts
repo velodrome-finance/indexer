@@ -355,7 +355,7 @@ export async function setRootPoolGauge(
  * @param context - Handler context
  * @returns The RootPool, or undefined
  */
-async function loadRootPoolByGauge(
+export async function loadRootPoolByGauge(
   chainId: number,
   gaugeAddress: string,
   context: handlerContext,

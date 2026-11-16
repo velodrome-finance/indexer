@@ -2,19 +2,12 @@ import type { EvmEvent } from "envio";
 import type { CLGaugeConfig, FeeToTickSpacingMapping, Token } from "envio";
 import {
   FeeToTickSpacingMappingId,
-  PendingRootPoolMappingId,
   PoolId,
-  RootPoolLeafPoolId,
   TokenId,
-  rootPoolMatchingHash,
   toChecksumAddress,
 } from "../../../src/Constants";
 import type { handlerContext } from "../../../src/EntityTypes";
-import {
-  flushPendingRootPoolMappingAndVotes,
-  processCLFactoryPoolCreated,
-} from "../../../src/EventHandlers/CLFactory/CLFactoryPoolCreatedLogic";
-import * as CrossChainPendingResolution from "../../../src/EventHandlers/Voter/CrossChainPendingResolution";
+import { processCLFactoryPoolCreated } from "../../../src/EventHandlers/CLFactory/CLFactoryPoolCreatedLogic";
 import * as PriceOracle from "../../../src/PriceOracle";
 import {
   PRICE_TRUST_OUTCOME,
@@ -41,7 +34,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
         name: "Mock Token",
         decimals: 18n,
         pricePerUSDNew: 1000000000000000000n,
-        chainId: 10,
         isWhitelisted: false,
         isListedOnAero: undefined,
         lastUpdatedTimestamp: new Date(1000000 * 1000),
@@ -88,7 +80,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
   // Mock FeeToTickSpacingMapping
   const mockFeeToTickSpacingMapping: FeeToTickSpacingMapping = {
     id: FeeToTickSpacingMappingId(CHAIN_ID, MOCK_CL_FACTORY, TICK_SPACING),
-    chainId: CHAIN_ID,
     factoryAddress: MOCK_CL_FACTORY,
     tickSpacing: TICK_SPACING,
     fee: FEE,
@@ -141,7 +132,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
       expect(result?.liquidityPoolAggregator.nfpmAddress).toBeUndefined();
       expect(result?.liquidityPoolAggregator).toMatchObject({
         id: LEAF_POOL_ID,
-        chainId: 10,
         name: "CL-60 AMM - USDT/USDC",
         ...expectedTokenFields,
         isStable: false,
@@ -166,7 +156,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
       expect(result?.liquidityPoolAggregator).toMatchObject({
         id: LEAF_POOL_ID,
-        chainId: 10,
         name: "CL-60 AMM - /USDC", // Empty symbol for token0
         ...expectedTokenFields,
         isStable: false,
@@ -191,7 +180,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
       expect(result?.liquidityPoolAggregator).toMatchObject({
         id: LEAF_POOL_ID,
-        chainId: 10,
         name: "CL-60 AMM - USDT/", // Empty symbol for token1
         ...expectedTokenFields,
         isStable: false,
@@ -216,7 +204,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
       expect(result?.liquidityPoolAggregator).toMatchObject({
         id: LEAF_POOL_ID,
-        chainId: 10,
         name: "CL-60 AMM - /", // Empty symbols for both tokens
         ...expectedTokenFields,
         isStable: false,
@@ -240,7 +227,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
       // For different tick spacing, use a different mapping
       const mappingForTickSpacing200: FeeToTickSpacingMapping = {
         id: FeeToTickSpacingMappingId(CHAIN_ID, MOCK_CL_FACTORY, 200),
-        chainId: CHAIN_ID,
         factoryAddress: MOCK_CL_FACTORY,
         tickSpacing: 200n,
         fee: 300n,
@@ -285,7 +271,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
       expect(result?.liquidityPoolAggregator).toMatchObject({
         id: LEAF_POOL_ID,
-        chainId: 10,
         name: "CL-60 AMM - USDT/USDC",
         ...expectedTokenFields,
         isStable: false,
@@ -320,7 +305,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
       expect(result?.liquidityPoolAggregator).toMatchObject({
         id: LEAF_POOL_ID,
-        chainId: 10,
         name: "CL-60 AMM - USDT/USDC",
         ...expectedTokenFields,
         isStable: false,
@@ -341,7 +325,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
       // For different chain ID, use a different mapping
       const mappingForBase: FeeToTickSpacingMapping = {
         id: FeeToTickSpacingMappingId(8453, MOCK_CL_FACTORY, TICK_SPACING),
-        chainId: 8453,
         factoryAddress: MOCK_CL_FACTORY,
         tickSpacing: TICK_SPACING,
         fee: 400n,
@@ -358,7 +341,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
         mockContext,
       );
 
-      expect(result?.liquidityPoolAggregator?.chainId).toBe(8453);
       expect(result?.liquidityPoolAggregator?.token0_id).toBe(
         TokenId(
           8453,
@@ -675,7 +657,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
 
         const mapping: FeeToTickSpacingMapping = {
           id: FeeToTickSpacingMappingId(CHAIN_ID, MOCK_CL_FACTORY, tickSpacing),
-          chainId: CHAIN_ID,
           factoryAddress: MOCK_CL_FACTORY,
           tickSpacing,
           fee,
@@ -795,299 +776,6 @@ describe("CLFactoryPoolCreatedLogic", () => {
         ...expectedTokenFields,
         isCL: true,
       });
-    });
-  });
-
-  describe("flushPendingRootPoolMappingAndVotes", () => {
-    const leafChainId = 8453;
-    const leafPoolAddress = toChecksumAddress(
-      "0x4444444444444444444444444444444444444444",
-    );
-    const rootChainId = 10;
-    const rootPoolAddress = toChecksumAddress(
-      "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
-    );
-    const token0 = toChecksumAddress(
-      "0x2222222222222222222222222222222222222222",
-    );
-    const token1 = toChecksumAddress(
-      "0x3333333333333333333333333333333333333333",
-    );
-    const tickSpacing = 60n;
-    const leafFactoryAddress = toChecksumAddress(
-      "0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F",
-    );
-
-    it("should do nothing when no PendingRootPoolMapping exists for the hash", async () => {
-      const getWhere = vi.fn().mockResolvedValue([]);
-      const set = vi.fn();
-      const deleteUnsafe = vi.fn();
-      const flushSpy = vi.spyOn(
-        CrossChainPendingResolution,
-        "flushPendingVotesAndDistributionsForRootPool",
-      );
-
-      const context = {
-        PendingRootPoolMapping: { getWhere, deleteUnsafe },
-        RootPool_LeafPool: { set },
-        log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-      } as unknown as handlerContext;
-
-      await flushPendingRootPoolMappingAndVotes(
-        context,
-        leafChainId,
-        token0,
-        token1,
-        tickSpacing,
-        leafPoolAddress,
-        leafFactoryAddress,
-      );
-
-      const expectedHash = rootPoolMatchingHash(
-        leafChainId,
-        token0,
-        token1,
-        tickSpacing,
-      );
-      expect(getWhere).toHaveBeenCalledTimes(1);
-      expect(getWhere).toHaveBeenCalledWith({
-        rootPoolMatchingHash: { _eq: expectedHash },
-      });
-      expect(set).not.toHaveBeenCalled();
-      expect(deleteUnsafe).not.toHaveBeenCalled();
-      expect(flushSpy).not.toHaveBeenCalled();
-    });
-
-    it.each([null, undefined])(
-      "should do nothing when getWhere returns %s (treat as empty)",
-      async (getWhereResult) => {
-        const getWhere = vi.fn().mockResolvedValue(getWhereResult);
-        const set = vi.fn();
-        const deleteUnsafe = vi.fn();
-        const flushSpy = vi.spyOn(
-          CrossChainPendingResolution,
-          "flushPendingVotesAndDistributionsForRootPool",
-        );
-
-        const context = {
-          PendingRootPoolMapping: { getWhere, deleteUnsafe },
-          RootPool_LeafPool: { set },
-          log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-        } as unknown as handlerContext;
-
-        await flushPendingRootPoolMappingAndVotes(
-          context,
-          leafChainId,
-          token0,
-          token1,
-          tickSpacing,
-          leafPoolAddress,
-          leafFactoryAddress,
-        );
-
-        const expectedHash = rootPoolMatchingHash(
-          leafChainId,
-          token0,
-          token1,
-          tickSpacing,
-        );
-        expect(getWhere).toHaveBeenCalledTimes(1);
-        expect(getWhere).toHaveBeenCalledWith({
-          rootPoolMatchingHash: { _eq: expectedHash },
-        });
-        expect(set).not.toHaveBeenCalled();
-        expect(deleteUnsafe).not.toHaveBeenCalled();
-        expect(flushSpy).not.toHaveBeenCalled();
-      },
-    );
-
-    it("should set RootPool_LeafPool, delete PendingRootPoolMapping, and call flushPendingVotesAndDistributionsForRootPool when pending mapping exists", async () => {
-      const hash = rootPoolMatchingHash(
-        leafChainId,
-        token0,
-        token1,
-        tickSpacing,
-      );
-      const pendingMapping = {
-        id: PendingRootPoolMappingId(rootChainId, rootPoolAddress),
-        rootChainId,
-        rootPoolAddress,
-        leafChainId,
-        token0,
-        token1,
-        tickSpacing,
-        rootPoolMatchingHash: hash,
-        rootFactoryAddress: leafFactoryAddress,
-      };
-
-      const getWhere = vi.fn().mockResolvedValue([pendingMapping]);
-      const set = vi.fn();
-      const deleteUnsafe = vi.fn();
-      const flushSpy = vi
-        .spyOn(
-          CrossChainPendingResolution,
-          "flushPendingVotesAndDistributionsForRootPool",
-        )
-        .mockResolvedValue(undefined);
-
-      const context = {
-        PendingRootPoolMapping: { getWhere, deleteUnsafe },
-        RootPool_LeafPool: { set },
-        log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-      } as unknown as handlerContext;
-
-      await flushPendingRootPoolMappingAndVotes(
-        context,
-        leafChainId,
-        token0,
-        token1,
-        tickSpacing,
-        leafPoolAddress,
-        leafFactoryAddress,
-      );
-
-      expect(getWhere).toHaveBeenCalledWith({
-        rootPoolMatchingHash: { _eq: hash },
-      });
-      expect(set).toHaveBeenCalledTimes(1);
-      expect(set).toHaveBeenCalledWith({
-        id: RootPoolLeafPoolId(
-          rootChainId,
-          leafChainId,
-          rootPoolAddress,
-          leafPoolAddress,
-        ),
-        rootChainId,
-        rootPoolAddress,
-        leafChainId,
-        leafPoolAddress,
-      });
-      expect(deleteUnsafe).toHaveBeenCalledTimes(1);
-      expect(deleteUnsafe).toHaveBeenCalledWith(pendingMapping.id);
-      expect(flushSpy).toHaveBeenCalledTimes(1);
-      expect(flushSpy).toHaveBeenCalledWith(
-        context,
-        rootPoolAddress,
-        "[flushPendingRootPoolMappingAndVotes]",
-      );
-    });
-
-    it("should not let a pool from another factory claim the pending mapping (shared hash)", async () => {
-      const hash = rootPoolMatchingHash(
-        leafChainId,
-        token0,
-        token1,
-        tickSpacing,
-      );
-      const pendingMapping = {
-        id: PendingRootPoolMappingId(rootChainId, rootPoolAddress),
-        rootChainId,
-        rootPoolAddress,
-        leafChainId,
-        token0,
-        token1,
-        tickSpacing,
-        rootPoolMatchingHash: hash,
-        rootFactoryAddress: leafFactoryAddress,
-      };
-      const getWhere = vi.fn().mockResolvedValue([pendingMapping]);
-      const set = vi.fn();
-      const deleteUnsafe = vi.fn();
-      const flushSpy = vi.spyOn(
-        CrossChainPendingResolution,
-        "flushPendingVotesAndDistributionsForRootPool",
-      );
-      const context = {
-        PendingRootPoolMapping: { getWhere, deleteUnsafe },
-        RootPool_LeafPool: { set },
-        log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-      } as unknown as handlerContext;
-
-      // Ink's second CL factory.
-      await flushPendingRootPoolMappingAndVotes(
-        context,
-        leafChainId,
-        token0,
-        token1,
-        tickSpacing,
-        leafPoolAddress,
-        toChecksumAddress("0x718E46d0962A66942E233760a8bd6038Ce54EdCD"),
-      );
-
-      expect(set).not.toHaveBeenCalled();
-      expect(deleteUnsafe).not.toHaveBeenCalled();
-      expect(flushSpy).not.toHaveBeenCalled();
-    });
-
-    it("should still set RootPool_LeafPool, delete PendingRootPoolMapping, and complete without throwing when flushPendingVotesAndDistributionsForRootPool throws", async () => {
-      const hash = rootPoolMatchingHash(
-        leafChainId,
-        token0,
-        token1,
-        tickSpacing,
-      );
-      const pendingMapping = {
-        id: PendingRootPoolMappingId(rootChainId, rootPoolAddress),
-        rootChainId,
-        rootPoolAddress,
-        leafChainId,
-        token0,
-        token1,
-        tickSpacing,
-        rootPoolMatchingHash: hash,
-        rootFactoryAddress: leafFactoryAddress,
-      };
-
-      const getWhere = vi.fn().mockResolvedValue([pendingMapping]);
-      const set = vi.fn();
-      const deleteUnsafe = vi.fn();
-      const logError = vi.fn();
-      const getWhereRootPoolLeafPool = vi
-        .fn()
-        .mockRejectedValueOnce(new Error("Pending vote processing failed"))
-        .mockResolvedValueOnce([{ leafPoolAddress, leafChainId }]);
-
-      const context = {
-        PendingRootPoolMapping: { getWhere, deleteUnsafe },
-        RootPool_LeafPool: { set, getWhere: getWhereRootPoolLeafPool },
-        PendingDistribution: { getWhere: vi.fn().mockResolvedValue([]) },
-        log: { info: vi.fn(), warn: vi.fn(), error: logError },
-      } as unknown as handlerContext;
-
-      await expect(
-        flushPendingRootPoolMappingAndVotes(
-          context,
-          leafChainId,
-          token0,
-          token1,
-          tickSpacing,
-          leafPoolAddress,
-          leafFactoryAddress,
-        ),
-      ).resolves.toBeUndefined();
-
-      expect(set).toHaveBeenCalledTimes(1);
-      expect(set).toHaveBeenCalledWith({
-        id: RootPoolLeafPoolId(
-          rootChainId,
-          leafChainId,
-          rootPoolAddress,
-          leafPoolAddress,
-        ),
-        rootChainId,
-        rootPoolAddress,
-        leafChainId,
-        leafPoolAddress,
-      });
-      expect(deleteUnsafe).toHaveBeenCalledTimes(1);
-      expect(deleteUnsafe).toHaveBeenCalledWith(pendingMapping.id);
-      expect(logError).toHaveBeenCalledTimes(1);
-      expect(logError).toHaveBeenCalledWith(
-        expect.stringContaining(rootPoolAddress),
-      );
-      expect(logError).toHaveBeenCalledWith(
-        expect.stringContaining("Pending vote processing failed"),
-      );
     });
   });
 });

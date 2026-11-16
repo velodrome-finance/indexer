@@ -6,7 +6,7 @@ import {
   toChecksumAddress,
 } from "../../../src/Constants";
 import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
-import { setupPool } from "../../testHelpers";
+import { type WithChain, setupPool } from "../../testHelpers";
 import { setupCommon } from "../Pool/common";
 
 describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
@@ -51,7 +51,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       const indexer = createTestIndexer();
 
       // Pre-populate with NonFungiblePosition (created by CLPool handlers)
-      const mockNFPM: NonFungiblePosition = {
+      const mockNFPM: WithChain<NonFungiblePosition> = {
         id: NonFungiblePositionId(chainId, nfpmAddress, tokenId),
         chainId,
         tokenId,
@@ -302,7 +302,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       const indexer = createTestIndexer();
 
       // Create multiple NonFungiblePositions with different values
-      const matchingNFPM: NonFungiblePosition = {
+      const matchingNFPM: WithChain<NonFungiblePosition> = {
         id: NonFungiblePositionId(chainId, nfpmAddress, tokenId),
         chainId,
         tokenId,
@@ -321,7 +321,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         isStakedInGauge: false,
       };
 
-      const nonMatchingNFPM: NonFungiblePosition = {
+      const nonMatchingNFPM: WithChain<NonFungiblePosition> = {
         id: NonFungiblePositionId(chainId, nfpmAddress, tokenId + 1n),
         chainId,
         tokenId: tokenId + 1n,
@@ -411,7 +411,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
       const indexer = createTestIndexer();
 
       // Create two NonFungiblePositions with identical matching criteria
-      const matchingNFPM1: NonFungiblePosition = {
+      const matchingNFPM1: WithChain<NonFungiblePosition> = {
         id: NonFungiblePositionId(chainId, nfpmAddress, tokenId),
         chainId,
         tokenId,
@@ -430,7 +430,7 @@ describe("ALMDeployFactoryV1 StrategyCreated Event", () => {
         isStakedInGauge: false,
       };
 
-      const matchingNFPM2: NonFungiblePosition = {
+      const matchingNFPM2: WithChain<NonFungiblePosition> = {
         id: NonFungiblePositionId(chainId, nfpmAddress, tokenId + 1n),
         chainId,
         tokenId: tokenId + 1n,

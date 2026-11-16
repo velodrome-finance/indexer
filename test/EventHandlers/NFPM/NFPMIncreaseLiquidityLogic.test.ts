@@ -4,6 +4,7 @@ import { type PoolData, loadPoolData } from "../../../src/Aggregators/Pool";
 import {
   CLPoolMintEventId,
   NonFungiblePositionId,
+  TxCLPoolMintRegistryId,
   toChecksumAddress,
 } from "../../../src/Constants";
 import type { handlerContext } from "../../../src/EntityTypes";
@@ -48,7 +49,6 @@ describe("NFPMIncreaseLiquidityLogic", () => {
 
   const mockPosition: NonFungiblePosition = {
     id: NonFungiblePositionId(chainId, nfpmAddress, tokenId),
-    chainId: chainId,
     tokenId: tokenId,
     nfpmAddress: nfpmAddress,
     owner: ownerAddress,
@@ -94,9 +94,10 @@ describe("NFPMIncreaseLiquidityLogic", () => {
     mintEvents: CLPoolMintEvent[] = [],
   ): handlerContext {
     // (Re)seed registry state from mintEvents: one row per (chainId, txHash).
+    // Handler-side rows carry no chainId; every mint here is on `chainId`.
     registryState = new Map<string, string[]>();
     for (const m of mintEvents) {
-      const key = `${m.chainId}-${m.transactionHash}`;
+      const key = TxCLPoolMintRegistryId(chainId, m.transactionHash);
       const list = registryState.get(key) ?? [];
       list.push(m.id);
       registryState.set(key, list);
@@ -342,7 +343,6 @@ describe("NFPMIncreaseLiquidityLogic", () => {
           transactionHash,
           increaseLogIndex - 1,
         ),
-        chainId: chainId,
         pool: poolAddress,
         owner: mockPosition.owner,
         tickLower: mockPosition.tickLower,
@@ -398,7 +398,6 @@ describe("NFPMIncreaseLiquidityLogic", () => {
       // Mint event in same tx but with different liquidity so it does not match the filter
       const nonMatchingMintEvent: CLPoolMintEvent = {
         id: `${chainId}_${poolAddress}_${transactionHash}_${increaseLogIndex - 1}`,
-        chainId: chainId,
         pool: poolAddress,
         owner: mockPosition.owner,
         tickLower: mockPosition.tickLower,
@@ -440,7 +439,6 @@ describe("NFPMIncreaseLiquidityLogic", () => {
       // They have different logIndexes but all match pool, ticks, and liquidity
       const mockMintEvent1: CLPoolMintEvent = {
         id: CLPoolMintEventId(chainId, poolAddress, transactionHash, 5),
-        chainId: chainId,
         pool: poolAddress,
         owner: mockPosition.owner,
         tickLower: mockPosition.tickLower,
@@ -458,7 +456,6 @@ describe("NFPMIncreaseLiquidityLogic", () => {
 
       const mockMintEvent2: CLPoolMintEvent = {
         id: CLPoolMintEventId(chainId, poolAddress, transactionHash, 10),
-        chainId: chainId,
         pool: poolAddress,
         owner: mockPosition.owner,
         tickLower: mockPosition.tickLower,
@@ -476,7 +473,6 @@ describe("NFPMIncreaseLiquidityLogic", () => {
 
       const mockMintEvent3: CLPoolMintEvent = {
         id: CLPoolMintEventId(chainId, poolAddress, transactionHash, 8),
-        chainId: chainId,
         pool: poolAddress,
         owner: mockPosition.owner,
         tickLower: mockPosition.tickLower,
@@ -581,9 +577,7 @@ describe("NFPMIncreaseLiquidityLogic", () => {
       const mockPoolData: PoolData = {
         token0Instance: {} as PoolData["token0Instance"],
         token1Instance: {} as PoolData["token1Instance"],
-        liquidityPoolAggregator: {
-          chainId,
-        } as PoolData["liquidityPoolAggregator"],
+        liquidityPoolAggregator: {} as PoolData["liquidityPoolAggregator"],
       };
       const increaseAmount = 168374122051126n;
       const amount0 = 18500000000n;
@@ -608,6 +602,7 @@ describe("NFPMIncreaseLiquidityLogic", () => {
         amount1,
         expect.anything(), // timestamp
         LiquidityChangeType.ADD,
+        chainId,
       );
     });
   });

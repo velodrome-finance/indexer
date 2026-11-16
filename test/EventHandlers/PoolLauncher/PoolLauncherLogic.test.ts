@@ -74,7 +74,6 @@ describe("PoolLauncherLogic", () => {
       // Assert
       expect(result).toBeDefined();
       expect(result.id).toBe(`8453-${poolAddress}`);
-      expect(result.chainId).toBe(8453);
       expect(result.underlyingPool).toBe(poolAddress);
       expect(result.launcher).toBe(launcherAddress);
       expect(result.creator).toBe(creator);
@@ -157,7 +156,6 @@ describe("PoolLauncherLogic", () => {
       // Create an existing PoolLauncherPool
       const existingPoolLauncherPool: PoolLauncherPool = {
         id: PoolId(chainId, poolAddress),
-        chainId: chainId,
         underlyingPool: poolAddress,
         launcher: toChecksumAddress(
           "0x0000000000000000000000000000000000000002",
@@ -237,7 +235,6 @@ describe("PoolLauncherLogic", () => {
 
       // Assert
       expect(result.id).toBe("10-0x1234567890123456789012345678901234567890");
-      expect(result.chainId).toBe(10);
     });
 
     it("should preserve EIP-55 checksum-cased addresses verbatim (no internal lowercasing)", async () => {
@@ -323,7 +320,6 @@ describe("PoolLauncherLogic", () => {
 
         // Verify all other fields remain unchanged
         expect(updatedEntity?.id).toBe(PoolId(chainId, poolAddress));
-        expect(updatedEntity?.chainId).toBe(8453);
         expect(updatedEntity?.name).toBe("TEST/USDC");
         expect(updatedEntity?.reserve0).toBe(1000000n);
         expect(updatedEntity?.reserve1).toBe(2000000n);
@@ -398,7 +394,6 @@ describe("PoolLauncherLogic", () => {
 
         // Verify all other fields remain unchanged
         expect(updatedEntity?.id).toBe(PoolId(chainId, poolAddress));
-        expect(updatedEntity?.chainId).toBe(8453);
         expect(updatedEntity?.name).toBe("TEST/USDC");
         expect(updatedEntity?.reserve0).toBe(1000000n);
         expect(updatedEntity?.reserve1).toBe(2000000n);

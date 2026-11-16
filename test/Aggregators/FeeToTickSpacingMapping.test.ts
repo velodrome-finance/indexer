@@ -29,7 +29,6 @@ describe("FeeToTickSpacingMapping", () => {
 
     currentMapping = {
       id: MAPPING_ID,
-      chainId: CHAIN_ID,
       factoryAddress: FACTORY,
       tickSpacing: TICK_SPACING,
       fee: INITIAL_FEE,
@@ -130,7 +129,6 @@ describe("FeeToTickSpacingMapping", () => {
         .calls[0]?.[0] as FeeToTickSpacingMapping;
 
       expect(updatedMapping.id).toBe(currentMapping.id);
-      expect(updatedMapping.chainId).toBe(currentMapping.chainId);
       expect(updatedMapping.tickSpacing).toBe(currentMapping.tickSpacing);
     });
 

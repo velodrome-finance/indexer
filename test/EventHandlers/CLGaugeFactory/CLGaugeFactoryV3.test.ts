@@ -2,6 +2,7 @@ import type { CLGaugeConfig } from "envio";
 import { createTestIndexer } from "envio";
 import { PoolId, toChecksumAddress } from "../../../src/Constants";
 import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
+import type { WithChain } from "../../testHelpers";
 import { type MockPool, setupCommon } from "../Pool/common";
 
 describe("CLGaugeFactoryV3 Event Handlers", () => {
@@ -327,8 +328,9 @@ describe("CLGaugeFactoryV3 Event Handlers", () => {
     });
 
     it("updates defaultMinStakeTime without stomping existing defaultEmissionsCap or penaltyRate", async () => {
-      const existing: CLGaugeConfig = {
+      const existing: WithChain<CLGaugeConfig> = {
         id: String(chainId),
+        chainId,
         defaultEmissionsCap: mockDefaultCap,
         defaultMinStakeTime: 0n,
         penaltyRate: 250n,
@@ -495,8 +497,9 @@ describe("CLGaugeFactoryV3 Event Handlers", () => {
     });
 
     it("updates penaltyRate without stomping defaultEmissionsCap or defaultMinStakeTime", async () => {
-      const existing: CLGaugeConfig = {
+      const existing: WithChain<CLGaugeConfig> = {
         id: String(chainId),
+        chainId,
         defaultEmissionsCap: mockDefaultCap,
         defaultMinStakeTime: 86_400n,
         penaltyRate: 0n,

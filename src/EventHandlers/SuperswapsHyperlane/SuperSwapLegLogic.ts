@@ -36,7 +36,7 @@ export const TxProcessIdRegistryId = (
 
 /**
  * The non-oUSDT side of an oUSDT swap: the token sold for oUSDT (origin) or
- * bought with it (destination) and its amount, as the SuperSwap stitching
+ * bought with it (destination) and its amount, as the former SuperSwap
  * stitching read it. Undefined when the swap does not involve oUSDT.
  *
  * @param swap - An OUSDTSwaps row (or the registry's copy of it)

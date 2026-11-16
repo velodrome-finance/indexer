@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PoolId, TokenId, toChecksumAddress } from "../../src/Constants";
 import { resetCanonicalPriceSettings } from "../../src/Effects/CanonicalSourcePrice";
 import * as PriceOracle from "../../src/PriceOracle";
+import { PRICING_TIER, getPricingTier } from "../../src/Pricing/PricingConfig";
 import {
   type CanonicalSourcePriceInput,
   type CanonicalSourcePriceOutput,
@@ -23,12 +24,19 @@ import {
 
 /**
  * refreshTokenPrice with the canonical snapshot effect (ADR 0009, flow F):
- * after local pools / live source and the seed, before two-hop and carry.
+ * after local pools and the seed, before two-hop and carry. The canonical
+ * source's own Token row is never read (per-chain stores only hold this chain).
  */
 
 const LISK_WETH = OP_WETH; // the OP-stack predeploy, same address on Lisk
 const OP_WETH_ID = TokenId(OP, OP_WETH);
 const P_WETH_USDT = toChecksumAddress(`0x${"c1".padStart(40, "0")}`);
+/** A Lisk price connector (tier 2) other than XVELO, for XVELO's two-hop peer. */
+const LISK_PEER = toChecksumAddress(
+  "0xac485391EB2d7D88253a7F1eF18C37f4242D1A24",
+);
+const P_PEER_USDT = toChecksumAddress(`0x${"c2".padStart(40, "0")}`);
+const P_XVELO_PEER = toChecksumAddress(`0x${"c3".padStart(40, "0")}`);
 
 /** 2026-11-15 10:30 UTC: after the committed seed's last hour (2026-11-14 01:00). */
 const HOUR = 1_794_736_800;
@@ -54,7 +62,7 @@ const notYet: Responder = () => ({ priceUSD: 0n, sourceHourMs: 0 });
 function liskStore(opts: {
   at?: number;
   respond?: Responder;
-  sourceAt?: number; // Optimism WETH's last success; undefined = no row
+  sourceAt?: number; // an Optimism WETH row's last success; undefined = no row
   pool?: boolean; // a qualifying $1,300 USDT / 0.5 WETH pool ($2,600)
 }) {
   const at = opts.at ?? T;
@@ -170,16 +178,7 @@ describe("canonical snapshot effect in refreshTokenPrice (ADR 0009, flow F)", ()
     expect(store.canonicalSourcePriceCalls).toEqual([]);
   });
 
-  it("a live source inside its window beats the effect (no call)", async () => {
-    const store = liskStore({ sourceAt: T - 30 * 60 });
-    const weth = await refresh(store, LISK, LISK_WETH, T);
-    expect(weth.pricePerUSDNew).toBe(USD(2_500));
-    expect(store.snapshots.at(-1)?.priceSource).toBe("canonical");
-    expect(store.canonicalSourcePriceCalls).toEqual([]);
-  });
-
-  it("with PRICING_CANONICAL_LIVE_READ=false the live source is not read and the effect answers", async () => {
-    setEnv({ PRICING_CANONICAL_LIVE_READ: "false" });
+  it("a fresh source Token row is not read: the effect answers", async () => {
     const store = liskStore({ sourceAt: T - 30 * 60 });
     const weth = await refresh(store, LISK, LISK_WETH, T);
     expect(weth.pricePerUSDNew).toBe(SNAPSHOT_PRICE);
@@ -187,8 +186,7 @@ describe("canonical snapshot effect in refreshTokenPrice (ADR 0009, flow F)", ()
     expect(store.context.Token.get).not.toHaveBeenCalledWith(OP_WETH_ID);
   });
 
-  it("with the live read off, the seed still comes first", async () => {
-    setEnv({ PRICING_CANONICAL_LIVE_READ: "false" });
+  it("a fresh source Token row does not beat the seed", async () => {
     const store = liskStore({ at: SEED_T, sourceAt: SEED_T - 60 });
     await refresh(store, LISK, LISK_WETH, SEED_T);
     expect(store.snapshots.at(-1)?.priceSource).toBe("canonical-seed");
@@ -231,6 +229,89 @@ describe("canonical snapshot effect in refreshTokenPrice (ADR 0009, flow F)", ()
       TokenId(OP, OP_VELO),
     );
     expect(xvelo.pricePerUSDNew).toBe(SNAPSHOT_PRICE);
+  });
+
+  describe("order against two-hop and carry", () => {
+    /**
+     * XVELO's only pool is a peer pool against another Lisk connector, which
+     * has a direct $100K USDT pool: a qualifying two-hop route (ADR 0007).
+     * Pool sides follow address order (token0 < token1).
+     */
+    function twoHopStore() {
+      const usdtFirst = LISK_USDT.toLowerCase() < LISK_PEER.toLowerCase();
+      const xveloFirst = XVELO.toLowerCase() < LISK_PEER.toLowerCase();
+      const usdtSide = 100_000n * 10n ** 6n;
+      const peerSide = 50_000n * E18;
+      const xveloSide = 1_000_000n * E18;
+      const peerSide2 = 25_000n * E18;
+      return createPricingStore({
+        tokens: [
+          makeToken(LISK, LISK_USDT, 6n, USD(1), T - DAY_S),
+          makeToken(LISK, LISK_PEER, 18n, 0n, T - DAY_S),
+          makeToken(LISK, XVELO, 18n, USD(3), T - DAY_S),
+        ],
+        pools: [
+          // 100K USDT vs 50K PEER: PEER = $2.
+          usdtFirst
+            ? makePool(LISK, P_PEER_USDT, LISK_USDT, LISK_PEER, {
+                reserve0: usdtSide,
+                reserve1: peerSide,
+              })
+            : makePool(LISK, P_PEER_USDT, LISK_PEER, LISK_USDT, {
+                reserve0: peerSide,
+                reserve1: usdtSide,
+              }),
+          // 1M XVELO vs 25K PEER ($50K): XVELO = $0.05.
+          xveloFirst
+            ? makePool(LISK, P_XVELO_PEER, XVELO, LISK_PEER, {
+                reserve0: xveloSide,
+                reserve1: peerSide2,
+              })
+            : makePool(LISK, P_XVELO_PEER, LISK_PEER, XVELO, {
+                reserve0: peerSide2,
+                reserve1: xveloSide,
+              }),
+        ],
+        pricingPools: {
+          [TokenId(LISK, LISK_PEER)]: [
+            PoolId(LISK, P_PEER_USDT),
+            PoolId(LISK, P_XVELO_PEER),
+          ],
+          [TokenId(LISK, XVELO)]: [PoolId(LISK, P_XVELO_PEER)],
+        },
+        canonicalSourcePrice: answers,
+      });
+    }
+
+    it("the fixture: XVELO and its peer are both Lisk connectors (tier 2)", () => {
+      expect(getPricingTier(LISK, XVELO)).toBe(PRICING_TIER.CONNECTOR);
+      expect(getPricingTier(LISK, LISK_PEER)).toBe(PRICING_TIER.CONNECTOR);
+    });
+
+    it("the effect answers before a qualifying two-hop route", async () => {
+      const store = twoHopStore();
+      const xvelo = await refresh(store, LISK, XVELO, T);
+      expect(xvelo.pricePerUSDNew).toBe(SNAPSHOT_PRICE);
+      expect(store.snapshots.at(-1)).toMatchObject({
+        priceSource: "canonical-snapshot",
+        pricingSourceTokenId: TokenId(OP, OP_VELO),
+      });
+    });
+
+    it("with no effect answer the two-hop route is next, before carry", async () => {
+      const store = twoHopStore();
+      // Same store, effect switched off: the two-hop route prices XVELO.
+      setEnv({ PRICING_CANONICAL_SNAPSHOT_EFFECT: "false" });
+      const xvelo = await refresh(store, LISK, XVELO, T);
+      expect(xvelo.pricePerUSDNew).toBe(E18 / 20n);
+      expect(store.snapshots.at(-1)).toMatchObject({
+        priceSource: "pool",
+        pricingHops: 2,
+        pricingPoolId: PoolId(LISK, P_XVELO_PEER),
+        pricingViaTokenId: TokenId(LISK, LISK_PEER),
+      });
+      expect(store.canonicalSourcePriceCalls).toEqual([]);
+    });
   });
 
   it("never calls the effect for a token without a canonical source", async () => {

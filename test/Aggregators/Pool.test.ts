@@ -1,14 +1,9 @@
 import type { Token } from "envio";
-import {
-  loadPoolData,
-  loadPoolDataOrRootCLPool,
-  updatePool,
-} from "../../src/Aggregators/Pool";
+import { loadPoolData, updatePool } from "../../src/Aggregators/Pool";
 import {
   type CHAIN_CONSTANTS,
   PoolId,
   PoolSnapshotId,
-  RootPoolLeafPoolId,
   TEN_TO_THE_18_BI,
   toChecksumAddress,
 } from "../../src/Constants";
@@ -18,6 +13,7 @@ import * as PriceOracle from "../../src/PriceOracle";
 import { setPoolSnapshot } from "../../src/Snapshots/PoolSnapshot";
 import { getSnapshotEpoch } from "../../src/Snapshots/Shared";
 import { setupCommon } from "../EventHandlers/Pool/common";
+import type { WithChain } from "../testHelpers";
 
 // Type for the readContract method
 type ReadContractMethod =
@@ -25,7 +21,7 @@ type ReadContractMethod =
 
 describe("Pool Functions", () => {
   let mockContext: Partial<handlerContext>;
-  let liquidityPoolAggregator: Partial<Pool>;
+  let liquidityPoolAggregator: Partial<WithChain<Pool>>;
   let timestamp: Date;
   const blockNumber = 131536921;
   const { createMockPool } = setupCommon();
@@ -161,6 +157,7 @@ describe("Pool Functions", () => {
         liquidityPoolAggregator as Pool,
         timestamp,
         mockContext as handlerContext,
+        (liquidityPoolAggregator as WithChain<Pool>).chainId,
       );
     });
 
@@ -419,7 +416,6 @@ describe("Pool Functions", () => {
         name: "Mock Token",
         decimals,
         pricePerUSDNew,
-        chainId: 8453,
         isWhitelisted: true,
         isListedOnAero: undefined,
         lastUpdatedTimestamp: new Date(),
@@ -476,9 +472,7 @@ describe("Pool Functions", () => {
         expect(msg).toContain("priorStakedReserve=50");
         expect(msg).toContain("delta=-100");
         expect(msg).toContain("clampedTo=0");
-        expect(msg).toContain(
-          `chainId=${(liquidityPoolAggregator as Pool).chainId}`,
-        );
+        expect(msg).toContain("chainId=8453");
         expect(msg).toContain(
           `poolAddress=${(liquidityPoolAggregator as Pool).poolAddress}`,
         );
@@ -657,9 +651,7 @@ describe("Pool Functions", () => {
         expect(msg).toContain("clampedTo=0");
         // Message content unchanged from pre-#802 (poolAddress / chainId /
         // priorStakedReserve / delta / clampedTo).
-        expect(msg).toContain(
-          `chainId=${(liquidityPoolAggregator as Pool).chainId}`,
-        );
+        expect(msg).toContain("chainId=8453");
         expect(msg).toContain(`delta=${grossDelta}`);
       });
 
@@ -897,12 +889,9 @@ describe("Pool Functions", () => {
         expect(msg).toContain("priorReserve=50");
         expect(msg).toContain("delta=-100");
         expect(msg).toContain("clampedTo=0");
-        // chainId in the log is the pool entity's chainId, not the eventChainId
-        // parameter — those agree in practice (a reserve diff comes from the
-        // pool's own chain) and the pool's chainId is what Hasura consumers query.
-        expect(msg).toContain(
-          `chainId=${(liquidityPoolAggregator as Pool).chainId}`,
-        );
+        // chainId in the log is the eventChainId parameter: per-chain entities
+        // carry no chainId field (ADR 0009), and the handler only sees its chain.
+        expect(msg).toContain("chainId=8453");
       });
 
       it("clamps reserve1 to 0n and logs guard when delta would drive it negative", async () => {
@@ -1148,9 +1137,7 @@ describe("Pool Functions", () => {
         expect(msg).toContain("priorStakedLiqInRange=100");
         expect(msg).toContain("replacement=-250");
         expect(msg).toContain("clampedTo=0");
-        expect(msg).toContain(
-          `chainId=${(liquidityPoolAggregator as Pool).chainId}`,
-        );
+        expect(msg).toContain("chainId=8453");
         expect(msg).toContain(
           `poolAddress=${(liquidityPoolAggregator as Pool).poolAddress}`,
         );
@@ -1271,9 +1258,7 @@ describe("Pool Functions", () => {
         expect(msg).toContain(
           `poolAddress=${(liquidityPoolAggregator as Pool).poolAddress}`,
         );
-        expect(msg).toContain(
-          `chainId=${(liquidityPoolAggregator as Pool).chainId}`,
-        );
+        expect(msg).toContain("chainId=5330");
       });
 
       it("clamps against the CARRIED liquidityInRange when the diff omits it (not a stale prior)", async () => {
@@ -1444,9 +1429,7 @@ describe("Pool Functions", () => {
         expect(msg).toContain(
           `poolAddress=${(liquidityPoolAggregator as Pool).poolAddress}`,
         );
-        expect(msg).toContain(
-          `chainId=${(liquidityPoolAggregator as Pool).chainId}`,
-        );
+        expect(msg).toContain("chainId=5330");
       });
 
       it("does not clamp or log when liquidityInRange stays non-negative", async () => {
@@ -1627,7 +1610,6 @@ describe("Pool Functions", () => {
         ),
         symbol: "TK0",
         name: "Token0",
-        chainId: 10,
         decimals: 18n,
         pricePerUSDNew: 1000000000000000000n,
         lastUpdatedTimestamp: currentTimestamp,
@@ -1640,7 +1622,6 @@ describe("Pool Functions", () => {
         ),
         symbol: "TK1",
         name: "Token1",
-        chainId: 10,
         decimals: 18n,
         pricePerUSDNew: 1000000000000000000n,
         lastUpdatedTimestamp: currentTimestamp,
@@ -1913,7 +1894,6 @@ describe("Pool Functions", () => {
         ),
         symbol: "TOKEN0",
         name: "Token 0",
-        chainId: 10,
         decimals: 18n,
         pricePerUSDNew: 1000000n, // $1.00
         lastUpdatedTimestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
@@ -1927,7 +1907,6 @@ describe("Pool Functions", () => {
         ),
         symbol: "TOKEN1",
         name: "Token 1",
-        chainId: 10,
         decimals: 18n,
         pricePerUSDNew: 2000000n, // $2.00
         lastUpdatedTimestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
@@ -2230,416 +2209,6 @@ describe("Pool Functions", () => {
       expect(result).toBeNull();
       const mockErrorLog = vi.mocked(mockContext.log?.error);
       expect(mockErrorLog).toHaveBeenCalled();
-    });
-  });
-
-  describe("loadPoolDataOrRootCLPool", () => {
-    let token0: Token;
-    let token1: Token;
-    const rootPoolAddress = toChecksumAddress(
-      "0x1111111111111111111111111111111111111111",
-    );
-    const leafPoolAddress = toChecksumAddress(
-      "0x2222222222222222222222222222222222222222",
-    );
-    const chainId = 10;
-    const rootPoolId = PoolId(chainId, rootPoolAddress);
-
-    beforeEach(() => {
-      token0 = {
-        id: "token0",
-        address: toChecksumAddress(
-          "0x3333333333333333333333333333333333333333",
-        ),
-        symbol: "TOKEN0",
-        name: "Token 0",
-        chainId: 10,
-        decimals: 18n,
-        pricePerUSDNew: 1000000n,
-        lastUpdatedTimestamp: new Date(),
-        isWhitelisted: false,
-      } as Token;
-
-      token1 = {
-        id: "token1",
-        address: toChecksumAddress(
-          "0x4444444444444444444444444444444444444444",
-        ),
-        symbol: "TOKEN1",
-        name: "Token 1",
-        chainId: 10,
-        decimals: 18n,
-        pricePerUSDNew: 2000000n,
-        lastUpdatedTimestamp: new Date(),
-        isWhitelisted: false,
-      } as Token;
-    });
-
-    it("should return pool data directly when pool exists", async () => {
-      const rootPool = createMockPool({
-        id: rootPoolId,
-        chainId: chainId,
-        token0_id: "token0",
-        token1_id: "token1",
-        token0_address: token0.address,
-        token1_address: token1.address,
-      });
-
-      const mockLiquidityPoolGet = vi.mocked(mockContext.Pool?.get);
-      mockLiquidityPoolGet?.mockImplementation((address: string) => {
-        if (address === rootPoolId) return Promise.resolve(rootPool);
-        return Promise.resolve(undefined);
-      });
-
-      const mockTokenGet = vi.mocked(mockContext.Token?.get);
-      mockTokenGet?.mockImplementation((id: string) => {
-        if (id === "token0") return Promise.resolve(token0);
-        if (id === "token1") return Promise.resolve(token1);
-        return Promise.resolve(undefined);
-      });
-
-      const result = await loadPoolDataOrRootCLPool(
-        rootPoolAddress,
-        chainId,
-        mockContext as handlerContext,
-      );
-
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.poolData.liquidityPoolAggregator.id).toBe(rootPoolId);
-        expect(result.poolData.token0Instance).toBe(token0);
-        expect(result.poolData.token1Instance).toBe(token1);
-      }
-
-      // RootPool_LeafPool lookup runs first, then we fallback to direct pool load when no mapping exists
-      const mockRootPoolLeafPoolGetWhere = vi.mocked(
-        mockContext.RootPool_LeafPool?.getWhere,
-      );
-      expect(mockRootPoolLeafPoolGetWhere).toHaveBeenCalledTimes(1);
-      expect(mockRootPoolLeafPoolGetWhere).toHaveBeenCalledWith({
-        rootPoolAddress: { _eq: rootPoolAddress },
-      });
-    });
-
-    it("should load leaf pool data when root pool is not found but RootPool_LeafPool exists", async () => {
-      const leafChainId = 252;
-      const leafPoolId = PoolId(leafChainId, leafPoolAddress);
-      const leafPool = createMockPool({
-        id: leafPoolId,
-        chainId: leafChainId,
-        token0_id: "token0",
-        token1_id: "token1",
-        token0_address: token0.address,
-        token1_address: token1.address,
-      });
-
-      const rootPoolLeafPool = {
-        id: RootPoolLeafPoolId(
-          chainId,
-          leafChainId,
-          rootPoolAddress,
-          leafPoolAddress,
-        ),
-        rootChainId: chainId,
-        rootPoolAddress: rootPoolAddress,
-        leafChainId: leafChainId,
-        leafPoolAddress: leafPoolAddress,
-      };
-
-      const mockLiquidityPoolGet = vi.mocked(mockContext.Pool?.get);
-      mockLiquidityPoolGet?.mockImplementation((address: string) => {
-        if (address === rootPoolId) return Promise.resolve(undefined);
-        if (address === leafPoolId) return Promise.resolve(leafPool);
-        return Promise.resolve(undefined);
-      });
-
-      const mockTokenGet = vi.mocked(mockContext.Token?.get);
-      mockTokenGet?.mockImplementation((id: string) => {
-        if (id === "token0") return Promise.resolve(token0);
-        if (id === "token1") return Promise.resolve(token1);
-        return Promise.resolve(undefined);
-      });
-
-      const mockRootPoolLeafPoolGetWhere = vi.mocked(
-        mockContext.RootPool_LeafPool?.getWhere,
-      );
-      mockRootPoolLeafPoolGetWhere?.mockResolvedValue([rootPoolLeafPool]);
-
-      const mockErrorLog = vi.mocked(mockContext.log?.error);
-
-      const result = await loadPoolDataOrRootCLPool(
-        rootPoolAddress,
-        chainId,
-        mockContext as handlerContext,
-      );
-
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.poolData.liquidityPoolAggregator.id).toBe(leafPoolId);
-        expect(result.poolData.liquidityPoolAggregator.chainId).toBe(
-          leafChainId,
-        );
-        expect(result.poolData.token0Instance).toBe(token0);
-        expect(result.poolData.token1Instance).toBe(token1);
-      }
-      expect(mockRootPoolLeafPoolGetWhere).toHaveBeenCalled();
-
-      const lookedUpPoolIds = mockLiquidityPoolGet?.mock.calls.map(
-        (call) => call[0],
-      );
-      expect(lookedUpPoolIds).toContain(leafPoolId);
-      expect(lookedUpPoolIds).not.toContain(rootPoolId);
-
-      const errorMessages = mockErrorLog?.mock.calls.map((call) => call[0]);
-      expect(
-        errorMessages?.some(
-          (msg) =>
-            typeof msg === "string" &&
-            msg.includes(`Pool ${rootPoolId} not found`),
-        ),
-      ).toBe(false);
-    });
-
-    it("should not forward blockNumber/blockTimestamp to leaf chain loadPoolData (cross-chain fix)", async () => {
-      const leafChainId = 252;
-      const leafPoolId = PoolId(leafChainId, leafPoolAddress);
-      const leafPool = createMockPool({
-        id: leafPoolId,
-        chainId: leafChainId,
-        token0_id: "token0",
-        token1_id: "token1",
-        token0_address: token0.address,
-        token1_address: token1.address,
-      });
-
-      const rootPoolLeafPool = {
-        id: RootPoolLeafPoolId(
-          chainId,
-          leafChainId,
-          rootPoolAddress,
-          leafPoolAddress,
-        ),
-        rootChainId: chainId,
-        rootPoolAddress: rootPoolAddress,
-        leafChainId: leafChainId,
-        leafPoolAddress: leafPoolAddress,
-      };
-
-      const mockLiquidityPoolGet = vi.mocked(mockContext.Pool?.get);
-      mockLiquidityPoolGet?.mockImplementation((address: string) => {
-        if (address === leafPoolId) return Promise.resolve(leafPool);
-        return Promise.resolve(undefined);
-      });
-
-      const mockTokenGet = vi.mocked(mockContext.Token?.get);
-      mockTokenGet?.mockImplementation((id: string) => {
-        if (id === "token0") return Promise.resolve(token0);
-        if (id === "token1") return Promise.resolve(token1);
-        return Promise.resolve(undefined);
-      });
-
-      const mockRootPoolLeafPoolGetWhere = vi.mocked(
-        mockContext.RootPool_LeafPool?.getWhere,
-      );
-      mockRootPoolLeafPoolGetWhere?.mockResolvedValue([rootPoolLeafPool]);
-
-      // Call WITH block params — they should NOT be forwarded to the leaf chain path
-      const rootBlockNumber = 135229421; // OP block
-      const rootBlockTimestamp = 1710000000;
-      const result = await loadPoolDataOrRootCLPool(
-        rootPoolAddress,
-        chainId,
-        mockContext as handlerContext,
-        rootBlockNumber,
-        rootBlockTimestamp,
-      );
-
-      expect(result.ok).toBe(true);
-
-      // The leaf chain loadPoolData call should NOT include blockNumber/blockTimestamp
-      // because they belong to the root chain and would cause "Unknown block" errors
-      // on the leaf chain's RPC.
-      const lpaCalls = mockLiquidityPoolGet?.mock.calls ?? [];
-      // loadPoolData for leaf pool should have been called — verify via LPA.get
-      expect(lpaCalls.some((call) => call[0] === leafPoolId)).toBe(true);
-    });
-
-    it("should return MAPPING_NOT_FOUND when root pool not found and no RootPool_LeafPool exists", async () => {
-      const mockLiquidityPoolGet = vi.mocked(mockContext.Pool?.get);
-      mockLiquidityPoolGet?.mockResolvedValue(undefined);
-
-      const mockRootPoolLeafPoolGetWhere = vi.mocked(
-        mockContext.RootPool_LeafPool?.getWhere,
-      );
-      mockRootPoolLeafPoolGetWhere?.mockResolvedValue([]);
-      const mockErrorLog = vi.mocked(mockContext.log?.error);
-
-      const result = await loadPoolDataOrRootCLPool(
-        rootPoolAddress,
-        chainId,
-        mockContext as handlerContext,
-      );
-
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.reason).toBe("MAPPING_NOT_FOUND");
-      }
-
-      expect(mockRootPoolLeafPoolGetWhere).toHaveBeenCalledWith({
-        rootPoolAddress: { _eq: rootPoolAddress },
-      });
-      expect(mockLiquidityPoolGet).toHaveBeenCalledWith(rootPoolId);
-
-      // The caller parks the event, so a missing root pool is not an error.
-      const errorMessages = mockErrorLog?.mock.calls.map((call) => call[0]);
-      expect(
-        errorMessages?.some(
-          (msg) =>
-            typeof msg === "string" &&
-            msg.includes(`Pool ${rootPoolId} not found on chain ${chainId}`),
-        ),
-      ).toBe(false);
-    });
-
-    it("should return null when multiple RootPool_LeafPool entries exist", async () => {
-      const rootPoolLeafPool1 = {
-        id: RootPoolLeafPoolId(
-          chainId,
-          chainId,
-          rootPoolAddress,
-          leafPoolAddress,
-        ),
-        rootChainId: chainId,
-        rootPoolAddress: rootPoolAddress,
-        leafChainId: chainId,
-        leafPoolAddress: leafPoolAddress,
-      };
-
-      const rootPoolLeafPool2 = {
-        id: RootPoolLeafPoolId(
-          chainId,
-          chainId,
-          rootPoolAddress,
-          toChecksumAddress("0x5555555555555555555555555555555555555555"),
-        ),
-        rootChainId: chainId,
-        rootPoolAddress: rootPoolAddress,
-        leafChainId: chainId,
-        leafPoolAddress: toChecksumAddress(
-          "0x5555555555555555555555555555555555555555",
-        ),
-      };
-
-      const mockLiquidityPoolGet = vi.mocked(mockContext.Pool?.get);
-      mockLiquidityPoolGet?.mockResolvedValue(undefined);
-
-      const mockRootPoolLeafPoolGetWhere = vi.mocked(
-        mockContext.RootPool_LeafPool?.getWhere,
-      );
-      mockRootPoolLeafPoolGetWhere?.mockResolvedValue([
-        rootPoolLeafPool1,
-        rootPoolLeafPool2,
-      ]);
-
-      const mockErrorLog = vi.mocked(mockContext.log?.error);
-
-      const result = await loadPoolDataOrRootCLPool(
-        rootPoolAddress,
-        chainId,
-        mockContext as handlerContext,
-      );
-
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.reason).toBe("MULTIPLE_MAPPINGS");
-      }
-      expect(mockErrorLog).toHaveBeenCalled();
-      // Check if any error call contains the expected message
-      const errorMessages = mockErrorLog?.mock.calls.map((call) => call[0]);
-      expect(
-        errorMessages?.some(
-          (msg) =>
-            typeof msg === "string" &&
-            msg.includes("Expected exactly one RootPool_LeafPool"),
-        ),
-      ).toBe(true);
-    });
-
-    it("should return LEAF_POOL_NOT_FOUND when leaf pool is not found", async () => {
-      const leafChainId = 252;
-      const rootPoolLeafPool = {
-        id: RootPoolLeafPoolId(
-          chainId,
-          leafChainId,
-          rootPoolAddress,
-          leafPoolAddress,
-        ),
-        rootChainId: chainId,
-        rootPoolAddress: rootPoolAddress,
-        leafChainId: leafChainId,
-        leafPoolAddress: leafPoolAddress,
-      };
-
-      const mockLiquidityPoolGet = vi.mocked(mockContext.Pool?.get);
-      mockLiquidityPoolGet?.mockResolvedValue(undefined);
-
-      const mockRootPoolLeafPoolGetWhere = vi.mocked(
-        mockContext.RootPool_LeafPool?.getWhere,
-      );
-      mockRootPoolLeafPoolGetWhere?.mockResolvedValue([rootPoolLeafPool]);
-
-      const mockErrorLog = vi.mocked(mockContext.log?.error);
-
-      const result = await loadPoolDataOrRootCLPool(
-        rootPoolAddress,
-        chainId,
-        mockContext as handlerContext,
-      );
-
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.reason).toBe("LEAF_POOL_NOT_FOUND");
-      }
-      expect(mockErrorLog).toHaveBeenCalled();
-      // Check if any error call contains the expected message
-      const errorMessages = mockErrorLog?.mock.calls.map((call) => call[0]);
-      expect(
-        errorMessages?.some(
-          (msg) =>
-            typeof msg === "string" && msg.includes("Leaf pool data not found"),
-        ),
-      ).toBe(true);
-    });
-
-    it("short-circuits silently with SINK_ROOT_POOL for a known-sink address", async () => {
-      // Known sink per src/Constants.ts KNOWN_SINK_ROOT_POOLS (OP).
-      const sinkRootPoolAddress = toChecksumAddress(
-        "0x333030A736B47D20346d82A473680658ac1C2b88",
-      );
-      const sinkChainId = 10;
-
-      const mockRootPoolLeafPoolGetWhere = vi.mocked(
-        mockContext.RootPool_LeafPool?.getWhere,
-      );
-      const mockLiquidityPoolGet = vi.mocked(mockContext.Pool?.get);
-      const mockErrorLog = vi.mocked(mockContext.log?.error);
-      const mockWarnLog = vi.mocked(mockContext.log?.warn);
-
-      const result = await loadPoolDataOrRootCLPool(
-        sinkRootPoolAddress,
-        sinkChainId,
-        mockContext as handlerContext,
-      );
-
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.reason).toBe("SINK_ROOT_POOL");
-      }
-      // No DB reads and no log output for known sinks.
-      expect(mockRootPoolLeafPoolGetWhere).not.toHaveBeenCalled();
-      expect(mockLiquidityPoolGet).not.toHaveBeenCalled();
-      expect(mockErrorLog).not.toHaveBeenCalled();
-      expect(mockWarnLog).not.toHaveBeenCalled();
     });
   });
 });

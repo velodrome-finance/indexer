@@ -1,4 +1,3 @@
-import type { Token } from "envio";
 import { createTestIndexer } from "envio";
 import type { MockInstance } from "vitest";
 import {
@@ -57,8 +56,8 @@ describe("CLPool Events", () => {
     // Set up entities in indexer
     indexer.Pool.set(liquidityPool);
     indexer.UserStatsPerPool.set(userStats);
-    indexer.Token.set(mockToken0Data as Token);
-    indexer.Token.set(mockToken1Data as Token);
+    indexer.Token.set(mockToken0Data);
+    indexer.Token.set(mockToken1Data);
   });
 
   afterEach(() => {
@@ -193,7 +192,7 @@ describe("CLPool Events", () => {
 
     it("should create oUSDTSwap entity when OUSDT token is involved", async () => {
       // Create a pool with OUSDT as token0
-      const ousdtToken: Token = {
+      const ousdtToken = {
         ...mockToken0Data,
         address: OUSDT_ADDRESS,
         id: TokenId(chainId, OUSDT_ADDRESS),
@@ -209,7 +208,7 @@ describe("CLPool Events", () => {
       await registerCLPool(ousdtIndexer, chainId, liquidityPool.poolAddress);
       ousdtIndexer.Pool.set(ousdtPool);
       ousdtIndexer.Token.set(ousdtToken);
-      ousdtIndexer.Token.set(mockToken1Data as Token);
+      ousdtIndexer.Token.set(mockToken1Data);
       ousdtIndexer.UserStatsPerPool.set(userStats);
 
       processSpy.mockClear();
@@ -266,7 +265,7 @@ describe("CLPool Events", () => {
       const ousdtIndexer2 = createTestIndexer();
       await registerCLPool(ousdtIndexer2, chainId, liquidityPool.poolAddress);
       ousdtIndexer2.Pool.set(ousdtToken1Pool);
-      ousdtIndexer2.Token.set(mockToken0Data as Token);
+      ousdtIndexer2.Token.set(mockToken0Data);
       ousdtIndexer2.Token.set(ousdtToken);
       ousdtIndexer2.UserStatsPerPool.set(userStats);
 
@@ -316,7 +315,7 @@ describe("CLPool Events", () => {
 
     it("should handle all amount conversion branches for oUSDTSwap", async () => {
       // Create pool with OUSDT as token0
-      const ousdtToken: Token = {
+      const ousdtToken = {
         ...mockToken0Data,
         address: OUSDT_ADDRESS,
         id: TokenId(chainId, OUSDT_ADDRESS),
@@ -332,7 +331,7 @@ describe("CLPool Events", () => {
       await registerCLPool(ousdtIndexer, chainId, liquidityPool.poolAddress);
       ousdtIndexer.Pool.set(ousdtPool);
       ousdtIndexer.Token.set(ousdtToken);
-      ousdtIndexer.Token.set(mockToken1Data as Token);
+      ousdtIndexer.Token.set(mockToken1Data);
       ousdtIndexer.UserStatsPerPool.set(userStats);
 
       processSpy.mockClear();
@@ -385,7 +384,7 @@ describe("CLPool Events", () => {
       await registerCLPool(ousdtIndexer2, chainId, liquidityPool.poolAddress);
       ousdtIndexer2.Pool.set(ousdtPool);
       ousdtIndexer2.Token.set(ousdtToken);
-      ousdtIndexer2.Token.set(mockToken1Data as Token);
+      ousdtIndexer2.Token.set(mockToken1Data);
       ousdtIndexer2.UserStatsPerPool.set(userStats);
 
       const negativeTxHash =

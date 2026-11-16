@@ -62,7 +62,7 @@ describe("PoolBurnAndMintLogic", () => {
   const seedRegistriesFromTransfers = () => {
     const byKey = new Map<string, string[]>();
     for (const t of mockPoolTransferInTx) {
-      const key = TxPoolTransferRegistryId(t.chainId, t.txHash, t.pool);
+      const key = TxPoolTransferRegistryId(CHAIN_ID, t.txHash, t.pool);
       const list = byKey.get(key) ?? [];
       list.push(t.id);
       byKey.set(key, list);
@@ -142,7 +142,6 @@ describe("PoolBurnAndMintLogic", () => {
     isBurn: boolean,
   ): PoolTransferInTx => ({
     id: PoolTransferInTxId(CHAIN_ID, TX_HASH, POOL_ADDRESS, logIndex),
-    chainId: CHAIN_ID,
     txHash: TX_HASH,
     pool: POOL_ADDRESS,
     logIndex,
@@ -234,7 +233,7 @@ describe("PoolBurnAndMintLogic", () => {
       expect(result).toHaveLength(2);
       expect(result.every((t) => t.isMint === true)).toBe(true);
       expect(result.every((t) => t.txHash === TX_HASH)).toBe(true);
-      expect(result.every((t) => t.chainId === CHAIN_ID)).toBe(true);
+      expect(result.every((t) => t.id.startsWith(`${CHAIN_ID}-`))).toBe(true);
       expect(result.every((t) => t.pool === POOL_ADDRESS)).toBe(true);
     });
 

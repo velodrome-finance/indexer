@@ -13,11 +13,12 @@ import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
 import type { Pool as PoolEntity } from "../../../src/EntityTypes";
 import * as PriceOracle from "../../../src/PriceOracle";
 import { registerPool } from "../../registerDynamicContracts";
+import type { WithChain } from "../../testHelpers";
 import { setupCommon } from "./common";
 
 describe("Pool Swap Event", () => {
-  let mockToken0Data: Token;
-  let mockToken1Data: Token;
+  let mockToken0Data: WithChain<Token>;
+  let mockToken1Data: WithChain<Token>;
   let mockLiquidityPoolData: ReturnType<
     typeof setupCommon
   >["mockLiquidityPoolData"];
@@ -123,8 +124,8 @@ describe("Pool Swap Event", () => {
       indexer.Pool.set({
         ...mockLiquidityPoolData,
       });
-      indexer.Token.set(mockToken0Data as Token);
-      indexer.Token.set(mockToken1Data as Token);
+      indexer.Token.set(mockToken0Data);
+      indexer.Token.set(mockToken1Data);
 
       await indexer.process({
         chains: {
@@ -203,8 +204,8 @@ describe("Pool Swap Event", () => {
       indexer.Pool.set({
         ...mockLiquidityPoolData,
       });
-      indexer.Token.set(mockToken0Data as Token);
-      indexer.Token.set(mockToken1Data as Token);
+      indexer.Token.set(mockToken0Data);
+      indexer.Token.set(mockToken1Data);
 
       await indexer.process({
         chains: {
@@ -258,8 +259,8 @@ describe("Pool Swap Event", () => {
       // returns null on that missing-token branch, which is the early return
       // under test. (The missing-Pool branch is covered against a mocked
       // `loadPoolData` in the *Logic tests.)
-      indexer.Token.set(mockToken0Data as Token);
-      indexer.Token.set(mockToken1Data as Token);
+      indexer.Token.set(mockToken0Data);
+      indexer.Token.set(mockToken1Data);
 
       await indexer.process({
         chains: {
@@ -317,8 +318,8 @@ describe("Pool Swap Event", () => {
       };
 
       indexer.Pool.set(poolWithOusdt);
-      indexer.Token.set(ousdtToken as Token);
-      indexer.Token.set(mockToken1Data as Token);
+      indexer.Token.set(ousdtToken);
+      indexer.Token.set(mockToken1Data);
 
       await indexer.process({
         chains: {
@@ -367,8 +368,8 @@ describe("Pool Swap Event", () => {
       };
 
       indexer.Pool.set(poolWithOusdt);
-      indexer.Token.set(mockToken0Data as Token);
-      indexer.Token.set(ousdtToken as Token);
+      indexer.Token.set(mockToken0Data);
+      indexer.Token.set(ousdtToken);
 
       await indexer.process({
         chains: {
@@ -410,8 +411,8 @@ describe("Pool Swap Event", () => {
       indexer.Pool.set({
         ...mockLiquidityPoolData,
       });
-      indexer.Token.set(mockToken0Data as Token);
-      indexer.Token.set(mockToken1Data as Token);
+      indexer.Token.set(mockToken0Data);
+      indexer.Token.set(mockToken1Data);
 
       await indexer.process({
         chains: {
