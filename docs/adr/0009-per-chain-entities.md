@@ -121,14 +121,15 @@ ClickHouse source.
 On superchain leaf pools (`Pool.deployment = VELODROME`, chain not 10) these
 stay at their creation defaults:
 
-| field | replacement in the analytics layer |
+| field | replacement in the analytics layer (built in step 2) |
 |---|---|
-| `Pool.veNFTamountStaked`, `PoolSnapshot.veNFTamountStaked` | `RootPool.veNFTamountStaked` via `root_leaf_pool` |
-| `Pool.totalVotesDeposited`, `totalVotesDepositedUSD` (and snapshot) | `RootPool.totalVotesDeposited(USD)` |
-| `Pool.totalEmissions`, `totalEmissionsUSD` (and snapshot) | `RootPool.totalEmissions(USD)`; `pools.emissions_*`, `pool_hourly` / `pool_daily.emissions*`, `chain_*`, queries 09 and 10 take the root value for a mapped leaf pool |
-| `UserStatsPerPool.veNFTamountStaked` (leaf users) and its snapshot | `VeNFTPoolVote` (root pool) × `VeNFTState.owner` |
-| `VeNFTPoolVote` rows with a leaf id | the same rows on Optimism keyed by the root pool |
-| `SuperSwap` entity | `super_swaps` view over `SuperSwapSource` ⋈ `SuperSwapDestination` |
+| `Pool.veNFTamountStaked` | `leaf_pool_root_totals.votes` (= `RootPool.veNFTamountStaked`, `Voter.weights(rootPool)`) |
+| `PoolSnapshot.veNFTamountStaked`, `totalEmissions(USD)` (hourly) | `RootPool`'s per-block ClickHouse history through `root_leaf_pools`; an hourly root-pool series in the layer is still to build |
+| `Pool.totalVotesDeposited`, `totalVotesDepositedUSD` | none needed: since the gauge balance is derived from events (b044799) it is 0 on leaf pools already |
+| `Pool.totalEmissions`, `totalEmissionsUSD` | `leaf_pool_root_totals.emissions_*`; at the flip `pools.emissions_*`, `pool_hourly` / `pool_daily.emissions*`, `chain_*` and queries 09 / 10 take the root value for a mapped leaf pool |
+| `UserStatsPerPool.veNFTamountStaked` (leaf users) and its snapshot | `root_pool_votes` × `venfts.owner` |
+| `VeNFTPoolVote` rows with a leaf id | `RootPoolVote` (`root_pool_votes`), keyed by the root pool on Optimism |
+| `SuperSwap` entity | `super_swap_legs` (`SuperSwapOriginLeg` ⋈ `SuperSwapDestinationLeg` on message id) |
 
 GraphQL consumers of these fields on leaf pools lose them (a breaking change
 for superchain pools only); the same numbers are on `RootPool`.
