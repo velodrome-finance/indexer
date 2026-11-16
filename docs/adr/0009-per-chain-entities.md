@@ -240,6 +240,21 @@ votes coalescing in `pools` / `pool_*` / `chain_*`, and `super_swaps`.
      known sink (`KNOWN_SINK_ROOT_POOLS`).
    - Views: `root_pools`, `root_leaf_pools`, `leaf_pool_root_totals`,
      `root_pool_votes`, `super_swap_legs` (`clickhouse/sql/views_superchain.sql`).
+   - Validated (shared mode, Optimism restricted to Voter, VeNFT and the
+     two root factories, plus Metal, Mode and Lisk in full; test-only
+     branch `keep/root-only-config`): all 225 root pools (167 CL, 58 V2,
+     every leaf chain derived) have `veNFTamountStaked` equal to
+     `Voter.weights(pool)` at the stop block (159,620,470); emissions equal
+     the DistributeReward amounts from HyperSync for all 215 root gauges
+     (12,192 distributions). All 64 leaf pools of the three chains (36 CL,
+     28 V2) get the same votes and emissions through the views as the
+     cross-chain handlers stored. `super_swap_legs` reproduces every
+     `SuperSwap` row field for field except the timestamp (the entity takes
+     whichever side was processed last), and finds 65 more: the stitching
+     loses a SuperSwap whenever Envio processes the origin chain before the
+     destination, since the destination swap follows `ProcessId` in its
+     transaction. Two runs on the same data gave 83 and 87 `SuperSwap` rows;
+     the view gave 152 both times.
    - ClickHouse `orderBy: ["chainId", …]` on a ClickHouse-only entity resolves
      to envio's own `chainId` column in per-chain mode as well (checked on the
      probe project: sort key `chainId, blockNumber, envio_checkpoint_id`), so
