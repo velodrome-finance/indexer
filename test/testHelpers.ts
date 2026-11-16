@@ -1,7 +1,14 @@
-import type { DispatchId_event, OUSDTSwaps, createTestIndexer } from "envio";
+import type { OUSDTSwaps, createTestIndexer } from "envio";
 import type { PublicClient } from "viem";
 import { CHAIN_CONSTANTS, PoolId } from "../src/Constants";
 import type { Pool } from "../src/EntityTypes";
+
+/**
+ * An entity as the test indexer stores it in per-chain mode (ADR 0009): the
+ * handler type plus envio's own `chainId`, which `indexer.X.set` requires and
+ * rows read back from the test indexer carry.
+ */
+export type WithChain<T> = T & { readonly chainId: number };
 
 /** Cast string to V3 Address type for mock event data */
 export const asAddress = (s: string): `0x${string}` => s as `0x${string}`;
@@ -68,7 +75,7 @@ export function mutateChainConstants(
  */
 export function setupPool(
   indexer: ReturnType<typeof createTestIndexer>,
-  mockLiquidityPoolData: Pool,
+  mockLiquidityPoolData: WithChain<Pool>,
   poolAddress: string,
 ): void {
   const poolId = PoolId(mockLiquidityPoolData.chainId, poolAddress);
@@ -84,19 +91,22 @@ export function setupPool(
 /**
  * Seeds an OUSDTSwaps row on the test indexer the way the swap handlers write
  * it: the swap itself plus, when it is the first oUSDT swap of its tx, the
- * TxOUSDTSwapRegistry row the SuperSwap stitching reads.
+ * TxOUSDTSwapRegistry row the SuperSwap legs read.
  *
  * @param indexer - The test indexer to seed
  * @param swap - The OUSDTSwaps row
+ * @param chainId - Chain of the swap
  * @returns Promise that resolves once both rows are staged
  */
 export async function seedOUSDTSwap(
   indexer: ReturnType<typeof createTestIndexer>,
   swap: OUSDTSwaps,
+  chainId: number,
 ): Promise<void> {
-  indexer.OUSDTSwaps.set(swap);
+  indexer.OUSDTSwaps.set({ ...swap, chainId });
   if (await indexer.TxOUSDTSwapRegistry.get(swap.transactionHash)) return;
   indexer.TxOUSDTSwapRegistry.set({
+    chainId,
     id: swap.transactionHash,
     swapId: swap.id,
     tokenInPool: swap.tokenInPool,
@@ -107,24 +117,25 @@ export async function seedOUSDTSwap(
 }
 
 /**
- * Seeds a DispatchId_event row on the test indexer the way the Mailbox
- * DispatchId handler writes it: the row plus its messageId appended to the
- * tx's TxDispatchIdRegistry.
+ * Seeds a dispatched Hyperlane message the way the Mailbox DispatchId handler
+ * records it: its messageId appended to the tx's TxDispatchIdRegistry.
  *
  * @param indexer - The test indexer to seed
- * @param dispatch - The DispatchId_event row
- * @returns Promise that resolves once both rows are staged
+ * @param chainId - Origin chain
+ * @param transactionHash - The dispatching transaction
+ * @param messageId - The message id
+ * @returns Promise that resolves once the registry row is staged
  */
-export async function seedDispatchIdEvent(
+export async function seedDispatchedMessage(
   indexer: ReturnType<typeof createTestIndexer>,
-  dispatch: DispatchId_event,
+  chainId: number,
+  transactionHash: string,
+  messageId: string,
 ): Promise<void> {
-  indexer.DispatchId_event.set(dispatch);
-  const registry = await indexer.TxDispatchIdRegistry.get(
-    dispatch.transactionHash,
-  );
+  const registry = await indexer.TxDispatchIdRegistry.get(transactionHash);
   indexer.TxDispatchIdRegistry.set({
-    id: dispatch.transactionHash,
-    messageIds: [...(registry?.messageIds ?? []), dispatch.messageId],
+    chainId,
+    id: transactionHash,
+    messageIds: [...(registry?.messageIds ?? []), messageId],
   });
 }
