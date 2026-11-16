@@ -261,6 +261,59 @@ votes coalescing in `pools` / `pool_*` / `chain_*`, and `super_swaps`.
      the layouts need no change at the flip.
 3. Pricing: the effect, the successor of ADR 0004; compare head prices with
    and without it.
+   **Built (2026-11-16, branch `perchain/price-effect`)**, additive:
+   `getCanonicalSourcePrice` (`src/Effects/CanonicalSourcePrice.ts`,
+   `crossChain: true`, `cache: true`), called by `refreshTokenPrice` after the
+   seed and before two-hop. Decisions:
+   - **Input** `{sourceTokenId, hourMs, requesterTokenId}`; the leaf asks for
+     the last complete clock hour before its block. The asking token is in the
+     input because envio keeps an uncached output in the process's in-memory
+     effect table until memory pressure evicts it (`setEffectOutput`,
+     `dropCommittedEffects` only from `awaitCapacityLoop`): keyed by source
+     and hour alone, a "not yet" computed for one leaf chain would be served
+     to another leaf chain asking the same hour later. A leaf token asks each
+     hour once, so the in-memory copy only joins the preload pass and the run
+     proper of one refresh (one execution).
+   - **Output** `{priceUSD, sourceHourMs}`, `priceUSD = 0` for no answer;
+     tagged `canonical-snapshot`, the source hour in `pricingSeedHour`, no
+     depth (like the seed: a fallback, not a candidate).
+   - **Read**: one HTTP query, a primary-key range of
+     `envio_history_TokenPriceSnapshot` from the hour minus the lookback to 24 h
+     after it, the latest version at or below the source chain's commit
+     frontier, each row's block from `envio_checkpoints`, and the source's
+     highest committed block. Frontier: `max(envio_chains.checkpoint_id)`
+     shared, the source chain's own row per chain; the mode is read once per
+     process off envio's `TokenPriceSnapshot` view, as `clickhouse/analytics.py`
+     does. No settings in the request, so a `readonly=1` user works (prod's
+     `reader` was used). About 85 ms against `prod/optimism`.
+   - **Finality instead of a time margin**: a source token's snapshot for an
+     hour is written once, at its first refresh in that hour, so the row is
+     final once its block is 200 blocks (envio's default reorg window, 199)
+     below the source's committed frontier. The effect answers as soon as that
+     holds, without waiting for the hour to end; only an *empty* hour needs
+     the source to have left it, proven by a later source row that is itself
+     final. At the head the asked hour's row is about an hour deep, so the
+     effect answers on the first refresh of the next hour; a time margin on
+     the hour's end would have missed every leaf refresh in the first minutes
+     of an hour.
+   - **Accepted rows**: `pool` and `pinned` with a positive price. `carried`,
+     `unpriced`, `override` and the canonical tags are skipped like an empty
+     hour (a route is only as fresh as its base; the seed builder also keeps
+     `pool` rows only, so seed and effect agree on an hour).
+   - **Lookback**: two hours back, never forward (the seed's rule).
+   - **Caching**: a price, and a settled "no price" (all three hours final,
+     none usable), are cached; "not yet" is not (`context.cache = false`).
+   - **Failures**: 5 s timeout; an error is logged, answered as "not yet" (not
+     cached) and pauses requests for 60 s, so an outage costs one timeout a
+     minute; the caller also treats a thrown effect as no answer. The indexer
+     never stops on it.
+   - **Switches**: `PRICING_CANONICAL_SNAPSHOT_EFFECT` (default on; also off
+     when no ClickHouse is configured, as in tests) and
+     `PRICING_CANONICAL_LIVE_READ` (default on: shared mode keeps today's head
+     behaviour, where the live source competes on depth with local pools; set
+     it to `false` to run as per-chain mode will). Overrides
+     `PRICING_CANONICAL_CLICKHOUSE_URL` / `_DATABASE` read the source from
+     another server or database.
 4. Flip: the flag, the `chainId` codemod, delete the pending machinery, the
    leaf-field writes and the `SuperSwap` entity, migrate the tests, update
    `docs/`. Full resync (ClickHouse `ORDER BY` and Postgres layout change).
