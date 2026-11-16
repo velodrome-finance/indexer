@@ -595,3 +595,103 @@ export async function processGaugeClaimRewards(
     updateUserStatsPerPool(userDiff, userData, context, timestamp, poolData),
   ]);
 }
+
+/**
+ * Records a legacy CL gauge's EarlyWithdrawPenalty on the pool and the user.
+ *
+ * Gauges V3 (min stake time) charge a staker who unstakes early a share of
+ * their rewards; the gauge sends it to the chain's Minter in the same tx. It
+ * leaves the gauge like a claim but is not one, so it has its own totals
+ * (`totalGaugeEarlyWithdrawPenalties*`) and `totalGaugeRewardsClaimed` is left
+ * alone. The pool is found as {@link processGaugeClaimRewards} finds it: a
+ * root gauge with no pool is skipped silently, any other gauge without a pool
+ * is logged and skipped.
+ *
+ * @param data - Gauge event data; `amount` is the penalty in reward-token units
+ * @param context - Handler context for entity access
+ * @param handlerName - Handler name for error logging
+ * @returns Promise that resolves once the pool and user updates are staged
+ */
+export async function processGaugeEarlyWithdrawPenalty(
+  data: GaugeEventData,
+  context: handlerContext,
+  handlerName: string,
+): Promise<void> {
+  const result = await findPoolOrSkipRootGauge(
+    data.gaugeAddress,
+    data.chainId,
+    context,
+    handlerName,
+  );
+  if (!result) return;
+  const { pool } = result;
+
+  const timestamp = new Date(data.timestamp * 1000);
+  const rewardTokenAddress = getLegacyConstants(data.chainId).rewardToken(
+    data.blockNumber,
+  );
+
+  const [poolData, userData, rewardToken] = await Promise.all([
+    loadPoolData(
+      pool.poolAddress,
+      data.chainId,
+      context,
+      data.blockNumber,
+      data.timestamp,
+    ),
+    loadOrCreateUserData(
+      data.userAddress,
+      pool.poolAddress,
+      data.chainId,
+      context,
+      timestamp,
+    ),
+    getRehydrated(
+      context.Token,
+      "Token",
+      TokenId(data.chainId, rewardTokenAddress),
+    ),
+  ]);
+
+  if (!poolData) {
+    context.log.error(
+      `${handlerName}: Pool data not found for pool ${pool.poolAddress} on chain ${data.chainId}`,
+    );
+    return;
+  }
+
+  if (!rewardToken) {
+    context.log.error(
+      `${handlerName}: Reward token not found for ${rewardTokenAddress} on chain ${data.chainId}`,
+    );
+    return;
+  }
+
+  const penaltyUSD = calculateTotalUSD(data.amount, 0n, rewardToken, undefined);
+
+  await Promise.all([
+    updatePool(
+      {
+        incrementalTotalGaugeEarlyWithdrawPenalties: data.amount,
+        incrementalTotalGaugeEarlyWithdrawPenaltiesUSD: penaltyUSD,
+        lastUpdatedTimestamp: timestamp,
+      },
+      poolData.liquidityPoolAggregator,
+      timestamp,
+      context,
+      data.chainId,
+      data.blockNumber,
+    ),
+    updateUserStatsPerPool(
+      {
+        incrementalTotalGaugeEarlyWithdrawPenalties: data.amount,
+        incrementalTotalGaugeEarlyWithdrawPenaltiesUSD: penaltyUSD,
+        lastActivityTimestamp: timestamp,
+      },
+      userData,
+      context,
+      timestamp,
+      poolData,
+    ),
+  ]);
+}

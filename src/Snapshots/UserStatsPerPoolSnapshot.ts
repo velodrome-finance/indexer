@@ -54,6 +54,9 @@ export function createUserStatsPerPoolSnapshot(
     numberOfGaugeRewardClaims: entity.numberOfGaugeRewardClaims,
     totalGaugeRewardsClaimedUSD: entity.totalGaugeRewardsClaimedUSD,
     totalGaugeRewardsClaimed: entity.totalGaugeRewardsClaimed,
+    totalGaugeEarlyWithdrawPenalties: entity.totalGaugeEarlyWithdrawPenalties,
+    totalGaugeEarlyWithdrawPenaltiesUSD:
+      entity.totalGaugeEarlyWithdrawPenaltiesUSD,
     totalStakedFeesCollected0: entity.totalStakedFeesCollected0,
     totalStakedFeesCollected1: entity.totalStakedFeesCollected1,
     totalStakedFeesCollectedUSD: entity.totalStakedFeesCollectedUSD,

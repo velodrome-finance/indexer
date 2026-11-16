@@ -361,6 +361,9 @@ contracts:
       - event: Deposit
       - event: Withdraw
       - event: ClaimRewards
+      # Gauges V3 (min stake time): an early unstake forfeits part of the
+      # staker's rewards to the Minter, in the same tx.
+      - event: EarlyWithdrawPenalty
   - name: Gauge
     abi_file_path: abis/Gauge.json
     handler: src/EventHandlers/Gauges/Gauge.ts

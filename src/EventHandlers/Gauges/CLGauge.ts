@@ -2,6 +2,7 @@ import { indexer } from "envio";
 import {
   processGaugeClaimRewards,
   processGaugeDeposit,
+  processGaugeEarlyWithdrawPenalty,
   processGaugeWithdraw,
 } from "./GaugeSharedLogic";
 
@@ -57,6 +58,25 @@ indexer.onEvent(
       },
       context,
       "CLGauge.ClaimRewards",
+    );
+  },
+);
+
+indexer.onEvent(
+  { contract: "CLGauge", event: "EarlyWithdrawPenalty" },
+  async ({ event, context }) => {
+    await processGaugeEarlyWithdrawPenalty(
+      {
+        gaugeAddress: event.srcAddress,
+        userAddress: event.params.from,
+        chainId: event.chainId,
+        blockNumber: event.block.number,
+        timestamp: event.block.timestamp,
+        amount: event.params.penalty,
+        tokenId: event.params.tokenId,
+      },
+      context,
+      "CLGauge.EarlyWithdrawPenalty",
     );
   },
 );
