@@ -1,8 +1,8 @@
 # ADR 0009: Per-chain entities
 
-- **Status:** Proposed (2026-11-16). Phase 1 (this note and a proof on Metal and
-  Mode) done; the migration follows after review. Supersedes the cross-chain
-  parts of ADR 0004 (canonical candidates) and extends ADR 0008 (seed).
+- **Status:** Accepted (2026-11-16); steps 1–4 done (step 4, the flip, on
+  branch `perchain/flip`). Supersedes the cross-chain parts of ADR 0004
+  (canonical candidates) and extends ADR 0008 (seed).
 
 ## Context
 
@@ -97,7 +97,7 @@ is used for analytics, so a join at query time is acceptable.
 | **A** `Voter.Voted` / `Abstained` on Optimism for a superchain root pool | writes the leaf `Pool.veNFTamountStaked`, the leaf `UserStatsPerPool.veNFTamountStaked` and `VeNFTPoolVote` (leaf ids), or a `PendingVote` | Optimism writes `RootPool.veNFTamountStaked` (= `totalWeight`) and `VeNFTPoolVote` `10-{tokenId}-{rootPool}`, as for a local pool. No `UserStatsPerPool` row. |
 | **B** `Voter.DistributeReward` for a root gauge | adds to the leaf `Pool.totalEmissions(USD)`, sets `totalVotesDeposited(USD)`, or a `PendingDistribution` | Optimism adds to `RootPool.totalEmissions(USD)` and sets `totalVotesDeposited(USD)`, priced with Optimism's VELO at the event (as today when the mapping exists). Root gauge → root pool stays `RootGauge_RootPool` (Optimism-only). |
 | **C** `RootCLPoolFactory.RootPoolCreated` | reads leaf `Pool`s by `rootPoolMatchingHash`; writes `RootPool_LeafPool` or `PendingRootPoolMapping` | creates the `RootPool` with `leafChainId`, tokens, tick spacing, root factory and `rootPoolMatchingHash`. No read. |
-| **D** leaf V2 `PoolFactory.PoolCreated` | RPC `getRootPoolAddress`, writes `RootPool_LeafPool`, flushes Optimism's pending rows (and refreshes Optimism's VELO price from a leaf handler) | keeps the RPC effect (a contract call on the leaf chain's LpHelper, not an entity read; cached, one call per V2 leaf pool) and writes `RootPool_LeafPool` on the leaf chain. No flush. |
+| **D** leaf V2 `PoolFactory.PoolCreated` | RPC `getRootPoolAddress`, writes `RootPool_LeafPool`, flushes Optimism's pending rows (and refreshes Optimism's VELO price from a leaf handler) | writes `RootPool_LeafPool` on the leaf chain with the V2 root factory's CREATE2 address (step 4; the RPC effect is deleted). No flush. |
 | **E** leaf `CLFactory.PoolCreated` | reads Optimism's `PendingRootPoolMapping`, writes the mapping, flushes | nothing: the leaf `Pool` already stores `rootPoolMatchingHash` and `factoryAddress`. |
 | **F** canonical price candidate at the head | reads the source chain's `Token` (Optimism WETH / VELO, Base AERO) inside ±2 h | a cross-chain effect returns the source's hourly price from this deployment's ClickHouse (below). Seed (ADR 0008) unchanged. |
 | **G** SuperSwap stitching | each side reads and deletes the other chain's staging rows | each side writes its own row keyed by `messageId` (`SuperSwapSource` at the origin's `CrossChainSwap`, `SuperSwapDestination` at the destination's `ProcessId`); `SuperSwap` becomes a ClickHouse view joining them. The staging rows stay chain-local. |
@@ -343,8 +343,125 @@ votes coalescing in `pools` / `pool_*` / `chain_*`, and `super_swaps`.
 4. Flip: the flag, the `chainId` codemod, delete the pending machinery, the
    leaf-field writes and the `SuperSwap` entity, migrate the tests, update
    `docs/`. Full resync (ClickHouse `ORDER BY` and Postgres layout change).
+   **Done (2026-11-16, branch `perchain/flip`)**, commits 687d1a2 (flows),
+   7cb566f (flag and chain ids), ca71a0c (analytics), b19c950 (docs) and
+   ff8ad52 (tests); see "Step 4" below.
 5. Operations: `velo` adds a chain with `envio start --chain <id>` once, then
    restarts normally; it reads the same single metrics port.
+   **Done (2026-11-16):** `velo add-chain <inst> <id>` (hosting repo README).
+
+## Step 4: the flip (2026-11-16)
+
+**Code.** `disable_default_cross_chain: true`; no `@crossChain` entity; the 52
+declared `chainId` fields removed (55 at the tip of step 3, minus the three
+deleted entities that had one). Every read of `entity.chainId` is the handled
+event's chain id passed down as a parameter (updatePool's `eventChainId`; a new
+`chainId` parameter on the user / position / ALM / veNFT aggregators, the
+snapshot builders, the price-trust and USD helpers, the fee-module helpers);
+no id-parsing shim (a pre-existing parse of a `VeNFTPoolVote` id in the veNFT
+transfer logic was replaced too). Filters that kept only the handler's chain
+from `getWhere` results are gone. Ids keep their formats.
+
+**Flows removed** as planned (A, B, C, E, F, G) and D changed to CREATE2.
+Deleted: `PendingVote`, `PendingDistribution`, `PendingRootPoolMapping`,
+`SuperSwap`, and the write-only `DispatchId_event` / `ProcessId_event` staging
+rows (nothing reads them without the stitching; `TxDispatchIdRegistry` and
+`TxProcessIdRegistry` stay, the legs read them); `CrossChainPendingResolution.ts`,
+`SuperSwapLogic.ts`, `src/Effects/RootPool.ts` and its fetcher,
+`loadPoolDataOrRootCLPool`, `resolveLeafPoolForRootGauge`,
+`flushPendingRootPoolMappingAndVotes`, `isLeafPoolOfRootFactory`,
+`KNOWN_SINK_ROOT_POOLS`, `loadFirstOUSDTSwapInTx`, the live canonical candidate
+(`buildCanonicalCandidate`, `isCanonicalSourceAligned`,
+`CANONICAL_ALIGNMENT_WINDOW_MS`, the `canonical` resolution) and
+`PRICING_CANONICAL_LIVE_READ`. On Optimism a `Voted` / `Abstained` for a root
+pool updates only `RootPool` / `RootPoolVote`; a `DistributeReward` to a root
+gauge refreshes the reward token at the event and adds to the `RootPool`
+(an unknown or sink gauge is ignored without a write).
+
+**Decisions where the plan left room.**
+- *Leaf-pool fields.* `Pool.veNFTamountStaked`, `totalEmissions`,
+  `totalEmissionsUSD` (and their `PoolSnapshot` copies) and
+  `UserStatsPerPool.veNFTamountStaked` stay on the entities with their one
+  meaning: filled for the root chains' own pools (Optimism, Base legacy), 0 on
+  superchain leaf pools (and, as before, on AERO pools). The schema comments
+  say that a 0 there means "on the RootPool", and the analytics layer shows the
+  root value in `pools` / `pool_hourly` / `pool_daily`. No field got a second
+  meaning.
+- *Flow D.* The CREATE2 computation (`predictV2RootPoolAddress`) replaced the
+  `getRootPoolAddress` RPC effect: it equals the LpHelper on all 480 cached
+  answers of the ten leaf chains (`scratch/final2`'s effect cache) and on all
+  188 V2 leaf pools of the proof below; it is pure, so the leaf chain needs no
+  RPC for it.
+- *SuperSwaps.* `super_swap_legs` stays the replacement; no separate
+  `super_swaps` view (it would be the same query under a second name).
+
+**Analytics layer at the flip.** `_root_pool_hour` / `_root_pool_day` (the
+series machinery of `_pool_hour` over `RootPool`), views
+`leaf_pool_root_hourly` / `_daily`; `pools`, `pool_hourly`, `pool_daily` and
+`chain_*` take a mapped leaf pool's votes and emissions from the root pool, and
+the series get rows for periods in which only the root pool changed
+(`pool_changed = 0`); queries 09 and 10 follow. `docs/clickhouse.md`,
+`docs/querying.md` (with a "what changed for GraphQL consumers" table).
+
+**Proof** (test-only config branches `perchain/flip-proof-shared` at 1046116
+and `perchain/flip-proof` at the tip: Metal, Mode, Lisk and Unichain in full
+plus Optimism restricted to the Voter, VeNFT and the two root factories, all
+pinned to the same end blocks: Optimism 159,622,000, Metal 41,640,000, Mode
+47,338,000, Lisk 39,746,606, Unichain 64,095,000; the shared run with
+`PRICING_CANONICAL_LIVE_READ=false`):
+- **Throughput.** 48,951,655 events each. Shared: one process, 96m44s, 8.4k
+  events/s (four test agents shared the CPU for part of it). Per-chain: a
+  supervisor and 4 worker processes (`ENVIO_PG_MAX_CONNECTIONS=10`), 69m11s,
+  11.8k events/s; ~21k events/s while all chains ran, then Unichain alone
+  (~5k events/s) was the critical path.
+- **Chain-local equality.** Postgres: 49 of 59 tables identical per chain (row
+  count and md5 of every column but `chainId`; tables whose ids carry no chain
+  compared whole). The rest are the expected ones: the six removed entities;
+  `VeNFTPoolVote` (the 15,073 leaf-keyed rows Optimism wrote); `RootPool_LeafPool`
+  (the 188 V2 rows identical, now written by the leaf chains; the 49 CL rows
+  Optimism wrote are gone); `Pool` (72 of 292 rows differ, all mapped leaf
+  pools, only in `totalEmissions`, `veNFTamountStaked` and the side effects of
+  Optimism's writes onto them: `lastUpdatedTimestamp`, `lastSnapshotTimestamp`
+  and, at the snapshot those writes triggered, `currentLiquidityStakedUSD`);
+  `UserStatsPerPool` (4,997 vote-only leaf user rows gone, 7,475 rows differing
+  in activity / snapshot timestamps and 6 in `currentLiquidityStakedUSD`, all
+  on mapped leaf pools). ClickHouse current state of every history table: 47 of
+  57 identical; the others are the same entities plus `PoolSnapshot` and
+  `UserStatsPerPoolSnapshot` (differences on 72 of 78 mapped leaf pools, none
+  on the 214 others: Optimism's writes moved the leaf pools' snapshot clocks),
+  `VeNFTPoolVoteSnapshot` (only the leaf-keyed votes had any) and Optimism's
+  `TokenPriceSnapshot` (VELO is now refreshed only for a gauge with a
+  `RootPool`; not a chain-local table). Prices: every leaf-chain `Token` and
+  `TokenPriceSnapshot` identical.
+- **Root side and the join.** `RootPool.veNFTamountStaked` equals
+  `Voter.weights(pool)` at block 159,622,000 for 225 of 225 root pools (one
+  Multicall3 call); Σ emissions equals the HyperSync `DistributeReward` sums for
+  215 of 215 root gauges (12,192 distributions). In the analytics `pools` view
+  all 78 mapped leaf pools of the four chains show exactly the votes,
+  emissions and emissions USD the shared run stored on the leaf `Pool` (72 of
+  them non-zero); `pool_hourly` has the same 4,621 leaf-pool hours with
+  emissions (54,357,315 VELO) and `pool_daily` the same end-of-day votes on all
+  34,261 leaf-pool days with a change. (USD is 0 in both runs: the restricted
+  Optimism config has no pool to price VELO.)
+- **SuperSwaps.** `super_swap_legs`: 467 rows in both runs, identical on every
+  column (the shared run's `SuperSwap` entity had 249).
+- **Adding a chain.** Fraxtal added with `velo add-chain` (`envio start --chain
+  252` until registered, 4 s, then a plain start) while the layer's refreshes
+  ran: 18,947,209 events in about 38 min; every other chain's tables unchanged
+  (the comparison with the shared run is the same as before the add, chain by
+  chain); the refreshes loaded Fraxtal, `status` shows 0 rows behind and
+  `verify` passes on all 28 tables (needs `ANALYTICS_VERIFY_CHUNK_ROWS=1000000`
+  on this 4-thread scratch server: the default chunk ran out of the 1.2 GB
+  per-query memory on `_user_pool`).
+- **Layer.** `install` and `verify` passed on both databases; all 31 worked
+  queries run on the per-chain one; `test_superchain_views.py` passes on a
+  shared and a per-chain template, `test_mechanism.py` in both modes.
+
+**Observed in envio (per-chain mode).** Effect caches are per chain in
+Postgres (`envio_<chainId>_effect_<name>`), and the committed
+`.envio/cache/<chain>/*.tsv` seeds still load into them. A finished scratch
+instance is restarted by velo's supervisor every minute (desired state stays
+`running`); each start exits at once with every chain at its end block.
 
 ## Consequences
 
