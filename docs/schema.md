@@ -278,80 +278,15 @@ Snapshot of the LiquidityPool entity
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {chainId}-{poolAddress}-{epochMs} (PoolId-epochMs, epochMs from getSnapshotEpoch) |
-| `chainId` | `Int!` | chain id |
-| `name` | `String!` | name of the pool |
-| `poolAddress` | `String!` | address of the pool |
-| `token0_id` | `String!` | token0 id |
-| `token1_id` | `String!` | token1 id |
-| `token0_address` | `String!` | token0 address |
-| `token1_address` | `String!` | token1 address |
-| `isStable` | `Boolean!` | whether the pool is a stable AMM or a volatile AMM |
-| `isCL` | `Boolean!` | whether the pool is a CL pool |
-| `deployment` | `String!` | Pool.deployment (VELODROME / AERODROME / AERO), copied so snapshots can be filtered by deployment |
-| `reserve0` | `BigInt!` | reserve of token0 in token units |
-| `reserve1` | `BigInt!` | reserve of token1 in token units |
-| `totalLPTokenSupply` | `BigInt!` | total supply of LP tokens (tracked from Transfer events) |
-| `totalLiquidityUSD` | `BigInt!` | total liquidity of the swap pool in USD |
-| `totalVolume0` | `BigInt!` | total swap volume of token0 in token units |
-| `totalVolume1` | `BigInt!` | total swap volume of token1 in token units |
-| `totalVolumeUSD` | `BigInt!` | total swap volume of the pool in USD |
-| `totalFeesGenerated0` | `BigInt!` | total swap fees generated of token0, 1e18-normalized token units (same scale on V2 & CL — issue #812) |
-| `totalFeesGenerated1` | `BigInt!` | total swap fees generated of token1, 1e18-normalized token units (same scale on V2 & CL — issue #812) |
-| `totalFeesGeneratedUSD` | `BigInt!` | total swap fees of the pool in USD |
-| `totalUnstakedFeesCollected0` | `BigInt!` | total fees collected from unstaked LPs (Collect events) in token0 units |
-| `totalUnstakedFeesCollected1` | `BigInt!` | total fees collected from unstaked LPs (Collect events) in token1 units |
-| `totalStakedFeesCollected0` | `BigInt!` | total fees collected from staked LPs (CollectFees events) in token0 units |
-| `totalStakedFeesCollected1` | `BigInt!` | total fees collected from staked LPs (CollectFees events) in token1 units |
-| `totalUnstakedFeesCollectedUSD` | `BigInt!` | total fees collected from unstaked LPs (Collect events) in USD |
-| `totalStakedFeesCollectedUSD` | `BigInt!` | total fees collected from staked LPs (CollectFees events) in USD |
-| `numberOfSwaps` | `BigInt!` | total number of swaps in the pool |
-| `token0Price` | `BigInt!` | price of token0 relative to token1 |
-| `token1Price` | `BigInt!` | price of token1 relative to token0 |
-| `totalVotesDeposited` | `BigInt!` | the gauge's undistributed reward-token balance as of its last DistributeReward, derived from events (see Pool.totalVotesDeposited); not a vote weight: see veNFTamountStaked |
-| `totalVotesDepositedUSD` | `BigInt!` | totalVotesDeposited in USD at that DistributeReward |
-| `totalEmissions` | `BigInt!` | total emissions for the pool in reward token units (VELO form Optimism and AERO for Base); 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
-| `totalEmissionsUSD` | `BigInt!` | total emissions for the pool in USD |
-| `totalEmissionsRedistributed` | `BigInt!` | cumulative reward tokens this pool's gauge received from the Redistributor at snapshot time; AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
-| `totalEmissionsForfeited` | `BigInt!` | cumulative reward tokens this pool's gauge forwarded to the Redistributor or minter at snapshot time; AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
-| `gaugeIsAlive` | `Boolean!` | whether the gauge is alive |
-| `gaugeAddress` | `String` | address of the gauge for this pool _(indexed)_ |
-| `gaugeEmissionsCap` | `BigInt` | Emissions cap for gauge |
-| `minStakeTime` | `BigInt!` | Per-pool LP stake lockup (seconds) at snapshot time |
-| `numberOfGaugeDeposits` | `BigInt!` | number of gauge deposits (staking) |
-| `numberOfGaugeWithdrawals` | `BigInt!` | number of gauge withdrawals (unstaking) |
-| `numberOfGaugeRewardClaims` | `BigInt!` | number of gauge reward claims |
-| `totalGaugeRewardsClaimedUSD` | `BigInt!` | total gauge rewards claimed in USD |
-| `totalGaugeRewardsClaimed` | `BigInt!` | total gauge rewards claimed in reward-token units — AERO on Base, VELO on Optimism (18-dec); single reward token per chain, coherent within a chain, NOT summable across chains (see #813) |
-| `totalGaugeEarlyWithdrawPenalties` | `BigInt!` | total reward tokens forfeited as early-withdraw penalties on legacy CL gauges (CLGauge.EarlyWithdrawPenalty, Gauges V3 min stake time); the gauge sends them to the chain's Minter in the same tx. Same units as totalGaugeRewardsClaimed, which they are not part of. 0 on AERO pools (see AeroGauge.totalEarlyWithdrawPenalty) |
-| `totalGaugeEarlyWithdrawPenaltiesUSD` | `BigInt!` | totalGaugeEarlyWithdrawPenalties in USD at the reward token's price at each penalty |
-| `currentLiquidityStaked` | `BigInt!` | current liquidity staked in gauge in token units |
-| `currentLiquidityStakedUSD` | `BigInt!` | current liquidity staked in gauge in USD |
-| `timestamp` | `Timestamp!` | timestamp of last update |
-| `feeProtocol0` | `BigInt` | protocol fee % for token0. Set via SetFeeProtocol (governance-gated admin call). Uniformly 0 across all Slipstream pools as of 2026-05: Aerodrome/Velodrome governance has not activated protocol fees. The handler (src/EventHandlers/CLPool.ts) is wired correctly; the field will populate only when (and if) governance turns the toggle on. Slipstream's slot0() does not pack feeProtocol and the pool exposes no feeProtocol() getter, so the on-chain SetFeeProtocol event is the only source. |
-| `feeProtocol1` | `BigInt` | As feeProtocol0, for token1. |
-| `observationCardinalityNext` | `BigInt` | oracle observation cardinality |
-| `sqrtPriceX96` | `BigInt` | current sqrt price (Q96 fixed point) - updated from Swap/Initialize events |
-| `tick` | `BigInt` | current tick - updated from Swap/Initialize events |
-| `liquidityInRange` | `BigInt` | active-tick in-range liquidity L. Recomputed on Swap; bumped on Mint/Burn when tickLower <= currentTick < tickUpper. |
-| `stakedLiquidityInRange` | `BigInt` | staked in-range liquidity L |
-| `stakedReserve0` | `BigInt` | staked reserves in token0 raw units |
-| `stakedReserve1` | `BigInt` | staked reserves in token1 raw units |
-| `totalFlashLoanFees0` | `BigInt` | total flash loan fees collected in token0 |
-| `totalFlashLoanFees1` | `BigInt` | total flash loan fees collected in token1 |
-| `totalFlashLoanFeesUSD` | `BigInt` | total flash loan fees collected in USD |
-| `totalFlashLoanVolumeUSD` | `BigInt` | total flash loan volume in USD |
-| `numberOfFlashLoans` | `BigInt` | total number of flash loans |
-| `bribeVotingRewardAddress` | `String` | address of the bribe voting reward contract for this pool _(indexed)_ |
-| `totalBribeClaimedUSD` | `BigInt!` | total bribes claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — bribes are arbitrary heterogeneous tokens) |
-| `feeVotingRewardAddress` | `String` | address of the fee voting reward contract for this pool _(indexed)_ |
-| `totalFeeRewardClaimedUSD` | `BigInt!` | total fee rewards claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens) |
-| `veNFTamountStaked` | `BigInt!` | total amount of veNFT staked for this pool |
-| `baseFee` | `BigInt!` | Configured (nominal) fee, FEE_SCALE 1e6 (hundredths of a basis point; single divisor across V2 & CL, issue #812). V2: factory default (PoolFactoryDefaultFee) or SetCustomFee (factory or V2 CustomFeeModule). CL: tick-spacing default, CustomSwapFeeModule fee, or DynamicSwapFeeModule custom base fee (a dynamic pool charges this plus a TWAP-volatility part, up to feeCap). Custom-fee sentinels resolved as the contracts do: 420 = 0%, 0 = default (ADR 0001) |
-| `feeCap` | `BigInt` | Current fee cap for pool |
-| `scalingFactor` | `BigInt` | Current scaling factor for pool |
-| `currentFee` | `BigInt!` | Fee rate charged, FEE_SCALE 1e6 (issue #812). V2: effective rate of the latest swap with input >= 1e7 raw units, from the swap's own Fees amount (fee / amountIn, rounded to the nearest basis point); seeded from baseFee at creation and on SetCustomFee. CL: effective rate of the latest swap with input >= 1e7 raw units, derived from the swap itself ((amountIn - principal) / amountIn, rounded to nearest); seeded from baseFee at creation and on CustomSwapFeeModule.SetCustomFee; also the fallback rate for a swap whose fee cannot be derived (ADR 0001) |
-| `unstakedFee` | `BigInt` | Raw customFee value last emitted by an UnstakedFeeModule for this pool (see Pool for semantics) |
+| `postgres` | `false` |  |
+| `clickhouse` | `{` |  |
+| `partitionBy` | `"toYYYYMM(timestamp)"` |  |
+| `orderBy` | `["chainId",` |  |
+| `skippingIndexes` | `[` |  |
+| `name` | `"idx_token0"` |  |
+| `expr` | `"token0_address"` |  |
+| `type` | `"bloom_filter(0.01)"` |  |
+| `granularity` | `4` |  |
 
 ### TokenPriceSnapshot
 
@@ -359,21 +294,10 @@ Snapshot of the Token entity, written at most once per token per clock hour by t
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {chainId}-{address}-{epochMs} (TokenPriceSnapshotId; epochMs = hour bucket of the refresh). Rows written before ADR 0003 used {chainId}-{address}-{blockNumber}. |
-| `address` | `String!` | Address of the token _(indexed)_ |
-| `pricePerUSDNew` | `BigInt!` | price of token per USD |
-| `chainId` | `Int!` | chain id |
-| `isWhitelisted` | `Boolean!` | whether the token is whitelisted |
-| `lastUpdatedTimestamp` | `Timestamp!` | Timestamp of the last update _(indexed)_ |
-| `priceSource` | `String` | Provenance of pricePerUSDNew for this tick (ADR 0003): `pinned` (stablecoin / destination token at exactly $1), `pool` (derived from the deepest qualifying pool; see pricingPoolId / pricingDepthUSD), `canonical` (the same asset's price on its canonical chain won the depth comparison; see pricingSourceTokenId / pricingDepthUSD, ADR 0004), `canonical-seed` (no route qualified and the live canonical source was outside its ±2 h window: the committed hourly seed's price of pricingSourceTokenId for pricingSeedHour, ADR 0008), `override` (operator blacklist -> 0), `carried` (no route qualified; prior price kept, last success < 7 days ago, any tier; see lastSuccessfulPriceTimestamp) or `unpriced` (no route qualified and nothing fresh to carry -> 0). Earlier rows may carry `rebind` (ADR 0003 fallback copy) or the oracle-era tags `fresh` / `pool-implied`, or no tag at all. Stored as String (not an enum) so the set can extend without an Envio schema migration; the value set is pinned by PRICE_SOURCE in src/Snapshots/TokenPriceSnapshot.ts. |
-| `pricingPoolId` | `String` | Pool id ({chainId}-{poolAddress}) the price was derived through; set only when priceSource = `pool` |
-| `pricingDepthUSD` | `BigInt` | USD depth (1e18-base) of the winning candidate: pricingPoolId's counterparty-side reserve, or the canonical source token's stored depth; set only when priceSource = `pool` or `canonical` |
-| `pricingSourceTokenId` | `String` | Token id ({chainId}-{address}) of the canonical source whose price was used; set only when priceSource = `canonical` (its stored price) or `canonical-seed` (its seed price) |
-| `pricingHops` | `Int` | Route length when priceSource = `pool` / `canonical`: 1 = direct (pool against a lower-tier token, or canonical source), 2 = two-hop through a tier-3 peer that has a direct pool route (ADR 0007); then pricingPoolId is the peer pool and pricingDepthUSD the weaker of the two hops |
-| `pricingViaTokenId` | `String` | Two-hop only: token id ({chainId}-{address}) of the tier-3 peer the price went through |
-| `pricingViaPoolId` | `String` | Two-hop only: pool id of the peer's own direct route |
-| `lastSuccessfulPriceTimestamp` | `Timestamp` | When the price in this row was last obtained: the row's own time on `pinned` / `pool` / `canonical` rows, older on `carried` rows (up to 7 days, any tier; ADR 0007); null on rows written before it existed |
-| `pricingSeedHour` | `Timestamp` | Start of the seed hour whose price was used; set only when priceSource = `canonical-seed` (src/constants/canonical_price_seed.json, ADR 0008) |
+| `postgres` | `false` |  |
+| `clickhouse` | `{` |  |
+| `partitionBy` | `"toYYYYMM(lastUpdatedTimestamp)"` |  |
+| `orderBy` | `["chainId",` |  |
 
 ### UserStatsPerPoolSnapshot
 
@@ -381,50 +305,15 @@ Snapshot of UserStatsPerPool at an epoch (invariant fields + position params for
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {chainId}-{userAddress}-{poolAddress}-{epochMs} (UserStatsPerPoolSnapshotId) |
-| `userAddress` | `String!` | user wallet address _(indexed)_ |
-| `poolAddress` | `String!` | address of the pool these stats are scoped to _(indexed)_ |
-| `chainId` | `Int!` | chain id |
-| `timestamp` | `Timestamp!` | snapshot epoch timestamp _(indexed)_ |
-| `lpBalance` | `BigInt!` | user's LP token balance at snapshot time |
-| `totalLiquidityAddedUSD` | `BigInt!` | cumulative USD value of liquidity added |
-| `totalLiquidityAddedToken0` | `BigInt!` | cumulative raw token0 amount added |
-| `totalLiquidityAddedToken1` | `BigInt!` | cumulative raw token1 amount added |
-| `totalLiquidityRemovedUSD` | `BigInt!` | cumulative USD value of liquidity removed |
-| `totalLiquidityRemovedToken0` | `BigInt!` | cumulative raw token0 amount removed |
-| `totalLiquidityRemovedToken1` | `BigInt!` | cumulative raw token1 amount removed |
-| `numberOfSwaps` | `BigInt!` | number of swaps the user made in this pool |
-| `totalSwapVolumeAmount0` | `BigInt!` | swap volume denominated in token0 in this pool |
-| `totalSwapVolumeAmount1` | `BigInt!` | swap volume denominated in token1 in this pool |
-| `totalSwapVolumeUSD` | `BigInt!` | swap volume in USD in this pool |
-| `totalFeesContributedUSD` | `BigInt!` | total fees contributed in USD (fees paid by the user in swaps) |
-| `totalFeesContributed0` | `BigInt!` | total fees contributed in token0, 1e18-normalized (same scale on V2 & CL — issue #812) |
-| `totalFeesContributed1` | `BigInt!` | total fees contributed in token1, 1e18-normalized (same scale on V2 & CL — issue #812) |
-| `numberOfFlashLoans` | `BigInt!` | number of flash loan swaps in this pool |
-| `totalFlashLoanVolumeUSD` | `BigInt!` | flash loan swap volume in USD in this pool |
-| `numberOfGaugeDeposits` | `BigInt!` | number of gauge deposits (staking) |
-| `numberOfGaugeWithdrawals` | `BigInt!` | number of gauge withdrawals (unstaking) |
-| `numberOfGaugeRewardClaims` | `BigInt!` | number of gauge reward claims |
-| `totalGaugeRewardsClaimedUSD` | `BigInt!` | total gauge rewards claimed in USD |
-| `totalGaugeRewardsClaimed` | `BigInt!` | total gauge rewards claimed in reward-token units — AERO on Base, VELO on Optimism (18-dec); single reward token per chain, coherent within a chain, NOT summable across chains (see #813) |
-| `totalGaugeEarlyWithdrawPenalties` | `BigInt!` | total reward tokens forfeited as early-withdraw penalties on legacy CL gauges (CLGauge.EarlyWithdrawPenalty, Gauges V3 min stake time); the gauge sends them to the chain's Minter in the same tx. Same units as totalGaugeRewardsClaimed, which they are not part of. 0 on AERO pools (see AeroGauge.totalEarlyWithdrawPenalty) |
-| `totalGaugeEarlyWithdrawPenaltiesUSD` | `BigInt!` | totalGaugeEarlyWithdrawPenalties in USD at the reward token's price at each penalty |
-| `totalStakedFeesCollected0` | `BigInt!` | pool fees (token0) collected by this user from staked position (CollectFees) |
-| `totalStakedFeesCollected1` | `BigInt!` | pool fees (token1) collected by this user from staked position (CollectFees) |
-| `totalStakedFeesCollectedUSD` | `BigInt!` | pool fees in USD collected by this user from staked position (CollectFees) |
-| `totalUnstakedFeesCollected0` | `BigInt!` | pool fees (token0) collected by this user from unstaked position (Collect) |
-| `totalUnstakedFeesCollected1` | `BigInt!` | pool fees (token1) collected by this user from unstaked position (Collect) |
-| `totalUnstakedFeesCollectedUSD` | `BigInt!` | pool fees in USD collected by this user from unstaked position (Collect) |
-| `currentLiquidityStaked` | `BigInt!` | current liquidity staked in gauge in token units |
-| `currentLiquidityStakedUSD` | `BigInt!` | current liquidity staked in gauge in USD |
-| `stakedCLPositionTokenIds` | `[BigInt!]!` | tokenIds of CL positions staked in gauge at snapshot time |
-| `totalBribeClaimedUSD` | `BigInt!` | total USD value of bribe rewards claimed by this user for this pool (canonical cross-token aggregate; raw token-unit sum dropped in #813 — bribes are arbitrary heterogeneous tokens) |
-| `totalFeeRewardClaimedUSD` | `BigInt!` | total USD value of fee rewards claimed by this user for this pool (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens) |
-| `veNFTamountStaked` | `BigInt!` | amount of veNFT staked by this user for this pool |
-| `almAddress` | `String!` | Address of ALM LP Wrapper the user interacts with (empty string if none) |
-| `almLpAmount` | `BigInt!` | Number of ALM LP tokens held by the user |
-| `lastAlmActivityTimestamp` | `Timestamp!` | last ALM-related activity timestamp |
-| `lastActivityTimestamp` | `Timestamp!` | last activity in this pool |
+| `postgres` | `false` |  |
+| `clickhouse` | `{` |  |
+| `partitionBy` | `"toYYYYMM(timestamp)"` |  |
+| `orderBy` | `["chainId",` |  |
+| `skippingIndexes` | `[` |  |
+| `name` | `"idx_pool"` |  |
+| `expr` | `"poolAddress"` |  |
+| `type` | `"bloom_filter(0.01)"` |  |
+| `granularity` | `4` |  |
 
 ### NonFungiblePositionSnapshot
 
@@ -432,22 +321,15 @@ Snapshot of NonFungiblePosition at an epoch (full state for historical queries /
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {chainId}-{nfpmAddress}-{tokenId}-{epochMs} (NonFungiblePositionSnapshotId). nfpmAddress disambiguates intra-chain tokenId collisions across multiple NFPMs (e.g. Optimism has two). |
-| `chainId` | `Int!` | chain id where the NFT exists |
-| `tokenId` | `BigInt!` | token ID of the NFT _(indexed)_ |
-| `nfpmAddress` | `String!` | address of the NFPM contract that emitted the Transfer _(indexed)_ |
-| `owner` | `String!` | checksum address of the owner at snapshot time _(indexed)_ |
-| `pool` | `String!` | address of the CL pool this position belongs to _(indexed)_ |
-| `tickLower` | `BigInt!` | lower tick of the position range |
-| `tickUpper` | `BigInt!` | upper tick of the position range |
-| `token0` | `String!` | address of token0 in the position |
-| `token1` | `String!` | address of token1 in the position |
-| `liquidity` | `BigInt!` | liquidity value of the position at snapshot time |
-| `mintTransactionHash` | `String!` | transaction hash of the NFT mint transaction _(indexed)_ |
-| `mintLogIndex` | `Int!` | log index of the CLPool.Mint event (for placeholder matching) |
-| `lastUpdatedTimestamp` | `Timestamp!` | timestamp of last update before this snapshot |
-| `isStakedInGauge` | `Boolean!` | whether the position is staked in the pool's gauge at snapshot time |
-| `timestamp` | `Timestamp!` | snapshot epoch timestamp _(indexed)_ |
+| `postgres` | `false` |  |
+| `clickhouse` | `{` |  |
+| `partitionBy` | `"toYYYYMM(timestamp)"` |  |
+| `orderBy` | `["chainId",` |  |
+| `skippingIndexes` | `[` |  |
+| `name` | `"idx_pool"` |  |
+| `expr` | `"pool"` |  |
+| `type` | `"bloom_filter(0.01)"` |  |
+| `granularity` | `4` |  |
 
 ### VeNFTStateSnapshot
 
@@ -455,30 +337,24 @@ Snapshot of VeNFTState at an epoch (full state for historical queries)
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {chainId}-{tokenId}-{epochMs} (VeNFTStateSnapshotId) |
-| `chainId` | `Int!` | chain id |
-| `tokenId` | `BigInt!` | veNFT token ID _(indexed)_ |
-| `owner` | `String!` | owner address at snapshot time _(indexed)_ |
-| `locktime` | `BigInt!` | lock expiry timestamp (seconds); 0 for permanent locks |
-| `isPermanent` | `Boolean!` | whether the lock is permanent (never expires) |
-| `lastUpdatedTimestamp` | `Timestamp!` | timestamp of last update before this snapshot |
-| `totalValueLocked` | `BigInt!` | amount of governance token locked in the veNFT |
-| `isAlive` | `Boolean!` | whether the veNFT still exists at snapshot time |
-| `timestamp` | `Timestamp!` | snapshot epoch timestamp _(indexed)_ |
-| `votesPerPool` | `[VeNFTPoolVoteSnapshot!]!` | reverse relation: this veNFT's per-pool vote allocations at snapshot time _(derived)_ |
+| `postgres` | `false` |  |
+| `clickhouse` | `{` |  |
+| `partitionBy` | `"toYYYYMM(timestamp)"` |  |
+| `orderBy` | `["chainId",` |  |
+| `skippingIndexes` | `[` |  |
+| `name` | `"idx_owner"` |  |
+| `expr` | `"owner"` |  |
+| `type` | `"bloom_filter(0.01)"` |  |
+| `granularity` | `4` |  |
 
 ### VeNFTPoolVoteSnapshot
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {chainId}-{tokenId}-{poolAddress}-{epochMs} |
-| `chainId` | `Int!` | chain id |
-| `tokenId` | `BigInt!` | veNFT token ID |
-| `poolAddress` | `String!` | pool this veNFT allocated votes to _(indexed)_ |
-| `veNFTamountStaked` | `BigInt!` | vote weight allocated to the pool, in veToken units |
-| `lastUpdatedTimestamp` | `Timestamp!` | timestamp of last update before this snapshot |
-| `timestamp` | `Timestamp!` | snapshot epoch timestamp _(indexed)_ |
-| `veNFTStateSnapshot` | `VeNFTStateSnapshot!` | the veNFT-state snapshot this vote belongs to _(indexed)_ |
+| `postgres` | `false` |  |
+| `clickhouse` | `{` |  |
+| `partitionBy` | `"toYYYYMM(timestamp)"` |  |
+| `orderBy` | `["chainId",` |  |
 
 ### ALM_LP_WrapperSnapshot
 
@@ -486,15 +362,17 @@ Snapshot of ALM_LP_Wrapper at an epoch (full state for historical queries / reco
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
+| `postgres` | `false` |  |
+| `clickhouse` | `{` |  |
 | `id` | `ID!` | Format: {chainId}-{wrapperAddress}-{epochMs} (ALMLPWrapperSnapshotId) |
-| `wrapper` | `String!` | address of the ALM LP wrapper _(indexed)_ |
-| `pool` | `String!` | address of the pool this wrapper is associated with _(indexed)_ |
+| `wrapper` | `String!` | address of the ALM LP wrapper |
+| `pool` | `String!` | address of the pool this wrapper is associated with |
 | `chainId` | `Int!` | chain id |
 | `token0` | `String!` | address of token0 |
 | `token1` | `String!` | address of token1 |
 | `lpAmount` | `BigInt!` | total LP tokens wrapped at snapshot time |
 | `lastUpdatedTimestamp` | `Timestamp!` | timestamp of last update before this snapshot |
-| `tokenId` | `BigInt!` | strategy/position tokenId _(indexed)_ |
+| `tokenId` | `BigInt!` | strategy/position tokenId |
 | `tickLower` | `BigInt!` | lower tick bound of the position's price range |
 | `tickUpper` | `BigInt!` | upper tick bound of the position's price range |
 | `property` | `BigInt!` | pool property parameter from the AMM position struct |
@@ -505,8 +383,8 @@ Snapshot of ALM_LP_Wrapper at an epoch (full state for historical queries / reco
 | `positionWidth` | `BigInt!` | width parameter for the strategy (position size in ticks) |
 | `maxLiquidityRatioDeviationX96` | `BigInt!` | max allowed liquidity ratio deviation (X96 fixed point) |
 | `creationTimestamp` | `Timestamp!` | timestamp when the strategy was created |
-| `strategyTransactionHash` | `String!` | transaction hash of the StrategyCreated event _(indexed)_ |
-| `timestamp` | `Timestamp!` | snapshot epoch timestamp _(indexed)_ |
+| `strategyTransactionHash` | `String!` | transaction hash of the StrategyCreated event |
+| `timestamp` | `Timestamp!` | snapshot epoch timestamp |
 
 ## Config & registry
 
@@ -884,25 +762,10 @@ Hourly snapshot of AeroGauge (written at the first change in each hour, after th
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {chainId}-{gaugeAddress}-{epochMs} |
-| `chainId` | `Int!` | chain id |
-| `gaugeAddress` | `String!` | gauge _(indexed)_ |
-| `poolAddress` | `String!` | the gauge's pool _(indexed)_ |
-| `isCL` | `Boolean!` | CL or V2 gauge |
-| `timestamp` | `Timestamp!` | snapshot epoch (hour) _(indexed)_ |
-| `isActivated` | `Boolean!` | see AeroGauge |
-| `emissionCap` | `BigInt` | see AeroGauge |
-| `lastGaugeWeight` | `BigInt!` | see AeroGauge |
-| `totalAllocated` | `BigInt!` | see AeroGauge |
-| `totalEmissionsCredited` | `BigInt!` | see AeroGauge |
-| `totalCapSurplus` | `BigInt!` | see AeroGauge |
-| `totalEmissionsForfeited` | `BigInt!` | see AeroGauge |
-| `totalEmissionsMinted` | `BigInt!` | see AeroGauge |
-| `totalEmissionsMintedUSD` | `BigInt!` | see AeroGauge |
-| `totalEarlyWithdrawPenalty` | `BigInt!` | see AeroGauge |
-| `totalFeesClaimed0` | `BigInt!` | see AeroGauge |
-| `totalFeesClaimed1` | `BigInt!` | see AeroGauge |
-| `totalFeesClaimedUSD` | `BigInt!` | see AeroGauge |
+| `postgres` | `false` |  |
+| `clickhouse` | `{` |  |
+| `partitionBy` | `"toYYYYMM(timestamp)"` |  |
+| `orderBy` | `["chainId",` |  |
 
 ### AeroLeafVoterStateSnapshot
 
@@ -911,8 +774,8 @@ Hourly snapshot of AeroLeafVoterState (chain-level emission totals). ClickHouse 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{epochMs} |
-| `chainId` | `Int!` | chain id _(indexed)_ |
-| `timestamp` | `Timestamp!` | snapshot epoch (hour) _(indexed)_ |
+| `chainId` | `Int!` | chain id |
+| `timestamp` | `Timestamp!` | snapshot epoch (hour) |
 | `totalEmissionsCredited` | `BigInt!` | see AeroLeafVoterState |
 | `totalCapSurplus` | `BigInt!` | see AeroLeafVoterState |
 | `totalIdleSurplus` | `BigInt!` | see AeroLeafVoterState |
@@ -931,19 +794,15 @@ One row per Aero gauge Deposit, Withdraw or EmergencyWithdraw. ClickHouse only.
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {chainId}-{txHash}-{logIndex} |
-| `chainId` | `Int!` | chain id |
-| `kind` | `String!` | DEPOSIT \| WITHDRAW \| EMERGENCY_WITHDRAW (values pinned by AERO_STAKE_EVENT_KIND) |
-| `gaugeAddress` | `String!` | gauge _(indexed)_ |
-| `poolAddress` | `String!` | the gauge's pool _(indexed)_ |
-| `isCL` | `Boolean!` | CL (amount = liquidity L, tokenId set) or V2 (amount = LP tokens) |
-| `account` | `String!` | staked owner (CL _user / V2 _account) _(indexed)_ |
-| `caller` | `String` | transaction-level caller (Deposit / Withdraw _caller); null on EmergencyWithdraw |
-| `tokenId` | `BigInt` | CL position NFT; null on V2 gauges |
-| `amount` | `BigInt!` | liquidity (CL) or LP tokens (V2) staked or unstaked |
-| `blockNumber` | `BigInt!` | block number |
-| `timestamp` | `Timestamp!` | block time _(indexed)_ |
-| `transactionHash` | `String!` | transaction |
+| `postgres` | `false` |  |
+| `clickhouse` | `{` |  |
+| `partitionBy` | `"toYYYYMM(timestamp)"` |  |
+| `orderBy` | `["chainId",` |  |
+| `skippingIndexes` | `[` |  |
+| `name` | `"idx_account"` |  |
+| `expr` | `"account"` |  |
+| `type` | `"bloom_filter(0.01)"` |  |
+| `granularity` | `4` |  |
 
 ### AeroEmissionsEvent
 
@@ -951,21 +810,15 @@ One row per Aero gauge emissions event per LP: claims, deferrals, referral legs,
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {chainId}-{txHash}-{logIndex} |
-| `chainId` | `Int!` | chain id |
-| `kind` | `String!` | CLAIMED (EmissionsClaimed: paid to recipient), DEFERRED (EmissionsDeferred: stored after a failed mint), DEFERRED_CLAIMED (DeferredEmissionsClaimed), REFERRAL_DEFERRED (ReferralEmissionsDeferred: the referral's cut of an LP claim), REFERRAL_CLAIMED (ReferralEmissionsClaimed), EARLY_WITHDRAW_PENALTY (EarlyWithdrawPenalty: forfeited by the LP). Pinned by AERO_EMISSIONS_EVENT_KIND. |
-| `gaugeAddress` | `String!` | gauge _(indexed)_ |
-| `poolAddress` | `String!` | the gauge's pool _(indexed)_ |
-| `account` | `String!` | LP staker (REFERRAL_DEFERRED: the LP whose claim paid the referral; REFERRAL_CLAIMED: the referral) _(indexed)_ |
-| `recipient` | `String` | recipient of a paid amount (CLAIMED, DEFERRED_CLAIMED, REFERRAL_CLAIMED) |
-| `referral` | `String` | referral address (REFERRAL_DEFERRED) |
-| `tokenId` | `BigInt` | CL position NFT (per-position CL events); null otherwise |
-| `amount` | `BigInt!` | reward-token amount (18 decimals) |
-| `amountUSD` | `BigInt!` | USD (1e18) at the reward token's stored price |
-| `rewardToken` | `String!` | AERO (Base) or xAERO |
-| `blockNumber` | `BigInt!` | block number |
-| `timestamp` | `Timestamp!` | block time _(indexed)_ |
-| `transactionHash` | `String!` | transaction |
+| `postgres` | `false` |  |
+| `clickhouse` | `{` |  |
+| `partitionBy` | `"toYYYYMM(timestamp)"` |  |
+| `orderBy` | `["chainId",` |  |
+| `skippingIndexes` | `[` |  |
+| `name` | `"idx_account"` |  |
+| `expr` | `"account"` |  |
+| `type` | `"bloom_filter(0.01)"` |  |
+| `granularity` | `4` |  |
 
 ### AeroRedemptionEvent
 
@@ -978,11 +831,11 @@ One row per redemption step. Phase 2: INITIATED (LeafVoter.Redeemed: xAERO burne
 | `kind` | `String!` | INITIATED \| PROCESSED \| DEFERRED \| BUFFER_DRAWN \| DONATED \| SURPLUS_SPENT (pinned by AERO_REDEMPTION_EVENT_KIND) |
 | `sourceChainId` | `Int!` | chain whose receipt tokens are redeemed (INITIATED: the emitting chain; root kinds: the event's chain id) |
 | `redeemer` | `String` | address whose xAERO was burned (INITIATED) |
-| `recipient` | `String` | AERO recipient on Base _(indexed)_ |
+| `recipient` | `String` | AERO recipient on Base |
 | `amount` | `BigInt!` | 18-decimal amount (xAERO burned / AERO minted or paid) |
 | `surplusReported` | `BigInt` | PROCESSED: the chain's reported surplus high-water mark after the redeem |
 | `blockNumber` | `BigInt!` | block number |
-| `timestamp` | `Timestamp!` | block time _(indexed)_ |
+| `timestamp` | `Timestamp!` | block time |
 | `transactionHash` | `String!` | transaction |
 
 ### AeroVotingRewardsEvent
@@ -991,21 +844,10 @@ One row per VotingRewardsManager flow. Phase 2: FEES_COLLECTED (pool fees of sta
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {chainId}-{txHash}-{logIndex} |
-| `chainId` | `Int!` | chain id |
-| `kind` | `String!` | FEES_COLLECTED \| FEES_CLAIMED \| INCENTIVE_CREATED \| INCENTIVE_CLAIMED \| INCENTIVE_SWEPT (pinned by AERO_VOTING_REWARDS_EVENT_KIND) |
-| `votingRewardsManager` | `String!` | VotingRewardsManager _(indexed)_ |
-| `gaugeAddress` | `String!` | its gauge _(indexed)_ |
-| `poolAddress` | `String!` | the gauge's pool _(indexed)_ |
-| `tokenId` | `BigInt` | sAERO position (claims) |
-| `recipient` | `String` | claim recipient (claims) _(indexed)_ |
-| `token` | `String` | token moved; null on INCENTIVE_CLAIMED / INCENTIVE_SWEPT rows whose program is unknown |
-| `programId` | `BigInt` | incentive program (INCENTIVE_*) |
-| `amount` | `BigInt!` | raw token amount |
-| `amountUSD` | `BigInt!` | USD (1e18) at the token's stored price on this chain; 0 when the token is untrusted or not indexed |
-| `blockNumber` | `BigInt!` | block number |
-| `timestamp` | `Timestamp!` | block time _(indexed)_ |
-| `transactionHash` | `String!` | transaction |
+| `postgres` | `false` |  |
+| `clickhouse` | `{` |  |
+| `partitionBy` | `"toYYYYMM(timestamp)"` |  |
+| `orderBy` | `["chainId",` |  |
 
 ## Aero governance
 
@@ -1058,7 +900,7 @@ Hourly snapshot of SAeroEscrowState. ClickHouse only.
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{epochMs} |
 | `chainId` | `Int!` | chain id |
-| `timestamp` | `Timestamp!` | snapshot epoch (hour) _(indexed)_ |
+| `timestamp` | `Timestamp!` | snapshot epoch (hour) |
 | `supply` | `BigInt!` | see SAeroEscrowState |
 | `permanentStakeBalance` | `BigInt!` | see SAeroEscrowState |
 | `accumulatorAmount` | `BigInt!` | see SAeroEscrowState |
@@ -1070,20 +912,15 @@ One row per change to an sAERO position. ClickHouse only.
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {chainId}-{txHash}-{logIndex}[-{leg}] (a Rebalance writes one row per leg) |
-| `chainId` | `Int!` | chain id (Base) |
-| `kind` | `String!` | MINT (NFT minted), TRANSFER (owner change), CREATE_STAKE / INCREASE_AMOUNT / INCREASE_PERIOD / REVIVE_STAKE (Deposit by type), WITHDRAW, UPGRADE_PERMANENT, DOWNGRADE_PERMANENT, REBALANCE_OUT / REBALANCE_IN (one row per VotingEscrow.Rebalance leg), BURN (accumulator). Pinned by SAERO_EVENT_KIND. |
-| `tokenId` | `BigInt!` | position _(indexed)_ |
-| `owner` | `String` | owner after the change _(indexed)_ |
-| `counterparty` | `String` | TRANSFER: previous owner; Deposit: provider |
-| `amount` | `BigInt!` | AERO moved by this change (0 for owner, period and mode changes) |
-| `amountAfter` | `BigInt!` | position amount after the change |
-| `stakeEndAfter` | `BigInt!` | unlock time after the change (0 = permanent or empty) |
-| `isPermanentAfter` | `Boolean!` | permanent after the change |
-| `supplyAfter` | `BigInt` | VotingEscrow supply after the change (the transaction's Supply event; null when the change emits none) |
-| `blockNumber` | `BigInt!` | block number |
-| `timestamp` | `Timestamp!` | block time _(indexed)_ |
-| `transactionHash` | `String!` | transaction |
+| `postgres` | `false` |  |
+| `clickhouse` | `{` |  |
+| `partitionBy` | `"toYYYYMM(timestamp)"` |  |
+| `orderBy` | `["chainId",` |  |
+| `skippingIndexes` | `[` |  |
+| `name` | `"idx_owner"` |  |
+| `expr` | `"owner"` |  |
+| `type` | `"bloom_filter(0.01)"` |  |
+| `granularity` | `4` |  |
 
 ### AeroRootAllocation
 
@@ -1173,20 +1010,15 @@ One row per allocation change: root ledger moves (PARKED, CHAIN_ALLOCATED, DEALL
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {chainId}-{txHash}-{logIndex}[-{leg}] |
-| `chainId` | `Int!` | chain the event was emitted on |
-| `level` | `String!` | ROOT (root Voter, Base) \| LEAF (LeafVoter) |
-| `kind` | `String!` | see above |
-| `tokenId` | `BigInt!` | sAERO position (0 for TOKEN0 burns) _(indexed)_ |
-| `targetChainId` | `Int` | ROOT: the chain the power moved to or from (0 = CHAIN0); LEAF: the emitting chain |
-| `gaugeAddress` | `String` | gauge (GAUGES_DISPATCHED, GAUGE_ALLOCATED) _(indexed)_ |
-| `amount` | `BigInt!` | AERO moved or requested (signed for ledger moves: negative = removed) |
-| `bookedAmount` | `BigInt` | GAUGE_ALLOCATED: AERO this LeafVoter booked on the gauge after the change |
-| `chainAllocationAfter` | `BigInt` | LEAF: the position's budget on the chain after the change |
-| `emissionsPerVP` | `BigInt` | LEAF CHAIN_ALLOCATED / GAUGE_ALLOCATED: the LeafVoter's emissions-per-voting-power scalar (1e18-scaled) |
-| `blockNumber` | `BigInt!` | block number |
-| `timestamp` | `Timestamp!` | block time _(indexed)_ |
-| `transactionHash` | `String!` | transaction |
+| `postgres` | `false` |  |
+| `clickhouse` | `{` |  |
+| `partitionBy` | `"toYYYYMM(timestamp)"` |  |
+| `orderBy` | `["chainId",` |  |
+| `skippingIndexes` | `[` |  |
+| `name` | `"idx_gauge"` |  |
+| `expr` | `"gaugeAddress"` |  |
+| `type` | `"bloom_filter(0.01)"` |  |
+| `granularity` | `4` |  |
 
 ### AeroMinterState
 
@@ -1221,7 +1053,7 @@ Hourly snapshot of AeroMinterState (mint totals and rates). ClickHouse only.
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{minterAddress}-{epochMs} |
 | `chainId` | `Int!` | chain id |
-| `timestamp` | `Timestamp!` | snapshot epoch (hour) _(indexed)_ |
+| `timestamp` | `Timestamp!` | snapshot epoch (hour) |
 | `baseRate` | `BigInt` | see AeroMinterState |
 | `dynamicRate` | `BigInt` | see AeroMinterState |
 | `teamRate` | `BigInt` | see AeroMinterState |
@@ -1242,7 +1074,7 @@ One row per Minter configuration change (rates, band, operator, FED, module). Cl
 | `value2` | `BigInt` | RATE_BAND_SET: the ceiling |
 | `address` | `String` | new address (OPERATOR_SET, FED_SET, DYNAMIC_RATE_MODULE_SET) |
 | `blockNumber` | `BigInt!` | block number |
-| `timestamp` | `Timestamp!` | block time _(indexed)_ |
+| `timestamp` | `Timestamp!` | block time |
 | `transactionHash` | `String!` | transaction |
 
 ### AeroMigrationTotals
@@ -1277,7 +1109,7 @@ One row per legacy-to-Aero migration: veAERO / AERO v1 on Base (AerodromeMigrati
 | `kind` | `String!` | VENFT (veNFT migrated), LIQUID (liquid tokens migrated), SETTLED (Optimism migration settled on Base) |
 | `legacyToken` | `String!` | AERO_V1 (Base) or VELO (Optimism) |
 | `depositor` | `String` | VENFT / LIQUID: legacy holder |
-| `recipient` | `String!` | receiver of the new AERO or sAERO _(indexed)_ |
+| `recipient` | `String!` | receiver of the new AERO or sAERO |
 | `legacyTokenId` | `BigInt` | VENFT: legacy veNFT id |
 | `amountIn` | `BigInt` | VENFT / LIQUID: legacy amount (18 decimals) |
 | `amountOut` | `BigInt!` | new AERO (VENFT / LIQUID: converted amount; SETTLED: amount settled on Base) |
@@ -1285,7 +1117,7 @@ One row per legacy-to-Aero migration: veAERO / AERO v1 on Base (AerodromeMigrati
 | `isLiquid` | `Boolean` | VENFT: settled as liquid AERO (expired lock); SETTLED: liquid settlement |
 | `nonce` | `BigInt` | SETTLED: Hyperlane migration nonce |
 | `blockNumber` | `BigInt!` | block number |
-| `timestamp` | `Timestamp!` | block time _(indexed)_ |
+| `timestamp` | `Timestamp!` | block time |
 | `transactionHash` | `String!` | transaction |
 
 ## Internal buffers & deferred state
