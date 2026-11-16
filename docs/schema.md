@@ -6,7 +6,7 @@
 
 # Entity & field reference
 
-Generated from [`schema.graphql`](../schema.graphql). The schema defines **80 entity types**; each becomes a queryable table in the indexer's database.
+Generated from [`schema.graphql`](../schema.graphql). The schema defines **74 entity types**; each becomes a queryable table in the indexer's database.
 
 ## Reading this reference
 
@@ -21,12 +21,12 @@ Generated from [`schema.graphql`](../schema.graphql). The schema defines **80 en
 - **Core aggregates** — [Pool](#pool), [Token](#token), [UserStatsPerPool](#userstatsperpool), [NonFungiblePosition](#nonfungibleposition), [VeNFTState](#venftstate), [VeNFTPoolVote](#venftpoolvote), [ALM_LP_Wrapper](#alm_lp_wrapper)
 - **Snapshots** — [PoolSnapshot](#poolsnapshot), [TokenPriceSnapshot](#tokenpricesnapshot), [UserStatsPerPoolSnapshot](#userstatsperpoolsnapshot), [NonFungiblePositionSnapshot](#nonfungiblepositionsnapshot), [VeNFTStateSnapshot](#venftstatesnapshot), [VeNFTPoolVoteSnapshot](#venftpoolvotesnapshot), [ALM_LP_WrapperSnapshot](#alm_lp_wrappersnapshot)
 - **Config & registry** — [FactoryRegistryConfig](#factoryregistryconfig), [DynamicFeeGlobalConfig](#dynamicfeeglobalconfig), [CLGaugeConfig](#clgaugeconfig), [FeeToTickSpacingMapping](#feetotickspacingmapping), [PoolFactoryDefaultFee](#poolfactorydefaultfee), [RedistributorConfig](#redistributorconfig), [RootPool_LeafPool](#rootpool_leafpool), [RootGauge_RootPool](#rootgauge_rootpool)
+- **Superchain root pools** — [RootPool](#rootpool), [RootPoolVote](#rootpoolvote)
 - **Pool launcher** — [PoolLauncherPool](#poollauncherpool), [PoolLauncherConfig](#poollauncherconfig)
-- **Cross-chain superswaps (Hyperlane)** — [SuperSwap](#superswap), [OUSDTBridgedTransaction](#ousdtbridgedtransaction), [OUSDTSwaps](#ousdtswaps), [DispatchId_event](#dispatchid_event), [ProcessId_event](#processid_event), [TxDispatchIdRegistry](#txdispatchidregistry), [TxOUSDTSwapRegistry](#txousdtswapregistry)
+- **Cross-chain superswaps (Hyperlane)** — [SuperSwapOriginLeg](#superswaporiginleg), [SuperSwapDestinationLeg](#superswapdestinationleg), [OUSDTBridgedTransaction](#ousdtbridgedtransaction), [OUSDTSwaps](#ousdtswaps), [TxDispatchIdRegistry](#txdispatchidregistry), [TxProcessIdRegistry](#txprocessidregistry), [TxOUSDTSwapRegistry](#txousdtswapregistry)
 - **Aero gauges, staking & emissions** — [AeroGauge](#aerogauge), [AeroGaugeFactory](#aerogaugefactory), [AeroLeafVoterState](#aeroleafvoterstate), [AeroVotingRewardsManager](#aerovotingrewardsmanager), [AeroIncentiveProgram](#aeroincentiveprogram), [AeroGaugeSnapshot](#aerogaugesnapshot), [AeroLeafVoterStateSnapshot](#aeroleafvoterstatesnapshot), [AeroGaugeStakeEvent](#aerogaugestakeevent), [AeroEmissionsEvent](#aeroemissionsevent), [AeroRedemptionEvent](#aeroredemptionevent), [AeroVotingRewardsEvent](#aerovotingrewardsevent)
 - **Aero governance** — [SAeroPosition](#saeroposition), [SAeroEscrowState](#saeroescrowstate), [SAeroEscrowStateSnapshot](#saeroescrowstatesnapshot), [SAeroPositionEvent](#saeropositionevent), [AeroRootAllocation](#aerorootallocation), [AeroRootGaugeVote](#aerorootgaugevote), [AeroRootChainState](#aerorootchainstate), [AeroLeafTokenState](#aeroleaftokenstate), [AeroLeafAllocation](#aeroleafallocation), [AeroAllocationEvent](#aeroallocationevent), [AeroMinterState](#aerominterstate), [AeroMinterSnapshot](#aeromintersnapshot), [AeroMinterEvent](#aerominterevent), [AeroMigrationTotals](#aeromigrationtotals), [AeroMigrationEvent](#aeromigrationevent)
-- **Internal buffers & deferred state** — [PendingVote](#pendingvote), [CLPoolPendingInitialize](#clpoolpendinginitialize), [PendingRootPoolMapping](#pendingrootpoolmapping), [PendingDistribution](#pendingdistribution), [PoolTickMap](#pooltickmap), [CLPoolMintEvent](#clpoolmintevent), [CLPositionPendingPrincipal](#clpositionpendingprincipal), [TxCLPoolMintRegistry](#txclpoolmintregistry), [AeroNFPMMintPool](#aeronfpmmintpool), [AeroNFPMPendingMint](#aeronfpmpendingmint), [AeroGaugePendingReferral](#aerogaugependingreferral), [NFPMCollectFeesInTx](#nfpmcollectfeesintx), [V2SwapFeesInTx](#v2swapfeesintx), [TokenPricingPools](#tokenpricingpools), [TxPoolTransferRegistry](#txpooltransferregistry), [PoolTransferInTx](#pooltransferintx), [ALMLPWrapperTransferInTx](#almlpwrappertransferintx), [ALM_TotalSupplyLimitUpdated_event](#alm_totalsupplylimitupdated_event)
-- **Other** — [RootPool](#rootpool), [RootPoolVote](#rootpoolvote), [SuperSwapOriginLeg](#superswaporiginleg), [SuperSwapDestinationLeg](#superswapdestinationleg), [TxProcessIdRegistry](#txprocessidregistry)
+- **Internal buffers & deferred state** — [CLPoolPendingInitialize](#clpoolpendinginitialize), [PoolTickMap](#pooltickmap), [CLPoolMintEvent](#clpoolmintevent), [CLPositionPendingPrincipal](#clpositionpendingprincipal), [TxCLPoolMintRegistry](#txclpoolmintregistry), [AeroNFPMMintPool](#aeronfpmmintpool), [AeroNFPMPendingMint](#aeronfpmpendingmint), [AeroGaugePendingReferral](#aerogaugependingreferral), [NFPMCollectFeesInTx](#nfpmcollectfeesintx), [V2SwapFeesInTx](#v2swapfeesintx), [TokenPricingPools](#tokenpricingpools), [TxPoolTransferRegistry](#txpooltransferregistry), [PoolTransferInTx](#pooltransferintx), [ALMLPWrapperTransferInTx](#almlpwrappertransferintx), [ALM_TotalSupplyLimitUpdated_event](#alm_totalsupplylimitupdated_event)
 
 ## Core aggregates
 
@@ -37,7 +37,6 @@ Latest-state entities that hold the headline metrics most consumers query.
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{poolAddress} (PoolId) |
-| `chainId` | `Int!` | chain id |
 | `poolAddress` | `String!` | address of the pool |
 | `name` | `String!` | name of the pool |
 | `token0_id` | `String!` | token0 id |
@@ -71,8 +70,8 @@ Latest-state entities that hold the headline metrics most consumers query.
 | `token1Price` | `BigInt!` | price of token1 relative to token0 |
 | `totalVotesDeposited` | `BigInt!` | the gauge's undistributed reward-token balance (VELO on Optimism, AERO on Base; raw units, 18-dec) as of its last DistributeReward, derived from events; 0 on AERO pools (see AeroGauge) |
 | `totalVotesDepositedUSD` | `BigInt!` | totalVotesDeposited in USD at the reward token's price at that DistributeReward (0 on AERO pools) |
-| `totalEmissions` | `BigInt!` | total emissions for the pool in reward token units (VELO form Optimism and AERO for Base); 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
-| `totalEmissionsUSD` | `BigInt!` | total emissions for the pool in USD. totalEmissions* are legacy-gauge emissions; 0 on AERO pools (Aero emissions are minted on claim: see AeroGauge, ADR 0006) |
+| `totalEmissions` | `BigInt!` | total emissions for the pool in reward token units (VELO form Optimism and AERO for Base); 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813); legacy gauges of the pool's own chain only (Optimism / Base): 0 on superchain leaf pools, whose emissions are on their RootPool on Optimism (ADR 0009) |
+| `totalEmissionsUSD` | `BigInt!` | total emissions for the pool in USD. totalEmissions* are legacy-gauge emissions; 0 on AERO pools (Aero emissions are minted on claim: see AeroGauge, ADR 0006) and on superchain leaf pools (RootPool.totalEmissionsUSD on Optimism, ADR 0009) |
 | `totalEmissionsRedistributed` | `BigInt!` | cumulative reward tokens this pool's gauge received from the Redistributor (Redistributed events); AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
 | `totalEmissionsForfeited` | `BigInt!` | cumulative reward tokens this pool's gauge forwarded to the Redistributor or minter because it was over its cap (Deposited events); AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
 | `lastUpdatedTimestamp` | `Timestamp!` | timestamp of last update |
@@ -109,7 +108,7 @@ Latest-state entities that hold the headline metrics most consumers query.
 | `totalBribeClaimedUSD` | `BigInt!` | total bribes claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — bribes are arbitrary heterogeneous tokens) |
 | `feeVotingRewardAddress` | `String` | address of the fee voting reward contract for this pool _(indexed)_ |
 | `totalFeeRewardClaimedUSD` | `BigInt!` | total fee rewards claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens) |
-| `veNFTamountStaked` | `BigInt!` | total amount of veNFT staked for this pool (legacy voting rewards; 0 on AERO pools) |
+| `veNFTamountStaked` | `BigInt!` | legacy vote weight on the pool (Voter.weights, Optimism / Base pools; 0 on AERO pools; 0 on superchain leaf pools: their root pool's value is on RootPool on Optimism (ADR 0009), not 'no votes') |
 | `baseFee` | `BigInt!` | Configured (nominal) fee, FEE_SCALE 1e6 (hundredths of a basis point; single divisor across V2 & CL, issue #812). V2: factory default (PoolFactoryDefaultFee) or SetCustomFee (factory or V2 CustomFeeModule). CL: tick-spacing default, CustomSwapFeeModule fee, or DynamicSwapFeeModule custom base fee (a dynamic pool charges this plus a TWAP-volatility part, up to feeCap). Custom-fee sentinels resolved as the contracts do: 420 = 0%, 0 = default (ADR 0001) |
 | `feeCap` | `BigInt` | Current fee cap for pool |
 | `scalingFactor` | `BigInt` | Current scaling factor for pool |
@@ -130,7 +129,6 @@ Entity that tracks the latest state of the token entity By nature this entity sa
 | `address` | `String!` | token address _(indexed)_ |
 | `symbol` | `String!` | token symbol |
 | `name` | `String!` | token name |
-| `chainId` | `Int!` | chain id _(indexed)_ |
 | `decimals` | `BigInt!` | number of decimals |
 | `pricePerUSDNew` | `BigInt!` | price of token per USD |
 | `lastUpdatedTimestamp` | `Timestamp!` | timestamp of last price refresh attempt (drives the once-per-clock-hour throttle; see src/PriceOracle.ts) |
@@ -150,7 +148,6 @@ Entity for tracking user activity and positions in specific pools
 | `id` | `ID!` | Format: {chainId}-{userAddress}-{poolAddress} (UserStatsPerPoolId) |
 | `userAddress` | `String!` | user wallet address _(indexed)_ |
 | `poolAddress` | `String!` | address of the pool these stats are scoped to _(indexed)_ |
-| `chainId` | `Int!` | chain id |
 | `lpBalance` | `BigInt!` | user's LP token balance (tracked from Transfer events) |
 | `totalLiquidityAddedUSD` | `BigInt!` | cumulative USD value of liquidity added (from IncreaseLiquidity events, V2 Transfer ADD attribution, V2 superchain-leaf 4-arg Mint recipient (#886), and direct non-NFPM CLPool.Mint). Tracks capital contribution, not LP ownership — may diverge from lpBalance for users who receive/send LP tokens via plain Transfer |
 | `totalLiquidityAddedToken0` | `BigInt!` | cumulative raw token0 amount added (sum of event.params.amount0 from IncreaseLiquidity + V2 Transfer ADD + V2 superchain-leaf 4-arg Mint (#886) + direct non-NFPM CLPool.Mint). May differ from removed due to price movement between deposit and withdrawal |
@@ -185,7 +182,7 @@ Entity for tracking user activity and positions in specific pools
 | `stakedCLPositionTokenIds` | `[BigInt!]!` | tokenIds of CL positions currently staked in gauge (maintained on deposit/withdraw, enables O(1) primary-key lookups per position at snapshot time) |
 | `totalBribeClaimedUSD` | `BigInt!` | total USD value of bribe rewards claimed by this user for this pool (canonical cross-token aggregate; raw token-unit sum dropped in #813 — bribes are arbitrary heterogeneous tokens) |
 | `totalFeeRewardClaimedUSD` | `BigInt!` | total USD value of fee rewards claimed by this user for this pool (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens) |
-| `veNFTamountStaked` | `BigInt!` | amount of veNFT staked by this user for this pool |
+| `veNFTamountStaked` | `BigInt!` | legacy vote weight this user's veNFTs give the pool (Optimism / Base pools; 0 on superchain leaf pools: per-veNFT votes on a root pool are RootPoolVote on Optimism, ADR 0009) |
 | `almAddress` | `String!` | Address of ALM LP Wrapper (if the user interacts with it; otherwise defaults to "") |
 | `almLpAmount` | `BigInt!` | Number of LP tokens |
 | `lastAlmActivityTimestamp` | `Timestamp!` | last ALM related activity that changed ALM related fields on user entity |
@@ -200,7 +197,6 @@ Tracks relevant data for each NFT minted: each NFT represents a concentrated pos
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{nfpmAddress}-{tokenId} (NonFungiblePositionId). Natural key is (NFPM, tokenId); pool is metadata and preserved as a field. nfpmAddress disambiguates intra-chain tokenId collisions across multiple NFPMs (e.g. Optimism has two). |
-| `chainId` | `Int!` | Chain ID where the NFT exists |
 | `tokenId` | `BigInt!` | Token ID of the NFT (from Transfer event) _(indexed)_ |
 | `nfpmAddress` | `String!` | Address of the NFPM contract that emitted the Transfer (a legacy NFPM or the Aero NFPM); disambiguates intra-chain tokenId collisions across multiple NFPMs (e.g. Optimism has two) _(indexed)_ |
 | `owner` | `String!` | Checksum address of the current owner (from Transfer event) _(indexed)_ |
@@ -221,7 +217,6 @@ Tracks relevant data for each NFT minted: each NFT represents a concentrated pos
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{tokenId} (VeNFTId) |
-| `chainId` | `Int!` | chain id |
 | `tokenId` | `BigInt!` | veNFT token ID |
 | `owner` | `String!` | current owner address of the veNFT |
 | `locktime` | `BigInt!` | lock expiry timestamp (seconds); 0 for permanent locks |
@@ -233,6 +228,8 @@ Tracks relevant data for each NFT minted: each NFT represents a concentrated pos
 | `votesPerPool` | `[VeNFTPoolVote!]!` | reverse relation: this veNFT's per-pool vote allocations _(derived)_ |
 
 ### VeNFTPoolVote
+
+One veNFT's vote on a pool of the veNFT's own chain. Votes on a superchain root pool (for a leaf pool on another chain) are RootPoolVote rows (ADR 0009).
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
@@ -249,7 +246,6 @@ ALM LP Wrapper entity Tracks both the LP wrapper state (aggregated deposits/with
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{wrapperAddress} (ALMLPWrapperId) |
-| `chainId` | `Int!` | The blockchain network ID where this wrapper exists |
 | `pool` | `String!` | Address of the pool this ALM wrapper is associated with _(indexed)_ |
 | `token0` | `String!` | Address of token 0 |
 | `token1` | `String!` | Address of token 1 |
@@ -280,7 +276,6 @@ Snapshot of the LiquidityPool entity
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{poolAddress}-{epochMs} (PoolId-epochMs, epochMs from getSnapshotEpoch) |
-| `chainId` | `Int!` | chain id |
 | `name` | `String!` | name of the pool |
 | `poolAddress` | `String!` | address of the pool |
 | `token0_id` | `String!` | token0 id |
@@ -311,8 +306,8 @@ Snapshot of the LiquidityPool entity
 | `token1Price` | `BigInt!` | price of token1 relative to token0 |
 | `totalVotesDeposited` | `BigInt!` | the gauge's undistributed reward-token balance as of its last DistributeReward, derived from events (see Pool.totalVotesDeposited); not a vote weight: see veNFTamountStaked |
 | `totalVotesDepositedUSD` | `BigInt!` | totalVotesDeposited in USD at that DistributeReward |
-| `totalEmissions` | `BigInt!` | total emissions for the pool in reward token units (VELO form Optimism and AERO for Base); 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
-| `totalEmissionsUSD` | `BigInt!` | total emissions for the pool in USD |
+| `totalEmissions` | `BigInt!` | total emissions for the pool in reward token units (VELO form Optimism and AERO for Base); 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813); 0 on superchain leaf pools (see Pool.totalEmissions) |
+| `totalEmissionsUSD` | `BigInt!` | total emissions for the pool in USD (0 on superchain leaf pools, see Pool.totalEmissionsUSD) |
 | `totalEmissionsRedistributed` | `BigInt!` | cumulative reward tokens this pool's gauge received from the Redistributor at snapshot time; AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
 | `totalEmissionsForfeited` | `BigInt!` | cumulative reward tokens this pool's gauge forwarded to the Redistributor or minter at snapshot time; AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
 | `gaugeIsAlive` | `Boolean!` | whether the gauge is alive |
@@ -347,7 +342,7 @@ Snapshot of the LiquidityPool entity
 | `totalBribeClaimedUSD` | `BigInt!` | total bribes claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — bribes are arbitrary heterogeneous tokens) |
 | `feeVotingRewardAddress` | `String` | address of the fee voting reward contract for this pool |
 | `totalFeeRewardClaimedUSD` | `BigInt!` | total fee rewards claimed by users in USD (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens) |
-| `veNFTamountStaked` | `BigInt!` | total amount of veNFT staked for this pool |
+| `veNFTamountStaked` | `BigInt!` | legacy vote weight on the pool (see Pool.veNFTamountStaked; 0 on superchain leaf pools) |
 | `baseFee` | `BigInt!` | Configured (nominal) fee, FEE_SCALE 1e6 (hundredths of a basis point; single divisor across V2 & CL, issue #812). V2: factory default (PoolFactoryDefaultFee) or SetCustomFee (factory or V2 CustomFeeModule). CL: tick-spacing default, CustomSwapFeeModule fee, or DynamicSwapFeeModule custom base fee (a dynamic pool charges this plus a TWAP-volatility part, up to feeCap). Custom-fee sentinels resolved as the contracts do: 420 = 0%, 0 = default (ADR 0001) |
 | `feeCap` | `BigInt` | Current fee cap for pool |
 | `scalingFactor` | `BigInt` | Current scaling factor for pool |
@@ -363,18 +358,17 @@ Snapshot of the Token entity, written at most once per token per clock hour by t
 | `id` | `ID!` | Format: {chainId}-{address}-{epochMs} (TokenPriceSnapshotId; epochMs = hour bucket of the refresh). Rows written before ADR 0003 used {chainId}-{address}-{blockNumber}. |
 | `address` | `String!` | Address of the token |
 | `pricePerUSDNew` | `BigInt!` | price of token per USD |
-| `chainId` | `Int!` | chain id |
 | `isWhitelisted` | `Boolean!` | whether the token is whitelisted |
 | `lastUpdatedTimestamp` | `Timestamp!` | Timestamp of the last update |
-| `priceSource` | `String` | Provenance of pricePerUSDNew for this tick (ADR 0003): `pinned` (stablecoin / destination token at exactly $1), `pool` (derived from the deepest qualifying pool; see pricingPoolId / pricingDepthUSD), `canonical` (the same asset's price on its canonical chain won the depth comparison; see pricingSourceTokenId / pricingDepthUSD, ADR 0004), `canonical-seed` (no route qualified and the live canonical source was outside its ±2 h window: the committed hourly seed's price of pricingSourceTokenId for pricingSeedHour, ADR 0008), `override` (operator blacklist -> 0), `carried` (no route qualified; prior price kept, last success < 7 days ago, any tier; see lastSuccessfulPriceTimestamp) or `unpriced` (no route qualified and nothing fresh to carry -> 0). Earlier rows may carry `rebind` (ADR 0003 fallback copy) or the oracle-era tags `fresh` / `pool-implied`, or no tag at all. Stored as String (not an enum) so the set can extend without an Envio schema migration; the value set is pinned by PRICE_SOURCE in src/Snapshots/TokenPriceSnapshot.ts. |
+| `priceSource` | `String` | Provenance of pricePerUSDNew for this tick (ADR 0003): `pinned` (stablecoin / destination token at exactly $1), `pool` (derived from the deepest qualifying pool; see pricingPoolId / pricingDepthUSD), `canonical` (the same asset's price on its canonical chain won the depth comparison; see pricingSourceTokenId / pricingDepthUSD, ADR 0004), `canonical-seed` (no route qualified and the live canonical source was outside its ±2 h window: the committed hourly seed's price of pricingSourceTokenId for pricingSeedHour, ADR 0008), `canonical-snapshot` (as `canonical-seed` past the seed's end: the source's own hourly TokenPriceSnapshot for pricingSeedHour, read from ClickHouse by the getCanonicalSourcePrice effect, ADR 0009), `override` (operator blacklist -> 0), `carried` (no route qualified; prior price kept, last success < 7 days ago, any tier; see lastSuccessfulPriceTimestamp) or `unpriced` (no route qualified and nothing fresh to carry -> 0). Earlier rows may carry `rebind` (ADR 0003 fallback copy) or the oracle-era tags `fresh` / `pool-implied`, or no tag at all. Stored as String (not an enum) so the set can extend without an Envio schema migration; the value set is pinned by PRICE_SOURCE in src/Snapshots/TokenPriceSnapshot.ts. |
 | `pricingPoolId` | `String` | Pool id ({chainId}-{poolAddress}) the price was derived through; set only when priceSource = `pool` |
 | `pricingDepthUSD` | `BigInt` | USD depth (1e18-base) of the winning candidate: pricingPoolId's counterparty-side reserve, or the canonical source token's stored depth; set only when priceSource = `pool` or `canonical` |
-| `pricingSourceTokenId` | `String` | Token id ({chainId}-{address}) of the canonical source whose price was used; set only when priceSource = `canonical` (its stored price) or `canonical-seed` (its seed price) |
+| `pricingSourceTokenId` | `String` | Token id ({chainId}-{address}) of the canonical source whose price was used; set only when priceSource = `canonical` (its stored price), `canonical-seed` (its seed price) or `canonical-snapshot` (its hourly snapshot) |
 | `pricingHops` | `Int` | Route length when priceSource = `pool` / `canonical`: 1 = direct (pool against a lower-tier token, or canonical source), 2 = two-hop through a tier-3 peer that has a direct pool route (ADR 0007); then pricingPoolId is the peer pool and pricingDepthUSD the weaker of the two hops |
 | `pricingViaTokenId` | `String` | Two-hop only: token id ({chainId}-{address}) of the tier-3 peer the price went through |
 | `pricingViaPoolId` | `String` | Two-hop only: pool id of the peer's own direct route |
 | `lastSuccessfulPriceTimestamp` | `Timestamp` | When the price in this row was last obtained: the row's own time on `pinned` / `pool` / `canonical` rows, older on `carried` rows (up to 7 days, any tier; ADR 0007); null on rows written before it existed |
-| `pricingSeedHour` | `Timestamp` | Start of the seed hour whose price was used; set only when priceSource = `canonical-seed` (src/constants/canonical_price_seed.json, ADR 0008) |
+| `pricingSeedHour` | `Timestamp` | Start of the source hour whose price was used; set only when priceSource = `canonical-seed` (src/constants/canonical_price_seed.json, ADR 0008) or `canonical-snapshot` (the source's TokenPriceSnapshot of that hour, ADR 0009) |
 
 ### UserStatsPerPoolSnapshot
 
@@ -385,7 +379,6 @@ Snapshot of UserStatsPerPool at an epoch (invariant fields + position params for
 | `id` | `ID!` | Format: {chainId}-{userAddress}-{poolAddress}-{epochMs} (UserStatsPerPoolSnapshotId) |
 | `userAddress` | `String!` | user wallet address |
 | `poolAddress` | `String!` | address of the pool these stats are scoped to |
-| `chainId` | `Int!` | chain id |
 | `timestamp` | `Timestamp!` | snapshot epoch timestamp |
 | `lpBalance` | `BigInt!` | user's LP token balance at snapshot time |
 | `totalLiquidityAddedUSD` | `BigInt!` | cumulative USD value of liquidity added |
@@ -421,7 +414,7 @@ Snapshot of UserStatsPerPool at an epoch (invariant fields + position params for
 | `stakedCLPositionTokenIds` | `[BigInt!]!` | tokenIds of CL positions staked in gauge at snapshot time |
 | `totalBribeClaimedUSD` | `BigInt!` | total USD value of bribe rewards claimed by this user for this pool (canonical cross-token aggregate; raw token-unit sum dropped in #813 — bribes are arbitrary heterogeneous tokens) |
 | `totalFeeRewardClaimedUSD` | `BigInt!` | total USD value of fee rewards claimed by this user for this pool (canonical cross-token aggregate; raw token-unit sum dropped in #813 — fee rewards mix the pool's two fee tokens) |
-| `veNFTamountStaked` | `BigInt!` | amount of veNFT staked by this user for this pool |
+| `veNFTamountStaked` | `BigInt!` | legacy vote weight this user's veNFTs give the pool (0 on superchain leaf pools, see UserStatsPerPool.veNFTamountStaked) |
 | `almAddress` | `String!` | Address of ALM LP Wrapper the user interacts with (empty string if none) |
 | `almLpAmount` | `BigInt!` | Number of ALM LP tokens held by the user |
 | `lastAlmActivityTimestamp` | `Timestamp!` | last ALM-related activity timestamp |
@@ -434,7 +427,6 @@ Snapshot of NonFungiblePosition at an epoch (full state for historical queries /
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{nfpmAddress}-{tokenId}-{epochMs} (NonFungiblePositionSnapshotId). nfpmAddress disambiguates intra-chain tokenId collisions across multiple NFPMs (e.g. Optimism has two). |
-| `chainId` | `Int!` | chain id where the NFT exists |
 | `tokenId` | `BigInt!` | token ID of the NFT |
 | `nfpmAddress` | `String!` | address of the NFPM contract that emitted the Transfer |
 | `owner` | `String!` | checksum address of the owner at snapshot time |
@@ -457,7 +449,6 @@ Snapshot of VeNFTState at an epoch (full state for historical queries)
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{tokenId}-{epochMs} (VeNFTStateSnapshotId) |
-| `chainId` | `Int!` | chain id |
 | `tokenId` | `BigInt!` | veNFT token ID (precision 38: ClickHouse sorts by it) |
 | `owner` | `String!` | owner address at snapshot time |
 | `locktime` | `BigInt!` | lock expiry timestamp (seconds); 0 for permanent locks |
@@ -473,7 +464,6 @@ Snapshot of VeNFTState at an epoch (full state for historical queries)
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{tokenId}-{poolAddress}-{epochMs} |
-| `chainId` | `Int!` | chain id |
 | `tokenId` | `BigInt!` | veNFT token ID |
 | `poolAddress` | `String!` | pool this veNFT allocated votes to |
 | `veNFTamountStaked` | `BigInt!` | vote weight allocated to the pool, in veToken units |
@@ -490,7 +480,6 @@ Snapshot of ALM_LP_Wrapper at an epoch (full state for historical queries / reco
 | `id` | `ID!` | Format: {chainId}-{wrapperAddress}-{epochMs} (ALMLPWrapperSnapshotId) |
 | `wrapper` | `String!` | address of the ALM LP wrapper |
 | `pool` | `String!` | address of the pool this wrapper is associated with |
-| `chainId` | `Int!` | chain id |
 | `token0` | `String!` | address of token0 |
 | `token1` | `String!` | address of token1 |
 | `lpAmount` | `BigInt!` | total LP tokens wrapped at snapshot time |
@@ -528,7 +517,6 @@ Chain-wide configuration and cross-chain mapping tables.
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{moduleAddress} (DynamicSwapFeeModule or CustomSwapFeeModule) |
-| `chainId` | `Int!` | chain id _(indexed)_ |
 | `secondsAgo` | `BigInt` | The amount of time used to calculate price change |
 
 ### CLGaugeConfig
@@ -550,7 +538,6 @@ Should be updated by TickSpacingEnabled event emitted by CLFactory contract It a
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{factoryAddress}-{tickSpacing} (FeeToTickSpacingMappingId) |
-| `chainId` | `Int!` | chain id _(indexed)_ |
 | `factoryAddress` | `String!` | CLFactory (legacy CLFactory or AeroCLFactory) that emitted TickSpacingEnabled _(indexed)_ |
 | `tickSpacing` | `BigInt!` | Tick spacing value _(indexed)_ |
 | `fee` | `BigInt!` | Fee value for this tick spacing |
@@ -563,7 +550,6 @@ Default fee of a V2 pool factory for one pool type, from its SetDefaultFee event
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{factoryAddress}-{stable\|volatile} (PoolFactoryDefaultFeeId) |
-| `chainId` | `Int!` | chain id |
 | `factoryAddress` | `String!` | V2 pool factory that emitted SetDefaultFee _(indexed)_ |
 | `isStable` | `Boolean!` | pool type the default applies to |
 | `fee` | `BigInt!` | default fee, FEE_SCALE 1e6 (the event's basis points x 100) |
@@ -576,13 +562,14 @@ Singleton config state per Redistributor contract, updated by SetKeeper / SetUpk
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{redistributorAddress} |
-| `chainId` | `Int!` | chain id _(indexed)_ |
 | `redistributorAddress` | `String!` | Redistributor contract address |
 | `keeper` | `String!` | Current keeper address (empty string until SetKeeper fires) |
 | `upkeepManager` | `String!` | Current upkeep manager address (empty string until SetUpkeepManager fires) |
 | `lastUpdatedTimestamp` | `Timestamp!` | Timestamp of the last config update |
 
 ### RootPool_LeafPool
+
+A superchain leaf V2 pool's root pool, written by the leaf chain at its V2 PoolFactory.PoolCreated (ADR 0009, flow D; the root pool's address is the root factory's CREATE2 address for the leaf chain and pair). CL leaf pools have no row: the analytics layer matches them to their RootPool by rootPoolMatchingHash and factory (root_leaf_pools).
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
@@ -594,7 +581,7 @@ Singleton config state per Redistributor contract, updated by SetKeeper / SetUpk
 
 ### RootGauge_RootPool
 
-Maps root gauge (RootGauge/RootCLGauge on OP) to root pool for DistributeReward cross-chain resolution
+Maps a root gauge (RootGauge/RootCLGauge on Optimism) to its root pool, so a DistributeReward reaches the RootPool
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
@@ -602,6 +589,49 @@ Maps root gauge (RootGauge/RootCLGauge on OP) to root pool for DistributeReward 
 | `rootChainId` | `Int!` | Chain ID of the root chain (typically Optimism) |
 | `rootGaugeAddress` | `String!` | Address of the root gauge contract on the root chain _(indexed)_ |
 | `rootPoolAddress` | `String!` | Address of the root pool this gauge maps to |
+
+## Superchain root pools
+
+Optimism's record of the superchain root pools (ADR 0009): the vote weight and emissions of a leaf pool on another chain live here; the ClickHouse layer joins them to the leaf Pool (root_leaf_pools, leaf_pool_root_totals).
+
+### RootPool
+
+A superchain root pool on the root chain (Optimism; Base has none), written from root-chain events only (ADR 0009): the votes and emissions of a leaf pool live here, and the analytics layer joins them to the leaf Pool (root_leaf_pools). Created at RootCLPoolFactory.RootPoolCreated (CL) or RootPoolFactory.RootPoolCreated (V2).
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{rootPoolAddress} (RootPoolId) |
+| `rootPoolAddress` | `String!` | the root pool (a placeholder contract: no liquidity, no swaps) |
+| `leafChainId` | `Int` | chain of the leaf pool: RootPoolCreated's chainid (CL); for V2 the chain whose CREATE2 salt yields the root pool's address (null if none of the known leaf chains does) |
+| `isCL` | `Boolean!` | created by the RootCLPoolFactory |
+| `token0` | `String!` | token0 of the pair (the leaf pool's token0) |
+| `token1` | `String!` | token1 of the pair |
+| `tickSpacing` | `BigInt` | CL only |
+| `isStable` | `Boolean` | V2 only |
+| `rootFactoryAddress` | `String!` | factory that created the root pool; for CL the leaf pool's factoryAddress equals it |
+| `rootPoolMatchingHash` | `String` | CL only: {leafChainId}_{token0}_{token1}_{tickSpacing}, as on the leaf Pool |
+| `gaugeAddress` | `String` | root gauge (Voter.GaugeCreated), null until created |
+| `gaugeIsAlive` | `Boolean!` | false after GaugeKilled, true after GaugeCreated / GaugeRevived |
+| `veNFTamountStaked` | `BigInt!` | Voter.weights(rootPool): totalWeight of the latest Voted / Abstained |
+| `totalEmissions` | `BigInt!` | sum of DistributeReward amounts to the root gauge, 1e18-normalized reward token |
+| `totalEmissionsUSD` | `BigInt!` | the same in USD (1e18) at the root chain's reward token price at each distribution |
+| `numberOfDistributions` | `BigInt!` | DistributeReward events to the root gauge |
+| `createdBlockNumber` | `BigInt!` | block of the creating event |
+| `createdTimestamp` | `Timestamp!` | time of the creating event |
+| `lastUpdatedTimestamp` | `Timestamp!` | time of the latest change |
+
+### RootPoolVote
+
+One veNFT's vote on a root pool, on the root chain (ADR 0009). Kept apart from VeNFTPoolVote so the veNFT transfer logic, which moves votes between the owners' UserStatsPerPool rows, never creates user rows for root pools.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{tokenId}-{rootPoolAddress} (RootPoolVoteId) |
+| `rootPoolAddress` | `String!` | the root pool voted on _(indexed)_ |
+| `tokenId` | `BigInt!` | the veNFT |
+| `veNFTStateId` | `String!` | VeNFTState id ({chainId}-{tokenId}) of the veNFT |
+| `veNFTamountStaked` | `BigInt!` | the veNFT's current weight on the root pool (Voted adds, Abstained removes) |
+| `lastUpdatedTimestamp` | `Timestamp!` | time of the latest Voted / Abstained |
 
 ## Pool launcher
 
@@ -614,7 +644,6 @@ One per underlying pool (per chain) launched or migrated via Pool Launcher
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{underlyingPool} |
-| `chainId` | `Int!` | chain id |
 | `underlyingPool` | `Bytes!` | pool address |
 | `launcher` | `String!` | PoolLauncher contract address (the one that created or currently manages) |
 | `creator` | `String!` | msg.sender at Launch |
@@ -640,25 +669,38 @@ One per underlying pool (per chain) launched or migrated via Pool Launcher
 
 ## Cross-chain superswaps (Hyperlane)
 
-oUSDT-bridged swaps and the Hyperlane dispatch/process events that correlate them.
+oUSDT-bridged swaps and the per-chain SuperSwap legs (joined in ClickHouse by super_swap_legs; ADR 0009).
 
-### SuperSwap
+### SuperSwapOriginLeg
 
-A superswap is characterized by 3 steps: 1. Original asset is swapped for oUSDT on the source chain. 2. The oUSDT is then bridged through Hyperlane to the destination chain. 3. Bridged oUSDT is then swapped into the preferred asset on the destination chain.
+The origin side of a SuperSwap (ADR 0009 flow G), written by the origin chain at VelodromeUniversalRouter.CrossChainSwap from its own rows only: one row per Hyperlane message the transaction dispatched. Joined to SuperSwapDestinationLeg on messageId in ClickHouse (super_swap_legs view).
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {messageId} — globally unique Hyperlane message identifier |
-| `originChainId` | `BigInt!` | Chain ID where the swap originated |
-| `destinationChainId` | `BigInt!` | Resolved EVM chain ID of the swap target/recipient (mapped from the Hyperlane domain via domainToChainId) |
-| `sender` | `String!` | Original sender address initiating the swap |
-| `recipient` | `String!` | The recipient address on the destination chain |
-| `oUSDTamount` | `BigInt!` | Amount of oUSDT swapped (already normalized to token decimals) |
-| `sourceChainToken` | `String!` | Token that gets swapped by oUSDT on source chain, i.e., Token A -> oUSDT on source chain |
-| `sourceChainTokenAmountSwapped` | `BigInt!` | Amount of sourceChainToken that was swapped for oUSDT on the source chain |
-| `destinationChainToken` | `String!` | Token that gets swapped by oUSDT on destination chain, i.e., oUSDT -> Token B on destination chain |
-| `destinationChainTokenAmountSwapped` | `BigInt!` | Amount of destinationChainToken that was received from swapping oUSDT on the destination chain |
-| `timestamp` | `Timestamp!` | Block timestamp of the swap event |
+| `id` | `ID!` | Format: {chainId}-{messageId} |
+| `messageId` | `String!` | Hyperlane message id |
+| `dispatchIndex` | `Int!` | position of the message among the transaction's dispatches (the stitching takes the first that reached a destination swap) |
+| `transactionHash` | `String!` | origin transaction |
+| `destinationChainId` | `BigInt!` | EVM chain id of the bridge's destination |
+| `sender` | `String!` | bridge sender |
+| `recipient` | `String!` | bridge recipient |
+| `oUSDTamount` | `BigInt!` | oUSDT bridged |
+| `sourceChainToken` | `String!` | token swapped into oUSDT on the origin chain |
+| `sourceChainTokenAmountSwapped` | `BigInt!` | amount of sourceChainToken swapped |
+| `timestamp` | `Timestamp!` | origin block time |
+
+### SuperSwapDestinationLeg
+
+The destination side of a SuperSwap, written by the destination chain at its first oUSDT swap in a transaction that processed Hyperlane messages (Mailbox.ProcessId), one row per message processed in that transaction.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{messageId} |
+| `messageId` | `String!` | Hyperlane message id |
+| `transactionHash` | `String!` | destination transaction |
+| `destinationChainToken` | `String!` | token received for oUSDT on the destination chain |
+| `destinationChainTokenAmountSwapped` | `BigInt!` | amount of destinationChainToken received |
+| `timestamp` | `Timestamp!` | destination block time |
 
 ### OUSDTBridgedTransaction
 
@@ -685,40 +727,28 @@ Registering each event related from/to oUSDT. Needed for filtering and eventual 
 | `amountIn` | `BigInt!` | Amount of tokenInPool being swapped into the pool |
 | `amountOut` | `BigInt!` | Amount of tokenOutPool being swapped out of the pool |
 
-### DispatchId_event
-
-Keyed by the Hyperlane messageId, which is globally unique (keccak256 of the packed message, including origin domain and the origin Mailbox's nonce), so the ProcessId consumer resolves it with a primary-key read.
-
-| Field | Type | Description |
-| ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {messageId} |
-| `chainId` | `Int!` | Chain ID where the message was dispatched (origin chain) |
-| `transactionHash` | `String!` | Transaction hash of the dispatch transaction |
-| `messageId` | `String!` | Unique message ID identifying the cross-chain message in Hyperlane |
-
-### ProcessId_event
-
-Keyed by the Hyperlane messageId: a Mailbox delivers a message at most once.
-
-| Field | Type | Description |
-| ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {messageId} |
-| `chainId` | `Int!` | Chain ID where the message was processed (destination chain) |
-| `transactionHash` | `String!` | Transaction hash of the process transaction |
-| `messageId` | `String!` | Unique message ID identifying the cross-chain message in Hyperlane (matches DispatchId messageId) |
-
 ### TxDispatchIdRegistry
 
-Per-transaction registry of the messageIds dispatched in a tx, so the CrossChainSwap / ProcessId consumers find a source tx's DispatchId_event rows with primary-key reads instead of DispatchId_event.getWhere({ transactionHash }). Append-only: consumers PK-get each DispatchId_event and skip consumed (deleted) ones; the row is deleted once every listed message is consumed.
+Per-transaction registry of the Hyperlane messageIds dispatched in a tx (Mailbox.DispatchId), so the CrossChainSwap later in the tx writes one SuperSwapOriginLeg per message with a primary-key read. Append-only.
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {transactionHash} |
-| `messageIds` | `[String!]!` | DispatchId_event ids (= messageIds) dispatched in this tx, in processing order |
+| `messageIds` | `[String!]!` | Hyperlane message ids dispatched in this tx, in processing order |
+
+### TxProcessIdRegistry
+
+Hyperlane messages processed in a transaction (Mailbox.ProcessId), so the first oUSDT swap of that transaction can write its SuperSwapDestinationLeg.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{transactionHash} |
+| `messageIds` | `[String!]!` | message ids processed in this tx, in processing order |
+| `timestamp` | `Timestamp!` | block time of the tx |
 
 ### TxOUSDTSwapRegistry
 
-The first oUSDT swap recorded in a transaction, so the SuperSwap stitching resolves "the oUSDT swap of tx X" with a primary-key read instead of OUSDTSwaps.getWhere({ transactionHash })[0]. Written only when absent, so it holds the first swap in processing order (the row getWhere returned first).
+The first oUSDT swap recorded in a transaction, so the SuperSwap legs resolve "the oUSDT swap of tx X" with a primary-key read. Written only when absent, so it holds the first swap in processing order.
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
@@ -740,7 +770,6 @@ One Aero gauge (CL or V2) on one chain. Created when the gauge factory emits Gau
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{gaugeAddress} (AeroGaugeId) |
-| `chainId` | `Int!` | chain id _(indexed)_ |
 | `gaugeAddress` | `String!` | gauge contract _(indexed)_ |
 | `pool_id` | `String!` | Pool id ({chainId}-{poolAddress}) of the gauge's target; the Pool row exists when the target is an indexed Aero pool _(indexed)_ |
 | `poolAddress` | `String!` | the gauge's target (pool) address _(indexed)_ |
@@ -792,7 +821,6 @@ Configuration of one Aero gauge factory (CL or V2) on one chain, from its own ev
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{factoryAddress} |
-| `chainId` | `Int!` | chain id _(indexed)_ |
 | `factoryAddress` | `String!` | gauge factory |
 | `isCL` | `Boolean!` | CL gauge factory (true) or V2 gauge factory (false) |
 | `defaultCap` | `BigInt` | per-second cap new gauges start with (DefaultCapSet); null = never emitted (set at deployment) |
@@ -812,7 +840,6 @@ The Aero LeafVoter of one chain (same address on every chain, Base included): it
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId} |
-| `chainId` | `Int!` | chain id |
 | `leafVoter` | `String!` | LeafVoter address |
 | `rewardToken` | `String!` | token claims pay (AERO on Base, xAERO elsewhere) |
 | `chainStatus` | `Int` | LeafVoter ChainStatusSet: 1 Active, 2 Paused, 3 Suspended, 4 Sunset; null = never set (Active since construction) |
@@ -842,7 +869,6 @@ The VotingRewardsManager of one Aero gauge: the pool fees its gauge collects fro
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{votingRewardsManagerAddress} |
-| `chainId` | `Int!` | chain id _(indexed)_ |
 | `address` | `String!` | VotingRewardsManager _(indexed)_ |
 | `gaugeAddress` | `String!` | its gauge _(indexed)_ |
 | `poolAddress` | `String!` | the gauge's pool _(indexed)_ |
@@ -863,7 +889,6 @@ An incentive program funded on a gauge's VotingRewardsManager, streamed to its a
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{votingRewardsManager}-{programId} |
-| `chainId` | `Int!` | chain id _(indexed)_ |
 | `votingRewardsManager` | `String!` | rewards manager _(indexed)_ |
 | `gaugeAddress` | `String!` | its gauge _(indexed)_ |
 | `poolAddress` | `String!` | the gauge's pool |
@@ -886,7 +911,6 @@ Hourly snapshot of AeroGauge (written at the first change in each hour, after th
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{gaugeAddress}-{epochMs} |
-| `chainId` | `Int!` | chain id |
 | `gaugeAddress` | `String!` | gauge |
 | `poolAddress` | `String!` | the gauge's pool |
 | `isCL` | `Boolean!` | CL or V2 gauge |
@@ -912,7 +936,6 @@ Hourly snapshot of AeroLeafVoterState (chain-level emission totals). ClickHouse 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{epochMs} |
-| `chainId` | `Int!` | chain id |
 | `timestamp` | `Timestamp!` | snapshot epoch (hour) |
 | `totalEmissionsCredited` | `BigInt!` | see AeroLeafVoterState |
 | `totalCapSurplus` | `BigInt!` | see AeroLeafVoterState |
@@ -933,7 +956,6 @@ One row per Aero gauge Deposit, Withdraw or EmergencyWithdraw. ClickHouse only.
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{txHash}-{logIndex} |
-| `chainId` | `Int!` | chain id |
 | `kind` | `String!` | DEPOSIT \| WITHDRAW \| EMERGENCY_WITHDRAW (values pinned by AERO_STAKE_EVENT_KIND) |
 | `gaugeAddress` | `String!` | gauge |
 | `poolAddress` | `String!` | the gauge's pool |
@@ -953,7 +975,6 @@ One row per Aero gauge emissions event per LP: claims, deferrals, referral legs,
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{txHash}-{logIndex} |
-| `chainId` | `Int!` | chain id |
 | `kind` | `String!` | CLAIMED (EmissionsClaimed: paid to recipient), DEFERRED (EmissionsDeferred: stored after a failed mint), DEFERRED_CLAIMED (DeferredEmissionsClaimed), REFERRAL_DEFERRED (ReferralEmissionsDeferred: the referral's cut of an LP claim), REFERRAL_CLAIMED (ReferralEmissionsClaimed), EARLY_WITHDRAW_PENALTY (EarlyWithdrawPenalty: forfeited by the LP). Pinned by AERO_EMISSIONS_EVENT_KIND. |
 | `gaugeAddress` | `String!` | gauge |
 | `poolAddress` | `String!` | the gauge's pool |
@@ -975,7 +996,6 @@ One row per redemption step. Phase 2: INITIATED (LeafVoter.Redeemed: xAERO burne
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{txHash}-{logIndex} |
-| `chainId` | `Int!` | chain the event was emitted on |
 | `kind` | `String!` | INITIATED \| PROCESSED \| DEFERRED \| BUFFER_DRAWN \| DONATED \| SURPLUS_SPENT (pinned by AERO_REDEMPTION_EVENT_KIND) |
 | `sourceChainId` | `Int!` | chain whose receipt tokens are redeemed (INITIATED: the emitting chain; root kinds: the event's chain id) |
 | `redeemer` | `String` | address whose xAERO was burned (INITIATED) |
@@ -993,7 +1013,6 @@ One row per VotingRewardsManager flow. Phase 2: FEES_COLLECTED (pool fees of sta
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{txHash}-{logIndex} |
-| `chainId` | `Int!` | chain id |
 | `kind` | `String!` | FEES_COLLECTED \| FEES_CLAIMED \| INCENTIVE_CREATED \| INCENTIVE_CLAIMED \| INCENTIVE_SWEPT (pinned by AERO_VOTING_REWARDS_EVENT_KIND) |
 | `votingRewardsManager` | `String!` | VotingRewardsManager |
 | `gaugeAddress` | `String!` | its gauge |
@@ -1019,7 +1038,6 @@ One sAERO position (VotingEscrow NFT) on Base. tokenId 0 is the protocol accumul
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{tokenId} (SAeroPositionId) |
-| `chainId` | `Int!` | chain id (Base) |
 | `tokenId` | `BigInt!` | VotingEscrow tokenId _(indexed)_ |
 | `owner` | `String!` | current NFT owner (zero address for the accumulator) _(indexed)_ |
 | `amount` | `BigInt!` | AERO staked (18 decimals) |
@@ -1041,7 +1059,6 @@ The VotingEscrow (sAERO) on Base: supply and position counts.
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId} |
-| `chainId` | `Int!` | chain id (Base) |
 | `supply` | `BigInt!` | total AERO staked (Supply event; = sum of SAeroPosition.amount) |
 | `permanentStakeBalance` | `BigInt!` | AERO in permanent positions (accumulator included), tracked from position changes |
 | `accumulatorAmount` | `BigInt!` | AERO held by the tokenId-0 protocol accumulator |
@@ -1058,7 +1075,6 @@ Hourly snapshot of SAeroEscrowState. ClickHouse only.
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{epochMs} |
-| `chainId` | `Int!` | chain id |
 | `timestamp` | `Timestamp!` | snapshot epoch (hour) |
 | `supply` | `BigInt!` | see SAeroEscrowState |
 | `permanentStakeBalance` | `BigInt!` | see SAeroEscrowState |
@@ -1072,7 +1088,6 @@ One row per change to an sAERO position. ClickHouse only.
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{txHash}-{logIndex}[-{leg}] (a Rebalance writes one row per leg) |
-| `chainId` | `Int!` | chain id (Base) |
 | `kind` | `String!` | MINT (NFT minted), TRANSFER (owner change), CREATE_STAKE / INCREASE_AMOUNT / INCREASE_PERIOD / REVIVE_STAKE (Deposit by type), WITHDRAW, UPGRADE_PERMANENT, DOWNGRADE_PERMANENT, REBALANCE_OUT / REBALANCE_IN (one row per VotingEscrow.Rebalance leg), BURN (accumulator). Pinned by SAERO_EVENT_KIND. |
 | `tokenId` | `BigInt!` | position |
 | `owner` | `String` | owner after the change |
@@ -1093,7 +1108,6 @@ Root Voter (Base): voting power a position has booked on one chain. targetChainI
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{tokenId}-{targetChainId} |
-| `chainId` | `Int!` | chain of the root Voter (Base) |
 | `tokenId` | `BigInt!` | sAERO position _(indexed)_ |
 | `targetChainId` | `Int!` | chain the power is booked on; 0 = CHAIN0 (idle, earns nothing) _(indexed)_ |
 | `amount` | `BigInt!` | AERO booked (undecayed) |
@@ -1106,7 +1120,6 @@ Root Voter (Base): the gauge split a position last dispatched to one chain (Gaug
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{tokenId}-{targetChainId} |
-| `chainId` | `Int!` | chain of the root Voter (Base) |
 | `tokenId` | `BigInt!` | sAERO position _(indexed)_ |
 | `targetChainId` | `Int!` | chain the split was dispatched to _(indexed)_ |
 | `gauges` | `[String!]!` | gauge addresses (the zero address = park idle; the dealloc sentinel = return to CHAIN0) |
@@ -1121,7 +1134,6 @@ Root Voter (Base): per-chain ledger. targetChainId 0 is CHAIN0 (idle power; also
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{targetChainId} |
-| `chainId` | `Int!` | chain of the root Voter (Base) |
 | `targetChainId` | `Int!` | chain (0 = CHAIN0) _(indexed)_ |
 | `isRegistered` | `Boolean!` | ChainRegistered seen (chains registered at deployment emit nothing and are marked on first use) |
 | `status` | `Int` | ChainStatusSet: 1 Active, 2 Paused, 3 Suspended, 4 Sunset; null = never set |
@@ -1143,7 +1155,6 @@ LeafVoter (every chain): a position's state on this chain. chainAllocation is th
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{tokenId} |
-| `chainId` | `Int!` | chain id _(indexed)_ |
 | `tokenId` | `BigInt!` | sAERO position (lives on Base) _(indexed)_ |
 | `chainAllocation` | `BigInt!` | budget on this chain (ChainAllocated; less dealloc returns) |
 | `gauges` | `[String!]!` | gauges the budget is booked on |
@@ -1161,7 +1172,6 @@ LeafVoter (every chain): a position's booked allocation on one gauge. 0 once rem
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{tokenId}-{gaugeAddress} |
-| `chainId` | `Int!` | chain id _(indexed)_ |
 | `tokenId` | `BigInt!` | sAERO position _(indexed)_ |
 | `gaugeAddress` | `String!` | gauge _(indexed)_ |
 | `poolAddress` | `String` | the gauge's pool (null if the gauge is not indexed) |
@@ -1175,7 +1185,6 @@ One row per allocation change: root ledger moves (PARKED, CHAIN_ALLOCATED, DEALL
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{txHash}-{logIndex}[-{leg}] |
-| `chainId` | `Int!` | chain the event was emitted on |
 | `level` | `String!` | ROOT (root Voter, Base) \| LEAF (LeafVoter) |
 | `kind` | `String!` | see above |
 | `tokenId` | `BigInt!` | sAERO position (0 for TOKEN0 burns) |
@@ -1196,7 +1205,6 @@ The Minter on Base. It mints AERO only when a redemption is processed (and the t
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{minterAddress} |
-| `chainId` | `Int!` | chain id (Base) |
 | `minter` | `String!` | Minter address |
 | `baseRate` | `BigInt` | BaseRateSet: base emission rate (AERO wei per second) |
 | `dynamicRate` | `BigInt` | DynamicRateSet: dynamic rate target (raw, clamped to the band on read) |
@@ -1221,7 +1229,6 @@ Hourly snapshot of AeroMinterState (mint totals and rates). ClickHouse only.
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{minterAddress}-{epochMs} |
-| `chainId` | `Int!` | chain id |
 | `timestamp` | `Timestamp!` | snapshot epoch (hour) |
 | `baseRate` | `BigInt` | see AeroMinterState |
 | `dynamicRate` | `BigInt` | see AeroMinterState |
@@ -1237,7 +1244,6 @@ One row per Minter configuration change (rates, band, operator, FED, module). Cl
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{txHash}-{logIndex} |
-| `chainId` | `Int!` | chain id |
 | `kind` | `String!` | BASE_RATE_SET \| DYNAMIC_RATE_SET \| TEAM_RATE_SET \| RATE_BAND_SET \| MAX_BASE_RATE_CHANGE_PIPS_SET \| BASE_RATE_UPDATE_COOLDOWN_SET \| OPERATOR_SET \| FED_SET \| DYNAMIC_RATE_MODULE_SET |
 | `value` | `BigInt` | new numeric value (RATE_BAND_SET: the floor) |
 | `value2` | `BigInt` | RATE_BAND_SET: the ceiling |
@@ -1253,7 +1259,6 @@ Totals of one migration contract.
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{migrationContract} |
-| `chainId` | `Int!` | chain id |
 | `migrationContract` | `String!` | migration contract |
 | `legacyToken` | `String!` | AERO_V1 or VELO (SETTLED totals: VELO) |
 | `numberOfVeNFTs` | `BigInt!` | veNFTs migrated (VeNFTMigrated) |
@@ -1273,7 +1278,6 @@ One row per legacy-to-Aero migration: veAERO / AERO v1 on Base (AerodromeMigrati
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{txHash}-{logIndex} |
-| `chainId` | `Int!` | chain id |
 | `migrationContract` | `String!` | migration contract |
 | `kind` | `String!` | VENFT (veNFT migrated), LIQUID (liquid tokens migrated), SETTLED (Optimism migration settled on Base) |
 | `legacyToken` | `String!` | AERO_V1 (Base) or VELO (Optimism) |
@@ -1293,22 +1297,6 @@ One row per legacy-to-Aero migration: veAERO / AERO v1 on Base (AerodromeMigrati
 
 Short-lived bookkeeping entities used to correlate events across log indices/blocks. Most are deleted once consumed; not intended for end-user queries.
 
-### PendingVote
-
-Deferred vote: stored when Voted/Abstained fires but RootPool_LeafPool mapping does not exist yet
-
-| Field | Type | Description |
-| ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {chainId}-{rootPoolAddress}-{tokenId}-{txHash}-{logIndex} |
-| `chainId` | `Int!` | Chain ID for which the vote was intended |
-| `rootPoolAddress` | `String!` | Address of the root pool being voted on _(indexed)_ |
-| `tokenId` | `BigInt!` | veNFT Token ID that cast the vote |
-| `weight` | `BigInt!` | Weight of the vote in veToken units |
-| `eventType` | `String!` | "Voted" \| "Abstained" |
-| `timestamp` | `Timestamp!` | Timestamp when the vote event occurred |
-| `blockNumber` | `BigInt!` | Block number in which the vote was submitted |
-| `transactionHash` | `String!` | Transaction hash of the vote event |
-
 ### CLPoolPendingInitialize
 
 Deferred CL pool initialization state: stored when CLPool.Initialize fires BEFORE CLFactory.PoolCreated has created the Pool. Aerodrome Slipstream emits Initialize from the pool inside the same tx as (and at a LOWER log index than) PoolCreated from the factory, so Envio delivers Initialize first. PoolCreated reads this buffer when constructing the new aggregator and deletes the entry afterwards.
@@ -1316,41 +1304,9 @@ Deferred CL pool initialization state: stored when CLPool.Initialize fires BEFOR
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{poolAddress} (PoolId) |
-| `chainId` | `Int!` | chain id |
 | `poolAddress` | `String!` | address of the CL pool awaiting PoolCreated |
 | `sqrtPriceX96` | `BigInt!` | initial sqrt price (Q96 fixed point) from the Initialize event |
 | `tick` | `BigInt!` | initial tick from the Initialize event |
-
-### PendingRootPoolMapping
-
-Deferred RootPool->LeafPool mapping: stored when RootPoolCreated fires but no Pool exists yet
-
-| Field | Type | Description |
-| ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {rootChainId}-{rootPoolAddress} |
-| `rootChainId` | `Int!` | Chain ID where the root pool exists (typically Optimism) |
-| `rootPoolAddress` | `String!` | Address of the root pool (matches RootPool_LeafPool) |
-| `rootFactoryAddress` | `String!` | RootCLPoolFactory that emitted RootPoolCreated; only a leaf pool created by the leaf CLFactory at this same address may claim the mapping |
-| `leafChainId` | `Int!` | Chain ID where the leaf pool will be created |
-| `token0` | `String!` | Address of token0 in the root/leaf pool |
-| `token1` | `String!` | Address of token1 in the root/leaf pool |
-| `tickSpacing` | `BigInt!` | Tick spacing assigned for the pool |
-| `rootPoolMatchingHash` | `String!` | {leafChainId}_{token0}_{token1}_{tickSpacing} # Used for quick matching in Pool _(indexed)_ |
-
-### PendingDistribution
-
-Deferred distribution: stored when DistributeReward fires for a root gauge but RootPool_LeafPool mapping does not exist yet
-
-| Field | Type | Description |
-| ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {rootChainId}-{rootPoolAddress}-{blockNumber}-{logIndex} |
-| `rootChainId` | `Int!` | Chain ID where the root gauge and pool exist |
-| `rootPoolAddress` | `String!` | Address of the root pool (matches RootPool_LeafPool) _(indexed)_ |
-| `gaugeAddress` | `String!` | Gauge that emitted DistributeReward |
-| `amount` | `BigInt!` | Reward amount from event |
-| `blockNumber` | `BigInt!` | Block number of the event |
-| `blockTimestamp` | `Timestamp!` | Block timestamp of the event |
-| `logIndex` | `Int!` | Log index for uniqueness within block |
 
 ### PoolTickMap
 
@@ -1371,7 +1327,6 @@ Temporary entity for storing CLPool.Mint event data until consumed by NFPM.Trans
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}_{poolAddress}_{txHash}_{logIndex} |
-| `chainId` | `Int!` | chain id _(indexed)_ |
 | `pool` | `String!` | address of the CL pool the Mint fired on _(indexed)_ |
 | `owner` | `String!` | position owner from the Mint event |
 | `tickLower` | `BigInt!` | lower tick of the minted range |
@@ -1480,7 +1435,6 @@ Temporary entity for matching Mint/Burn with Transfer events Only stores mint/bu
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{txHash}-{poolAddress}-{logIndex} |
-| `chainId` | `Int!` | chain id _(indexed)_ |
 | `txHash` | `String!` | transaction hash containing the transfer _(indexed)_ |
 | `pool` | `String!` | address of the pool whose LP token was transferred _(indexed)_ |
 | `logIndex` | `Int!` | log index of the Transfer event within the transaction |
@@ -1499,7 +1453,6 @@ Temporary entity for matching Withdraw events with Transfer events (burns) Simil
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `id` | `ID!` | Format: {chainId}-{txHash}-{wrapperAddress}-{logIndex} |
-| `chainId` | `Int!` | chain id _(indexed)_ |
 | `txHash` | `String!` | transaction hash containing the transfer _(indexed)_ |
 | `wrapperAddress` | `String!` | address of the ALM LP wrapper whose token was transferred _(indexed)_ |
 | `logIndex` | `Int!` | log index of the Transfer event within the transaction |
@@ -1518,91 +1471,3 @@ Temporary entity for matching Withdraw events with Transfer events (burns) Simil
 | `lpWrapperAddress` | `String!` | LP Wrapper associated to the event |
 | `currentTotalSupplyLPTokens` | `BigInt!` | Current supply of LP tokens for the pool, emitted by the event |
 | `transactionHash` | `String!` | Transaction hash of the event |
-
-## Other
-
-Entities not yet categorized in scripts/generate-schema-docs.ts.
-
-### RootPool
-
-A superchain root pool on the root chain (Optimism; Base has none), written from root-chain events only (ADR 0009): the votes and emissions of a leaf pool live here, and the analytics layer joins them to the leaf Pool (root_leaf_pools). Created at RootCLPoolFactory.RootPoolCreated (CL) or RootPoolFactory.RootPoolCreated (V2).
-
-| Field | Type | Description |
-| ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {chainId}-{rootPoolAddress} (RootPoolId) |
-| `chainId` | `Int!` | root chain id (10) |
-| `rootPoolAddress` | `String!` | the root pool (a placeholder contract: no liquidity, no swaps) |
-| `leafChainId` | `Int` | chain of the leaf pool: RootPoolCreated's chainid (CL); for V2 the chain whose CREATE2 salt yields the root pool's address (null if none of the known leaf chains does) |
-| `isCL` | `Boolean!` | created by the RootCLPoolFactory |
-| `token0` | `String!` | token0 of the pair (the leaf pool's token0) |
-| `token1` | `String!` | token1 of the pair |
-| `tickSpacing` | `BigInt` | CL only |
-| `isStable` | `Boolean` | V2 only |
-| `rootFactoryAddress` | `String!` | factory that created the root pool; for CL the leaf pool's factoryAddress equals it |
-| `rootPoolMatchingHash` | `String` | CL only: {leafChainId}_{token0}_{token1}_{tickSpacing}, as on the leaf Pool |
-| `gaugeAddress` | `String` | root gauge (Voter.GaugeCreated), null until created |
-| `gaugeIsAlive` | `Boolean!` | false after GaugeKilled, true after GaugeCreated / GaugeRevived |
-| `veNFTamountStaked` | `BigInt!` | Voter.weights(rootPool): totalWeight of the latest Voted / Abstained |
-| `totalEmissions` | `BigInt!` | sum of DistributeReward amounts to the root gauge, 1e18-normalized reward token |
-| `totalEmissionsUSD` | `BigInt!` | the same in USD (1e18) at the root chain's reward token price at each distribution |
-| `numberOfDistributions` | `BigInt!` | DistributeReward events to the root gauge |
-| `createdBlockNumber` | `BigInt!` | block of the creating event |
-| `createdTimestamp` | `Timestamp!` | time of the creating event |
-| `lastUpdatedTimestamp` | `Timestamp!` | time of the latest change |
-
-### RootPoolVote
-
-One veNFT's vote on a root pool, on the root chain (ADR 0009). Kept apart from VeNFTPoolVote so the veNFT transfer logic, which moves votes between the owners' UserStatsPerPool rows, never creates user rows for root pools.
-
-| Field | Type | Description |
-| ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {chainId}-{tokenId}-{rootPoolAddress} (RootPoolVoteId) |
-| `chainId` | `Int!` | root chain id (10) |
-| `rootPoolAddress` | `String!` | the root pool voted on _(indexed)_ |
-| `tokenId` | `BigInt!` | the veNFT |
-| `veNFTStateId` | `String!` | VeNFTState id ({chainId}-{tokenId}) of the veNFT |
-| `veNFTamountStaked` | `BigInt!` | the veNFT's current weight on the root pool (Voted adds, Abstained removes) |
-| `lastUpdatedTimestamp` | `Timestamp!` | time of the latest Voted / Abstained |
-
-### SuperSwapOriginLeg
-
-The origin side of a SuperSwap (ADR 0009 flow G), written by the origin chain at VelodromeUniversalRouter.CrossChainSwap from its own rows only: one row per Hyperlane message the transaction dispatched. Joined to SuperSwapDestinationLeg on messageId in ClickHouse (super_swap_legs view).
-
-| Field | Type | Description |
-| ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {chainId}-{messageId} |
-| `chainId` | `Int!` | origin chain |
-| `messageId` | `String!` | Hyperlane message id |
-| `dispatchIndex` | `Int!` | position of the message among the transaction's dispatches (the stitching takes the first that reached a destination swap) |
-| `transactionHash` | `String!` | origin transaction |
-| `destinationChainId` | `BigInt!` | EVM chain id of the bridge's destination |
-| `sender` | `String!` | bridge sender |
-| `recipient` | `String!` | bridge recipient |
-| `oUSDTamount` | `BigInt!` | oUSDT bridged |
-| `sourceChainToken` | `String!` | token swapped into oUSDT on the origin chain |
-| `sourceChainTokenAmountSwapped` | `BigInt!` | amount of sourceChainToken swapped |
-| `timestamp` | `Timestamp!` | origin block time |
-
-### SuperSwapDestinationLeg
-
-The destination side of a SuperSwap, written by the destination chain at its first oUSDT swap in a transaction that processed Hyperlane messages (Mailbox.ProcessId), one row per message processed in that transaction.
-
-| Field | Type | Description |
-| ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {chainId}-{messageId} |
-| `chainId` | `Int!` | destination chain |
-| `messageId` | `String!` | Hyperlane message id |
-| `transactionHash` | `String!` | destination transaction |
-| `destinationChainToken` | `String!` | token received for oUSDT on the destination chain |
-| `destinationChainTokenAmountSwapped` | `BigInt!` | amount of destinationChainToken received |
-| `timestamp` | `Timestamp!` | destination block time |
-
-### TxProcessIdRegistry
-
-Hyperlane messages processed in a transaction (Mailbox.ProcessId), so the first oUSDT swap of that transaction can write its SuperSwapDestinationLeg.
-
-| Field | Type | Description |
-| ----- | ---- | ----------- |
-| `id` | `ID!` | Format: {chainId}-{transactionHash} |
-| `messageIds` | `[String!]!` | message ids processed in this tx, in processing order |
-| `timestamp` | `Timestamp!` | block time of the tx |

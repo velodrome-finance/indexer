@@ -189,6 +189,12 @@ const CATEGORIES: { title: string; blurb: string; names: string[] }[] = [
     ],
   },
   {
+    title: "Superchain root pools",
+    blurb:
+      "Optimism's record of the superchain root pools (ADR 0009): the vote weight and emissions of a leaf pool on another chain live here; the ClickHouse layer joins them to the leaf Pool (root_leaf_pools, leaf_pool_root_totals).",
+    names: ["RootPool", "RootPoolVote"],
+  },
+  {
     title: "Pool launcher",
     blurb: "Emerging-token pools created or migrated via the Pool Launcher.",
     names: ["PoolLauncherPool", "PoolLauncherConfig"],
@@ -196,14 +202,14 @@ const CATEGORIES: { title: string; blurb: string; names: string[] }[] = [
   {
     title: "Cross-chain superswaps (Hyperlane)",
     blurb:
-      "oUSDT-bridged swaps and the Hyperlane dispatch/process events that correlate them.",
+      "oUSDT-bridged swaps and the per-chain SuperSwap legs (joined in ClickHouse by super_swap_legs; ADR 0009).",
     names: [
-      "SuperSwap",
+      "SuperSwapOriginLeg",
+      "SuperSwapDestinationLeg",
       "OUSDTBridgedTransaction",
       "OUSDTSwaps",
-      "DispatchId_event",
-      "ProcessId_event",
       "TxDispatchIdRegistry",
+      "TxProcessIdRegistry",
       "TxOUSDTSwapRegistry",
     ],
   },
@@ -252,10 +258,7 @@ const CATEGORIES: { title: string; blurb: string; names: string[] }[] = [
     blurb:
       "Short-lived bookkeeping entities used to correlate events across log indices/blocks. Most are deleted once consumed; not intended for end-user queries.",
     names: [
-      "PendingVote",
       "CLPoolPendingInitialize",
-      "PendingRootPoolMapping",
-      "PendingDistribution",
       "PoolTickMap",
       "CLPoolMintEvent",
       "CLPositionPendingPrincipal",

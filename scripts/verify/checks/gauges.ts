@@ -183,9 +183,9 @@ export async function checkEmissions(
     "rewards.emissions",
     ctx.chainId,
     leaf
-      ? "Pool.totalEmissions equals Σ NotifyReward on the pool's leaf gauges (emissions that arrived on this chain). On leaf chains the indexer credits emissions from the root chain's DistributeReward, so this needs Optimism in the same instance."
+      ? "Leaf chains: Pool.totalEmissions is not filled since the per-chain flip (ADR 0009); a leaf pool's emissions are its RootPool's on Optimism (analytics: leaf_pool_root_totals). Σ NotifyReward on the leaf gauges is shown."
       : "Pool.totalEmissions equals Σ DistributeReward from the voter to the pool's gauges.",
-    "Exact when the root chain is indexed; otherwise skipped (numbers shown).",
+    "Exact on root chains; skipped on leaf chains (numbers shown).",
   );
   const byPool = gaugesByPool(ctx);
   let notified = 0n;
@@ -196,7 +196,7 @@ export async function checkEmissions(
     const truth = gauges.reduce((a, g) => a + g.notified, 0n);
     notified += truth;
     indexed += big(r.totalEmissions);
-    if (rootChainIndexed || !leaf)
+    if (!leaf)
       c.cmp(
         `${pool}.totalEmissions`,
         big(r.totalEmissions),
@@ -205,51 +205,13 @@ export async function checkEmissions(
         { notifies: gauges.reduce((a, g) => a + g.notifies, 0) },
       );
   }
-  if (leaf && !rootChainIndexed)
+  if (leaf)
     c.skip(
-      "root chain (Optimism) is not in this instance; leaf emissions are credited from Optimism's DistributeReward",
+      `leaf chain: emissions are on Optimism's RootPool (ADR 0009); root chain ${rootChainIndexed ? "" : "not "}in this instance`,
     );
   ctx.results.push(
     c.done(
       `Σ NotifyReward on chain ${notified}, Σ Pool.totalEmissions ${indexed}`,
-    ),
-  );
-
-  const pend = new Check(
-    "rewards.cross-chain-pending",
-    ctx.chainId,
-    "Deferred cross-chain rows (PendingVote, PendingDistribution, PendingRootPoolMapping) for this chain: rows that never resolved to a leaf pool.",
-    "Informational: non-zero counts list root pools whose votes / emissions are not attributed.",
-  ).informational();
-  for (const t of [
-    "PendingVote",
-    "PendingDistribution",
-    "PendingRootPoolMapping",
-  ]) {
-    const cols = await ctx.idx.columns(t);
-    const where = cols.has("leafChainId")
-      ? `"leafChainId" = ${ctx.chainId}`
-      : cols.has("chainId")
-        ? `"chainId" = ${ctx.chainId}`
-        : "false";
-    const rows = await ctx.idx.pg.query(
-      `select count(*) as n from ${ctx.idx.tbl(t)} where ${where}`,
-    );
-    const n = Number(rows[0]?.n ?? 0);
-    pend.stats[t] = n;
-    if (n > 0)
-      pend.add({
-        key: t,
-        indexed: `${n} rows`,
-        truth: "0 expected once resolved",
-      });
-  }
-  ctx.results.push(
-    pend.done(
-      Object.entries(pend.stats)
-        .filter(([k]) => k !== "compared")
-        .map(([k, v]) => `${k} ${v}`)
-        .join(", "),
     ),
   );
 }

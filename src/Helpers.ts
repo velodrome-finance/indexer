@@ -173,8 +173,8 @@ export function generatePoolName(
 
 /**
  * Sorts items by blockchain event order: block number ascending, then log index ascending.
- * Use when replaying deferred events (e.g. PendingVote, PendingDistribution) so they are
- * applied in the same order they occurred on-chain.
+ * Use when replaying buffered events so they are applied in the same order they
+ * occurred on-chain.
  * @param items - Array to sort (not mutated; returns a new sorted array)
  * @param getBlockNumber - Extracts block number from each item
  * @param getLogIndex - Optional. Extracts log index from each item; defaults to 0 when omitted
