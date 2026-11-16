@@ -50,6 +50,11 @@ REFRESH_EVERY = os.environ.get("ANALYTICS_REFRESH_EVERY", "1 MINUTE")
 # A refresh never takes more than this many checkpoints at once, so a layer that fell far
 # behind (or an indexer in backfill) catches up in bounded steps.
 MAX_CHECKPOINTS_PER_REFRESH = int(os.environ.get("ANALYTICS_MAX_CHECKPOINTS_PER_REFRESH", "500000"))
+# Per-chain checkpoint sequences (envio's disable_default_cross_chain): a refresh reads each
+# chain's window in its own UNION ALL branch, so the checkpoint skip index prunes per chain. A
+# branch is a slot, filled at refresh time with the n-th chain of envio_chains, so a chain added
+# later is picked up without reinstalling, up to this many chains (status reports beyond).
+CHAIN_SLOTS = int(os.environ.get("ANALYTICS_CHAIN_SLOTS", "32"))
 BACKFILL_CHUNK_ROWS = int(os.environ.get("ANALYTICS_BACKFILL_CHUNK_ROWS", "2000000"))
 RETRIES = int(os.environ.get("ANALYTICS_RETRIES", "30"))
 VERIFY_CHUNK_ROWS = int(os.environ.get("ANALYTICS_VERIFY_CHUNK_ROWS", "3000000"))
@@ -139,6 +144,13 @@ def lit(s: str) -> str:
     return "'" + s.replace("\\", "\\\\").replace("'", "\\'") + "'"
 
 
+def map_lit(m: dict[int, int]) -> str:
+    """A Map(Int32, UInt64) literal (sequence -> checkpoint); a missing key reads as 0."""
+    keys = ", ".join(str(k) for k in sorted(m))
+    vals = ", ".join(str(m[k]) for k in sorted(m))
+    return f"mapFromArrays(CAST([{keys}] AS Array(Int32)), CAST([{vals}] AS Array(UInt64)))"
+
+
 # ----------------------------------------------------------------------------- context
 
 
@@ -146,12 +158,73 @@ class Ctx:
     def __init__(self, ch: CH, src: str, db: str):
         self.ch, self.src, self.db = ch, src, db
         self._types: dict[str, dict[str, str]] = {}
+        self._per_chain: bool | None = None
 
-    def frontier_sql(self) -> str:
-        return f"(SELECT max(checkpoint_id) FROM {q(self.src)}.envio_chains FINAL)"
+    # --- checkpoint sequences ------------------------------------------------------------
+    #
+    # envio numbers its commits with checkpoint ids. With shared entities (the default) there is
+    # one sequence for the whole indexer: a row is committed when its checkpoint is at or below
+    # max(envio_chains.checkpoint_id). With every entity per-chain (disable_default_cross_chain)
+    # each chain has its own sequence, ids overlap across chains, and a row is committed when its
+    # checkpoint is at or below its own chain's envio_chains.checkpoint_id.
+    #
+    # One code path serves both: every frontier, watermark and refresh window is a map keyed by
+    # the row's sequence, its *scope*. Per-chain the scope is the chain (envio's chainId on source
+    # rows, chain_id in the layer's tables); shared it is the constant 0, so each map has a single
+    # entry and the SQL reduces to the single-sequence logic.
 
-    def frontier(self) -> int:
-        return int(self.ch.scalar(f"SELECT {self.frontier_sql()}") or 0)
+    def per_chain(self) -> bool:
+        """The mode, read off envio's own entity views: per-chain views pick committed rows with
+        envio_frontier[chainId], shared ones with max(checkpoint_id). ANALYTICS_CHECKPOINT_SEQUENCE
+        (per-chain | shared) overrides it. A source without the views (a bare copy) is shared."""
+        if self._per_chain is None:
+            forced = os.environ.get("ANALYTICS_CHECKPOINT_SEQUENCE", "")
+            if forced:
+                if forced not in ("per-chain", "shared"):
+                    raise SystemExit("ANALYTICS_CHECKPOINT_SEQUENCE must be per-chain or shared")
+                self._per_chain = forced == "per-chain"
+            else:
+                names = ", ".join(lit(e.source) for e in ENTITIES)
+                views = self.ch.rows(
+                    "SELECT name, position(create_table_query, 'envio_frontier[') > 0 AS per_chain FROM system.tables "
+                    f"WHERE database = {lit(self.src)} AND engine = 'View' AND name IN ({names})"
+                )
+                kinds = {int(v["per_chain"]) for v in views}
+                if len(kinds) > 1:
+                    raise SystemExit(f"{self.src}: envio's views mix per-chain and shared checkpoint sequences")
+                self._per_chain = kinds == {1}
+        return self._per_chain
+
+    def scope_src(self) -> str:
+        """The sequence a source (envio history) row belongs to."""
+        return "chainId" if self.per_chain() else "toInt32(0)"
+
+    def scope_layer(self) -> str:
+        """The sequence a layer row belongs to. chain_id is taken from envio's id, which starts with
+        the chain id for every entity the layer maps (verify fails if it ever does not)."""
+        return "chain_id" if self.per_chain() else "toInt32(0)"
+
+    def scope_cols(self) -> list[str]:
+        """Source columns that, with the id, identify an entity: per-chain the same id may exist on
+        several chains."""
+        return ["chainId"] if self.per_chain() else []
+
+    def frontier_map_sql(self) -> str:
+        """Map(Int32, UInt64): sequence -> commit frontier (highest committed checkpoint)."""
+        if self.per_chain():
+            return ("(SELECT mapFromArrays(groupArray(toInt32(chain_id)), groupArray(toUInt64(checkpoint_id))) "
+                    f"FROM (SELECT chain_id, checkpoint_id FROM {q(self.src)}.envio_chains FINAL))")
+        return f"(SELECT map(toInt32(0), toUInt64(max(checkpoint_id))) FROM {q(self.src)}.envio_chains FINAL)"
+
+    def frontier_map(self) -> dict[int, int]:
+        rows = self.ch.rows(
+            f"SELECT k, v FROM (SELECT {self.frontier_map_sql()} AS m) ARRAY JOIN mapKeys(m) AS k, mapValues(m) AS v"
+        )
+        return {int(r["k"]): int(r["v"]) for r in rows}
+
+    def frontier_at(self, scope: str) -> str:
+        """The commit frontier of the sequence `scope` (an expression over a source row)."""
+        return f"{self.frontier_map_sql()}[{scope}]"
 
     def instance(self) -> str:
         return self.ch.scalar(f"SELECT any(instance) FROM {q(self.src)}.envio_info")
@@ -188,10 +261,12 @@ class Ctx:
             return q(column) if column in types else fallback
 
         sql = re.sub(r"\{\{col:(\w+)\.(\w+)\|([^}]*)\}\}", col, sql)
+        # {{scope:<expr>}}: the checkpoint sequence of a row whose chain is <expr>
+        sql = re.sub(r"\{\{scope:([^}]*)\}\}", lambda m: m.group(1) if self.per_chain() else "toInt32(0)", sql)
         return (
             sql.replace("{{db}}", q(self.db))
             .replace("{{src}}", q(self.src))
-            .replace("{{frontier}}", self.frontier_sql())
+            .replace("{{frontier}}", self.frontier_at(self.scope_src()))
         )
 
 
@@ -211,9 +286,13 @@ def ddl(ctx: Ctx, e: Entity) -> str:
         "  `_loaded_at` DateTime DEFAULT now() COMMENT 'when the layer loaded this version'",
     ]
     cols += [f"  INDEX {ix}" for ix in e.indexes]
-    partition = f"intDiv(_version, {VERSION_BUCKET})"
+    parts = [f"intDiv(_version, {VERSION_BUCKET})"]
+    if ctx.per_chain():
+        # per-chain watermarks (max(_version) per chain) are then answered from part metadata too
+        parts.insert(0, "chain_id")
     if e.partition_extra:
-        partition = f"({e.partition_extra}, {partition})"
+        parts.insert(0, e.partition_extra)
+    partition = parts[0] if len(parts) == 1 else f"({', '.join(parts)})"
     return (
         f"CREATE TABLE IF NOT EXISTS {q(ctx.db)}.{q(e.table)} (\n" + ",\n".join(cols) + "\n)\n"
         "ENGINE = ReplacingMergeTree(_version, _deleted)\n"
@@ -236,9 +315,10 @@ def needed_source_columns(ctx: Ctx, e: Entity, for_verify: bool = False) -> list
     return [c for c in cols if c != "id"]
 
 
-def group_key(e: Entity) -> str:
-    """What one stored row stands for: an id (current state) or an id and a period (series)."""
-    return "id" if e.mode == "latest" else f"id, {e.period_expr}"
+def group_key(ctx: Ctx, e: Entity) -> str:
+    """What one stored row stands for: an id (current state) or an id and a period (series),
+    per chain when chains have their own sequences."""
+    return ", ".join([*ctx.scope_cols(), "id"] + ([] if e.mode == "latest" else [e.period_expr]))
 
 
 def rows_select(ctx: Ctx, e: Entity) -> str:
@@ -320,8 +400,9 @@ def chunk_pred(lo: str | None, hi: str | None) -> str:
     return " AND ".join(parts) or "1"
 
 
-def backfill_rows(ctx: Ctx, e: Entity, chunk: str, frontier: int) -> str:
-    """Rows to load: per id (or id and period), the last version at or below the frontier.
+def backfill_rows(ctx: Ctx, e: Entity, chunk: str, frontier: dict[int, int]) -> str:
+    """Rows to load: per id (or id and period), the last version at or below its sequence's
+    frontier (`frontier`: sequence -> checkpoint, see Ctx.per_chain).
 
     Two phases keep memory flat: the last checkpoint per key reads three narrow columns, and
     the full rows are then fetched by primary key (id, envio_checkpoint_id), so only the
@@ -330,28 +411,77 @@ def backfill_rows(ctx: Ctx, e: Entity, chunk: str, frontier: int) -> str:
     """
     h = f"{q(ctx.src)}.{q(ctx.hist(e))}"
     only_set = "" if e.mode == "latest" else " AND envio_change = 'SET'"
+    tup = ", ".join([*ctx.scope_cols(), "id", "envio_checkpoint_id"])
+    sel = ", ".join([*ctx.scope_cols(), "id", "max(envio_checkpoint_id)"])
     return (
-        f"{rows_select(ctx, e)} WHERE {chunk}{only_set} AND (id, envio_checkpoint_id) IN (\n"
-        f"    SELECT id, max(envio_checkpoint_id) FROM {h} WHERE {chunk}{only_set} AND envio_checkpoint_id <= {frontier}\n"
-        f"    GROUP BY {group_key(e)})"
+        f"{rows_select(ctx, e)} WHERE {chunk}{only_set} AND ({tup}) IN (\n"
+        f"    SELECT {sel} FROM {h} WHERE {chunk}{only_set}\n"
+        f"      AND envio_checkpoint_id <= {map_lit(frontier)}[{ctx.scope_src()}]\n"
+        f"    GROUP BY {group_key(ctx, e)})"
     )
 
 
-def watermark_sql(ctx: Ctx, e: Entity) -> str:
-    # max(_version) comes from part metadata (see VERSION_BUCKET). Minus one: a refresh that
-    # failed half way may have landed part of the rows of its last checkpoint.
-    return f"(SELECT toUInt64(greatest(max(_version), 1) - 1) FROM {q(ctx.db)}.{q(e.table)})"
+def watermark_map_sql(ctx: Ctx, e: Entity) -> str:
+    """Map(Int32, UInt64): sequence -> the table's refresh watermark.
+
+    max(_version) per sequence comes from part metadata (the partition key holds _version's
+    bucket, and chain_id when per-chain). Minus one: a refresh that failed half way may have
+    landed part of the rows of its last checkpoint. A sequence with no rows yet reads as 0.
+    """
+    t = f"{q(ctx.db)}.{q(e.table)}"
+    if not ctx.per_chain():
+        return f"(SELECT map(toInt32(0), toUInt64(greatest(max(_version), 1) - 1)) FROM {t})"
+    return (
+        "(SELECT mapFromArrays(groupArray(toInt32(k)), groupArray(w)) FROM "
+        f"(SELECT {ctx.scope_layer()} AS k, toUInt64(greatest(max(_version), 1) - 1) AS w FROM {t} GROUP BY k))"
+    )
 
 
 def refresh_rows(ctx: Ctx, e: Entity, instance: str) -> str:
-    wm = watermark_sql(ctx, e)
-    window = (
-        f"envio_checkpoint_id > {wm} AND envio_checkpoint_id <= least({ctx.frontier_sql()}, {wm} + toUInt64({MAX_CHECKPOINTS_PER_REFRESH}))"
-        f" AND (SELECT any(instance) FROM {q(ctx.src)}.envio_info) = {lit(instance)}"
-    )
+    """The rows one refresh loads: per sequence, the last version of each key in
+    (watermark, min(frontier, watermark + MAX_CHECKPOINTS_PER_REFRESH)].
+
+    Each sequence gets its own UNION ALL branch whose bounds are scalar subqueries, i.e.
+    constants when ClickHouse plans the read, so the history's checkpoint skip index prunes per
+    sequence. (A single branch comparing envio_checkpoint_id with a per-row map lookup would
+    read the whole table: per-chain sequences overlap, so no constant bound fits every chain.)
+    Shared: one branch, the sequence 0. Per-chain: CHAIN_SLOTS branches, the n-th taking the
+    n-th chain of envio_chains; an unused branch has frontier 0 and reads nothing.
+
+    Two phases, as in the backfill: the branches read only the key columns to find the last
+    checkpoint per key, and the full rows are then fetched by primary key (id,
+    envio_checkpoint_id). Narrow branches also keep planning cheap with many slots.
+    """
     only_set = "" if e.mode == "latest" else " AND envio_change = 'SET'"
-    key = "id" if e.mode == "latest" else "id, _period"
-    return f"{rows_select(ctx, e)} WHERE {window}{only_set} ORDER BY {key}, envio_checkpoint_id DESC LIMIT 1 BY {key}"
+    period = f", {e.period_expr} AS _period" if e.mode != "latest" else ""
+    h = f"{q(ctx.src)}.{q(ctx.hist(e))}"
+    alive = f"(SELECT any(instance) FROM {q(ctx.src)}.envio_info) = {lit(instance)}"
+    scope = ctx.scope_cols()
+    slots = CHAIN_SLOTS if ctx.per_chain() else 1
+    narrow = ", ".join([*scope, "id", "envio_checkpoint_id"]) + period
+    branches = []
+    for i in range(1, slots + 1):
+        c = f"__chains[{i}]"
+        branches.append(
+            f"    SELECT {narrow} FROM {h}\n"
+            f"    WHERE {ctx.scope_src()} = {c} AND envio_checkpoint_id > __wm[{c}]\n"
+            f"      AND envio_checkpoint_id <= least(__fr[{c}], __wm[{c}] + toUInt64({MAX_CHECKPOINTS_PER_REFRESH})){only_set}\n"
+            f"      AND {alive}"
+        )
+    key = ", ".join([*scope, "id"] + ([] if e.mode == "latest" else ["_period"]))
+    latest = (
+        "  SELECT {cols} FROM (\n" + "\n    UNION ALL\n".join(branches) + "\n  )\n"
+        f"  ORDER BY {key}, envio_checkpoint_id DESC LIMIT 1 BY {key}"
+    )
+    # the tuple's id and envio_checkpoint_id reach the primary key; per-chain it also carries
+    # the chain, since the same (id, checkpoint) may exist on two chains
+    tup = ", ".join([*scope, "id", "envio_checkpoint_id"])
+    where = f"({tup}) IN (\n{latest.format(cols=tup)}\n)"
+    return (
+        f"WITH {ctx.frontier_map_sql()} AS __fr, {watermark_map_sql(ctx, e)} AS __wm,\n"
+        f"  arraySort(mapKeys(__fr)) AS __chains\n"
+        f"SELECT *{period} FROM {h}\nWHERE {where}"
+    )
 
 
 def rmv_name(e: Entity) -> str:
@@ -454,7 +584,7 @@ def drop_layer_objects(ctx: Ctx, keep_db=True):
         ctx.ch.execute(f"DROP DATABASE IF EXISTS {q(ctx.db)} SYNC")
 
 
-def backfill(ctx: Ctx, e: Entity, frontier: int):
+def backfill(ctx: Ctx, e: Entity, frontier: dict[int, int]):
     t0 = time.time()
     parts = chunks(ctx, e, BACKFILL_CHUNK_ROWS)
     total_read = 0
@@ -463,7 +593,14 @@ def backfill(ctx: Ctx, e: Entity, frontier: int):
         s = ctx.ch.execute(sql, BACKFILL_SETTINGS)
         total_read += int(s.get("read_rows", 0))
         log(f"  {e.table}: chunk {i}/{len(parts)} wrote {s.get('written_rows', '?')} rows (read {s.get('read_rows', '?')})")
-    log(f"  {e.table}: backfilled up to checkpoint {frontier} in {time.time() - t0:.1f}s ({total_read} source rows read)")
+    log(f"  {e.table}: backfilled up to {fmt_map(frontier)} in {time.time() - t0:.1f}s ({total_read} source rows read)")
+
+
+def fmt_map(m: dict[int, int]) -> str:
+    """A frontier / watermark map for logs: 'checkpoint N' (shared) or 'chain:checkpoint ...'."""
+    if set(m) <= {0}:
+        return f"checkpoint {m.get(0, 0)}"
+    return "checkpoints " + " ".join(f"{k}:{v}" for k, v in sorted(m.items()))
 
 
 # (file, storage table the file needs): Aero views only where the indexer has Aero gauges
@@ -502,15 +639,16 @@ def append_only_view(ctx: Ctx, type_name: str) -> str | None:
         if r.col.kind == "time":
             exprs[-1] = f"toDateTime({r.expr()}) AS {q(r.name)}"
     h = f"{q(ctx.src)}.{q(hist)}"
-    f = ctx.frontier_sql()
+    f = ctx.frontier_at(ctx.scope_src())
+    k = ", ".join([*ctx.scope_cols(), "id"])
     name = snake(type_name).replace("s_aero_", "saero_") + "s"
     return (
         f"CREATE OR REPLACE VIEW {q(ctx.db)}.{q(name)} AS\nSELECT\n  " + ",\n  ".join(exprs) + "\n"
         f"FROM {h}\n"
         f"WHERE envio_change = 'SET' AND envio_checkpoint_id <= {f}\n"
-        f"  AND (id NOT IN (SELECT id FROM {h} WHERE envio_change = 'DELETE')\n"
-        f"       OR (id, envio_checkpoint_id) IN (SELECT id, max(envio_checkpoint_id) FROM {h}\n"
-        f"           WHERE envio_checkpoint_id <= {f} AND id IN (SELECT id FROM {h} WHERE envio_change = 'DELETE') GROUP BY id))"
+        f"  AND (({k}) NOT IN (SELECT {k} FROM {h} WHERE envio_change = 'DELETE')\n"
+        f"       OR ({k}, envio_checkpoint_id) IN (SELECT {k}, max(envio_checkpoint_id) FROM {h}\n"
+        f"           WHERE envio_checkpoint_id <= {f} AND ({k}) IN (SELECT {k} FROM {h} WHERE envio_change = 'DELETE') GROUP BY {k}))"
     )
 
 
@@ -562,6 +700,9 @@ def install(ctx: Ctx, force_rebuild=False):
         reasons.append(f"the indexer was reset (instance {meta['source_instance']} -> {instance})")
     if meta.get("layer_version") and meta["layer_version"] != LAYER_VERSION:
         reasons.append(f"layer version changed ({meta['layer_version']} -> {LAYER_VERSION})")
+    mode_now = "per-chain" if ctx.per_chain() else "shared"
+    if meta.get("checkpoint_sequence") and meta["checkpoint_sequence"] != mode_now:
+        reasons.append(f"checkpoint sequence changed ({meta['checkpoint_sequence']} -> {mode_now})")
     if force_rebuild:
         reasons.append("rebuild requested")
     if reasons:
@@ -569,9 +710,10 @@ def install(ctx: Ctx, force_rebuild=False):
         drop_layer_objects(ctx)
         ch.execute(META_DDL.format(db=q(ctx.db)))
 
-    frontier = ctx.frontier()
+    frontier = ctx.frontier_map()
     meta = meta_get(ctx)
-    log(f"source {ctx.src} instance {instance}, commit frontier checkpoint {frontier}")
+    mode = "per-chain" if ctx.per_chain() else "shared"
+    log(f"source {ctx.src} instance {instance}, {mode} checkpoint sequence, commit frontier {fmt_map(frontier)}")
     for e in ENTITIES:
         if not ctx.has_source(e):
             log(f"  {e.table}: source {ctx.hist(e)} missing, skipped")
@@ -591,13 +733,20 @@ def install(ctx: Ctx, force_rebuild=False):
             ch.execute(f"DROP VIEW IF EXISTS {q(ctx.db)}.{q(rmv_name(e))} SYNC")
             ch.execute(f"TRUNCATE TABLE {q(ctx.db)}.{q(e.table)}")
             backfill(ctx, e, frontier)
-            meta_set(ctx, {f"backfilled:{e.table}": str(frontier), f"ddl:{e.table}": digest})
+            meta_set(ctx, {f"backfilled:{e.table}": json.dumps(frontier), f"ddl:{e.table}": digest})
         else:
             meta_set(ctx, {f"ddl:{e.table}": digest})
             log(f"  {e.table}: backfilled at checkpoint {done}, {table_rows(ctx, e.table)} rows; refreshed incrementally")
     for e in ENTITIES:
         if ctx.has_source(e):
-            ch.execute(rmv_ddl(ctx, e, instance))
+            # CREATE ... IF NOT EXISTS keeps an existing refresh as it was: replace it when its
+            # definition changed (a new layer version, or the indexer switched sequence mode)
+            view_ddl = rmv_ddl(ctx, e, instance)
+            view_digest = hashlib.sha1(view_ddl.encode()).hexdigest()
+            if meta.get(f"rmv:{e.table}") != view_digest:
+                ch.execute(f"DROP VIEW IF EXISTS {q(ctx.db)}.{q(rmv_name(e))} SYNC")
+            ch.execute(view_ddl)
+            meta_set(ctx, {f"rmv:{e.table}": view_digest})
             ch.execute(f"SYSTEM START VIEW {q(ctx.db)}.{q(rmv_name(e))}")  # a verify cut off leaves it stopped
     for s in view_statements(ctx):
         ch.execute(s)
@@ -607,7 +756,8 @@ def install(ctx: Ctx, force_rebuild=False):
             "source_database": ctx.src,
             "source_instance": instance,
             "layer_version": LAYER_VERSION,
-            "installed_frontier": str(frontier),
+            "installed_frontier": json.dumps(frontier),
+            "checkpoint_sequence": mode,
         },
     )
     n_tables = sum(1 for e in ENTITIES if ctx.has_source(e))
@@ -623,8 +773,31 @@ def refresh(ctx: Ctx):
             ctx.ch.execute(f"SYSTEM WAIT VIEW {q(ctx.db)}.{q(rmv_name(e))}")
 
 
+def layer_versions(ctx: Ctx, e: Entity) -> dict[int, int]:
+    """sequence -> max(_version) in the layer table (the watermark before the minus one)."""
+    rows = ctx.ch.rows(
+        f"SELECT toInt32({ctx.scope_layer()}) AS k, max(_version) AS v FROM {q(ctx.db)}.{q(e.table)} GROUP BY k"
+    )
+    return {int(r["k"]): int(r["v"]) for r in rows}
+
+
+def rows_between(ctx: Ctx, e: Entity, lo: dict[int, int], hi: dict[int, int]) -> int:
+    """Source rows with lo[seq] < envio_checkpoint_id <= hi[seq], one constant range per
+    sequence so the checkpoint skip index applies."""
+    total = 0
+    for k in sorted(set(lo) | set(hi)):
+        a, b = lo.get(k, 0), hi.get(k, 0)
+        if b <= a:
+            continue
+        total += int(ctx.ch.scalar(
+            f"SELECT count() FROM {q(ctx.src)}.{q(ctx.hist(e))} "
+            f"WHERE {ctx.scope_src()} = {k} AND envio_checkpoint_id > {a} AND envio_checkpoint_id <= {b}"
+        ) or 0)
+    return total
+
+
 def status(ctx: Ctx) -> list[dict]:
-    frontier = ctx.frontier()
+    frontier = ctx.frontier_map()
     meta = meta_get(ctx)
     instance = ctx.instance()
     refreshes = {
@@ -638,26 +811,26 @@ def status(ctx: Ctx) -> list[dict]:
     for e in ENTITIES:
         if e.table not in existing_tables(ctx):
             continue
-        wm = int(ctx.ch.scalar(f"SELECT max(_version) FROM {q(ctx.db)}.{q(e.table)}") or 0)
-        lag_rows = int(
-            ctx.ch.scalar(
-                f"SELECT count() FROM {q(ctx.src)}.{q(ctx.hist(e))} WHERE envio_checkpoint_id > {wm} AND envio_checkpoint_id <= {frontier}"
-            )
-            or 0
-        )
+        wm = layer_versions(ctx, e)
+        lag_rows = rows_between(ctx, e, wm, frontier)
+        # a version above its sequence's frontier was loaded before envio committed it
+        ahead = sorted(k for k, v in wm.items() if v > frontier.get(k, 0))
         r = refreshes.get(rmv_name(e), {})
         out.append(
             {
                 "table": e.table,
                 "rows": table_rows(ctx, e.table),
-                "watermark": wm,
-                "frontier": frontier,
+                "watermark": wm if ctx.per_chain() else wm.get(0, 0),
+                "frontier": frontier if ctx.per_chain() else frontier.get(0, 0),
                 "source_rows_behind": lag_rows,
+                "ahead_of_frontier": ahead,
                 "refresh": r.get("status", "missing"),
                 "last_success": r.get("last_success_time"),
                 "error": (r.get("exception") or "")[:200],
             }
         )
+    if ctx.per_chain() and len(frontier) > CHAIN_SLOTS:
+        out.append({"table": "!", "error": f"{len(frontier)} chains but ANALYTICS_CHAIN_SLOTS={CHAIN_SLOTS}: chains beyond are not refreshed; raise it and run install"})
     if meta.get("source_instance") and meta.get("source_instance") != instance:
         out.append({"table": "!", "error": f"STALE: indexer reset since install ({meta['source_instance']} -> {instance}); run install"})
     return out
@@ -697,7 +870,13 @@ def verify(ctx: Ctx, only: list[str] | None = None) -> bool:
 
 def verify_entity(ctx: Ctx, e: Entity) -> bool:
     t0 = time.time()
-    f0 = int(ctx.ch.scalar(f"SELECT max(_version) FROM {q(ctx.db)}.{q(e.table)}") or 0)
+    # Per sequence: the table's watermark, capped at the commit frontier, so a version loaded
+    # before envio committed it shows up as a mismatch (it is not in the expected state).
+    frontier = ctx.frontier_map()
+    loaded = layer_versions(ctx, e)
+    f0 = {k: min(v, frontier.get(k, 0)) for k, v in loaded.items()}
+    cut = f"envio_checkpoint_id <= {map_lit(f0)}[{ctx.scope_src()}]"
+    key = ", ".join([*ctx.scope_cols(), "id"])
     h = f"{q(ctx.src)}.{q(ctx.hist(e))}"
     pairs = [(r.name, r.verify_pair()) for r in ctx.resolved(e)]
     pairs = [(n, p) for n, p in pairs if p]
@@ -707,7 +886,7 @@ def verify_entity(ctx: Ctx, e: Entity) -> bool:
         renamed = ", ".join(f"{q('__' + c)} AS {q(c)}" for c in src_cols)
         expected = (
             f"SELECT id, {renamed} FROM (SELECT id, {aggs}, argMax(envio_change, envio_checkpoint_id) AS __change"
-            f" FROM {h} WHERE {{chunk}} AND envio_checkpoint_id <= {f0} GROUP BY id) WHERE __change = 'SET'"
+            f" FROM {h} WHERE {{chunk}} AND {cut} GROUP BY {key}) WHERE __change = 'SET'"
         )
         join_on = "e.id = t.id"
     else:
@@ -715,7 +894,7 @@ def verify_entity(ctx: Ctx, e: Entity) -> bool:
         renamed = ", ".join(f"{q('__' + c)} AS {q(c)}" for c in src_cols)
         expected = (
             f"SELECT id, _period, {renamed} FROM (SELECT id, {e.period_expr} AS _period, {aggs}"
-            f" FROM {h} WHERE {{chunk}} AND envio_checkpoint_id <= {f0} AND envio_change = 'SET' GROUP BY id, _period)"
+            f" FROM {h} WHERE {{chunk}} AND {cut} AND envio_change = 'SET' GROUP BY {key}, _period)"
         )
         join_on = "e.id = t.id AND e._period = t.period"
         # prev_<f>: the value at the end of the pool's previous period (0 for the first)
@@ -749,7 +928,7 @@ def verify_entity(ctx: Ctx, e: Entity) -> bool:
             totals[k] = totals.get(k, 0) + int(v)
     bad = {k: v for k, v in totals.items() if k != "compared" and v}
     log(
-        f"  verify {e.table} at checkpoint {f0}: {totals.get('compared', 0)} "
+        f"  verify {e.table} at {fmt_map(f0)}: {totals.get('compared', 0)} "
         f"{'ids' if e.mode == 'latest' else 'id-periods'} compared over {len(pairs)} columns "
         f"in {time.time() - t0:.1f}s -> {'OK' if not bad else 'MISMATCH ' + json.dumps(bad)}"
     )
@@ -886,7 +1065,7 @@ def main(argv=None):
         drop_layer_objects(ctx, keep_db=False)
     elif a.command == "render":
         instance = ctx.instance() or "<instance>"
-        frontier = ctx.frontier()
+        frontier = ctx.frontier_map()
         print(META_DDL.format(db=q(ctx.db)) + ";\n")
         for e in ENTITIES:
             if not ctx.has_source(e):

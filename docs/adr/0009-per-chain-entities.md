@@ -204,6 +204,12 @@ votes coalescing in `pools` / `pool_*` / `chain_*`, and `super_swaps`.
 ## Migration order
 
 1. Analytics layer: per-chain frontier and watermark (works in both modes).
+   **Done (2026-11-16, branch `perchain/analytics-frontier`):** the mode is
+   read off envio's views, every frontier and watermark is keyed by the
+   row's sequence (the chain, or 0 when shared), shared-mode tables keep
+   their definitions; tested on synthetic cases and on Metal (shared) and
+   Metal + Mode + Lisk added with `--chain` (per-chain), see
+   `docs/clickhouse.md`.
 2. Shared mode, behind today's API: write `RootPool`, root-side
    `VeNFTPoolVote` and `SuperSwapSource` / `SuperSwapDestination` alongside
    the existing flows; add `root_leaf_pool`, `_root_pool`, `super_swaps`; on a
