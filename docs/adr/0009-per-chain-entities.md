@@ -332,6 +332,14 @@ votes coalescing in `pools` / `pool_*` / `chain_*`, and `super_swaps`.
      and their snapshots differ only in USD / price columns, in hours from the
      first effect answer on (three tokens priced through Mode WETH become
      `pool` where they carried before).
+   - **Per-chain, split** (the effect commit cherry-picked onto
+     `perchain/phase1-proof` as `perchain/price-effect-split`; Mode + Metal,
+     2 worker processes, same end blocks and effect source): Mode's 191,184
+     `TokenPriceSnapshot` rows are identical to the shared run's, the 94
+     `canonical-snapshot` rows included; again 97 executions and 94 cache
+     rows. Metal never reached the effect (its WETH and XVELO had local pools
+     or seed hours), so a second worker reading another's cache rows was not
+     exercised here (the mechanics probe above had shown it).
 4. Flip: the flag, the `chainId` codemod, delete the pending machinery, the
    leaf-field writes and the `SuperSwap` entity, migrate the tests, update
    `docs/`. Full resync (ClickHouse `ORDER BY` and Postgres layout change).
