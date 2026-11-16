@@ -603,8 +603,14 @@ def fmt_map(m: dict[int, int]) -> str:
     return "checkpoints " + " ".join(f"{k}:{v}" for k, v in sorted(m.items()))
 
 
-# (file, storage table the file needs): Aero views only where the indexer has Aero gauges
-VIEW_FILES = [("views.sql", "_pool"), ("views_aero.sql", "_aero_gauge")]
+# (file, what the file needs): a storage table of the layer, or "src:<table>" for a table of the
+# indexer's database (then the layer's _pool too). Aero views only where the indexer has Aero
+# gauges; the superchain root-side views only where it has RootPool (ADR 0009).
+VIEW_FILES = [
+    ("views.sql", "_pool"),
+    ("views_aero.sql", "_aero_gauge"),
+    ("views_superchain.sql", "src:envio_history_RootPool"),
+]
 
 # ClickHouse-only, append-only Aero entities (events and hourly snapshots): typed views read
 # straight from envio's history table (no copy).
@@ -677,8 +683,10 @@ def view_statements(ctx: Ctx) -> list[str]:
         v = append_only_view(ctx, t)
         if v:
             out.append(v)
+    src_present = {r["name"] for r in ctx.ch.rows(f"SELECT name FROM system.tables WHERE database = {lit(ctx.src)}")}
     for f, needs in VIEW_FILES:
-        if needs in present:
+        ok = (needs[4:] in src_present and "_pool" in present) if needs.startswith("src:") else needs in present
+        if ok:
             out += [ctx.render(s) for s in statements((HERE / "sql" / f).read_text())]
     return out
 
