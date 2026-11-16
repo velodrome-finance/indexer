@@ -855,6 +855,106 @@ type RootGauge_RootPool {
   rootPoolAddress: String! # Address of the root pool this gauge maps to
 }
 
+# A superchain root pool on the root chain (Optimism; Base has none), written
+# from root-chain events only (ADR 0009): the votes and emissions of a leaf pool
+# live here, and the analytics layer joins them to the leaf Pool
+# (root_leaf_pools). Created at RootCLPoolFactory.RootPoolCreated (CL) or
+# RootPoolFactory.PoolCreated (V2).
+type RootPool {
+  id: ID! # Format: {chainId}-{rootPoolAddress} (RootPoolId)
+  chainId: Int! # root chain id (10)
+  rootPoolAddress: String! # the root pool (a placeholder contract: no liquidity, no swaps)
+  leafChainId: Int # chain of the leaf pool: RootPoolCreated's chainid (CL); for V2 the chain whose CREATE2 salt yields the root pool's address (null if none of the known leaf chains does)
+  isCL: Boolean! # created by the RootCLPoolFactory
+  token0: String! # token0 of the pair (the leaf pool's token0)
+  token1: String! # token1 of the pair
+  tickSpacing: BigInt @config(precision: 24) # CL only
+  isStable: Boolean # V2 only
+  rootFactoryAddress: String! # factory that created the root pool; for CL the leaf pool's factoryAddress equals it
+  rootPoolMatchingHash: String # CL only: {leafChainId}_{token0}_{token1}_{tickSpacing}, as on the leaf Pool
+  gaugeAddress: String # root gauge (Voter.GaugeCreated), null until created
+  gaugeIsAlive: Boolean! # false after GaugeKilled, true after GaugeCreated / GaugeRevived
+  veNFTamountStaked: BigInt! @config(precision: 76) # Voter.weights(rootPool): totalWeight of the latest Voted / Abstained
+  totalEmissions: BigInt! @config(precision: 76) # sum of DistributeReward amounts to the root gauge, 1e18-normalized reward token
+  totalEmissionsUSD: BigInt! @config(precision: 76) # the same in USD (1e18) at the root chain's reward token price at each distribution
+  numberOfDistributions: BigInt! @config(precision: 24) # DistributeReward events to the root gauge
+  createdBlockNumber: BigInt! @config(precision: 76) # block of the creating event
+  createdTimestamp: Timestamp! # time of the creating event
+  lastUpdatedTimestamp: Timestamp! # time of the latest change
+}
+
+# One veNFT's vote on a root pool, on the root chain (ADR 0009). Kept apart
+# from VeNFTPoolVote so the veNFT transfer logic, which moves votes between the
+# owners' UserStatsPerPool rows, never creates user rows for root pools.
+type RootPoolVote {
+  id: ID! # Format: {chainId}-{tokenId}-{rootPoolAddress} (RootPoolVoteId)
+  chainId: Int! # root chain id (10)
+  rootPoolAddress: String! @index # the root pool voted on
+  tokenId: BigInt! @config(precision: 38) # the veNFT
+  veNFTStateId: String! # VeNFTState id ({chainId}-{tokenId}) of the veNFT
+  veNFTamountStaked: BigInt! @config(precision: 76) # the veNFT's current weight on the root pool (Voted adds, Abstained removes)
+  lastUpdatedTimestamp: Timestamp! # time of the latest Voted / Abstained
+}
+
+# The origin side of a SuperSwap (ADR 0009 flow G), written by the origin chain
+# at VelodromeUniversalRouter.CrossChainSwap from its own rows only: one row per
+# Hyperlane message the transaction dispatched. Joined to
+# SuperSwapDestinationLeg on messageId in ClickHouse (super_swap_legs view).
+type SuperSwapOriginLeg
+  @storage(
+    postgres: false
+    clickhouse: {
+      partitionBy: "toYYYYMM(timestamp)"
+      orderBy: ["chainId", "messageId"]
+    }
+  )
+{
+  id: ID! # Format: {chainId}-{messageId}
+  chainId: Int! # origin chain
+  messageId: String! # Hyperlane message id
+  dispatchIndex: Int! # position of the message among the transaction's dispatches (the stitching takes the first that reached a destination swap)
+  transactionHash: String! # origin transaction
+  destinationChainId: BigInt! @config(precision: 24) # EVM chain id of the bridge's destination
+  sender: String! # bridge sender
+  recipient: String! # bridge recipient
+  oUSDTamount: BigInt! @config(precision: 76) # oUSDT bridged
+  sourceChainToken: String! # token swapped into oUSDT on the origin chain
+  sourceChainTokenAmountSwapped: BigInt! @config(precision: 76) # amount of sourceChainToken swapped
+  timestamp: Timestamp! # origin block time
+}
+
+# The destination side of a SuperSwap, written by the destination chain at its
+# first oUSDT swap in a transaction that processed Hyperlane messages
+# (Mailbox.ProcessId), one row per message processed in that transaction.
+type SuperSwapDestinationLeg
+  @storage(
+    postgres: false
+    clickhouse: {
+      partitionBy: "toYYYYMM(timestamp)"
+      orderBy: ["chainId", "messageId"]
+    }
+  )
+{
+  id: ID! # Format: {chainId}-{messageId}
+  chainId: Int! # destination chain
+  messageId: String! # Hyperlane message id
+  transactionHash: String! # destination transaction
+  destinationChainToken: String! # token received for oUSDT on the destination chain
+  destinationChainTokenAmountSwapped: BigInt! @config(precision: 76) # amount of destinationChainToken received
+  timestamp: Timestamp! # destination block time
+}
+
+# Hyperlane messages processed in a transaction (Mailbox.ProcessId), so the
+# first oUSDT swap of that transaction can write its SuperSwapDestinationLeg.
+type TxProcessIdRegistry
+  @storage(postgres: true, clickhouse: false)
+  @internal
+{
+  id: ID! # Format: {chainId}-{transactionHash}
+  messageIds: [String!]! # message ids processed in this tx, in processing order
+  timestamp: Timestamp! # block time of the tx
+}
+
 # Deferred vote: stored when Voted/Abstained fires but RootPool_LeafPool mapping does not exist yet
 type PendingVote @storage(postgres: true, clickhouse: false) @internal {
   id: ID! # Format: {chainId}-{rootPoolAddress}-{tokenId}-{txHash}-{logIndex}
