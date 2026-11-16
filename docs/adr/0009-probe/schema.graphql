@@ -1,0 +1,37 @@
+# Per-chain aggregate, id `{chainId}-{address}` (the velodrome convention).
+type Account {
+  id: ID!
+  address: String! @index
+  transfersOut: BigInt!
+  transfersIn: BigInt!
+  volume: BigInt!
+}
+
+# Same id on every chain ("global"): does each chain get its own row?
+type SameId {
+  id: ID!
+  count: BigInt!
+  lastBlock: Int!
+}
+
+# One per chain, id `marker-{chainId}`; other chains try to read it.
+type Marker {
+  id: ID!
+  firstBlock: Int!
+}
+
+# Observations written by handlers (what they saw).
+type Probe {
+  id: ID!
+  note: String!
+}
+
+# ClickHouse-only append-only rows.
+type TransferEvent @storage(postgres: false, clickhouse: true) {
+  id: ID!
+  from: String!
+  to: String!
+  value: BigInt!
+  blockNumber: Int!
+  hourTag: String!
+}
