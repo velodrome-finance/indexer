@@ -66,6 +66,23 @@ ClickHouse, `ENVIO_PG_MAX_CONNECTIONS=10`) and on this indexer (Metal + Mode).
   `indexer.X.get(id)` throws (synchronously) when the id exists on more than one
   chain, and `getWhere({chainId: {_eq}})` picks one.
 
+## Proof on this indexer (phase 1, branch `perchain/phase1-proof`)
+
+Flag on, zero `@crossChain` entities, the 51 `chainId` fields dropped, flows
+A–G stubbed (`src/PerChainStubs.ts`). Metal + Mode to the same end blocks
+(41,630,723 / 47,328,689) in per-chain mode and, at b598f24, in shared mode:
+
+- 9,497,588 events each; wall time 11m36s (2 workers) vs 11m27s (1 process),
+  about 14k events/s both: Mode alone is the critical path.
+- Every Postgres entity table and the ClickHouse `PoolSnapshot`,
+  `TokenPriceSnapshot`, `UserStatsPerPoolSnapshot`,
+  `NonFungiblePositionSnapshot` are identical per chain (row count and a hash
+  of every column but `chainId`), except flow G: 25 Mode→Metal SuperSwaps the
+  shared run stitched, and their 25 `DispatchId_event` / `ProcessId_event`
+  staging rows that it deleted and the per-chain run keeps.
+- Lisk added with `envio start --chain 1135` (10.9 M events), then a plain
+  start resumed all three in 3 workers; Metal and Mode still identical.
+
 ## Decision
 
 Make every entity per-chain. Root-chain facts stay on the root chain, each
