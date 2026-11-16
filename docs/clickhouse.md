@@ -797,7 +797,11 @@ Aero sync: **3 rows, 0.013 s** (first run 0.021 s; read 6 rows, 1.8 kB). Product
   issue #902): an idle staker is never revalued and often reads $0. Pool-level `staked_usd` is
   live for CL pools; for V2 pools it is set at gauge events and can go stale (#899).
 - **Top "users" are often contracts**: routers, aggregators, vaults, gauges and the NFPM.
-- **Legacy reward-token amounts** (`emissions`, `gauge_rewards_claimed`, votes) are in each
+- **`votes` is the pool's legacy vote weight** (envio `veNFTamountStaked`, veToken units ÷ 1e18,
+  as the Voter holds it). `gauge_reward_balance` (envio `totalVotesDeposited`, despite its name)
+  is the gauge's undistributed reward-token balance at its last `DistributeReward`, derived from
+  events: emissions + redistributed − forfeited − claimed − early-withdraw penalties.
+- **Legacy reward-token amounts** (`emissions`, `gauge_rewards_claimed`, `gauge_reward_balance`) are in each
   chain's own legacy reward token (VELO, AERO v1, XVELO, …): sum the `*_usd` columns across
   chains. Legacy emission fields stay 0 on Aero pools (Aero emissions are in the Aero views).
 - **Legacy emissions before the oracle era read $0 in USD** for 188 pools (#738) though the

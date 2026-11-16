@@ -169,7 +169,7 @@ query OnePool {
     token0Price       # ÷ 1e18  (token1 per token0)
     currentFee        # ÷ 1e4 → percent
     gaugeIsAlive
-    totalVotesDepositedUSD
+    veNFTamountStaked # legacy vote weight, ÷ 1e18
     token0_id
     token1_id
   }

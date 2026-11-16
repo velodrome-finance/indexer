@@ -117,8 +117,11 @@ def pool_cols() -> list[Col]:
         c("swap_fee_fallbacks", "numberOfSwapFeeFallbacks"),
         b("token0_price", "token0Price"),
         b("token1_price", "token1Price"),
-        b("votes", "totalVotesDeposited"),
-        b("votes_usd", "totalVotesDepositedUSD"),
+        # Legacy vote weight on the pool (veToken units). envio's totalVotesDeposited is not a
+        # vote weight but the gauge's reward-token balance at its last DistributeReward.
+        b("votes", "veNFTamountStaked"),
+        b("gauge_reward_balance", "totalVotesDeposited"),
+        b("gauge_reward_balance_usd", "totalVotesDepositedUSD"),
         b("emissions", "totalEmissions"),
         b("emissions_usd", "totalEmissionsUSD"),
         b("emissions_redistributed", "totalEmissionsRedistributed"),
@@ -175,7 +178,7 @@ SERIES_FIELDS = [
     "reserve0", "reserve1", "total_lp_supply", "tvl_usd",
     "volume0", "volume1", "volume_usd", "fees0", "fees1", "fees_usd", "swaps",
     "unstaked_fees_collected_usd", "staked_fees_collected_usd",
-    "token0_price", "token1_price", "votes", "votes_usd",
+    "token0_price", "token1_price", "votes", "gauge_reward_balance", "gauge_reward_balance_usd",
     "emissions", "emissions_usd", "gauge_rewards_claimed", "gauge_rewards_claimed_usd",
     "bribes_claimed_usd", "fee_rewards_claimed_usd",
     "flash_loan_volume_usd", "flash_loan_fees_usd", "flash_loans",
