@@ -31,6 +31,7 @@ export const HOOK_ZERO_FEE_INDICATOR: ReadonlyMap<string, bigint> = new Map([
  * @param pool - The pool the fee applies to
  * @param hookAddress - The hook that emitted the event
  * @param context - Handler context, used to read the tick-spacing default
+ * @param chainId - Chain of the event being handled (the pool's chain)
  * @returns The base fee, or undefined when the tick-spacing default cannot be
  *   resolved (the caller then keeps the previous fee)
  */
@@ -39,10 +40,11 @@ export async function resolveHookBaseFee(
   pool: Pool,
   hookAddress: string,
   context: handlerContext,
+  chainId: number,
 ): Promise<bigint | undefined> {
   const zeroFeeIndicator = HOOK_ZERO_FEE_INDICATOR.get(hookAddress);
   if (rawFee !== 0n && rawFee !== zeroFeeIndicator) return rawFee;
-  return getTickSpacingDefaultFee(pool, context, "resolveHookBaseFee");
+  return getTickSpacingDefaultFee(pool, context, "resolveHookBaseFee", chainId);
 }
 
 /**
@@ -108,6 +110,7 @@ indexer.onEvent(
           pool,
           event.srcAddress,
           context,
+          event.chainId,
         );
         return baseFee === undefined ? undefined : { baseFee };
       },

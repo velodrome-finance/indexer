@@ -87,6 +87,7 @@ export async function processNFPMDecreaseLiquidity(
     position,
     context,
     timestamp,
+    event.chainId,
   );
 
   const poolData = await loadPoolData(
@@ -114,6 +115,7 @@ export async function processNFPMDecreaseLiquidity(
     event.params.amount1,
     event.block.timestamp,
     LiquidityChangeType.REMOVE,
+    event.chainId,
   );
 
   // If the position is staked, update tick entities and staked reserves

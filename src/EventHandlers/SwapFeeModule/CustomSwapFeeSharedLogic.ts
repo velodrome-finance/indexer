@@ -46,6 +46,7 @@ export const ZERO_FEE_INDICATOR = 420n;
  *   `CustomSwapFeeModule` passes `pool.isCL`, `DynamicSwapFeeModule` (CL-only)
  *   passes true
  * @param context - Handler context, used to read the tick-spacing default
+ * @param chainId - Chain of the event being handled (the pool's chain)
  * @returns The charged fee in FEE_SCALE, or undefined when the CL default for
  *   0 cannot be resolved (no `FeeToTickSpacingMapping`); the caller then keeps
  *   the pool's previous fee
@@ -55,6 +56,7 @@ export async function resolveCustomSwapFee(
   pool: Pool,
   isCLFee: boolean,
   context: handlerContext,
+  chainId: number,
 ): Promise<bigint | undefined> {
   if (rawFee === ZERO_FEE_INDICATOR) {
     return 0n;
@@ -64,13 +66,18 @@ export async function resolveCustomSwapFee(
   }
   if (!isCLFee) {
     return getV2DefaultFee(
-      pool.chainId,
+      chainId,
       pool.factoryAddress,
       pool.isStable,
       context,
     );
   }
-  return getTickSpacingDefaultFee(pool, context, "resolveCustomSwapFee");
+  return getTickSpacingDefaultFee(
+    pool,
+    context,
+    "resolveCustomSwapFee",
+    chainId,
+  );
 }
 
 /**
@@ -80,6 +87,7 @@ export async function resolveCustomSwapFee(
  * @param pool - CL pool (uses `factoryAddress` and `tickSpacing`)
  * @param context - Handler context, used to read the mapping
  * @param caller - Log prefix of the caller
+ * @param chainId - Chain of the event being handled (the pool's chain)
  * @returns The fee in FEE_SCALE, or undefined (with a warning) when the pool
  *   has no factory or the factory never enabled the tick spacing
  */
@@ -87,13 +95,14 @@ export async function getTickSpacingDefaultFee(
   pool: Pool,
   context: handlerContext,
   caller: string,
+  chainId: number,
 ): Promise<bigint | undefined> {
   const mapping = pool.factoryAddress
     ? await getRehydrated(
         context.FeeToTickSpacingMapping,
         "FeeToTickSpacingMapping",
         FeeToTickSpacingMappingId(
-          pool.chainId,
+          chainId,
           pool.factoryAddress,
           pool.tickSpacing,
         ),
@@ -101,7 +110,7 @@ export async function getTickSpacingDefaultFee(
     : undefined;
   if (!mapping) {
     context.log.warn(
-      `[${caller}] Fee reset to the tick-spacing default for pool ${pool.poolAddress} on chain ${pool.chainId}, but factory ${pool.factoryAddress} has no FeeToTickSpacingMapping for tick spacing ${pool.tickSpacing}; keeping the previous fee.`,
+      `[${caller}] Fee reset to the tick-spacing default for pool ${pool.poolAddress} on chain ${chainId}, but factory ${pool.factoryAddress} has no FeeToTickSpacingMapping for tick spacing ${pool.tickSpacing}; keeping the previous fee.`,
     );
     return undefined;
   }
@@ -129,7 +138,6 @@ export function recordV2DefaultFee(
 ): void {
   context.PoolFactoryDefaultFee.set({
     id: PoolFactoryDefaultFeeId(chainId, factoryAddress, isStable),
-    chainId,
     factoryAddress,
     isStable,
     fee: toCanonicalFeeScale(feeBps, false),

@@ -16,8 +16,9 @@ export interface StrategyAmmPosition {
  * Finds the NonFungiblePosition minted for a new ALM strategy.
  *
  * Candidates are the positions minted in the StrategyCreated transaction, by
- * the indexed `mintTransactionHash`. Only positions on the event's chain and
- * pool whose range, liquidity and tokens equal the event's AMM position match.
+ * the indexed `mintTransactionHash` (entities are per-chain, so only the
+ * event's chain's positions). Only positions on the event's pool whose range,
+ * liquidity and tokens equal the event's AMM position match.
  * If several still match, the earliest mint (lowest `mintLogIndex`, then lowest
  * `tokenId`) is used, so the choice does not depend on the order the query
  * returns rows in.
@@ -47,7 +48,6 @@ export async function findStrategyPosition(
   const matching = positions
     .filter(
       (pos: NonFungiblePosition) =>
-        pos.chainId === chainId &&
         pos.pool === pool &&
         pos.tickLower === tickLower &&
         pos.tickUpper === tickUpper &&

@@ -125,7 +125,6 @@ export async function createTokenEntity(
     address: tokenAddress,
     symbol: tokenDetails.symbol,
     name: tokenDetails.name, // Now using the actual name from token details
-    chainId: chainId,
     decimals: BigInt(tokenDetails.decimals),
     ...initialTokenPriceFields(chainId, tokenAddress, blockDatetime),
     lastUpdatedTimestamp: blockDatetime,

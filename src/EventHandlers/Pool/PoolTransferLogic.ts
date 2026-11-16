@@ -109,7 +109,13 @@ export async function updateUserLpBalances(
       lastActivityTimestamp: timestamp,
     };
 
-    await updateUserStatsPerPool(userDiff, recipientData, context, timestamp);
+    await updateUserStatsPerPool(
+      userDiff,
+      recipientData,
+      context,
+      timestamp,
+      chainId,
+    );
   } else if (isBurn) {
     // Burn: subtract from sender (skip if sender is the gauge; #850)
     if (isGauge(from)) return;
@@ -126,7 +132,13 @@ export async function updateUserLpBalances(
       lastActivityTimestamp: timestamp,
     };
 
-    await updateUserStatsPerPool(userDiff, senderData, context, timestamp);
+    await updateUserStatsPerPool(
+      userDiff,
+      senderData,
+      context,
+      timestamp,
+      chainId,
+    );
   } else {
     // Regular transfer: update both (each side independently skipped if gauge; #850)
     // Handle self-transfer case (from === to) to avoid conflicting updates
@@ -146,7 +158,13 @@ export async function updateUserLpBalances(
         lastActivityTimestamp: timestamp,
       };
 
-      await updateUserStatsPerPool(userDiff, userData, context, timestamp);
+      await updateUserStatsPerPool(
+        userDiff,
+        userData,
+        context,
+        timestamp,
+        chainId,
+      );
     } else {
       // Regular transfer between different addresses
       const fromIsGauge = isGauge(from);
@@ -171,6 +189,7 @@ export async function updateUserLpBalances(
               senderData,
               context,
               timestamp,
+              chainId,
             );
           })(),
         );
@@ -193,6 +212,7 @@ export async function updateUserLpBalances(
               recipientData,
               context,
               timestamp,
+              chainId,
             );
           })(),
         );
@@ -258,7 +278,6 @@ export async function storeTransferForMatching(
     );
     context.PoolTransferInTx.set({
       id: transferId,
-      chainId: chainId,
       txHash: txHash,
       pool: poolAddress,
       logIndex: logIndex,

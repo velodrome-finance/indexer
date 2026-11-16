@@ -10,10 +10,8 @@ import type { handlerContext } from "../../EntityTypes";
  * The event carries the pool, not the wrapper, so the wrapper is found by its
  * indexed `pool` field. That field holds a bare address, and the same pool
  * address exists on several superchain leaf chains (CREATE2-deterministic CL
- * pools), where the ALMCore contract also shares one address. So the query can
- * return wrappers from other chains; only wrappers on the event's chain are
- * candidates. Taking the first row of the unfiltered result let a Rebalance on
- * one chain overwrite another chain's wrapper.
+ * pools), where the ALMCore contract also shares one address. Entities are
+ * per-chain, so the query only returns wrappers on the event's chain.
  *
  * Within a chain a pool can have more than one wrapper (Optimism and Base have
  * pools with both a DeployFactoryV1 and a DeployFactoryV2 wrapper, and both
@@ -39,26 +37,25 @@ export async function findALMLPWrapperForRebalance(
     (await getWhereRehydrated(context.ALM_LP_Wrapper, "ALM_LP_Wrapper", {
       pool: { _eq: poolAddress },
     })) ?? [];
-  const sameChain = wrappers.filter((w) => w.chainId === chainId);
 
-  if (sameChain.length === 0) {
+  if (wrappers.length === 0) {
     context.log.warn(
       `[ALMCore] ALM_LP_Wrapper entity not found for pool ${poolAddress} on chain ${chainId}. Skipping Rebalance update.`,
     );
     return undefined;
   }
 
-  if (sameChain.length === 1) {
-    return sameChain[0];
+  if (wrappers.length === 1) {
+    return wrappers[0];
   }
 
-  const byPosition = sameChain.filter((w) => w.tokenId === ammPositionIdBefore);
+  const byPosition = wrappers.filter((w) => w.tokenId === ammPositionIdBefore);
   if (byPosition.length === 1) {
     return byPosition[0];
   }
 
   context.log.warn(
-    `[ALMCore] ${sameChain.length} ALM_LP_Wrappers for pool ${poolAddress} on chain ${chainId} and ${byPosition.length} hold position ${ammPositionIdBefore}; cannot tell which one rebalanced. Skipping Rebalance update.`,
+    `[ALMCore] ${wrappers.length} ALM_LP_Wrappers for pool ${poolAddress} on chain ${chainId} and ${byPosition.length} hold position ${ammPositionIdBefore}; cannot tell which one rebalanced. Skipping Rebalance update.`,
   );
   return undefined;
 }
@@ -91,6 +88,12 @@ indexer.onEvent(
       lastUpdatedTimestamp: timestamp,
     };
 
-    await updateALMLPWrapper(lpWrapperDiff, lpWrapper, timestamp, context);
+    await updateALMLPWrapper(
+      lpWrapperDiff,
+      lpWrapper,
+      timestamp,
+      context,
+      event.chainId,
+    );
   },
 );

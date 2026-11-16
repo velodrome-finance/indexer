@@ -52,9 +52,7 @@ async function loadTransfersInTx(
     )
   ).filter((t): t is PoolTransferInTx => t !== undefined);
 
-  return transfers.filter(
-    (t) => t.chainId === chainId && t.pool === poolAddress,
-  );
+  return transfers.filter((t) => t.pool === poolAddress);
 }
 
 /**
@@ -328,6 +326,7 @@ export async function findTransferAndAttribute(
     event.params.amount1,
     token0Instance,
     token1Instance,
+    chainId,
   );
 
   return {
@@ -471,6 +470,7 @@ export async function attributeLiquidityDelta(
     userData,
     context,
     timestamp,
+    chainId,
     poolData,
   );
 }
@@ -523,6 +523,7 @@ export async function processPoolMintWithRecipient(
     event.params.amount1,
     token0Instance,
     token1Instance,
+    chainId,
   );
 
   await attributeLiquidityDelta(

@@ -146,7 +146,6 @@ async function handleTickSpacingEnabled(
         event.srcAddress,
         event.params.tickSpacing,
       ),
-      chainId: event.chainId,
       factoryAddress: event.srcAddress,
       tickSpacing: event.params.tickSpacing,
       fee: BigInt(event.params.fee),

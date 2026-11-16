@@ -110,7 +110,6 @@ export async function processNFPMIncreaseLiquidity(
 
     const matchingMintEvents = mintEventsInTx.filter(
       (m) =>
-        m.chainId === event.chainId &&
         m.pool === position.pool &&
         m.tickLower === position.tickLower &&
         m.tickUpper === position.tickUpper &&
@@ -158,6 +157,7 @@ export async function processNFPMIncreaseLiquidity(
     position,
     context,
     timestamp,
+    event.chainId,
   );
 
   const poolData = await loadPoolData(
@@ -185,6 +185,7 @@ export async function processNFPMIncreaseLiquidity(
     event.params.amount1,
     event.block.timestamp,
     LiquidityChangeType.ADD,
+    event.chainId,
   );
 
   // If the position is staked, update tick entities and staked reserves

@@ -35,6 +35,7 @@ export enum LiquidityChangeType {
  * @param amount1 - The amount of token1 affected by the liquidity change.
  * @param blockTimestamp - The block timestamp (in seconds) when the event occurred.
  * @param liquidityChangeType - Enum indicating whether liquidity was added or removed.
+ * @param chainId - Chain of the event being handled (the pool's chain).
  *
  * @returns Promise<void> - Resolves once the UserStatsPerPool has been updated.
  */
@@ -47,19 +48,21 @@ export async function attributeLiquidityChangeToUserStatsPerPool(
   amount1: bigint,
   blockTimestamp: number,
   liquidityChangeType: LiquidityChangeType,
+  chainId: number,
 ): Promise<void> {
   const totalLiquidityUSD = calculateTotalUSD(
     amount0,
     amount1,
     poolData.token0Instance,
     poolData.token1Instance,
+    chainId,
   );
 
   const timestamp = new Date(blockTimestamp * 1000);
   const userData = await loadOrCreateUserData(
     owner,
     poolAddress,
-    poolData.liquidityPoolAggregator.chainId,
+    chainId,
     context,
     timestamp,
   );
@@ -84,6 +87,7 @@ export async function attributeLiquidityChangeToUserStatsPerPool(
     userData,
     context,
     timestamp,
+    chainId,
     poolData,
   );
 }
@@ -213,6 +217,7 @@ export async function updateStakedPositionLiquidity(
         stakerUserData,
         context,
         timestamp,
+        chainId,
         poolData,
       ),
     ]);
@@ -253,6 +258,7 @@ export async function updateStakedPositionLiquidity(
       stakerUserData,
       context,
       timestamp,
+      chainId,
       poolData,
     ),
   ]);

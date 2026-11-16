@@ -92,7 +92,6 @@ indexer.onEvent(
     const targetChainId = Number(target);
     context.AeroRootGaugeVote.set({
       id: AeroRootAllocationId(ev.chainId, tokenId, targetChainId),
-      chainId: ev.chainId,
       tokenId,
       targetChainId,
       gauges: gauges.map((g) => g.gauge),
@@ -103,7 +102,6 @@ indexer.onEvent(
     gauges.forEach((g, leg) => {
       context.AeroAllocationEvent.set({
         id: AeroEventId(ev.chainId, ev.transactionHash, ev.logIndex, leg),
-        chainId: ev.chainId,
         level: AERO_ALLOCATION_LEVEL.ROOT,
         kind: AERO_ALLOCATION_EVENT_KIND.GAUGES_DISPATCHED,
         tokenId,

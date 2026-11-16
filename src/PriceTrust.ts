@@ -94,13 +94,14 @@ export function isConnectorToken(chainId: number, address: string): boolean {
  *
  * @param token - Token entity from the indexer. Undefined inputs are
  *   treated as untrusted (the indexer cannot trust what it does not have).
+ * @param chainId - Chain of the event being handled (the token's chain)
  * @returns true when the token's price may be multiplied into USD aggregates;
  *   false otherwise
  */
-export function isTrusted(token: Token | undefined): boolean {
+export function isTrusted(token: Token | undefined, chainId: number): boolean {
   if (!token) return false;
   return getGateDecisionFromSignals(
-    token.chainId,
+    chainId,
     token.address,
     token.isWhitelisted,
     token.isListedOnAero ?? false,
@@ -116,13 +117,15 @@ export function isTrusted(token: Token | undefined): boolean {
  * @param amount - Raw token amount in the token's native decimal base
  * @param token - Token entity carrying decimals + pricePerUSDNew. Undefined
  *   or untrusted tokens contribute `0n`.
+ * @param chainId - Chain of the event being handled (the token's chain)
  * @returns USD value in 1e18-base, or `0n` when the gate denies trust
  */
 export function getTrustedUSD(
   amount: bigint,
   token: Token | undefined,
+  chainId: number,
 ): bigint {
-  if (!token || !isTrusted(token)) return 0n;
+  if (!token || !isTrusted(token, chainId)) return 0n;
   return calculateTokenAmountUSD(
     amount,
     Number(token.decimals),
@@ -275,12 +278,14 @@ export function getGateDecisionFromSignals(
  *
  * @param token - Token entity. Undefined is reported as `NON_WL` (no
  *   whitelist attestation exists) and never triggers a heal write.
+ * @param chainId - Chain of the event being handled (the token's chain)
  * @param context - Optional handler context. When provided, drift detected
  *   between stored and freshly-computed gate fields is corrected in-place.
  * @returns `{ trusted, outcome, reason }` decision derived from live signals
  */
 export function getGateDecision(
   token: Token | undefined,
+  chainId: number,
   context?: handlerContext,
 ): PriceTrustDecision {
   if (!token) {
@@ -291,7 +296,7 @@ export function getGateDecision(
     };
   }
   const fresh = getGateDecisionFromSignals(
-    token.chainId,
+    chainId,
     token.address,
     token.isWhitelisted,
     token.isListedOnAero ?? false,

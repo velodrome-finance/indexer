@@ -45,7 +45,7 @@ export enum VoterEventType {
  * @param pool - The pool whose gauge received the distribution, before this distribution
  * @param gaugeAddress - The distributing gauge (for the warning only)
  * @param amountEmittedRaw - `event.params.amount`, raw reward-token units
- * @param chainId - Chain of the DistributeReward (for the warning only)
+ * @param chainId - Chain of the DistributeReward (price-trust gate and the warning)
  * @param context - Handler context (logging)
  * @param gaugeIsAlive - Gauge liveness to carry into the result
  * @returns The emission amounts and the derived gauge balance with its USD value
@@ -69,6 +69,7 @@ export function computeVoterDistributeValues(
   const normalizedEmissionsAmountUsd = getTrustedUSD(
     amountEmittedRaw,
     rewardToken,
+    chainId,
   );
 
   const toE18 = (raw: bigint) =>
@@ -93,6 +94,7 @@ export function computeVoterDistributeValues(
   const normalizedVotesDepositedAmountUsd = getTrustedUSD(
     tokensDeposited,
     rewardToken,
+    chainId,
   );
 
   return {

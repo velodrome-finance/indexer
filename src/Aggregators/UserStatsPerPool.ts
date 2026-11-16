@@ -125,7 +125,6 @@ export function createUserStatsPerPoolEntity(
     id: UserStatsPerPoolId(chainId, userAddress, poolAddress),
     userAddress: userAddress,
     poolAddress: poolAddress,
-    chainId: chainId,
 
     // Liquidity metrics
     lpBalance: 0n,
@@ -203,6 +202,7 @@ export function createUserStatsPerPoolEntity(
  * @param current - The user's stats row as loaded
  * @param timestamp - Event time
  * @param context - Handler context
+ * @param chainId - Chain of the event being handled (the user's pool's chain)
  * @param preloadedPoolData - The pool data the run proper will pass, if any
  * @returns Promise that resolves once the reads have completed
  */
@@ -210,6 +210,7 @@ export async function preloadUserStatsPerPoolUpdate(
   current: UserStatsPerPool,
   timestamp: Date,
   context: handlerContext,
+  chainId: number,
   preloadedPoolData?: PoolData,
 ): Promise<void> {
   if (
@@ -223,7 +224,7 @@ export async function preloadUserStatsPerPoolUpdate(
     poolEntity = await getRehydrated(
       context.Pool,
       "Pool",
-      PoolId(current.chainId, current.poolAddress),
+      PoolId(chainId, current.poolAddress),
     );
     if (!poolEntity) return;
     await Promise.all([
@@ -244,7 +245,7 @@ export async function preloadUserStatsPerPoolUpdate(
         getRehydrated(
           context.NonFungiblePosition,
           "NonFungiblePosition",
-          NonFungiblePositionId(current.chainId, nfpmAddress, tokenId),
+          NonFungiblePositionId(chainId, nfpmAddress, tokenId),
         ),
       ),
     );
@@ -255,12 +256,21 @@ export async function preloadUserStatsPerPoolUpdate(
  * Generic function to update UserStatsPerPool with any combination of fields
  * Similar to updatePool pattern.
  * Takes an epoch-aligned snapshot when entering a new snapshot epoch.
+ * @param diff - The changes to apply
+ * @param current - The user's current stats row
+ * @param context - Handler context
+ * @param timestamp - Event time
+ * @param chainId - Chain of the event being handled (the user's pool's chain)
+ * @param preloadedPoolData - Pool + tokens the caller already loaded, reused
+ *   for the snapshot-time staked USD recompute
+ * @returns The updated row (also staged on the context)
  */
 export async function updateUserStatsPerPool(
   diff: Partial<UserStatsPerPoolDiff>,
   current: UserStatsPerPool,
   context: handlerContext,
   timestamp: Date,
+  chainId: number,
   preloadedPoolData?: PoolData,
 ): Promise<UserStatsPerPool> {
   // Clamp lpBalance to >= 0n on write (issue #816). A holder that existed before
@@ -275,7 +285,7 @@ export async function updateUserStatsPerPool(
   const clampedLpBalance = lpBalanceRaw < 0n ? 0n : lpBalanceRaw;
   if (lpBalanceRaw < 0n) {
     context.log.warn(
-      `[NEG_LP_BALANCE_GUARD][updateUserStatsPerPool] field=lpBalance userAddress=${current.userAddress} poolAddress=${current.poolAddress} chainId=${current.chainId} priorLpBalance=${current.lpBalance} delta=${diff.incrementalLpBalance ?? 0n} clampedTo=${clampedLpBalance}`,
+      `[NEG_LP_BALANCE_GUARD][updateUserStatsPerPool] field=lpBalance userAddress=${current.userAddress} poolAddress=${current.poolAddress} chainId=${chainId} priorLpBalance=${current.lpBalance} delta=${diff.incrementalLpBalance ?? 0n} clampedTo=${clampedLpBalance}`,
     );
   }
 
@@ -292,7 +302,7 @@ export async function updateUserStatsPerPool(
   const clampedAlmLpAmount = almLpAmountRaw < 0n ? 0n : almLpAmountRaw;
   if (almLpAmountRaw < 0n) {
     context.log.warn(
-      `[NEG_ALM_LP_AMOUNT_GUARD][updateUserStatsPerPool] field=almLpAmount userAddress=${current.userAddress} poolAddress=${current.poolAddress} chainId=${current.chainId} priorAlmLpAmount=${current.almLpAmount} delta=${diff.incrementalAlmLpAmount ?? 0n} clampedTo=${clampedAlmLpAmount}`,
+      `[NEG_ALM_LP_AMOUNT_GUARD][updateUserStatsPerPool] field=almLpAmount userAddress=${current.userAddress} poolAddress=${current.poolAddress} chainId=${chainId} priorAlmLpAmount=${current.almLpAmount} delta=${diff.incrementalAlmLpAmount ?? 0n} clampedTo=${clampedAlmLpAmount}`,
     );
   }
 
@@ -501,7 +511,7 @@ export async function updateUserStatsPerPool(
       let token0Instance = preloadedPoolData?.token0Instance;
       let token1Instance = preloadedPoolData?.token1Instance;
       if (!poolEntity) {
-        const poolId = PoolId(updated.chainId, updated.poolAddress);
+        const poolId = PoolId(chainId, updated.poolAddress);
         poolEntity =
           (await getRehydrated(context.Pool, "Pool", poolId)) ?? undefined;
         if (poolEntity) {
@@ -527,7 +537,7 @@ export async function updateUserStatsPerPool(
               getRehydrated(
                 context.NonFungiblePosition,
                 "NonFungiblePosition",
-                NonFungiblePositionId(updated.chainId, nfpmAddress, tokenId),
+                NonFungiblePositionId(chainId, nfpmAddress, tokenId),
               ),
             ),
           );
@@ -539,6 +549,7 @@ export async function updateUserStatsPerPool(
                 poolEntity.sqrtPriceX96,
                 position.tickLower,
                 position.tickUpper,
+                chainId,
                 token0Instance ?? undefined,
                 token1Instance ?? undefined,
               );
@@ -567,7 +578,7 @@ export async function updateUserStatsPerPool(
       }
     }
 
-    setUserStatsPerPoolSnapshot(updated, timestamp, context);
+    setUserStatsPerPoolSnapshot(updated, timestamp, context, chainId);
     updated = {
       ...updated,
       lastSnapshotTimestamp: getSnapshotEpoch(timestamp),

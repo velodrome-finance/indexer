@@ -46,7 +46,6 @@ export async function applyRedistributorConfigUpdate(
   context.RedistributorConfig.set({
     ...(existing ?? {
       id,
-      chainId,
       redistributorAddress,
       keeper: "",
       upkeepManager: "",

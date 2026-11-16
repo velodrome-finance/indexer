@@ -106,8 +106,16 @@ export function processPoolSwap(
   // Per-leg USD via PriceTrust gate: untrusted legs contribute 0n. The min
   // pick then guards against scam-token / poisoned-oracle inflation on the
   // remaining trusted leg (issues #699, #737, #755).
-  const token0UsdValue = getTrustedUSD(netAmount0, token0Instance);
-  const token1UsdValue = getTrustedUSD(netAmount1, token1Instance);
+  const token0UsdValue = getTrustedUSD(
+    netAmount0,
+    token0Instance,
+    event.chainId,
+  );
+  const token1UsdValue = getTrustedUSD(
+    netAmount1,
+    token1Instance,
+    event.chainId,
+  );
 
   const volumeInUSD = pickTrustedSwapVolumeUSD(token0UsdValue, token1UsdValue);
 
@@ -144,8 +152,8 @@ export function processPoolSwap(
     if (inputIsCredible) {
       // The fee legs at their token prices (both legs when both were input).
       feeUSD =
-        getTrustedUSD(swapFees.fee0, token0Instance) +
-        getTrustedUSD(swapFees.fee1, token1Instance);
+        getTrustedUSD(swapFees.fee0, token0Instance, event.chainId) +
+        getTrustedUSD(swapFees.fee1, token1Instance, event.chainId);
     } else {
       feeUSD = amountIn > 0n ? (volumeInUSD * feeIn) / amountIn : 0n;
     }

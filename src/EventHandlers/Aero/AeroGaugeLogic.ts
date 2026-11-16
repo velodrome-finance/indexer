@@ -79,7 +79,6 @@ export function createAeroGaugeEntity(params: {
 }): AeroGauge {
   return {
     id: AeroGaugeId(params.chainId, params.gauge),
-    chainId: params.chainId,
     gaugeAddress: params.gauge,
     pool_id: PoolId(params.chainId, params.pool),
     poolAddress: params.pool,
@@ -146,7 +145,6 @@ export function persistAeroGauge(
     const epoch = getSnapshotEpoch(timestamp);
     context.AeroGaugeSnapshot.set({
       id: AeroSnapshotId(next.id, epoch.getTime()),
-      chainId: next.chainId,
       gaugeAddress: next.gaugeAddress,
       poolAddress: next.poolAddress,
       isCL: next.isCL,
@@ -191,6 +189,7 @@ export function isAeroGaugeAlive(gauge: AeroGauge): boolean {
  * @param timestamp - Block time of the change
  * @param blockNumber - Block of the change
  * @param context - Handler context
+ * @param chainId - Chain of the event being handled (the gauge's chain)
  * @returns Promise that resolves once the Pool update (if any) is staged
  */
 export async function syncAeroPoolGaugeLink(
@@ -198,6 +197,7 @@ export async function syncAeroPoolGaugeLink(
   timestamp: Date,
   blockNumber: number,
   context: handlerContext,
+  chainId: number,
 ): Promise<void> {
   const pool = await getRehydrated(context.Pool, "Pool", gauge.pool_id);
   if (!pool || pool.deployment !== POOL_DEPLOYMENT.AERO) return;
@@ -214,7 +214,7 @@ export async function syncAeroPoolGaugeLink(
     pool,
     timestamp,
     context,
-    gauge.chainId,
+    chainId,
     blockNumber,
   );
 }
@@ -244,7 +244,6 @@ export async function loadOrCreateAeroGaugeFactory(
   if (existing) return existing;
   return {
     id: AeroGaugeFactoryId(chainId, factory),
-    chainId,
     factoryAddress: factory,
     isCL,
     defaultCap: undefined,
@@ -280,7 +279,6 @@ export async function loadOrCreateLeafVoterState(
   if (existing) return existing;
   return {
     id: AeroLeafVoterStateId(chainId),
-    chainId,
     leafVoter: AERO_LEAF_VOTER_ADDRESS,
     rewardToken: aeroRewardToken(chainId),
     chainStatus: undefined,
@@ -324,7 +322,6 @@ export function persistLeafVoterState(
     const epoch = getSnapshotEpoch(timestamp);
     context.AeroLeafVoterStateSnapshot.set({
       id: AeroSnapshotId(next.id, epoch.getTime()),
-      chainId: next.chainId,
       timestamp: epoch,
       totalEmissionsCredited: next.totalEmissionsCredited,
       totalCapSurplus: next.totalCapSurplus,
@@ -370,11 +367,13 @@ export function loadAeroRewardToken(
  *
  * @param amount - Reward-token amount (18 decimals)
  * @param rewardToken - The chain's reward token row (undefined values to 0)
+ * @param chainId - Chain of the event being handled (the reward token's chain)
  * @returns USD value, 1e18-scaled
  */
 export function rewardTokenUSD(
   amount: bigint,
   rewardToken: Token | undefined,
+  chainId: number,
 ): bigint {
-  return calculateTotalUSD(amount, 0n, rewardToken, undefined);
+  return calculateTotalUSD(amount, 0n, rewardToken, undefined, chainId);
 }

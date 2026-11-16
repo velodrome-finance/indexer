@@ -68,10 +68,12 @@ export function calculateSwapVolume(
   const token0UsdValue = getTrustedUSD(
     abs(event.params.amount0),
     token0Instance,
+    event.chainId,
   );
   const token1UsdValue = getTrustedUSD(
     abs(event.params.amount1),
     token1Instance,
+    event.chainId,
   );
 
   const volumeInUSD = pickTrustedSwapVolumeUSD(token0UsdValue, token1UsdValue);
@@ -179,7 +181,7 @@ export function calculateSwapFees(
   const inputIsToken0 = event.params.amount0 > 0n;
   const safeTrustedUSD = (amount: bigint, token: Token | undefined): bigint => {
     if (!token || token.pricePerUSDNew === undefined) return 0n;
-    return getTrustedUSD(amount, token);
+    return getTrustedUSD(amount, token, event.chainId);
   };
   const inputUsdValue = inputIsToken0
     ? safeTrustedUSD(abs(event.params.amount0), token0Instance)

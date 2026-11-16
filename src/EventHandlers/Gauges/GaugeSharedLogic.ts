@@ -148,6 +148,7 @@ export async function computeCLStakedReservesOnGaugeEvent(
     newStakedReserve1 > 0n ? newStakedReserve1 : 0n,
     poolData.token0Instance,
     poolData.token1Instance,
+    data.chainId,
   );
 
   return {
@@ -166,6 +167,7 @@ export async function computeCLStakedReservesOnGaugeEvent(
  * @param liquidityPoolAggregator - The liquidity pool aggregator
  * @param poolData - The pool data
  * @param context - The handler context
+ * @param chainId - Chain of the event being handled (the pool's chain)
  * @returns The staked USD, or undefined if valuation is unavailable
  */
 export function computeNonCLStakedUSDIfAvailable(
@@ -173,6 +175,7 @@ export function computeNonCLStakedUSDIfAvailable(
   liquidityPoolAggregator: Pool,
   poolData: PoolData,
   context: handlerContext,
+  chainId: number,
 ): bigint | undefined {
   if (stakeAmount <= 0n) {
     return 0n;
@@ -190,6 +193,7 @@ export function computeNonCLStakedUSDIfAvailable(
     liquidityPoolAggregator,
     poolData,
     context,
+    chainId,
   );
 }
 
@@ -251,12 +255,14 @@ function computeNonCLPoolStakedUSD(
   liquidityPoolAggregator: Pool,
   poolData: PoolData,
   context: handlerContext,
+  chainId: number,
 ): bigint | undefined {
   return computeNonCLStakedUSDIfAvailable(
     newPoolStake,
     liquidityPoolAggregator,
     poolData,
     context,
+    chainId,
   );
 }
 
@@ -328,6 +334,7 @@ export async function processGaugeDeposit(
       liquidityPoolAggregator,
       poolData,
       context,
+      data.chainId,
     );
   }
 
@@ -378,7 +385,14 @@ export async function processGaugeDeposit(
       data.chainId,
       data.blockNumber,
     ),
-    updateUserStatsPerPool(userDiff, userData, context, timestamp, poolData),
+    updateUserStatsPerPool(
+      userDiff,
+      userData,
+      context,
+      timestamp,
+      data.chainId,
+      poolData,
+    ),
   ]);
 }
 
@@ -456,6 +470,7 @@ export async function processGaugeWithdraw(
       liquidityPoolAggregator,
       poolData,
       context,
+      data.chainId,
     );
   }
 
@@ -492,7 +507,14 @@ export async function processGaugeWithdraw(
       data.chainId,
       data.blockNumber,
     ),
-    updateUserStatsPerPool(userDiff, userData, context, timestamp, poolData),
+    updateUserStatsPerPool(
+      userDiff,
+      userData,
+      context,
+      timestamp,
+      data.chainId,
+      poolData,
+    ),
   ]);
 }
 
@@ -564,6 +586,7 @@ export async function processGaugeClaimRewards(
     0n,
     rewardToken,
     undefined,
+    data.chainId,
   );
 
   // Update pool aggregator with gauge reward claim
@@ -592,7 +615,14 @@ export async function processGaugeClaimRewards(
       data.chainId,
       data.blockNumber,
     ),
-    updateUserStatsPerPool(userDiff, userData, context, timestamp, poolData),
+    updateUserStatsPerPool(
+      userDiff,
+      userData,
+      context,
+      timestamp,
+      data.chainId,
+      poolData,
+    ),
   ]);
 }
 
@@ -667,7 +697,13 @@ export async function processGaugeEarlyWithdrawPenalty(
     return;
   }
 
-  const penaltyUSD = calculateTotalUSD(data.amount, 0n, rewardToken, undefined);
+  const penaltyUSD = calculateTotalUSD(
+    data.amount,
+    0n,
+    rewardToken,
+    undefined,
+    data.chainId,
+  );
 
   await Promise.all([
     updatePool(
@@ -691,6 +727,7 @@ export async function processGaugeEarlyWithdrawPenalty(
       userData,
       context,
       timestamp,
+      data.chainId,
       poolData,
     ),
   ]);

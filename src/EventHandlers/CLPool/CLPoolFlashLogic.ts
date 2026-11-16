@@ -19,6 +19,7 @@ export function processCLPoolFlash(
     event.params.paid1,
     token0Instance,
     token1Instance,
+    event.chainId,
   );
 
   // Calculate flash loan volume in USD (amount borrowed, not fees) using already-refreshed token prices
@@ -27,6 +28,7 @@ export function processCLPoolFlash(
     event.params.amount1,
     token0Instance,
     token1Instance,
+    event.chainId,
   );
 
   const liquidityPoolDiff = {

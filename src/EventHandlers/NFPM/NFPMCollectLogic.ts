@@ -144,6 +144,7 @@ export async function processNFPMCollect(
     userData,
     context,
     timestamp,
+    event.chainId,
     poolData ?? undefined,
   );
 }

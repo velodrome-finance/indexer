@@ -104,6 +104,7 @@ export async function processCLPoolCollect(
     fees1,
     token0Instance,
     token1Instance,
+    event.chainId,
   );
 
   const liquidityPoolDiff = {

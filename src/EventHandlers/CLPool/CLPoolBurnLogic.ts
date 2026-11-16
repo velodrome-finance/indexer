@@ -49,7 +49,7 @@ export async function processCLPoolBurn(
     token1Instance,
     liquidityPoolAggregator.token0Price,
     liquidityPoolAggregator.token1Price,
-    liquidityPoolAggregator.chainId,
+    event.chainId,
   );
 
   // Track burned principal so Collect can isolate fees.

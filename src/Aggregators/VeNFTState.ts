@@ -39,12 +39,19 @@ export async function loadVeNFTState(
 /**
  * Updates VeNFTState with the provided diff.
  * Takes an epoch-aligned snapshot when entering a new snapshot epoch.
+ * @param diff - The changes to apply
+ * @param current - The current VeNFTState
+ * @param timestamp - The event timestamp
+ * @param context - The handler context
+ * @param chainId - Chain of the event being handled (the veNFT's chain)
+ * @returns Promise that resolves once the upsert (and any snapshots) is staged
  */
 export async function updateVeNFTState(
   diff: Partial<VeNFTStateDiff>,
   current: VeNFTState,
   timestamp: Date,
   context: handlerContext,
+  chainId: number,
 ): Promise<void> {
   const lastSnapshotTimestamp =
     diff.lastSnapshotTimestamp !== undefined &&
@@ -72,8 +79,7 @@ export async function updateVeNFTState(
 
   let veNFTState: VeNFTState = {
     ...current,
-    id: diff.id ?? VeNFTId(current.chainId, current.tokenId),
-    chainId: diff.chainId ?? current.chainId,
+    id: diff.id ?? VeNFTId(chainId, current.tokenId),
     tokenId: diff.tokenId ?? current.tokenId,
     owner: diff.owner ?? current.owner,
     locktime: diff.locktime ?? current.locktime, // lockTime of the deposit action
@@ -85,7 +91,7 @@ export async function updateVeNFTState(
   };
 
   if (shouldSnapshot(current.lastSnapshotTimestamp, timestamp)) {
-    await setVeNFTStateSnapshot(veNFTState, timestamp, context);
+    await setVeNFTStateSnapshot(veNFTState, timestamp, context, chainId);
     veNFTState = {
       ...veNFTState,
       lastSnapshotTimestamp: getSnapshotEpoch(timestamp),

@@ -48,7 +48,13 @@ export async function processVeNFTDeposit(
   };
 
   // Apply VeNFT aggregator updates
-  await updateVeNFTState(veNFTStateDiff, currentVeNFTState, timestamp, context);
+  await updateVeNFTState(
+    veNFTStateDiff,
+    currentVeNFTState,
+    timestamp,
+    context,
+    event.chainId,
+  );
 }
 
 /**
@@ -73,7 +79,13 @@ export async function processVeNFTWithdraw(
   };
 
   // Apply VeNFT aggregator updates
-  await updateVeNFTState(veNFTStateDiff, currentVeNFTState, timestamp, context);
+  await updateVeNFTState(
+    veNFTStateDiff,
+    currentVeNFTState,
+    timestamp,
+    context,
+    event.chainId,
+  );
 }
 
 /**
@@ -100,7 +112,13 @@ export async function processVeNFTLockPermanent(
     lastUpdatedTimestamp: timestamp,
   };
 
-  await updateVeNFTState(veNFTStateDiff, currentVeNFTState, timestamp, context);
+  await updateVeNFTState(
+    veNFTStateDiff,
+    currentVeNFTState,
+    timestamp,
+    context,
+    event.chainId,
+  );
 }
 
 /**
@@ -127,7 +145,13 @@ export async function processVeNFTUnlockPermanent(
     lastUpdatedTimestamp: timestamp,
   };
 
-  await updateVeNFTState(veNFTStateDiff, currentVeNFTState, timestamp, context);
+  await updateVeNFTState(
+    veNFTStateDiff,
+    currentVeNFTState,
+    timestamp,
+    context,
+    event.chainId,
+  );
 }
 
 /**
@@ -155,7 +179,13 @@ export async function processVeNFTTransfer(
     isAlive: event.params.to !== ZERO_ADDRESS,
   };
 
-  await updateVeNFTState(veNFTStateDiff, currentVeNFTState, timestamp, context);
+  await updateVeNFTState(
+    veNFTStateDiff,
+    currentVeNFTState,
+    timestamp,
+    context,
+    event.chainId,
+  );
 }
 
 /**
@@ -172,6 +202,7 @@ export async function processVeNFTTransfer(
  * @param target - The desired post-event state for the token. `totalValueLocked`
  * is treated as an absolute value; the other fields override the current entity
  * only when provided.
+ * @param chainId - Chain of the event being handled (the veNFT's chain).
  */
 async function reconcileVeNFTState(
   currentVeNFTState: VeNFTState,
@@ -184,6 +215,7 @@ async function reconcileVeNFTState(
     isPermanent?: boolean;
     isAlive?: boolean;
   },
+  chainId: number,
 ): Promise<void> {
   const veNFTStateDiff = {
     owner: target.owner,
@@ -195,7 +227,13 @@ async function reconcileVeNFTState(
     lastUpdatedTimestamp: timestamp,
   };
 
-  await updateVeNFTState(veNFTStateDiff, currentVeNFTState, timestamp, context);
+  await updateVeNFTState(
+    veNFTStateDiff,
+    currentVeNFTState,
+    timestamp,
+    context,
+    chainId,
+  );
 }
 
 /**
@@ -247,8 +285,20 @@ export async function processVeNFTMerge(
   };
 
   await Promise.all([
-    reconcileVeNFTState(fromVeNFTState, timestamp, context, fromVeNFTStateDiff),
-    reconcileVeNFTState(toVeNFTState, timestamp, context, toVeNFTStateDiff),
+    reconcileVeNFTState(
+      fromVeNFTState,
+      timestamp,
+      context,
+      fromVeNFTStateDiff,
+      event.chainId,
+    ),
+    reconcileVeNFTState(
+      toVeNFTState,
+      timestamp,
+      context,
+      toVeNFTStateDiff,
+      event.chainId,
+    ),
   ]);
 }
 
@@ -299,18 +349,21 @@ export async function processVeNFTSplit(
       timestamp,
       context,
       originalVeNFTStateDiff,
+      event.chainId,
     ),
     reconcileVeNFTState(
       token1VeNFTState,
       timestamp,
       context,
       token1VeNFTStateDiff,
+      event.chainId,
     ),
     reconcileVeNFTState(
       token2VeNFTState,
       timestamp,
       context,
       token2VeNFTStateDiff,
+      event.chainId,
     ),
   ]);
 }
@@ -354,12 +407,14 @@ export async function processVeNFTDepositManaged(
       timestamp,
       context,
       tokenVeNFTStateDiff,
+      event.chainId,
     ),
     reconcileVeNFTState(
       managedVeNFTState,
       timestamp,
       context,
       managedVeNFTStateDiff,
+      event.chainId,
     ),
   ]);
 }
@@ -411,12 +466,14 @@ export async function processVeNFTWithdrawManaged(
       timestamp,
       context,
       tokenVeNFTStateDiff,
+      event.chainId,
     ),
     reconcileVeNFTState(
       managedVeNFTState,
       timestamp,
       context,
       managedVeNFTStateDiff,
+      event.chainId,
     ),
   ]);
 }
@@ -440,7 +497,6 @@ export async function handleMintTransfer(
   if (event.params.from === ZERO_ADDRESS) {
     context.VeNFTState.set({
       id: VeNFTId(event.chainId, event.params.tokenId),
-      chainId: event.chainId,
       tokenId: event.params.tokenId,
       owner: event.params.to,
       // TVL-changing flows such as Split emit Transfer before the amount-carrying event.
@@ -497,18 +553,18 @@ export async function reassignVeNFTVotesOnTransfer(
   const poolVotePromises = poolVotes.map((tokenIdVotes) => {
     const poolAddress = tokenIdVotes.poolAddress;
     const voteAmount = tokenIdVotes.veNFTamountStaked;
-    const poolChainId = Number(tokenIdVotes.id.split("-", 1)[0]);
 
     if (voteAmount === 0n) {
       return Promise.resolve();
     }
 
+    // Entities are per-chain: the vote's pool is on the event's chain.
     return Promise.all([
       updatePreviousOwnerUserStatsOnTransfer(
         event,
         previousOwner,
         poolAddress,
-        poolChainId,
+        event.chainId,
         voteAmount,
         context,
       ),
@@ -516,7 +572,7 @@ export async function reassignVeNFTVotesOnTransfer(
         event,
         newOwner,
         poolAddress,
-        poolChainId,
+        event.chainId,
         voteAmount,
         context,
       ),
@@ -571,6 +627,7 @@ export async function updatePreviousOwnerUserStatsOnTransfer(
         previousOwnerUserStats,
         context,
         timestamp,
+        poolChainId,
       );
     }
   }
@@ -618,6 +675,7 @@ export async function updateNewOwnerUserStatsOnTransfer(
       newOwnerUserStats,
       context,
       timestamp,
+      poolChainId,
     );
   }
 }

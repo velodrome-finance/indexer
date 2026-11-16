@@ -90,7 +90,6 @@ export async function writeSuperSwapOriginLegs(
   dispatches.messageIds.forEach((messageId, dispatchIndex) => {
     context.SuperSwapOriginLeg.set({
       id: SuperSwapLegId(chainId, messageId),
-      chainId,
       messageId,
       dispatchIndex,
       transactionHash,
@@ -208,7 +207,6 @@ function writeDestinationLegs(
   for (const messageId of messageIds) {
     context.SuperSwapDestinationLeg.set({
       id: SuperSwapLegId(chainId, messageId),
-      chainId,
       messageId,
       transactionHash,
       destinationChainToken: side.token,

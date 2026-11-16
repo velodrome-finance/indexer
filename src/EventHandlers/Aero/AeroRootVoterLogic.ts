@@ -55,7 +55,6 @@ export async function loadOrCreateRootChainState(
   return (
     existing ?? {
       id: AeroRootChainStateId(chainId, targetChainId),
-      chainId,
       targetChainId,
       isRegistered: targetChainId === AERO_CHAIN0,
       status: undefined,
@@ -98,7 +97,6 @@ async function loadOrCreateRootAllocation(
   return (
     existing ?? {
       id: AeroRootAllocationId(chainId, tokenId, targetChainId),
-      chainId,
       tokenId,
       targetChainId,
       amount: 0n,
@@ -183,7 +181,6 @@ export async function applyRootLedgerMoves(
     });
     context.AeroAllocationEvent.set({
       id: AeroEventId(ev.chainId, ev.transactionHash, ev.logIndex, leg),
-      chainId: ev.chainId,
       level: AERO_ALLOCATION_LEVEL.ROOT,
       kind,
       tokenId: move.tokenId,
@@ -259,7 +256,6 @@ export function writeRootRedemptionEvent(
 ): void {
   context.AeroRedemptionEvent.set({
     id: AeroEventId(ev.chainId, ev.transactionHash, ev.logIndex),
-    chainId: ev.chainId,
     kind,
     sourceChainId,
     redeemer: undefined,

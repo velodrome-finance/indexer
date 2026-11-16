@@ -94,6 +94,7 @@ indexer.onEvent(
       poolEntity,
       false,
       context,
+      event.chainId,
     );
     if (chargedFee === undefined) {
       return;
