@@ -358,11 +358,11 @@ export async function processPendingDistribution(
     context,
   );
 
-  const result = await computeVoterDistributeValues(
+  const result = computeVoterDistributeValues(
     updatedRewardToken,
+    currentLiquidityPool,
     pending.gaugeAddress,
     pending.amount,
-    blockNumber,
     rootChainId,
     context,
     currentLiquidityPool.gaugeIsAlive ?? false,

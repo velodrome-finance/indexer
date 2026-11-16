@@ -68,8 +68,8 @@ Latest-state entities that hold the headline metrics most consumers query.
 | `numberOfSwapFeeFallbacks` | `BigInt!` | CL only: swaps whose fee could not be derived from the swap (tick-map walk disagreed with the event's liquidity, or the derived fee was negative or above 10% of the input) and were valued with the stored currentFee instead. Should stay 0 on a from-creation sync |
 | `token0Price` | `BigInt!` | price of token0 relative to token1 |
 | `token1Price` | `BigInt!` | price of token1 relative to token0 |
-| `totalVotesDeposited` | `BigInt!` | total votes deposited in veToken units (legacy weekly Voter votes; 0 on AERO pools: Aero has no weekly votes; sAERO allocations are in AeroLeafAllocation / AeroGauge.totalAllocated) |
-| `totalVotesDepositedUSD` | `BigInt!` | total votes deposited in USD (0 on AERO pools, see totalVotesDeposited) |
+| `totalVotesDeposited` | `BigInt!` | the gauge's undistributed reward-token balance (VELO on Optimism, AERO on Base; raw units, 18-dec) as of its last DistributeReward, derived from events; 0 on AERO pools (see AeroGauge) |
+| `totalVotesDepositedUSD` | `BigInt!` | totalVotesDeposited in USD at the reward token's price at that DistributeReward (0 on AERO pools) |
 | `totalEmissions` | `BigInt!` | total emissions for the pool in reward token units (VELO form Optimism and AERO for Base); 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
 | `totalEmissionsUSD` | `BigInt!` | total emissions for the pool in USD. totalEmissions* are legacy-gauge emissions; 0 on AERO pools (Aero emissions are minted on claim: see AeroGauge, ADR 0006) |
 | `totalEmissionsRedistributed` | `BigInt!` | cumulative reward tokens this pool's gauge received from the Redistributor (Redistributed events); AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
@@ -308,8 +308,8 @@ Snapshot of the LiquidityPool entity
 | `numberOfSwaps` | `BigInt!` | total number of swaps in the pool |
 | `token0Price` | `BigInt!` | price of token0 relative to token1 |
 | `token1Price` | `BigInt!` | price of token1 relative to token0 |
-| `totalVotesDeposited` | `BigInt!` | total votes deposited in veToken units |
-| `totalVotesDepositedUSD` | `BigInt!` | total votes deposited in USD |
+| `totalVotesDeposited` | `BigInt!` | the gauge's undistributed reward-token balance as of its last DistributeReward, derived from events (see Pool.totalVotesDeposited); not a vote weight: see veNFTamountStaked |
+| `totalVotesDepositedUSD` | `BigInt!` | totalVotesDeposited in USD at that DistributeReward |
 | `totalEmissions` | `BigInt!` | total emissions for the pool in reward token units (VELO form Optimism and AERO for Base); 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |
 | `totalEmissionsUSD` | `BigInt!` | total emissions for the pool in USD |
 | `totalEmissionsRedistributed` | `BigInt!` | cumulative reward tokens this pool's gauge received from the Redistributor at snapshot time; AERO/VELO 18-dec, single reward token per chain — coherent within a chain, NOT cross-chain summable (see #813) |

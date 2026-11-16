@@ -17,7 +17,6 @@ import {
   rootPoolMatchingHash,
   toChecksumAddress,
 } from "../../../src/Constants";
-import { getTokensDeposited } from "../../../src/Effects/Voter";
 import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
 import {
   PRICE_TRUST_OUTCOME,
@@ -31,11 +30,6 @@ type MockUserStatsPerPool = ReturnType<
 >;
 
 // --- DistributeReward test helpers ---
-interface EffectWithHandler<I, O> {
-  name: string;
-  handler: (args: { input: I; context: unknown }) => Promise<O>;
-}
-
 const DEFAULT_REWARD_TIMESTAMP_SECONDS = 1000000;
 
 function createRewardToken(
@@ -64,7 +58,7 @@ function createRewardToken(
 function setupDistributeRewardMocks(
   chainId: number,
   rewardTokenAddress: string,
-  options?: { getTokensDepositedValue?: bigint; timestampSeconds?: number },
+  options?: { timestampSeconds?: number },
 ): { rewardToken: Token; cleanup: () => void } {
   const original = CHAIN_CONSTANTS[chainId];
   CHAIN_CONSTANTS[chainId] = withLegacyRewardToken(
@@ -72,31 +66,12 @@ function setupDistributeRewardMocks(
     vi.fn().mockReturnValue(rewardTokenAddress),
   );
 
-  let spy: ReturnType<typeof vi.spyOn> | undefined;
-  if (options?.getTokensDepositedValue !== undefined) {
-    spy = vi
-      .spyOn(
-        getTokensDeposited as unknown as EffectWithHandler<
-          {
-            rewardTokenAddress: string;
-            gaugeAddress: string;
-            blockNumber: number;
-            eventChainId: number;
-          },
-          bigint | undefined
-        >,
-        "handler",
-      )
-      .mockImplementation(async () => options.getTokensDepositedValue);
-  }
-
   const rewardToken = createRewardToken(chainId, rewardTokenAddress, {
     timestampSeconds: options?.timestampSeconds,
   });
 
   const cleanup = () => {
     CHAIN_CONSTANTS[chainId] = original;
-    spy?.mockRestore();
   };
 
   return { rewardToken, cleanup };
@@ -2547,35 +2522,25 @@ describe("Voter Events", () => {
 
       const { createMockPool } = setupCommon();
 
-      let expectations: {
-        totalEmissions: bigint;
-        totalEmissionsUSD: bigint;
-        getTokensDeposited: bigint;
-        getTokensDepositedUSD: bigint;
-      };
-
       beforeEach(async () => {
         const liquidityPool = createMockPool({
           id: PoolId(chainId, poolAddress),
           chainId: chainId,
-          totalEmissions: 0n,
+          gaugeAddress,
+          totalEmissions: 400n * 10n ** 18n,
           totalEmissionsUSD: 0n,
+          totalEmissionsRedistributed: 0n,
+          totalEmissionsForfeited: 0n,
+          totalGaugeRewardsClaimed: 300n * 10n ** 18n,
+          totalGaugeEarlyWithdrawPenalties: 50n * 10n ** 18n,
           totalVotesDeposited: 0n,
           totalVotesDepositedUSD: 0n,
           gaugeIsAlive: false, // DistributeReward does not set this; we assert it remains unchanged
         });
 
-        expectations = {
-          totalEmissions: 1000n * 10n ** 18n, // normalizedEmissionsAmount
-          totalEmissionsUSD: 2000n * 10n ** 18n, // normalizedEmissionsAmountUsd
-          getTokensDeposited: 500n * 10n ** 18n,
-          getTokensDepositedUSD: 1000n * 10n ** 18n,
-        };
-
         const { rewardToken, cleanup: cleanupFn } = setupDistributeRewardMocks(
           chainId,
           rewardTokenAddress,
-          { getTokensDepositedValue: expectations.getTokensDeposited },
         );
         cleanup = cleanupFn;
 
@@ -2603,6 +2568,15 @@ describe("Voter Events", () => {
         const updatedPool = await indexer.Pool.get(poolId);
         expect(updatedPool).toBeDefined();
         expect(updatedPool?.gaugeIsAlive).toBe(false);
+      });
+
+      it("writes the gauge's event-derived reward-token balance to totalVotesDeposited, without RPC", async () => {
+        const updatedPool = await indexer.Pool.get(poolId);
+        // 400 emitted before + 1000 now - 300 claimed - 50 penalties = 1050 VELO
+        expect(updatedPool?.totalEmissions).toBe(1400n * 10n ** 18n);
+        expect(updatedPool?.totalVotesDeposited).toBe(1050n * 10n ** 18n);
+        // at $2
+        expect(updatedPool?.totalVotesDepositedUSD).toBe(2100n * 10n ** 18n);
       });
 
       describe("when pool has gaugeIsAlive true", () => {
@@ -2635,19 +2609,6 @@ describe("Voter Events", () => {
           vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(
             liquidityPool,
           );
-
-          vi.spyOn(
-            getTokensDeposited as unknown as EffectWithHandler<
-              {
-                rewardTokenAddress: string;
-                gaugeAddress: string;
-                blockNumber: number;
-                eventChainId: number;
-              },
-              bigint | undefined
-            >,
-            "handler",
-          ).mockImplementation(async () => 500n * 10n ** 18n);
 
           originalChainConstantsAlive = CHAIN_CONSTANTS[chainId];
           CHAIN_CONSTANTS[chainId] = withLegacyRewardToken(
@@ -2732,19 +2693,6 @@ describe("Voter Events", () => {
           originalChainConstantsDeferred,
           vi.fn().mockReturnValue(rewardTokenAddress),
         );
-
-        vi.spyOn(
-          getTokensDeposited as unknown as EffectWithHandler<
-            {
-              rewardTokenAddress: string;
-              gaugeAddress: string;
-              blockNumber: number;
-              eventChainId: number;
-            },
-            bigint | undefined
-          >,
-          "handler",
-        ).mockImplementation(async () => 500n * 10n ** 18n);
 
         const rewardToken: Token = {
           id: TokenId(chainId, rewardTokenAddress),
