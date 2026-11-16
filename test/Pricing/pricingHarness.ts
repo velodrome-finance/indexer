@@ -126,25 +126,46 @@ export interface PricingStore {
   pricingPools: Map<string, TokenPricingPools>;
   snapshots: TokenPriceSnapshot[];
   effectCalls: string[];
+  /** Inputs of every `getCanonicalSourcePrice` call, in order. */
+  canonicalSourcePriceCalls: CanonicalSourcePriceInput[];
+}
+
+/** Input of the `getCanonicalSourcePrice` effect. */
+export interface CanonicalSourcePriceInput {
+  sourceTokenId: string;
+  hourMs: number;
+  requesterTokenId: string;
+}
+
+/** Output of the `getCanonicalSourcePrice` effect (`priceUSD = 0n`: no answer). */
+export interface CanonicalSourcePriceOutput {
+  priceUSD: bigint;
+  sourceHourMs: number;
 }
 
 /**
  * In-memory handler context covering everything the price refresh touches:
  * Token (get/set), Pool (get), TokenPricingPools (get/set), TokenPriceSnapshot
- * (set, recorded in order), `effect` (getTokenDetails / hasContractBytecode
- * only; any other effect name is recorded and throws, so a stray RPC in the
- * pricing path fails the test) and `log`.
+ * (set, recorded in order), `effect` (getTokenDetails / hasContractBytecode,
+ * and getCanonicalSourcePrice when `seed.canonicalSourcePrice` answers it; any
+ * other effect name is recorded and throws, so a stray RPC in the pricing path
+ * fails the test) and `log`.
  *
  * @param seed - Initial entities
  * @param seed.tokens - Tokens to seed
  * @param seed.pools - Pools to seed
  * @param seed.pricingPools - TokenPricingPools rows as `{ tokenId: poolIds }`
+ * @param seed.canonicalSourcePrice - Fake `getCanonicalSourcePrice` (absent:
+ *   the effect throws like any unexpected effect)
  * @returns The store and its context
  */
 export function createPricingStore(seed: {
   tokens?: Token[];
   pools?: Pool[];
   pricingPools?: Record<string, string[]>;
+  canonicalSourcePrice?: (
+    input: CanonicalSourcePriceInput,
+  ) => CanonicalSourcePriceOutput | Promise<CanonicalSourcePriceOutput>;
 }): PricingStore {
   const tokens = new Map((seed.tokens ?? []).map((t) => [t.id, t]));
   const pools = new Map((seed.pools ?? []).map((p) => [p.id, p]));
@@ -156,6 +177,7 @@ export function createPricingStore(seed: {
   );
   const snapshots: TokenPriceSnapshot[] = [];
   const effectCalls: string[] = [];
+  const canonicalSourcePriceCalls: CanonicalSourcePriceInput[] = [];
 
   const context = {
     Token: {
@@ -181,9 +203,13 @@ export function createPricingStore(seed: {
         snapshots.push(s);
       }),
     },
-    effect: vi.fn(async (effect: { name?: string }) => {
+    effect: vi.fn(async (effect: { name?: string }, input: unknown) => {
       const name = effect?.name ?? "unknown";
       effectCalls.push(name);
+      if (name === "getCanonicalSourcePrice" && seed.canonicalSourcePrice) {
+        canonicalSourcePriceCalls.push(input as CanonicalSourcePriceInput);
+        return seed.canonicalSourcePrice(input as CanonicalSourcePriceInput);
+      }
       if (name === "getTokenDetails") {
         return { name: "Healed", symbol: "HEAL", decimals: 18 };
       }
@@ -193,5 +219,13 @@ export function createPricingStore(seed: {
     log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
   } as unknown as handlerContext;
 
-  return { context, tokens, pools, pricingPools, snapshots, effectCalls };
+  return {
+    context,
+    tokens,
+    pools,
+    pricingPools,
+    snapshots,
+    effectCalls,
+    canonicalSourcePriceCalls,
+  };
 }

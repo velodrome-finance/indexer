@@ -28,6 +28,12 @@ import {
  *                outside its ±2 h window; the committed hourly seed's price of
  *                the source (`pricingSourceTokenId`) for `pricingSeedHour`
  *                (ADR 0008)
+ * - `canonical-snapshot` — nothing qualified, no live source and no seed
+ *                hour; the source's own hourly `TokenPriceSnapshot`
+ *                (`pricingSourceTokenId`) for `pricingSeedHour`, the last
+ *                complete hour before the block or up to two hours earlier,
+ *                read from ClickHouse by the `getCanonicalSourcePrice` effect
+ *                (ADR 0009, flow F)
  * - `override` — forced to 0 by the operator blacklist
  * - `carried`  — nothing qualified; the prior price is kept (last success < 7 days
  *                ago, every tier; `lastSuccessfulPriceTimestamp` dates it)
@@ -42,6 +48,7 @@ export const PRICE_SOURCE = {
   POOL: "pool",
   CANONICAL: "canonical",
   CANONICAL_SEED: "canonical-seed",
+  CANONICAL_SNAPSHOT: "canonical-snapshot",
   OVERRIDE: "override",
   CARRIED: "carried",
   UNPRICED: "unpriced",
@@ -66,7 +73,7 @@ export interface TokenPriceSnapshotInput {
   readonly priceSource: PriceSource;
   /** Pool the price was derived through (`pool` ticks only). */
   readonly pricingPoolId?: string;
-  /** Canonical source token whose stored price was used (`canonical` ticks only). */
+  /** Canonical source token whose price was used (`canonical`, `canonical-seed`, `canonical-snapshot` ticks). */
   readonly pricingSourceTokenId?: string;
   /** Depth of the winning candidate in USD, 1e18-base (`pool` / `canonical` ticks only). */
   readonly pricingDepthUSD?: bigint;
@@ -82,7 +89,10 @@ export interface TokenPriceSnapshotInput {
    * carried price (at most 7 days old).
    */
   readonly lastSuccessfulPriceTimestamp?: Date;
-  /** `canonical-seed` ticks only: start of the seed hour whose price was used. */
+  /**
+   * `canonical-seed` / `canonical-snapshot` ticks only: start of the source
+   * hour whose price was used.
+   */
   readonly pricingSeedHour?: Date;
 }
 
