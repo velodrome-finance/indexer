@@ -1,6 +1,7 @@
 import { indexer } from "envio";
 import type { DispatchId_event, ProcessId_event } from "envio";
 import { MailboxMessageId, SuperSwapId } from "../../Constants";
+import { recordProcessedMessage } from "./SuperSwapLegLogic";
 import { attemptSuperSwapCreationFromProcessId } from "./SuperSwapLogic";
 
 indexer.onEvent(
@@ -61,6 +62,14 @@ indexer.onEvent(
     };
 
     context.ProcessId_event.set(entity);
+    // Destination side of the SuperSwap, from this chain's rows (ADR 0009)
+    await recordProcessedMessage(
+      event.chainId,
+      event.transaction.hash,
+      messageId,
+      event.block.timestamp,
+      context,
+    );
 
     // Attempt to create SuperSwap entity when ProcessId is available
     // This handles the case where ProcessId is processed after CrossChainSwap

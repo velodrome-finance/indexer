@@ -9,6 +9,7 @@ import {
 } from "../Constants";
 import { isLeafPoolOfRootFactory } from "./CLFactory/CLFactoryPoolCreatedLogic";
 import { flushPendingVotesAndDistributionsForRootPool } from "./Voter/CrossChainPendingResolution";
+import { createRootPool } from "./Voter/RootPoolLogic";
 
 indexer.onEvent(
   { contract: "RootCLPoolFactory", event: "RootPoolCreated" },
@@ -22,6 +23,24 @@ indexer.onEvent(
     const tickSpacing = BigInt(event.params.tickSpacing);
 
     const hash = rootPoolMatchingHash(leafChainId, token0, token1, tickSpacing);
+
+    // Root-side record (ADR 0009): written from this event alone, whatever the
+    // leaf-pool reconciliation below finds.
+    await createRootPool(
+      {
+        chainId: rootChainId,
+        rootPoolAddress,
+        leafChainId,
+        isCL: true,
+        token0,
+        token1,
+        tickSpacing,
+        rootFactoryAddress,
+        blockNumber: event.block.number,
+        timestamp: new Date(event.block.timestamp * 1000),
+      },
+      context,
+    );
 
     // A leaf chain can host several CL factories, each able to create a pool
     // for the same (token0, token1, tickSpacing) — Ink has two USD₮0/WETH

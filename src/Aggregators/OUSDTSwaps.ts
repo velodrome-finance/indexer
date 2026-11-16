@@ -1,6 +1,7 @@
 import type { OUSDTSwaps, Token } from "envio";
 import { OUSDTSwapsId } from "../Constants";
 import type { handlerContext } from "../EntityTypes";
+import { writeSuperSwapDestinationLegsForSwap } from "../EventHandlers/SuperswapsHyperlane/SuperSwapLegLogic";
 
 /**
  * Creates an OUSDTSwaps entity for swap events.
@@ -93,6 +94,14 @@ export async function createOUSDTSwapEntity(
     amountIn: swap.amountIn,
     amountOut: swap.amountOut,
   });
+  // The first oUSDT swap of a transaction that processed Hyperlane messages
+  // is the destination side of their SuperSwaps (ADR 0009).
+  await writeSuperSwapDestinationLegsForSwap(
+    chainId,
+    transactionHash,
+    swap,
+    context,
+  );
 }
 
 /**

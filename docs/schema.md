@@ -6,7 +6,7 @@
 
 # Entity & field reference
 
-Generated from [`schema.graphql`](../schema.graphql). The schema defines **75 entity types**; each becomes a queryable table in the indexer's database.
+Generated from [`schema.graphql`](../schema.graphql). The schema defines **80 entity types**; each becomes a queryable table in the indexer's database.
 
 ## Reading this reference
 
@@ -26,6 +26,7 @@ Generated from [`schema.graphql`](../schema.graphql). The schema defines **75 en
 - **Aero gauges, staking & emissions** — [AeroGauge](#aerogauge), [AeroGaugeFactory](#aerogaugefactory), [AeroLeafVoterState](#aeroleafvoterstate), [AeroVotingRewardsManager](#aerovotingrewardsmanager), [AeroIncentiveProgram](#aeroincentiveprogram), [AeroGaugeSnapshot](#aerogaugesnapshot), [AeroLeafVoterStateSnapshot](#aeroleafvoterstatesnapshot), [AeroGaugeStakeEvent](#aerogaugestakeevent), [AeroEmissionsEvent](#aeroemissionsevent), [AeroRedemptionEvent](#aeroredemptionevent), [AeroVotingRewardsEvent](#aerovotingrewardsevent)
 - **Aero governance** — [SAeroPosition](#saeroposition), [SAeroEscrowState](#saeroescrowstate), [SAeroEscrowStateSnapshot](#saeroescrowstatesnapshot), [SAeroPositionEvent](#saeropositionevent), [AeroRootAllocation](#aerorootallocation), [AeroRootGaugeVote](#aerorootgaugevote), [AeroRootChainState](#aerorootchainstate), [AeroLeafTokenState](#aeroleaftokenstate), [AeroLeafAllocation](#aeroleafallocation), [AeroAllocationEvent](#aeroallocationevent), [AeroMinterState](#aerominterstate), [AeroMinterSnapshot](#aeromintersnapshot), [AeroMinterEvent](#aerominterevent), [AeroMigrationTotals](#aeromigrationtotals), [AeroMigrationEvent](#aeromigrationevent)
 - **Internal buffers & deferred state** — [PendingVote](#pendingvote), [CLPoolPendingInitialize](#clpoolpendinginitialize), [PendingRootPoolMapping](#pendingrootpoolmapping), [PendingDistribution](#pendingdistribution), [PoolTickMap](#pooltickmap), [CLPoolMintEvent](#clpoolmintevent), [CLPositionPendingPrincipal](#clpositionpendingprincipal), [TxCLPoolMintRegistry](#txclpoolmintregistry), [AeroNFPMMintPool](#aeronfpmmintpool), [AeroNFPMPendingMint](#aeronfpmpendingmint), [AeroGaugePendingReferral](#aerogaugependingreferral), [NFPMCollectFeesInTx](#nfpmcollectfeesintx), [V2SwapFeesInTx](#v2swapfeesintx), [TokenPricingPools](#tokenpricingpools), [TxPoolTransferRegistry](#txpooltransferregistry), [PoolTransferInTx](#pooltransferintx), [ALMLPWrapperTransferInTx](#almlpwrappertransferintx), [ALM_TotalSupplyLimitUpdated_event](#alm_totalsupplylimitupdated_event)
+- **Other** — [RootPool](#rootpool), [RootPoolVote](#rootpoolvote), [SuperSwapOriginLeg](#superswaporiginleg), [SuperSwapDestinationLeg](#superswapdestinationleg), [TxProcessIdRegistry](#txprocessidregistry)
 
 ## Core aggregates
 
@@ -1517,3 +1518,91 @@ Temporary entity for matching Withdraw events with Transfer events (burns) Simil
 | `lpWrapperAddress` | `String!` | LP Wrapper associated to the event |
 | `currentTotalSupplyLPTokens` | `BigInt!` | Current supply of LP tokens for the pool, emitted by the event |
 | `transactionHash` | `String!` | Transaction hash of the event |
+
+## Other
+
+Entities not yet categorized in scripts/generate-schema-docs.ts.
+
+### RootPool
+
+A superchain root pool on the root chain (Optimism; Base has none), written from root-chain events only (ADR 0009): the votes and emissions of a leaf pool live here, and the analytics layer joins them to the leaf Pool (root_leaf_pools). Created at RootCLPoolFactory.RootPoolCreated (CL) or RootPoolFactory.RootPoolCreated (V2).
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{rootPoolAddress} (RootPoolId) |
+| `chainId` | `Int!` | root chain id (10) |
+| `rootPoolAddress` | `String!` | the root pool (a placeholder contract: no liquidity, no swaps) |
+| `leafChainId` | `Int` | chain of the leaf pool: RootPoolCreated's chainid (CL); for V2 the chain whose CREATE2 salt yields the root pool's address (null if none of the known leaf chains does) |
+| `isCL` | `Boolean!` | created by the RootCLPoolFactory |
+| `token0` | `String!` | token0 of the pair (the leaf pool's token0) |
+| `token1` | `String!` | token1 of the pair |
+| `tickSpacing` | `BigInt` | CL only |
+| `isStable` | `Boolean` | V2 only |
+| `rootFactoryAddress` | `String!` | factory that created the root pool; for CL the leaf pool's factoryAddress equals it |
+| `rootPoolMatchingHash` | `String` | CL only: {leafChainId}_{token0}_{token1}_{tickSpacing}, as on the leaf Pool |
+| `gaugeAddress` | `String` | root gauge (Voter.GaugeCreated), null until created |
+| `gaugeIsAlive` | `Boolean!` | false after GaugeKilled, true after GaugeCreated / GaugeRevived |
+| `veNFTamountStaked` | `BigInt!` | Voter.weights(rootPool): totalWeight of the latest Voted / Abstained |
+| `totalEmissions` | `BigInt!` | sum of DistributeReward amounts to the root gauge, 1e18-normalized reward token |
+| `totalEmissionsUSD` | `BigInt!` | the same in USD (1e18) at the root chain's reward token price at each distribution |
+| `numberOfDistributions` | `BigInt!` | DistributeReward events to the root gauge |
+| `createdBlockNumber` | `BigInt!` | block of the creating event |
+| `createdTimestamp` | `Timestamp!` | time of the creating event |
+| `lastUpdatedTimestamp` | `Timestamp!` | time of the latest change |
+
+### RootPoolVote
+
+One veNFT's vote on a root pool, on the root chain (ADR 0009). Kept apart from VeNFTPoolVote so the veNFT transfer logic, which moves votes between the owners' UserStatsPerPool rows, never creates user rows for root pools.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{tokenId}-{rootPoolAddress} (RootPoolVoteId) |
+| `chainId` | `Int!` | root chain id (10) |
+| `rootPoolAddress` | `String!` | the root pool voted on _(indexed)_ |
+| `tokenId` | `BigInt!` | the veNFT |
+| `veNFTStateId` | `String!` | VeNFTState id ({chainId}-{tokenId}) of the veNFT |
+| `veNFTamountStaked` | `BigInt!` | the veNFT's current weight on the root pool (Voted adds, Abstained removes) |
+| `lastUpdatedTimestamp` | `Timestamp!` | time of the latest Voted / Abstained |
+
+### SuperSwapOriginLeg
+
+The origin side of a SuperSwap (ADR 0009 flow G), written by the origin chain at VelodromeUniversalRouter.CrossChainSwap from its own rows only: one row per Hyperlane message the transaction dispatched. Joined to SuperSwapDestinationLeg on messageId in ClickHouse (super_swap_legs view).
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{messageId} |
+| `chainId` | `Int!` | origin chain |
+| `messageId` | `String!` | Hyperlane message id |
+| `dispatchIndex` | `Int!` | position of the message among the transaction's dispatches (the stitching takes the first that reached a destination swap) |
+| `transactionHash` | `String!` | origin transaction |
+| `destinationChainId` | `BigInt!` | EVM chain id of the bridge's destination |
+| `sender` | `String!` | bridge sender |
+| `recipient` | `String!` | bridge recipient |
+| `oUSDTamount` | `BigInt!` | oUSDT bridged |
+| `sourceChainToken` | `String!` | token swapped into oUSDT on the origin chain |
+| `sourceChainTokenAmountSwapped` | `BigInt!` | amount of sourceChainToken swapped |
+| `timestamp` | `Timestamp!` | origin block time |
+
+### SuperSwapDestinationLeg
+
+The destination side of a SuperSwap, written by the destination chain at its first oUSDT swap in a transaction that processed Hyperlane messages (Mailbox.ProcessId), one row per message processed in that transaction.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{messageId} |
+| `chainId` | `Int!` | destination chain |
+| `messageId` | `String!` | Hyperlane message id |
+| `transactionHash` | `String!` | destination transaction |
+| `destinationChainToken` | `String!` | token received for oUSDT on the destination chain |
+| `destinationChainTokenAmountSwapped` | `BigInt!` | amount of destinationChainToken received |
+| `timestamp` | `Timestamp!` | destination block time |
+
+### TxProcessIdRegistry
+
+Hyperlane messages processed in a transaction (Mailbox.ProcessId), so the first oUSDT swap of that transaction can write its SuperSwapDestinationLeg.
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `ID!` | Format: {chainId}-{transactionHash} |
+| `messageIds` | `[String!]!` | message ids processed in this tx, in processing order |
+| `timestamp` | `Timestamp!` | block time of the tx |

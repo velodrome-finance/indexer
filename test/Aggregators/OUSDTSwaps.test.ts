@@ -40,6 +40,15 @@ describe("OUSDTSwaps", () => {
         deleteUnsafe: vi.fn(),
         getWhere: vi.fn().mockResolvedValue([]),
       },
+      // no Hyperlane message processed in these transactions: no SuperSwap destination leg
+      TxProcessIdRegistry: {
+        set: vi.fn(),
+        get: vi.fn().mockResolvedValue(undefined),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn(),
+        getWhere: vi.fn().mockResolvedValue([]),
+      },
     };
   });
 

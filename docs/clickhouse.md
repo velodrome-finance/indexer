@@ -265,6 +265,11 @@ Views (the analyst API). Flows in the series are per period; `*_total` columns a
 | `aero_gauge_snapshots`, `aero_leaf_voter_state_snapshots`, `saero_escrow_state_snapshots`, `aero_minter_snapshots` | entity × active hour | typed hourly snapshots |
 | `freshness` | chain | last committed block, last pool change and price refresh, layer watermark |
 | `known_data_issues` | chain × range | ranges where the indexed data is known to be wrong or incomplete |
+| `root_pools` | superchain root pool | the root chain's record of a root pool (ADR 0009): leaf chain, pair, root factory, root gauge, vote weight (`Voter.weights`), emissions and their USD |
+| `root_leaf_pools` | root pool × leaf pool | which leaf pool a root pool stands for: CL by matching hash and factory, V2 by the leaf chain's `RootPool_LeafPool` |
+| `leaf_pool_root_totals` | leaf pool | a superchain leaf pool's vote weight and emissions from the root chain, next to the leaf `Pool`'s stored fields (`stored_*`, filled by the cross-chain handlers until the per-chain flip) |
+| `root_pool_votes` | veNFT × root pool | one veNFT's current vote on a root pool, with its leaf pool |
+| `super_swap_legs` | SuperSwap | SuperSwaps from the per-chain legs (`SuperSwapOriginLeg` ⋈ `SuperSwapDestinationLeg` on message id), the replacement of the `SuperSwap` entity |
 
 Storage tables (exact integers, for reconciliation; read them with `FINAL`): `_pool`, `_token`,
 `_user_pool`, `_position`, `_venft`, `_venft_vote`, `_alm_wrapper`, `_token_price`,
