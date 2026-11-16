@@ -45,6 +45,9 @@ export function isCounterpartyPriceFresh(
  *   ±2 h window, so the committed hourly seed gave the source's price for the
  *   block's hour (`sourceId` = source token id, `seedHourMs` = the hour used;
  *   ADR 0008)
+ * - `snapshot`: as `seed`, but the seed had no hour, so the source's own
+ *   hourly snapshot was read from ClickHouse (`getCanonicalSourcePrice`,
+ *   ADR 0009 flow F; `seedHourMs` = the source hour used)
  * - `none`: nothing qualified
  */
 export type PriceResolution =
@@ -63,10 +66,10 @@ export type PriceResolution =
       readonly viaPoolId?: string;
     }
   | {
-      readonly kind: "seed";
+      readonly kind: "seed" | "snapshot";
       readonly priceUSD: bigint;
       readonly sourceId: string;
-      /** Start of the seed hour used, in milliseconds. */
+      /** Start of the source hour used, in milliseconds. */
       readonly seedHourMs: number;
     }
   | { readonly kind: "none" };
@@ -79,7 +82,7 @@ export interface AppliedPrice {
   readonly priceSource: PriceSource;
   /** Pool the price came through (`pool` resolutions only). */
   readonly pricingPoolId?: string;
-  /** Canonical source token whose price was used (`canonical` / `seed` resolutions). */
+  /** Canonical source token whose price was used (`canonical` / `seed` / `snapshot` resolutions). */
   readonly pricingSourceTokenId?: string;
   /** Depth of the winning candidate, USD 1e18-base (`pool` / `canonical` only). */
   readonly pricingDepthUSD?: bigint;
@@ -89,7 +92,7 @@ export interface AppliedPrice {
   readonly pricingViaTokenId?: string;
   /** Two-hop only: the pool that priced the peer. */
   readonly pricingViaPoolId?: string;
-  /** `seed` only: the seed hour whose price was used. */
+  /** `seed` / `snapshot` only: the source hour whose price was used. */
   readonly pricingSeedHour?: Date;
 }
 
@@ -121,7 +124,7 @@ export function isPriceRefreshDue(
  *
  * - `lastUpdatedTimestamp` advances on every refresh, whatever the outcome.
  * - `lastSuccessfulPriceTimestamp` advances only on a successful price
- *   (`pinned`, `pool`, `canonical`).
+ *   (`pinned`, `pool`, `canonical`, `seed`, `snapshot`).
  *
  * `Token.pricingDepthUSD` records the depth behind the stored price, so this
  * token can itself serve as a canonical source compared by depth on other
@@ -193,10 +196,14 @@ export function applyPriceResolution(
         pricingHops: 1,
       };
     case "seed":
-      // No depth: the seed is an hourly price, not a market this block saw.
+    case "snapshot":
+      // No depth: an hourly price, not a market this block saw.
       return {
         token: success(resolution.priceUSD, undefined),
-        priceSource: PRICE_SOURCE.CANONICAL_SEED,
+        priceSource:
+          resolution.kind === "seed"
+            ? PRICE_SOURCE.CANONICAL_SEED
+            : PRICE_SOURCE.CANONICAL_SNAPSHOT,
         pricingSourceTokenId: resolution.sourceId,
         pricingSeedHour: new Date(resolution.seedHourMs),
       };

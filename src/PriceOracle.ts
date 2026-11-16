@@ -1,6 +1,11 @@
 import type { Token } from "envio";
 import { TokenId } from "./Constants";
-import { getTokenDetails, hasContractBytecode } from "./Effects/Index";
+import {
+  getCanonicalPriceSettings,
+  getCanonicalSourcePrice,
+  getTokenDetails,
+  hasContractBytecode,
+} from "./Effects/Index";
 import { getRehydrated } from "./EntityTimestamps";
 import type { handlerContext } from "./EntityTypes";
 import type { Pool } from "./EntityTypes";
@@ -158,12 +163,20 @@ export async function createTokenEntity(
  *      VELO, …) also gets that source's stored price at its stored
  *      `pricingDepthUSD`, if the source's last success is within ±2 h of this
  *      block. The source is read, never refreshed, so this cannot recurse.
+ *      `PRICING_CANONICAL_LIVE_READ=false` skips this read (per-chain mode
+ *      cannot make it).
  *    A candidate must pass the chain's depth floor, the 1000× imbalance bound
  *    and the $1M ceiling (`pool` / `canonical`).
  * 3b. A token with a canonical source whose live price is outside the ±2 h
  *    window (always the case in a backfill), when nothing in step 3
  *    qualified: the committed hourly seed's price of the source for this
  *    block's hour, if the seed covers it (`canonical-seed`, ADR 0008).
+ * 3c. Same case, the seed has no hour: the source's own hourly
+ *    `TokenPriceSnapshot` for the last complete hour before this block, read
+ *    from ClickHouse by the cached cross-chain `getCanonicalSourcePrice`
+ *    effect once that hour is settled at the source (`canonical-snapshot`,
+ *    ADR 0009 flow F). Off with `PRICING_CANONICAL_SNAPSHOT_EFFECT=false` or
+ *    without ClickHouse settings.
  * 4. Tier-2 and tier-3 tokens only, when nothing in step 3 qualified: two-hop
  *    routes (ADR 0007). Each registered pool against another token C of the
  *    same tier (a peer pool) offers pool ratio × C's direct price, where C's direct price is
@@ -374,7 +387,13 @@ async function resolveTokenPrice(
   const minDepthUSD = getMinPricingDepthUSD(chainId);
   const [pools, canonical] = await Promise.all([
     loadRegisteredPools(token, context),
-    findCanonicalCandidate(token, chainId, blockTimestamp * 1000, context),
+    findCanonicalCandidate(
+      token,
+      chainId,
+      blockTimestamp * 1000,
+      context,
+      getCanonicalPriceSettings().liveRead,
+    ),
   ]);
   const canonicalCandidate = canonical?.candidate;
   const poolCandidates = await findPoolCandidates(
@@ -407,6 +426,22 @@ async function resolveTokenPrice(
         priceUSD: seed.priceUSD,
         sourceId: canonical.sourceId,
         seedHourMs: seed.hourMs,
+      };
+    }
+    // Past the seed's end: the source's own hourly snapshot from ClickHouse
+    // (ADR 0009, flow F).
+    const snapshot = await findCanonicalSnapshotPrice(
+      token,
+      canonical.sourceId,
+      blockTimestamp * 1000,
+      context,
+    );
+    if (snapshot) {
+      return {
+        kind: "snapshot",
+        priceUSD: snapshot.priceUSD,
+        sourceId: canonical.sourceId,
+        seedHourMs: snapshot.sourceHourMs,
       };
     }
   }
@@ -649,26 +684,73 @@ async function findPoolCandidates(
  * @param chainId - Chain the token lives on
  * @param blockTimestampMs - Current block timestamp in milliseconds
  * @param context - Envio handler context
+ * @param liveRead - Whether to read the source chain's Token row at all
+ *   (`PRICING_CANONICAL_LIVE_READ`); without it there is never a live candidate
  * @returns `undefined` when the token has no canonical source; otherwise the
  *   source id and the live candidate (`undefined` when the source is missing,
- *   unpriced or outside the ±2 h window — the case the hourly seed covers)
+ *   unpriced or outside the ±2 h window, or the read is off — the cases the
+ *   hourly seed and the snapshot effect cover)
  */
 async function findCanonicalCandidate(
   token: Token,
   chainId: number,
   blockTimestampMs: number,
   context: handlerContext,
+  liveRead: boolean,
 ): Promise<
   { sourceId: string; candidate: PricingCandidate | undefined } | undefined
 > {
   const source = getCanonicalSource(chainId, token.address);
   if (!source) return undefined;
   const sourceId = TokenId(source.chainId, source.address);
+  if (!liveRead) return { sourceId, candidate: undefined };
   const sourceToken = await getRehydrated(context.Token, "Token", sourceId);
   return {
     sourceId,
     candidate: buildCanonicalCandidate(sourceToken, blockTimestampMs),
   };
+}
+
+/**
+ * The canonical source's price for the last complete clock hour before this
+ * block, from its hourly `TokenPriceSnapshot` in ClickHouse (the
+ * `getCanonicalSourcePrice` effect, ADR 0009 flow F). Only reached for a token
+ * with a canonical source when no local pool or live source qualified and the
+ * seed has no hour, so it runs at most once per token per clock hour (the
+ * refresh throttle; the preload pass shares the run's call through envio's
+ * in-memory effect table). An unsettled hour is not cached, so a later
+ * hour's refresh asks again. Any failure counts as no answer.
+ *
+ * @param token - The leaf token being priced
+ * @param sourceId - Its canonical source token id
+ * @param blockTimestampMs - Current block timestamp in milliseconds
+ * @param context - Envio handler context
+ * @returns The price and the source hour used, or undefined
+ */
+async function findCanonicalSnapshotPrice(
+  token: Token,
+  sourceId: string,
+  blockTimestampMs: number,
+  context: handlerContext,
+): Promise<{ priceUSD: bigint; sourceHourMs: number } | undefined> {
+  const settings = getCanonicalPriceSettings();
+  if (!settings.snapshotEffect || !settings.clickhouse) return undefined;
+  const hourMs =
+    (Math.floor(blockTimestampMs / PRICE_REFRESH_INTERVAL_MS) - 1) *
+    PRICE_REFRESH_INTERVAL_MS;
+  try {
+    const answer = await context.effect(getCanonicalSourcePrice, {
+      sourceTokenId: sourceId,
+      hourMs,
+      requesterTokenId: token.id,
+    });
+    return answer.priceUSD > 0n ? answer : undefined;
+  } catch (error) {
+    context.log.warn(
+      `[refreshTokenPrice] getCanonicalSourcePrice failed for ${token.id} (source ${sourceId}): ${error}`,
+    );
+    return undefined;
+  }
 }
 
 /**
