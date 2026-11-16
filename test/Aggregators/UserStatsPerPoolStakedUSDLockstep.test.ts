@@ -63,6 +63,7 @@ describe("UserStatsPerPool staked-USD lockstep on live path (issue #782)", () =>
       userStats,
       ctx,
       sameEpochTimestamp,
+      mockChainId,
     );
 
     expect(result.currentLiquidityStaked).toBe(0n);
@@ -89,6 +90,7 @@ describe("UserStatsPerPool staked-USD lockstep on live path (issue #782)", () =>
       userStats,
       ctx,
       sameEpochTimestamp,
+      mockChainId,
     );
 
     expect(result.currentLiquidityStaked).toBe(600_000n);

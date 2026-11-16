@@ -1,4 +1,3 @@
-import type { Token } from "envio";
 import { createTestIndexer } from "envio";
 import {
   NonFungiblePositionId,
@@ -50,7 +49,7 @@ describe("legacy NFPM Collect", () => {
         ...t,
         id: TokenId(chainId, t.address),
         chainId,
-      } as Token);
+      });
     }
     indexer.Pool.set(
       createMockPool({

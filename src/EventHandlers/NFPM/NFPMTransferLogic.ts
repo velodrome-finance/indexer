@@ -48,7 +48,6 @@ export async function createPositionFromCLPoolMint(
   // Create new entity with stable ID, using data from CLPoolMintEvent
   const position: NonFungiblePosition = {
     id: stableId,
-    chainId: mintEvent.chainId,
     tokenId: tokenId,
     nfpmAddress: nfpmAddress,
     owner: owner,
@@ -82,7 +81,7 @@ export async function createPositionFromCLPoolMint(
  * 1. Check if position already exists (early return if found)
  * 2. PK-lookup TxCLPoolMintRegistry for (chainId, txHash), then PK-get each CLPoolMintEvent by id
  *    (replaces the old CLPoolMintEvent.getWhere({ transactionHash }) index scan)
- * 3. Filter by: chainId, logIndex < transferLogIndex, not consumed
+ * 3. Filter by: logIndex < transferLogIndex, not consumed
  * 4. Select closest preceding mint by logIndex (deterministic for multiple mints)
  * 5. Create definitive position, delete CLPoolMintEvent, prune consumed id from the registry
  *
@@ -123,10 +122,7 @@ export async function handleMintTransfer(
   ).filter((m): m is CLPoolMintEvent => m !== undefined);
 
   const matchingEvents = mintEvents.filter(
-    (m) =>
-      m.chainId === event.chainId &&
-      !m.consumedByTokenId &&
-      m.logIndex < event.logIndex,
+    (m) => !m.consumedByTokenId && m.logIndex < event.logIndex,
   );
 
   if (matchingEvents.length === 0) {
@@ -245,6 +241,7 @@ export async function attributeTransferToUserStatsPerPool(
       amount1,
       event.block.timestamp,
       LiquidityChangeType.REMOVE,
+      event.chainId,
     ),
   ];
 
@@ -259,6 +256,7 @@ export async function attributeTransferToUserStatsPerPool(
         amount1,
         event.block.timestamp,
         LiquidityChangeType.ADD,
+        event.chainId,
       ),
     );
   }
@@ -319,6 +317,7 @@ export async function handleRegularTransfer(
       position,
       context,
       updateTimestamp,
+      event.chainId,
     );
     return;
   }
@@ -344,6 +343,7 @@ export async function handleRegularTransfer(
       position,
       context,
       updateTimestamp,
+      event.chainId,
     );
     return;
   }
@@ -359,6 +359,7 @@ export async function handleRegularTransfer(
     position,
     context,
     updateTimestamp,
+    event.chainId,
   );
 }
 

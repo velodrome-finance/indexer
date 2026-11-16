@@ -20,6 +20,8 @@ import type { handlerContext } from "../../../src/EntityTypes";
 import * as VeNFTLogic from "../../../src/EventHandlers/VeNFT/VeNFTLogic";
 
 describe("VeNFTLogic", () => {
+  // Every event below is emitted on Optimism; per-chain entities carry no chainId.
+  const chainId = 10;
   const mockVeNFTPoolVoteStore = {
     getWhere: vi.fn().mockResolvedValue([]),
     get: vi.fn(),
@@ -45,7 +47,6 @@ describe("VeNFTLogic", () => {
 
   const mockVeNFTState: VeNFTState = {
     id: VeNFTId(10, 1n),
-    chainId: 10,
     tokenId: 1n,
     owner: toChecksumAddress("0x1111111111111111111111111111111111111111"),
     locktime: 100n,
@@ -112,6 +113,7 @@ describe("VeNFTLogic", () => {
         mockVeNFTState,
         timestamp,
         mockContext,
+        chainId,
       );
     });
 
@@ -147,6 +149,7 @@ describe("VeNFTLogic", () => {
         freshState,
         timestamp,
         mockContext,
+        chainId,
       );
     });
 
@@ -182,6 +185,7 @@ describe("VeNFTLogic", () => {
         permanentState,
         timestamp,
         mockContext,
+        chainId,
       );
     });
   });
@@ -238,6 +242,7 @@ describe("VeNFTLogic", () => {
         mockVeNFTState,
         timestamp,
         mockContext,
+        chainId,
       );
     });
 
@@ -271,6 +276,7 @@ describe("VeNFTLogic", () => {
         mockVeNFTState,
         timestamp,
         mockContext,
+        chainId,
       );
     });
   });
@@ -324,6 +330,7 @@ describe("VeNFTLogic", () => {
         mockVeNFTState,
         timestamp,
         mockContext,
+        chainId,
       );
     });
   });
@@ -391,6 +398,7 @@ describe("VeNFTLogic", () => {
         fromState,
         timestamp,
         mockContext,
+        chainId,
       );
       expect(updateSpy).toHaveBeenNthCalledWith(
         2,
@@ -405,6 +413,7 @@ describe("VeNFTLogic", () => {
         toState,
         timestamp,
         mockContext,
+        chainId,
       );
     });
   });
@@ -479,6 +488,7 @@ describe("VeNFTLogic", () => {
         fromState,
         timestamp,
         mockContext,
+        chainId,
       );
       expect(updateSpy).toHaveBeenNthCalledWith(
         2,
@@ -493,6 +503,7 @@ describe("VeNFTLogic", () => {
         token1State,
         timestamp,
         mockContext,
+        chainId,
       );
       expect(updateSpy).toHaveBeenNthCalledWith(
         3,
@@ -507,6 +518,7 @@ describe("VeNFTLogic", () => {
         token2State,
         timestamp,
         mockContext,
+        chainId,
       );
     });
   });
@@ -569,6 +581,7 @@ describe("VeNFTLogic", () => {
         tokenState,
         timestamp,
         mockContext,
+        chainId,
       );
       expect(updateSpy).toHaveBeenNthCalledWith(
         2,
@@ -583,6 +596,7 @@ describe("VeNFTLogic", () => {
         managedState,
         timestamp,
         mockContext,
+        chainId,
       );
     });
   });
@@ -648,6 +662,7 @@ describe("VeNFTLogic", () => {
         tokenState,
         timestamp,
         mockContext,
+        chainId,
       );
       expect(updateSpy).toHaveBeenNthCalledWith(
         2,
@@ -662,6 +677,7 @@ describe("VeNFTLogic", () => {
         managedState,
         timestamp,
         mockContext,
+        chainId,
       );
     });
 
@@ -727,6 +743,7 @@ describe("VeNFTLogic", () => {
         tokenState,
         timestamp,
         mockContext,
+        chainId,
       );
     });
   });
@@ -784,6 +801,7 @@ describe("VeNFTLogic", () => {
         mockVeNFTState,
         timestamp,
         mockContext,
+        chainId,
       );
     });
   });
@@ -848,6 +866,7 @@ describe("VeNFTLogic", () => {
         permanentState,
         timestamp,
         mockContext,
+        chainId,
       );
     });
   });
@@ -953,7 +972,6 @@ describe("VeNFTLogic", () => {
         id: previousOwnerId,
         userAddress: mockVeNFTState.owner,
         poolAddress: "0xpool1",
-        chainId: 10,
         veNFTamountStaked: 100n,
         lastActivityTimestamp: new Date(0),
       } as UserStatsPerPool;
@@ -961,7 +979,6 @@ describe("VeNFTLogic", () => {
         id: newOwnerId,
         userAddress: mockTransferEvent.params.to,
         poolAddress: "0xpool1",
-        chainId: 10,
         veNFTamountStaked: 0n,
         lastActivityTimestamp: new Date(0),
       } as UserStatsPerPool;
@@ -995,6 +1012,7 @@ describe("VeNFTLogic", () => {
         previousOwnerStats,
         mockContext,
         new Date(mockTransferEvent.block.timestamp * 1000),
+        chainId,
       );
       expect(updateUserStatsSpy).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1003,30 +1021,43 @@ describe("VeNFTLogic", () => {
         newOwnerStats,
         mockContext,
         new Date(mockTransferEvent.block.timestamp * 1000),
+        chainId,
       );
     });
 
-    it("uses the pool vote chain id instead of the veNFT event chain id", async () => {
-      const leafChainId = 252;
-      const leafPoolAddress = toChecksumAddress(
+    // Per-chain entities (ADR 0009): a veNFT's pool votes are on its own chain,
+    // so both owners' UserStatsPerPool rows are keyed by the Transfer's chain id.
+    // (The old cross-chain case, an Optimism veNFT voting for a leaf pool on
+    // another chain, is gone: Optimism no longer writes leaf-keyed votes.)
+    it("keys both owners' UserStatsPerPool by the transfer event's chain id", async () => {
+      const baseChainId = 8453;
+      const basePoolAddress = toChecksumAddress(
         "0xb43F6D14FeFA510F014cf90c8Ab110803bB28778",
       );
+      const baseVeNFTState: VeNFTState = {
+        ...mockVeNFTState,
+        id: VeNFTId(baseChainId, 1n),
+      };
+      const baseTransferEvent = {
+        ...mockTransferEvent,
+        chainId: baseChainId,
+      } as unknown as EvmEvent<"VeNFT", "Transfer">;
       const oldOwnerId = UserStatsPerPoolId(
-        leafChainId,
-        mockVeNFTState.owner,
-        leafPoolAddress,
+        baseChainId,
+        baseVeNFTState.owner,
+        basePoolAddress,
       );
       const newOwnerId = UserStatsPerPoolId(
-        leafChainId,
-        mockTransferEvent.params.to,
-        leafPoolAddress,
+        baseChainId,
+        baseTransferEvent.params.to,
+        basePoolAddress,
       );
       const poolVotes = [
         {
-          id: VeNFTPoolVoteId(leafChainId, 1n, leafPoolAddress),
-          poolAddress: leafPoolAddress,
+          id: VeNFTPoolVoteId(baseChainId, 1n, basePoolAddress),
+          poolAddress: basePoolAddress,
           veNFTamountStaked: 50n,
-          veNFTState_id: mockVeNFTState.id,
+          veNFTState_id: baseVeNFTState.id,
           lastUpdatedTimestamp: new Date(0),
         },
       ] as VeNFTPoolVote[];
@@ -1037,17 +1068,15 @@ describe("VeNFTLogic", () => {
 
       const previousOwnerStats = {
         id: oldOwnerId,
-        userAddress: mockVeNFTState.owner,
-        poolAddress: leafPoolAddress,
-        chainId: leafChainId,
+        userAddress: baseVeNFTState.owner,
+        poolAddress: basePoolAddress,
         veNFTamountStaked: 50n,
         lastActivityTimestamp: new Date(0),
       } as UserStatsPerPool;
       const newOwnerStats = {
         id: newOwnerId,
-        userAddress: mockTransferEvent.params.to,
-        poolAddress: leafPoolAddress,
-        chainId: leafChainId,
+        userAddress: baseTransferEvent.params.to,
+        poolAddress: basePoolAddress,
         veNFTamountStaked: 0n,
         lastActivityTimestamp: new Date(0),
       } as UserStatsPerPool;
@@ -1069,21 +1098,29 @@ describe("VeNFTLogic", () => {
       );
 
       await VeNFTLogic.reassignVeNFTVotesOnTransfer(
-        mockTransferEvent,
-        mockVeNFTState,
+        baseTransferEvent,
+        baseVeNFTState,
         mockContext,
       );
 
+      expect(mockContext.VeNFTPoolVote?.getWhere).toHaveBeenCalledWith({
+        veNFTState_id: { _eq: baseVeNFTState.id },
+      });
       expect(mockContext.UserStatsPerPool?.get).toHaveBeenCalledWith(
         oldOwnerId,
       );
+      expect(mockContext.UserStatsPerPool?.get).toHaveBeenCalledWith(
+        newOwnerId,
+      );
+      expect(updateUserStatsSpy).toHaveBeenCalledTimes(2);
       expect(updateUserStatsSpy).toHaveBeenCalledWith(
         expect.objectContaining({
           incrementalVeNFTamountStaked: -50n,
         }),
         previousOwnerStats,
         mockContext,
-        new Date(mockTransferEvent.block.timestamp * 1000),
+        new Date(baseTransferEvent.block.timestamp * 1000),
+        baseChainId,
       );
       expect(updateUserStatsSpy).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1091,7 +1128,8 @@ describe("VeNFTLogic", () => {
         }),
         newOwnerStats,
         mockContext,
-        new Date(mockTransferEvent.block.timestamp * 1000),
+        new Date(baseTransferEvent.block.timestamp * 1000),
+        baseChainId,
       );
     });
   });
@@ -1136,7 +1174,6 @@ describe("VeNFTLogic", () => {
           "0x1111111111111111111111111111111111111111",
         ),
         poolAddress: "0xpool1",
-        chainId: 10,
         veNFTamountStaked: 100n,
         lastActivityTimestamp: new Date(0),
       } as UserStatsPerPool;
@@ -1165,6 +1202,7 @@ describe("VeNFTLogic", () => {
         existingUserStats,
         mockContext,
         new Date(mockTransferEvent.block.timestamp * 1000),
+        chainId,
       );
     });
   });
@@ -1226,6 +1264,7 @@ describe("VeNFTLogic", () => {
         expect.any(Object),
         mockContext,
         new Date(mockTransferEvent.block.timestamp * 1000),
+        chainId,
       );
     });
   });

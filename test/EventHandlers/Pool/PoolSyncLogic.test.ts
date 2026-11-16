@@ -66,7 +66,6 @@ describe("PoolSyncLogic", () => {
     decimals: 6n,
     pricePerUSDNew: 1000000000000000000n, // 1 USD
     isWhitelisted: true,
-    chainId: 10,
     lastUpdatedTimestamp: new Date(1000000 * 1000),
   } as Token;
 
@@ -78,7 +77,6 @@ describe("PoolSyncLogic", () => {
     decimals: 18n,
     pricePerUSDNew: 2000000000000000000n, // 2 USD
     isWhitelisted: true,
-    chainId: 10,
     lastUpdatedTimestamp: new Date(1000000 * 1000),
   } as Token;
 
@@ -286,7 +284,6 @@ describe("PoolSyncLogic", () => {
         address: LFI,
         symbol: "LFI",
         name: "LFI",
-        chainId: BASE,
         decimals: 18n,
         pricePerUSDNew: 24n * TEN_TO_THE_18_BI, // poisoned oracle ~$24
       } as Token;
@@ -296,14 +293,12 @@ describe("PoolSyncLogic", () => {
         address: USDC,
         symbol: "USDC",
         name: "USD Coin",
-        chainId: BASE,
         decimals: 6n,
         pricePerUSDNew: 1n * TEN_TO_THE_18_BI,
       } as Token;
 
       const basePool = {
         ...mockPool,
-        chainId: BASE,
         isCL: false,
         token0_id: TokenId(BASE, LFI),
         token1_id: TokenId(BASE, USDC),

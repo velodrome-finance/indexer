@@ -220,7 +220,6 @@ export async function processAeroNFPMIncreaseLiquidity(
     context.AeroNFPMPendingMint.deleteUnsafe(positionId);
     position = {
       id: positionId,
-      chainId: event.chainId,
       tokenId,
       nfpmAddress: event.srcAddress,
       owner: (pendingMint as { owner: string }).owner,
@@ -242,6 +241,7 @@ export async function processAeroNFPMIncreaseLiquidity(
     position,
     context,
     timestamp,
+    event.chainId,
   );
 
   if (!poolData) {
@@ -260,6 +260,7 @@ export async function processAeroNFPMIncreaseLiquidity(
     amount1,
     event.block.timestamp,
     LiquidityChangeType.ADD,
+    event.chainId,
   );
 
   if (position.isStakedInGauge) {

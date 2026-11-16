@@ -204,7 +204,7 @@ describe("PoolSnapshot.deployment", () => {
   it("copies the pool's deployment", () => {
     const { createMockPool } = setupCommon();
     const pool = createMockPool({ deployment: POOL_DEPLOYMENT.AERO });
-    expect(createPoolSnapshot(pool, new Date(0)).deployment).toBe(
+    expect(createPoolSnapshot(pool, new Date(0), pool.chainId).deployment).toBe(
       POOL_DEPLOYMENT.AERO,
     );
   });

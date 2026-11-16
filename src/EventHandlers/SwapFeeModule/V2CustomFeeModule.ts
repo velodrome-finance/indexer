@@ -29,6 +29,7 @@ indexer.onEvent(
       pool,
       false,
       context,
+      event.chainId,
     );
     if (chargedFee === undefined) return;
     const diff: Partial<Pool> = {

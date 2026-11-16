@@ -64,7 +64,7 @@ function store(opts: {
     makeToken(OP, Y, 18n, 0n, STALE),
     makeToken(OP, Z, 18n, 0n, STALE),
   ];
-  const byId = new Map(base.map((t) => [t.id, t]));
+  const byId = new Map<string, Token>(base.map((t) => [t.id, t]));
   for (const t of opts.tokens ?? []) byId.set(t.id, t);
   return createPricingStore({
     tokens: [...byId.values()],

@@ -182,7 +182,6 @@ export async function createRootPool(
   }
   context.RootPool.set({
     id,
-    chainId: c.chainId,
     rootPoolAddress: c.rootPoolAddress,
     leafChainId: c.leafChainId,
     isCL: c.isCL,
@@ -256,7 +255,6 @@ export async function applyRootPoolVote(
   });
   context.RootPoolVote.set({
     id: voteId,
-    chainId,
     rootPoolAddress: poolAddress,
     tokenId,
     veNFTStateId: VeNFTId(chainId, tokenId),
@@ -300,7 +298,7 @@ export async function applyRootPoolDistribution(
     totalEmissions:
       rootPool.totalEmissions + normalizeTokenAmountTo1e18(amount, decimals),
     totalEmissionsUSD:
-      rootPool.totalEmissionsUSD + getTrustedUSD(amount, rewardToken),
+      rootPool.totalEmissionsUSD + getTrustedUSD(amount, rewardToken, chainId),
     numberOfDistributions: rootPool.numberOfDistributions + 1n,
     lastUpdatedTimestamp: timestamp,
   });
@@ -357,7 +355,7 @@ export async function setRootPoolGauge(
  * @param context - Handler context
  * @returns The RootPool, or undefined
  */
-async function loadRootPoolByGauge(
+export async function loadRootPoolByGauge(
   chainId: number,
   gaugeAddress: string,
   context: handlerContext,

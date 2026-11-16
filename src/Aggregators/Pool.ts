@@ -5,7 +5,6 @@ import {
   PoolId,
   TEN_TO_THE_18_BI,
   TokenId,
-  isKnownSinkRootPool,
 } from "../Constants";
 import { getRehydrated, getWhereRehydrated } from "../EntityTimestamps";
 import type { handlerContext } from "../EntityTypes";
@@ -70,6 +69,7 @@ const NEG_STAKED_RESERVE_WARN_FLOOR_USD = 1_000n * TEN_TO_THE_18_BI;
  * @param tokenId - Pool's token entity ID for the field that overflowed
  *   (`token0_id` for stakedReserve0, `token1_id` for stakedReserve1).
  * @param context - Handler context for Token entity load and log emission.
+ * @param chainId - Chain of the event being handled (the pool's chain).
  * @returns Promise that resolves once the log line is emitted.
  */
 async function logNegStakedReserveGuard(
@@ -77,9 +77,10 @@ async function logNegStakedReserveGuard(
   overshoot: bigint,
   tokenId: string,
   context: handlerContext,
+  chainId: number,
 ): Promise<void> {
   const token = await getRehydrated(context.Token, "Token", tokenId);
-  const overshootUSD = getTrustedUSD(overshoot, token ?? undefined);
+  const overshootUSD = getTrustedUSD(overshoot, token ?? undefined, chainId);
   if (overshootUSD > NEG_STAKED_RESERVE_WARN_FLOOR_USD) {
     context.log.warn(msg);
   } else {
@@ -190,44 +191,6 @@ export interface PoolData {
   liquidityPoolAggregator: Pool;
 }
 
-export enum LoadPoolDataOrRootCLPoolFailureReason {
-  MAPPING_NOT_FOUND = "MAPPING_NOT_FOUND",
-  MULTIPLE_MAPPINGS = "MULTIPLE_MAPPINGS",
-  LEAF_POOL_NOT_FOUND = "LEAF_POOL_NOT_FOUND",
-  SINK_ROOT_POOL = "SINK_ROOT_POOL",
-}
-
-export type LoadPoolDataOrRootCLPoolResult =
-  | { ok: true; poolData: PoolData }
-  | {
-      ok: false;
-      reason: LoadPoolDataOrRootCLPoolFailureReason.MAPPING_NOT_FOUND;
-    }
-  | {
-      ok: false;
-      reason: LoadPoolDataOrRootCLPoolFailureReason.MULTIPLE_MAPPINGS;
-    }
-  | {
-      ok: false;
-      reason: LoadPoolDataOrRootCLPoolFailureReason.LEAF_POOL_NOT_FOUND;
-    }
-  | {
-      ok: false;
-      reason: LoadPoolDataOrRootCLPoolFailureReason.SINK_ROOT_POOL;
-    };
-
-export function isMissingRootPoolMapping(
-  result: LoadPoolDataOrRootCLPoolResult,
-): result is {
-  ok: false;
-  reason: LoadPoolDataOrRootCLPoolFailureReason.MAPPING_NOT_FOUND;
-} {
-  return (
-    !result.ok &&
-    result.reason === LoadPoolDataOrRootCLPoolFailureReason.MAPPING_NOT_FOUND
-  );
-}
-
 /**
  * Updates the state of a Pool with new data and manages snapshots.
  *
@@ -239,10 +202,11 @@ export function isMissingRootPoolMapping(
  * @param current - The current state of the liquidity pool aggregator.
  * @param timestamp - The current timestamp when the update is applied.
  * @param context - The handler context used to store the updated state and snapshots.
- * @param _eventChainId - The chain ID of the event that triggered the update.
- *   Unused since the per-hour CL fee RPC was removed; kept so callers are unchanged.
+ * @param eventChainId - The chain ID of the event that triggered the update
+ *   (the pool's chain): keys the snapshot, selects the chain's price-trust
+ *   rules and is printed by the guard logs.
  * @param _blockNumber - The block number of the event that triggered the update.
- *   Unused for the same reason.
+ *   Unused since the per-hour CL fee RPC was removed; kept so callers are unchanged.
  * @returns Promise that resolves once the Pool upsert (and any snapshot) is staged
  */
 export async function updatePool(
@@ -250,7 +214,7 @@ export async function updatePool(
   current: Pool,
   timestamp: Date,
   context: handlerContext,
-  _eventChainId: number,
+  eventChainId: number,
   _blockNumber: number,
 ) {
   // Clamp reserve0 / reserve1 to >= 0n at the accumulator path (issue #702).
@@ -265,7 +229,7 @@ export async function updatePool(
   const clampedReserve0 = reserve0Sum < 0n ? 0n : reserve0Sum;
   if (reserve0Sum < 0n) {
     context.log.warn(
-      `[NEG_RESERVE_GUARD][updatePool] field=reserve0 poolAddress=${current.poolAddress} chainId=${current.chainId} priorReserve=${current.reserve0} delta=${reserve0Delta} clampedTo=${clampedReserve0}`,
+      `[NEG_RESERVE_GUARD][updatePool] field=reserve0 poolAddress=${current.poolAddress} chainId=${eventChainId} priorReserve=${current.reserve0} delta=${reserve0Delta} clampedTo=${clampedReserve0}`,
     );
   }
   const reserve1Delta = diff.incrementalReserve1 ?? 0n;
@@ -273,7 +237,7 @@ export async function updatePool(
   const clampedReserve1 = reserve1Sum < 0n ? 0n : reserve1Sum;
   if (reserve1Sum < 0n) {
     context.log.warn(
-      `[NEG_RESERVE_GUARD][updatePool] field=reserve1 poolAddress=${current.poolAddress} chainId=${current.chainId} priorReserve=${current.reserve1} delta=${reserve1Delta} clampedTo=${clampedReserve1}`,
+      `[NEG_RESERVE_GUARD][updatePool] field=reserve1 poolAddress=${current.poolAddress} chainId=${eventChainId} priorReserve=${current.reserve1} delta=${reserve1Delta} clampedTo=${clampedReserve1}`,
     );
   }
 
@@ -289,7 +253,7 @@ export async function updatePool(
   const clampedTotalLiquidityUSD = tluReplacement < 0n ? 0n : tluReplacement;
   if (tluReplacement < 0n) {
     context.log.warn(
-      `[NEG_TLU_GUARD][updatePool] field=totalLiquidityUSD poolAddress=${current.poolAddress} chainId=${current.chainId} priorTLU=${current.totalLiquidityUSD} replacement=${tluReplacement} clampedTo=${clampedTotalLiquidityUSD}`,
+      `[NEG_TLU_GUARD][updatePool] field=totalLiquidityUSD poolAddress=${current.poolAddress} chainId=${eventChainId} priorTLU=${current.totalLiquidityUSD} replacement=${tluReplacement} clampedTo=${clampedTotalLiquidityUSD}`,
     );
   }
 
@@ -306,7 +270,7 @@ export async function updatePool(
     stakedLiqReplacement < 0n ? 0n : stakedLiqReplacement;
   if (stakedLiqReplacement < 0n) {
     context.log.warn(
-      `[NEG_STAKED_LIQ_GUARD][updatePool] field=stakedLiquidityInRange poolAddress=${current.poolAddress} chainId=${current.chainId} priorStakedLiqInRange=${current.stakedLiquidityInRange} replacement=${stakedLiqReplacement} clampedTo=${clampedStakedLiquidityInRange}`,
+      `[NEG_STAKED_LIQ_GUARD][updatePool] field=stakedLiquidityInRange poolAddress=${current.poolAddress} chainId=${eventChainId} priorStakedLiqInRange=${current.stakedLiquidityInRange} replacement=${stakedLiqReplacement} clampedTo=${clampedStakedLiquidityInRange}`,
     );
   }
 
@@ -334,7 +298,7 @@ export async function updatePool(
     liquidityInRangeReplacement < 0n ? 0n : liquidityInRangeReplacement;
   if (liquidityInRangeReplacement < 0n) {
     context.log.warn(
-      `[NEG_LIQ_IN_RANGE_GUARD][updatePool] field=liquidityInRange poolAddress=${current.poolAddress} chainId=${current.chainId} priorLiquidityInRange=${current.liquidityInRange} replacement=${liquidityInRangeReplacement} clampedTo=${finalLiquidityInRange}`,
+      `[NEG_LIQ_IN_RANGE_GUARD][updatePool] field=liquidityInRange poolAddress=${current.poolAddress} chainId=${eventChainId} priorLiquidityInRange=${current.liquidityInRange} replacement=${liquidityInRangeReplacement} clampedTo=${finalLiquidityInRange}`,
     );
   }
 
@@ -360,7 +324,7 @@ export async function updatePool(
     // briefly capped to 0n; log it at `info` so it doesn't flood the warn
     // channel. A genuine overshoot against a POPULATED (> 0n) total — the #891
     // Superseed case — stays at `warn` as a real-divergence tripwire.
-    const guardMsg = `[OVER_STAKED_LIQ_GUARD][updatePool] field=stakedLiquidityInRange poolAddress=${current.poolAddress} chainId=${current.chainId} priorStakedLiqInRange=${current.stakedLiquidityInRange} replacement=${clampedStakedLiquidityInRange} liquidityInRange=${finalLiquidityInRange} clampedTo=${finalStakedLiquidityInRange}`;
+    const guardMsg = `[OVER_STAKED_LIQ_GUARD][updatePool] field=stakedLiquidityInRange poolAddress=${current.poolAddress} chainId=${eventChainId} priorStakedLiqInRange=${current.stakedLiquidityInRange} replacement=${clampedStakedLiquidityInRange} liquidityInRange=${finalLiquidityInRange} clampedTo=${finalStakedLiquidityInRange}`;
     if (finalLiquidityInRange > 0n) {
       context.log.warn(guardMsg);
     } else {
@@ -387,10 +351,11 @@ export async function updatePool(
   const clampedStakedReserve0 = stakedReserve0Sum < 0n ? 0n : stakedReserve0Sum;
   if (stakedReserve0Sum < 0n) {
     await logNegStakedReserveGuard(
-      `[NEG_STAKED_RESERVE_GUARD][updatePool] field=stakedReserve0 poolAddress=${current.poolAddress} chainId=${current.chainId} priorStakedReserve=${current.stakedReserve0 ?? 0n} delta=${stakedReserve0Delta} clampedTo=${clampedStakedReserve0}`,
+      `[NEG_STAKED_RESERVE_GUARD][updatePool] field=stakedReserve0 poolAddress=${current.poolAddress} chainId=${eventChainId} priorStakedReserve=${current.stakedReserve0 ?? 0n} delta=${stakedReserve0Delta} clampedTo=${clampedStakedReserve0}`,
       -stakedReserve0Sum,
       current.token0_id,
       context,
+      eventChainId,
     );
   }
   const stakedReserve1Delta = diff.incrementalStakedReserve1 ?? 0n;
@@ -399,10 +364,11 @@ export async function updatePool(
   const clampedStakedReserve1 = stakedReserve1Sum < 0n ? 0n : stakedReserve1Sum;
   if (stakedReserve1Sum < 0n) {
     await logNegStakedReserveGuard(
-      `[NEG_STAKED_RESERVE_GUARD][updatePool] field=stakedReserve1 poolAddress=${current.poolAddress} chainId=${current.chainId} priorStakedReserve=${current.stakedReserve1 ?? 0n} delta=${stakedReserve1Delta} clampedTo=${clampedStakedReserve1}`,
+      `[NEG_STAKED_RESERVE_GUARD][updatePool] field=stakedReserve1 poolAddress=${current.poolAddress} chainId=${eventChainId} priorStakedReserve=${current.stakedReserve1 ?? 0n} delta=${stakedReserve1Delta} clampedTo=${clampedStakedReserve1}`,
       -stakedReserve1Sum,
       current.token1_id,
       context,
+      eventChainId,
     );
   }
 
@@ -421,10 +387,11 @@ export async function updatePool(
       : clampedStakedReserve0;
   if (clampedStakedReserve0 > clampedReserve0) {
     await logNegStakedReserveGuard(
-      `[OVER_STAKED_RESERVE_GUARD][updatePool] field=stakedReserve0 poolAddress=${current.poolAddress} chainId=${current.chainId} priorStakedReserve=${current.stakedReserve0 ?? 0n} delta=${stakedReserve0Delta} reserve=${clampedReserve0} clampedTo=${finalStakedReserve0}`,
+      `[OVER_STAKED_RESERVE_GUARD][updatePool] field=stakedReserve0 poolAddress=${current.poolAddress} chainId=${eventChainId} priorStakedReserve=${current.stakedReserve0 ?? 0n} delta=${stakedReserve0Delta} reserve=${clampedReserve0} clampedTo=${finalStakedReserve0}`,
       clampedStakedReserve0 - clampedReserve0,
       current.token0_id,
       context,
+      eventChainId,
     );
   }
   const finalStakedReserve1 =
@@ -433,10 +400,11 @@ export async function updatePool(
       : clampedStakedReserve1;
   if (clampedStakedReserve1 > clampedReserve1) {
     await logNegStakedReserveGuard(
-      `[OVER_STAKED_RESERVE_GUARD][updatePool] field=stakedReserve1 poolAddress=${current.poolAddress} chainId=${current.chainId} priorStakedReserve=${current.stakedReserve1 ?? 0n} delta=${stakedReserve1Delta} reserve=${clampedReserve1} clampedTo=${finalStakedReserve1}`,
+      `[OVER_STAKED_RESERVE_GUARD][updatePool] field=stakedReserve1 poolAddress=${current.poolAddress} chainId=${eventChainId} priorStakedReserve=${current.stakedReserve1 ?? 0n} delta=${stakedReserve1Delta} reserve=${clampedReserve1} clampedTo=${finalStakedReserve1}`,
       clampedStakedReserve1 - clampedReserve1,
       current.token1_id,
       context,
+      eventChainId,
     );
   }
 
@@ -636,6 +604,7 @@ export async function updatePool(
             stakedReserve1 > 0n ? stakedReserve1 : 0n,
             token0Instance ?? undefined,
             token1Instance ?? undefined,
+            eventChainId,
           ),
         };
       }
@@ -685,7 +654,7 @@ export async function updatePool(
       };
     }
 
-    setPoolSnapshot(updated, timestamp, context);
+    setPoolSnapshot(updated, timestamp, context, eventChainId);
 
     // Soft invariant (issue #670): real swap fee tiers cap at ~1% of volume,
     // so totalFeesGeneratedUSD > 5% of totalVolumeUSD signals fee/volume
@@ -698,7 +667,7 @@ export async function updatePool(
       updated.totalFeesGeneratedUSD * 20n > updated.totalVolumeUSD
     ) {
       context.log.warn(
-        `[FEE_VOLUME_DIVERGENCE][updatePool] Pool ${current.poolAddress} on chain ${current.chainId} totalFeesGeneratedUSD (${updated.totalFeesGeneratedUSD}) exceeds 5% of totalVolumeUSD (${updated.totalVolumeUSD}). Real fee tiers cap at ~1%; this likely indicates a fee/volume USD-path divergence.`,
+        `[FEE_VOLUME_DIVERGENCE][updatePool] Pool ${current.poolAddress} on chain ${eventChainId} totalFeesGeneratedUSD (${updated.totalFeesGeneratedUSD}) exceeds 5% of totalVolumeUSD (${updated.totalVolumeUSD}). Real fee tiers cap at ~1%; this likely indicates a fee/volume USD-path divergence.`,
       );
     }
 
@@ -742,8 +711,8 @@ export async function updatePool(
  * @param blockNumber - Optional block number for price refresh
  * @param blockTimestamp - Optional block timestamp for price refresh
  * @param missingIsExpected - When true, a pool that does not exist is not
- *   logged as an error (the caller handles it: a vote or distribution for a
- *   root pool whose leaf mapping has not arrived yet is parked, not lost)
+ *   logged as an error (the caller handles it: a Voter event for a root pool
+ *   or a sink has no local Pool)
  * @returns The pool with its two tokens, or null when any of them is missing
  */
 export async function loadPoolData(
@@ -845,106 +814,19 @@ export async function loadPoolData(
 }
 
 /**
- * Attempts to load pool data, and if not found, checks if it's a RootCLPool
- * and loads the corresponding leaf pool data instead.
- *
- * @param poolAddress - The pool address to load
- * @param chainId - The chain ID
- * @param context - The handler context
- * @param blockNumber - Optional block number for price refresh
- * @param blockTimestamp - Optional block timestamp for price refresh
- * @returns Discriminated result: ok + poolData, or ok false with reason (MAPPING_NOT_FOUND, MULTIPLE_MAPPINGS, LEAF_POOL_NOT_FOUND)
- */
-export async function loadPoolDataOrRootCLPool(
-  poolAddress: string,
-  chainId: number,
-  context: handlerContext,
-  blockNumber?: number,
-  blockTimestamp?: number,
-): Promise<LoadPoolDataOrRootCLPoolResult> {
-  if (isKnownSinkRootPool(chainId, poolAddress)) {
-    return {
-      ok: false,
-      reason: LoadPoolDataOrRootCLPoolFailureReason.SINK_ROOT_POOL,
-    };
-  }
-
-  // The mapping is looked up by bare address, so keep only rows whose root
-  // chain is the chain this event came from.
-  const rootPoolLeafPools = (
-    (await context.RootPool_LeafPool.getWhere({
-      rootPoolAddress: { _eq: poolAddress },
-    })) ?? []
-  ).filter((mapping) => mapping.rootChainId === chainId);
-
-  if (rootPoolLeafPools.length === 0) {
-    // Not a local pool and no mapping yet: a root pool whose leaf pool has not
-    // been seen. The caller parks the event (PendingVote / PendingDistribution),
-    // so this is not an error; an Optimism-only sync hit it 95,000 times.
-    const poolData = await loadPoolData(
-      poolAddress,
-      chainId,
-      context,
-      blockNumber,
-      blockTimestamp,
-      true,
-    );
-
-    if (poolData) {
-      return { ok: true, poolData };
-    }
-
-    return {
-      ok: false,
-      reason: LoadPoolDataOrRootCLPoolFailureReason.MAPPING_NOT_FOUND,
-    };
-  }
-
-  if (rootPoolLeafPools.length !== 1) {
-    context.log.error(
-      `[loadPoolDataOrRootCLPool] Expected exactly one RootPool_LeafPool for pool ${poolAddress} on chain ${chainId}`,
-    );
-    return {
-      ok: false,
-      reason: LoadPoolDataOrRootCLPoolFailureReason.MULTIPLE_MAPPINGS,
-    };
-  }
-
-  const rootPoolLeafPool = rootPoolLeafPools[0];
-  const leafPoolAddress = rootPoolLeafPool.leafPoolAddress;
-  const leafChainId = rootPoolLeafPool.leafChainId;
-  // Don't pass blockNumber/blockTimestamp: they belong to the caller's chain
-  // and cannot be used for RPC queries on the leaf chain.
-  const leafPoolData = await loadPoolData(
-    leafPoolAddress,
-    leafChainId,
-    context,
-  );
-
-  if (!leafPoolData) {
-    context.log.error(
-      `[loadPoolDataOrRootCLPool] Leaf pool data not found for pool ${leafPoolAddress} on chain ${leafChainId}`,
-    );
-    return {
-      ok: false,
-      reason: LoadPoolDataOrRootCLPoolFailureReason.LEAF_POOL_NOT_FOUND,
-    };
-  }
-
-  return { ok: true, poolData: leafPoolData };
-}
-
-/**
- * Generic function to find a pool by any indexed address field
+ * Generic function to find a pool by any indexed address field.
+ * Entities are per-chain, so `getWhere` only returns the handler's own
+ * chain's pools: the first match is the pool.
  * @param address - The address to search for
- * @param chainId - The chain ID
+ * @param _chainId - The chain ID of the event. Unused since entities are
+ *   per-chain (no chain filter needed); kept so callers are unchanged.
  * @param context - The handler context
  * @param field - The field to search by
  * @returns The pool entity if found, null otherwise
  */
 export async function findPoolByField(
   address: string,
-  chainId: number,
+  _chainId: number,
   context: handlerContext,
   field: PoolAddressField,
 ): Promise<Pool | null> {
@@ -952,10 +834,7 @@ export async function findPoolByField(
     [field]: { _eq: address },
   });
 
-  const matchingPool = (pools ?? []).find(
-    (pool: Pool) => pool.chainId === chainId,
-  );
-  return matchingPool ?? null;
+  return pools?.[0] ?? null;
 }
 
 /**
@@ -1037,7 +916,6 @@ export function createPoolEntity(params: {
   return {
     id: PoolId(chainId, poolAddress),
     poolAddress: poolAddress,
-    chainId: chainId,
     deployment: deployment,
     isCL: isCL,
     name: generatePoolName(

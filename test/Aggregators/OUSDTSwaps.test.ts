@@ -1,9 +1,6 @@
 import type { Token } from "envio";
 import { type Mock, vi } from "vitest";
-import {
-  createOUSDTSwapEntity,
-  loadFirstOUSDTSwapInTx,
-} from "../../src/Aggregators/OUSDTSwaps";
+import { createOUSDTSwapEntity } from "../../src/Aggregators/OUSDTSwaps";
 import { OUSDTSwapsId } from "../../src/Constants";
 import type { handlerContext } from "../../src/EntityTypes";
 import { setupCommon } from "../EventHandlers/Pool/common";
@@ -118,39 +115,6 @@ describe("OUSDTSwaps", () => {
 
       expect(mockRegistryGet).not.toHaveBeenCalled();
       expect(mockRegistrySet).not.toHaveBeenCalled();
-    });
-
-    it("loadFirstOUSDTSwapInTx returns [] or the recorded swap", async () => {
-      expect(
-        await loadFirstOUSDTSwapInTx(
-          transactionHash,
-          mockContext as handlerContext,
-        ),
-      ).toEqual([]);
-
-      mockRegistryGet.mockResolvedValue({
-        id: transactionHash,
-        swapId: "swap-1",
-        tokenInPool: mockToken0Data.address,
-        tokenOutPool: mockToken1Data.address,
-        amountIn: 5n,
-        amountOut: 7n,
-      });
-      expect(
-        await loadFirstOUSDTSwapInTx(
-          transactionHash,
-          mockContext as handlerContext,
-        ),
-      ).toEqual([
-        {
-          id: "swap-1",
-          transactionHash,
-          tokenInPool: mockToken0Data.address,
-          tokenOutPool: mockToken1Data.address,
-          amountIn: 5n,
-          amountOut: 7n,
-        },
-      ]);
     });
   });
 

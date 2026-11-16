@@ -59,7 +59,6 @@ export async function loadOrCreateLeafTokenState(
   return (
     existing ?? {
       id: AeroLeafTokenStateId(chainId, tokenId),
-      chainId,
       tokenId,
       chainAllocation: 0n,
       gauges: [],
@@ -148,7 +147,6 @@ export async function processLeafChainAllocated(
   );
   context.AeroAllocationEvent.set({
     id: AeroEventId(ev.chainId, ev.transactionHash, ev.logIndex),
-    chainId: ev.chainId,
     level: AERO_ALLOCATION_LEVEL.LEAF,
     kind: AERO_ALLOCATION_EVENT_KIND.CHAIN_ALLOCATED,
     tokenId,
@@ -170,12 +168,12 @@ export async function processLeafChainAllocated(
  * read by primary key in parallel; the set is bounded by the LeafVoter's
  * `maxGauges` per side.
  *
- * @param ev - Event coordinates
  * @param token - Token state before the change
  * @param after - Booked split after the change
  * @param gaugeRows - Gauge rows already loaded, by address
  * @param timestamp - Block time
  * @param context - Handler context
+ * @param chainId - Chain of the event being handled (the LeafVoter's chain)
  * @returns Change of the booked total (after minus before)
  */
 function rebook(
@@ -184,6 +182,7 @@ function rebook(
   gaugeRows: Map<string, AeroGauge | undefined>,
   timestamp: Date,
   context: handlerContext,
+  chainId: number,
 ): bigint {
   const before = new Map(
     token.gauges.map((g, i) => [g, token.allocations[i] ?? 0n] as const),
@@ -195,8 +194,7 @@ function rebook(
     if (oldAmount === newAmount) continue;
     const gauge = gaugeRows.get(gaugeAddress);
     context.AeroLeafAllocation.set({
-      id: AeroLeafAllocationId(token.chainId, token.tokenId, gaugeAddress),
-      chainId: token.chainId,
+      id: AeroLeafAllocationId(chainId, token.tokenId, gaugeAddress),
       tokenId: token.tokenId,
       gaugeAddress,
       poolAddress: gauge?.poolAddress,
@@ -265,7 +263,14 @@ export async function processLeafGaugesAllocated(
   const previous = new Map(
     token.gauges.map((g, i) => [g, token.allocations[i] ?? 0n] as const),
   );
-  const bookedDelta = rebook(token, booked, gaugeRows, timestamp, context);
+  const bookedDelta = rebook(
+    token,
+    booked,
+    gaugeRows,
+    timestamp,
+    context,
+    ev.chainId,
+  );
   const chainAllocation = token.chainAllocation - dealloc;
   context.AeroLeafTokenState.set({
     ...token,
@@ -289,7 +294,6 @@ export async function processLeafGaugesAllocated(
 
   // Rows: every listed entry, then every gauge the split dropped.
   const rowBase = {
-    chainId: ev.chainId,
     level: AERO_ALLOCATION_LEVEL.LEAF,
     kind: AERO_ALLOCATION_EVENT_KIND.GAUGE_ALLOCATED,
     tokenId,
@@ -349,7 +353,14 @@ export async function processLeafEmergencyDeallocationApplied(
     token.gauges.map((g) => loadAeroGauge(ev.chainId, g, context)),
   );
   const gaugeRows = new Map(token.gauges.map((g, i) => [g, loaded[i]]));
-  const bookedDelta = rebook(token, new Map(), gaugeRows, timestamp, context);
+  const bookedDelta = rebook(
+    token,
+    new Map(),
+    gaugeRows,
+    timestamp,
+    context,
+    ev.chainId,
+  );
   context.AeroLeafTokenState.set({
     ...token,
     gauges: [],
@@ -370,7 +381,6 @@ export async function processLeafEmergencyDeallocationApplied(
   );
   context.AeroAllocationEvent.set({
     id: AeroEventId(ev.chainId, ev.transactionHash, ev.logIndex),
-    chainId: ev.chainId,
     level: AERO_ALLOCATION_LEVEL.LEAF,
     kind: AERO_ALLOCATION_EVENT_KIND.EMERGENCY_DEALLOCATION_APPLIED,
     tokenId,
@@ -404,7 +414,6 @@ export function processLeafDeallocated(
 ): void {
   context.AeroAllocationEvent.set({
     id: AeroEventId(ev.chainId, ev.transactionHash, ev.logIndex),
-    chainId: ev.chainId,
     level: AERO_ALLOCATION_LEVEL.LEAF,
     kind: AERO_ALLOCATION_EVENT_KIND.DEALLOCATED,
     tokenId,

@@ -113,7 +113,6 @@ export async function recordAeroEmissionsEvent(
   const timestamp = new Date(data.timestamp * 1000);
   context.AeroEmissionsEvent.set({
     id: AeroEventId(data.chainId, data.transactionHash, data.logIndex),
-    chainId: data.chainId,
     kind: data.kind,
     gaugeAddress: data.gaugeAddress,
     poolAddress: gauge.poolAddress,
@@ -122,7 +121,7 @@ export async function recordAeroEmissionsEvent(
     referral: data.referral,
     tokenId: data.tokenId,
     amount: data.amount,
-    amountUSD: rewardTokenUSD(data.amount, rewardToken),
+    amountUSD: rewardTokenUSD(data.amount, rewardToken, data.chainId),
     rewardToken: gauge.rewardToken,
     blockNumber: BigInt(data.blockNumber),
     timestamp,
@@ -170,6 +169,7 @@ export async function processAeroGaugeClaimFees(
         claimed1,
         poolData.token0Instance,
         poolData.token1Instance,
+        chainId,
       )
     : 0n;
   persistAeroGauge(

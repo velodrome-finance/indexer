@@ -23,6 +23,7 @@ import {
   calculatePositionAmountsFromLiquidity,
   calculateTotalUSD,
 } from "../../../src/Helpers";
+import type { WithChain } from "../../testHelpers";
 import { defaultNfpmAddress, setupCommon } from "../Pool/common";
 
 vi.mock("../../../src/Aggregators/CLStakedLiquidity");
@@ -44,7 +45,7 @@ describe("NFPMCommonLogic", () => {
     "0x00cd0AbB6c2964F7Dfb5169dD94A9F004C35F459",
   );
 
-  const mockPosition: NonFungiblePosition = {
+  const mockPosition: WithChain<NonFungiblePosition> = {
     id: NonFungiblePositionId(chainId, nfpmAddressA, tokenId),
     chainId: chainId,
     tokenId: tokenId,
@@ -64,16 +65,10 @@ describe("NFPMCommonLogic", () => {
     isStakedInGauge: false,
   };
 
-  const mockPositionDifferentChain: NonFungiblePosition = {
-    ...mockPosition,
-    id: NonFungiblePositionId(8453, nfpmAddressA, tokenId),
-    chainId: 8453, // Different chain
-  };
-
   // Same chain (chainId=10) and same tokenId as mockPosition, but different NFPM and pool.
   // Reproduces the intra-chain multi-NFPM collision: Optimism has two NFPM contracts,
   // each with its own tokenId counter, so tokenId 540 can exist on both.
-  const mockPositionSameTokenDifferentNfpm: NonFungiblePosition = {
+  const mockPositionSameTokenDifferentNfpm: WithChain<NonFungiblePosition> = {
     ...mockPosition,
     id: NonFungiblePositionId(chainId, nfpmAddressB, tokenId),
     pool: poolAddressB,
@@ -83,9 +78,9 @@ describe("NFPMCommonLogic", () => {
   let mockContext: handlerContext;
 
   beforeEach(() => {
+    // Per-chain mode: getWhere only ever returns the handler's own chain.
     const storedPositions: NonFungiblePosition[] = [
       mockPosition,
-      mockPositionDifferentChain,
       mockPositionSameTokenDifferentNfpm,
     ];
 
@@ -169,9 +164,7 @@ describe("NFPMCommonLogic", () => {
     const mockPoolData: PoolData = {
       token0Instance: mockToken0Data,
       token1Instance: mockToken1Data,
-      liquidityPoolAggregator: {
-        chainId,
-      } as PoolData["liquidityPoolAggregator"],
+      liquidityPoolAggregator: {} as PoolData["liquidityPoolAggregator"],
     };
 
     beforeEach(() => {
@@ -192,6 +185,7 @@ describe("NFPMCommonLogic", () => {
         amount1,
         blockTimestamp,
         LiquidityChangeType.ADD,
+        chainId,
       );
 
       expect(calculateTotalUSD).toHaveBeenCalledWith(
@@ -199,6 +193,7 @@ describe("NFPMCommonLogic", () => {
         amount1,
         mockToken0Data,
         mockToken1Data,
+        chainId,
       );
       const expectedTimestamp = new Date(blockTimestamp * 1000);
       expect(loadOrCreateUserData).toHaveBeenCalledWith(
@@ -228,12 +223,14 @@ describe("NFPMCommonLogic", () => {
         amount1,
         blockTimestamp,
         LiquidityChangeType.REMOVE,
+        chainId,
       );
       expect(calculateTotalUSD).toHaveBeenCalledWith(
         amount0,
         amount1,
         mockToken0Data,
         mockToken1Data,
+        chainId,
       );
       const expectedTimestamp = new Date(blockTimestamp * 1000);
       expect(loadOrCreateUserData).toHaveBeenCalledWith(

@@ -47,7 +47,11 @@ import analytics as A  # noqa: E402
 SRC, DB = "analytics_test_src", "analytics_test"
 SRC_PC, DB_PC = "analytics_test_src_pc", "analytics_test_pc"
 POOL, POS = "envio_history_Pool", "envio_history_NonFungiblePosition"
-TABLES = ["envio_chains", "envio_checkpoints", "envio_info"] + sorted({f"envio_history_{e.source}" for e in A.ENTITIES})
+# the layer's sources, plus the other tables the superchain views read (installed with RootPool)
+TABLES = ["envio_chains", "envio_checkpoints", "envio_info"] + sorted(
+    {f"envio_history_{e.source}" for e in A.ENTITIES}
+    | {f"envio_history_{t}" for t in ("RootPool_LeafPool", "RootPoolVote", "SuperSwapOriginLeg", "SuperSwapDestinationLeg")}
+)
 H = 3600
 T0 = 1_760_000_000 // H * H
 

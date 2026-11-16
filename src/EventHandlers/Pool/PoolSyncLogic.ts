@@ -84,7 +84,7 @@ export function processPoolSync(
       token1Instance,
       priceRatios.token0Price,
       priceRatios.token1Price,
-      liquidityPoolAggregator.chainId,
+      event.chainId,
     );
   }
 

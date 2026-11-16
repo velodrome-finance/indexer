@@ -34,6 +34,7 @@ export function processPoolClaim(
     event.params.amount1,
     token0Instance,
     token1Instance,
+    event.chainId,
   );
 
   const timestamp = new Date(event.block.timestamp * 1000);

@@ -90,7 +90,7 @@ function opStore(
     makeToken(OP, OP_VELO, 18n, (8n * E18) / 100n, STALE),
     makeToken(OP, OP_TOKEN_X, 18n, 0n, STALE),
   ];
-  const byId = new Map(tokens.map((t) => [t.id, t]));
+  const byId = new Map<string, Token>(tokens.map((t) => [t.id, t]));
   for (const t of overrides.tokens ?? []) byId.set(t.id, t);
   return createPricingStore({
     tokens: [...byId.values()],
@@ -133,25 +133,6 @@ const snapshotsFor = (
 
 describe("PriceOracle", () => {
   describe("refreshTokenPrice", () => {
-    it("refuses to stamp a token with another chain's block time", async () => {
-      const store = opStore();
-      const before = store.tokens.get(TokenId(OP, OP_WETH));
-      if (!before) throw new Error("missing WETH");
-      const result = await PriceOracle.refreshTokenPrice(
-        before,
-        1,
-        NOW,
-        LISK,
-        store.context,
-      );
-      expect(result).toBe(before);
-      expect(store.context.Token.set).not.toHaveBeenCalled();
-      expect(store.snapshots).toHaveLength(0);
-      expect(store.context.log.error).toHaveBeenCalledWith(
-        expect.stringContaining("Refusing to refresh"),
-      );
-    });
-
     describe("strict hourly throttle", () => {
       it("does nothing when the token was already refreshed this clock hour", async () => {
         const store = opStore({
@@ -477,8 +458,12 @@ describe("PriceOracle", () => {
       });
     });
 
-    describe("canonical cross-chain candidate (ADR 0004)", () => {
-      // Lisk WETH (0x4200…0006) has Optimism WETH as its canonical source.
+    describe("canonical source Token row (no live candidate, ADR 0009)", () => {
+      // Lisk WETH (0x4200…0006) has Optimism WETH as its canonical source. The
+      // source's Token row is never read or refreshed: a per-chain store only
+      // holds the handler's chain, and the live canonical candidate is gone.
+      // NOW is outside the committed seed and the snapshot effect is off (no
+      // ClickHouse settings), so only local pools, two-hop and carry remain.
       const LISK_WETH = OP_WETH;
       const P_WETH_USDT = addr(0xb1);
       const P_XVELO_WETH = addr(0xb2);
@@ -498,7 +483,6 @@ describe("PriceOracle", () => {
       function liskStore(opts: {
         pool?: ReturnType<typeof makePool>;
         sourceAt: number;
-        sourceDepth?: bigint;
         extraTokens?: Token[];
         extraPools?: ReturnType<typeof makePool>[];
         extraPricingPools?: Record<string, string[]>;
@@ -507,8 +491,9 @@ describe("PriceOracle", () => {
           tokens: [
             makeToken(LISK, LISK_USDT, 6n, USD(1), STALE),
             makeToken(LISK, LISK_WETH, 18n, USD(2_000), NOW - 2 * DAY_S),
+            // A fresh, deep source row: the old live candidate would have won.
             makeToken(OP, OP_WETH, 18n, USD(2_500), opts.sourceAt, {
-              pricingDepthUSD: opts.sourceDepth,
+              pricingDepthUSD: OP_DEPTH,
             }),
             ...(opts.extraTokens ?? []),
           ],
@@ -525,116 +510,50 @@ describe("PriceOracle", () => {
         });
       }
 
-      it("canonical wins over a thin local pool when deeper and time-aligned", async () => {
-        const store = liskStore({
-          pool: thinPool(),
-          sourceAt: NOW - 30 * 60,
-          sourceDepth: OP_DEPTH,
-        });
+      it("a thin qualifying local pool prices the token; the source row is not read", async () => {
+        const store = liskStore({ pool: thinPool(), sourceAt: NOW - 30 * 60 });
         const weth = await refresh(store, LISK, LISK_WETH);
-        expect(weth.pricePerUSDNew).toBe(USD(2_500));
-        expect(weth.pricingDepthUSD).toBe(OP_DEPTH);
-        expect(weth.lastSuccessfulPriceTimestamp).toEqual(new Date(NOW * 1000));
+        expect(weth.pricePerUSDNew).toBe(USD(2_600));
+        expect(weth.pricingDepthUSD).toBe(USD(1_300));
         expect(store.snapshots.at(-1)).toMatchObject({
           address: LISK_WETH,
-          chainId: LISK,
-          priceSource: "canonical",
-          pricingSourceTokenId: TokenId(OP, OP_WETH),
-          pricingDepthUSD: OP_DEPTH,
-          pricingPoolId: undefined,
+          priceSource: "pool",
+          pricingPoolId: PoolId(LISK, P_WETH_USDT),
+          pricingSourceTokenId: undefined,
         });
-        // The source is read, never refreshed from the target chain.
-        expect(store.snapshots.some((s) => s.chainId === OP)).toBe(false);
+        expect(store.context.Token.get).not.toHaveBeenCalledWith(
+          TokenId(OP, OP_WETH),
+        );
         expect(store.effectCalls).toEqual([]);
       });
 
-      it.each([
-        ["behind (stale)", NOW - 3 * HOUR_S],
-        ["ahead (from the future)", NOW + 3 * HOUR_S],
-        ["months ahead in a backfill", NOW + 90 * DAY_S],
-      ])(
-        "local wins when the canonical source is misaligned: %s",
-        async (_, at) => {
-          const store = liskStore({
-            pool: thinPool(),
-            sourceAt: at,
-            sourceDepth: OP_DEPTH,
-          });
-          const weth = await refresh(store, LISK, LISK_WETH);
-          expect(weth.pricePerUSDNew).toBe(USD(2_600));
-          expect(weth.pricingDepthUSD).toBe(USD(1_300));
-          expect(store.snapshots.at(-1)).toMatchObject({
-            priceSource: "pool",
-            pricingPoolId: PoolId(LISK, P_WETH_USDT),
-            pricingSourceTokenId: undefined,
-          });
-        },
-      );
-
-      it("local wins when it is deeper than the canonical source", async () => {
-        const store = liskStore({
-          pool: liskWethPool(20_000_000n * 10n ** 6n, 8_000n * E18),
-          sourceAt: NOW - 30 * 60,
-          sourceDepth: OP_DEPTH,
-        });
-        const weth = await refresh(store, LISK, LISK_WETH);
-        expect(weth.pricePerUSDNew).toBe(USD(2_500));
-        expect(store.snapshots.at(-1)?.priceSource).toBe("pool");
-      });
-
-      it("uses the canonical source when no local pool clears the floor", async () => {
+      it("with no local pool over the floor it carries, even with a fresh source row", async () => {
         const store = liskStore({
           pool: subFloorPool(),
           sourceAt: NOW - 30 * 60,
-          sourceDepth: OP_DEPTH,
         });
         const weth = await refresh(store, LISK, LISK_WETH);
-        expect(weth.pricePerUSDNew).toBe(USD(2_500));
-        expect(store.snapshots.at(-1)?.priceSource).toBe("canonical");
-      });
-
-      it("a source with no recorded depth never qualifies (local pool or carry instead)", async () => {
-        const withPool = liskStore({ pool: thinPool(), sourceAt: NOW - 60 });
-        expect((await refresh(withPool, LISK, LISK_WETH)).pricePerUSDNew).toBe(
-          USD(2_600),
-        );
-        expect(withPool.snapshots.at(-1)?.priceSource).toBe("pool");
-
-        const noPool = liskStore({ sourceAt: NOW - 60 });
-        const weth = await refresh(noPool, LISK, LISK_WETH);
         expect(weth.pricePerUSDNew).toBe(USD(2_000));
-        expect(noPool.snapshots.at(-1)?.priceSource).toBe("carried");
-      });
-
-      it("XVELO still binds to Optimism VELO", async () => {
-        const store = createPricingStore({
-          tokens: [
-            makeToken(LISK, XVELO, 18n, USD(1) / 20n, NOW - 2 * DAY_S),
-            makeToken(OP, OP_VELO, 18n, E18 / 10n, NOW - HOUR_S, {
-              pricingDepthUSD: USD(250_000),
-            }),
-          ],
-        });
-        const xvelo = await refresh(store, LISK, XVELO);
-        expect(xvelo.pricePerUSDNew).toBe(E18 / 10n);
         expect(store.snapshots.at(-1)).toMatchObject({
-          priceSource: "canonical",
-          pricingSourceTokenId: TokenId(OP, OP_VELO),
+          priceSource: "carried",
+          pricingSourceTokenId: undefined,
         });
+        expect(store.context.Token.get).not.toHaveBeenCalledWith(
+          TokenId(OP, OP_WETH),
+        );
       });
 
-      it("stays acyclic: the cross-chain source is read, never refreshed or routed", async () => {
-        // XVELO (tier 2) → Lisk WETH (tier 1, refreshed as its counterparty) →
-        // reads Optimism WETH. Optimism WETH is due (last refresh 90 min ago)
-        // and has a pricing-pool row, yet neither is touched.
+      it("never refreshes or routes another chain's token", async () => {
+        // XVELO (tier 2) → Lisk WETH (tier 1, refreshed as its counterparty).
+        // Optimism WETH is due (last refresh 90 min ago) and has a
+        // pricing-pool row, yet neither is touched.
         const xveloPool = makePool(LISK, P_XVELO_WETH, LISK_WETH, XVELO, {
-          reserve0: 10n * E18, // $25K of WETH at the canonical $2,500
+          reserve0: 10n * E18, // $26K of WETH at the local $2,600
           reserve1: 250_000n * E18,
         });
         const store = liskStore({
           pool: thinPool(),
           sourceAt: NOW - 90 * 60,
-          sourceDepth: OP_DEPTH,
           extraTokens: [makeToken(LISK, XVELO, 18n, 0n, STALE)],
           extraPools: [xveloPool],
           extraPricingPools: {
@@ -643,12 +562,14 @@ describe("PriceOracle", () => {
           },
         });
         const xvelo = await refresh(store, LISK, XVELO);
-        // OP VELO is absent, so XVELO prices through Lisk WETH ($2,500, canonical).
-        expect(xvelo.pricePerUSDNew).toBe(E18 / 10n);
+        // OP VELO is absent, so XVELO prices through Lisk WETH's local $2,600.
+        expect(xvelo.pricePerUSDNew).toBe((104n * E18) / 1000n);
         expect(store.context.TokenPricingPools.get).not.toHaveBeenCalledWith(
           TokenId(OP, OP_WETH),
         );
-        expect(store.snapshots.some((s) => s.chainId === OP)).toBe(false);
+        expect(store.snapshots.some((s) => s.id.startsWith(`${OP}-`))).toBe(
+          false,
+        );
         expect(store.snapshots.map((s) => s.address)).toEqual([
           LISK_USDT,
           LISK_WETH,
@@ -743,7 +664,7 @@ describe("PriceOracle", () => {
       const P_WETH_USDT = addr(0xc1);
 
       function seedStore(opts: {
-        sourceAt?: number; // undefined = no Optimism WETH row at all
+        sourceAt?: number; // undefined = no Optimism WETH row (never read)
         pool?: boolean; // a $1,300 USDT / 0.5 WETH pool (qualifies on Lisk)
         at?: number;
       }) {
@@ -775,11 +696,12 @@ describe("PriceOracle", () => {
       }
 
       it.each([
+        ["fresh (no live read)", T - 30 * 60],
         ["months ahead (backfill)", T + 90 * DAY_S],
         ["behind", T - 3 * HOUR_S],
         ["missing", undefined],
       ])(
-        "takes the seed's hour when the live source is %s and nothing local qualifies",
+        "takes the seed's hour when nothing local qualifies (source row %s)",
         async (_, sourceAt) => {
           const store = seedStore({ sourceAt });
           const weth = await refresh(store, LISK, LISK_WETH, T);
@@ -796,16 +718,6 @@ describe("PriceOracle", () => {
           expect(store.effectCalls).toEqual([]);
         },
       );
-
-      it("live canonical inside the window beats the seed", async () => {
-        const store = seedStore({ sourceAt: T - 30 * 60 });
-        const weth = await refresh(store, LISK, LISK_WETH, T);
-        expect(weth.pricePerUSDNew).toBe(USD(2_500));
-        expect(store.snapshots.at(-1)).toMatchObject({
-          priceSource: "canonical",
-          pricingSeedHour: undefined,
-        });
-      });
 
       it("a qualifying local pool beats the seed", async () => {
         const store = seedStore({ sourceAt: T + 90 * DAY_S, pool: true });
@@ -947,8 +859,9 @@ describe("PriceOracle", () => {
 
   describe("isTokenRefreshNoop (lets loadPoolData skip the async call)", () => {
     // Every combination of the conditions refreshTokenPrice branches on:
-    // chain, metadata, and the throttle clock (same hour, earlier hour, never),
-    // for a pinned, a WETH, a connector and a tier-3 token, priced or not.
+    // metadata and the throttle clock (same hour, earlier hour, never), for a
+    // pinned, a WETH, a connector and a tier-3 token, priced or not. A token is
+    // only ever refreshed on its own chain (per-chain stores), so OP only.
     const clocks = {
       sameHour: NOW - 60,
       earlierHour: NOW - 2 * HOUR_S,
@@ -959,17 +872,15 @@ describe("PriceOracle", () => {
       for (const [clockName, refreshedAt] of Object.entries(clocks)) {
         for (const metadata of ["complete", "noSymbol", "noName"] as const) {
           for (const price of [0n, USD(3)]) {
-            for (const chainId of [OP, LISK]) {
-              const token = makeToken(OP, address, 18n, price, refreshedAt, {
-                symbol: metadata === "noSymbol" ? "" : "TKN",
-                name: metadata === "noName" ? "" : "Token",
-              });
-              cases.push({
-                label: `${address.slice(0, 8)} ${clockName} ${metadata} ${price} chain ${chainId}`,
-                token,
-                chainId,
-              });
-            }
+            const token = makeToken(OP, address, 18n, price, refreshedAt, {
+              symbol: metadata === "noSymbol" ? "" : "TKN",
+              name: metadata === "noName" ? "" : "Token",
+            });
+            cases.push({
+              label: `${address.slice(0, 8)} ${clockName} ${metadata} ${price}`,
+              token,
+              chainId: OP,
+            });
           }
         }
       }
@@ -1002,15 +913,7 @@ describe("PriceOracle", () => {
             0 ||
           store.snapshots.length > 0 ||
           store.effectCalls.length > 0;
-        if (noop) {
-          expect(touched).toBe(false);
-        } else {
-          // The only non-no-op that leaves everything untouched is the
-          // cross-chain refusal, which still logs.
-          expect(
-            touched || vi.mocked(store.context.log.error).mock.calls.length > 0,
-          ).toBe(true);
-        }
+        expect(touched).toBe(!noop);
       },
     );
   });
@@ -1031,7 +934,6 @@ describe("PriceOracle", () => {
       expect(token).toMatchObject({
         id: TokenId(OP, OP_TOKEN_X),
         address: OP_TOKEN_X,
-        chainId: OP,
         symbol: "HEAL",
         name: "Healed",
         decimals: 18n,

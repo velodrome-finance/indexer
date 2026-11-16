@@ -84,7 +84,6 @@ describe("NFPMTransferLogic", () => {
   ): PoolData {
     return {
       liquidityPoolAggregator: {
-        chainId,
         gaugeAddress: overrides.gaugeAddress,
         sqrtPriceX96: overrides.sqrtPriceX96 ?? 0n,
       } as PoolData["liquidityPoolAggregator"],
@@ -144,7 +143,6 @@ describe("NFPMTransferLogic", () => {
 
   const mockCLPoolMintEvent: CLPoolMintEvent = {
     id: CLPoolMintEventId(chainId, poolAddress, transactionHash, mintLogIndex),
-    chainId: chainId,
     pool: poolAddress,
     owner: ownerAddress,
     tickLower: -4n,
@@ -162,7 +160,6 @@ describe("NFPMTransferLogic", () => {
 
   const mockPosition: NonFungiblePosition = {
     id: getStableId(),
-    chainId: chainId,
     tokenId: tokenId,
     nfpmAddress: nfpmAddress,
     owner: originalOwnerAddress,
@@ -232,7 +229,6 @@ describe("NFPMTransferLogic", () => {
 
           return Promise.resolve({
             id,
-            chainId,
             poolAddress,
             gaugeAddress: liquidityPoolEntity.gaugeAddress,
           });
@@ -397,10 +393,7 @@ describe("NFPMTransferLogic", () => {
     }
     // Mirror CLPool.Mint handler behavior: upsert the per-tx registry so the
     // NFPM.Transfer(mint) consumer can PK-lookup mint event ids.
-    const registryId = TxCLPoolMintRegistryId(
-      entity.chainId,
-      entity.transactionHash,
-    );
+    const registryId = TxCLPoolMintRegistryId(chainId, entity.transactionHash);
     const existingIndex = storedRegistries.findIndex(
       (r) => r.id === registryId,
     );
@@ -1163,12 +1156,13 @@ describe("NFPMTransferLogic", () => {
       expect(positionA?.nfpmAddress).toBe(nfpmAddress);
       expect(positionA?.pool).toBe(poolAddress);
 
-      // NFPM-B's position must have been created.
+      // NFPM-B's position must have been created (handler-side rows carry no
+      // chainId; the id pins the chain).
       const positionB = storedPositions.find(
         (p) =>
+          p.id === NonFungiblePositionId(chainId, nfpmAddressB, tokenId) &&
           p.pool === poolAddressB &&
-          p.tokenId === tokenId &&
-          p.chainId === chainId,
+          p.tokenId === tokenId,
       );
       expect(positionB).toBeDefined();
       expect(positionB?.nfpmAddress).toBe(nfpmAddressB);

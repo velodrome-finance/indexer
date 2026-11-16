@@ -6,7 +6,6 @@ import {
   RootPoolLeafPoolId,
   legacyPoolDeployment,
 } from "../Constants";
-import { getRootPoolAddress } from "../Effects/RootPool";
 import { getRehydrated } from "../EntityTimestamps";
 import type { Pool } from "../EntityTypes";
 import { createV2PoolFromFactory } from "./PoolFactory/PoolFactoryPoolCreatedLogic";
@@ -14,7 +13,11 @@ import {
   recordV2DefaultFee,
   resolveCustomSwapFee,
 } from "./SwapFeeModule/CustomSwapFeeSharedLogic";
-import { flushPendingVotesAndDistributionsForRootPool } from "./Voter/CrossChainPendingResolution";
+import {
+  SUPERCHAIN_LEAF_CHAIN_IDS,
+  SUPERCHAIN_ROOT_CHAIN_ID,
+  predictV2RootPoolAddress,
+} from "./Voter/RootPoolLogic";
 
 indexer.contractRegister(
   { contract: "PoolFactory", event: "PoolCreated" },
@@ -26,8 +29,7 @@ indexer.contractRegister(
 indexer.onEvent(
   { contract: "PoolFactory", event: "PoolCreated" },
   async ({ event, context }) => {
-    // Pool + pricing registration, shared with the Aero factories. Done before
-    // the leaf-chain root-pool lookup below, whose failure paths return early.
+    // Pool + pricing registration, shared with the Aero factories.
     await createV2PoolFromFactory(
       {
         chainId: event.chainId,
@@ -43,54 +45,32 @@ indexer.onEvent(
       context,
     );
 
-    // For non-Optimism and non-Base pools, set the RootPool_LeafPool entity
-    // Mapping RootPool (on optimism) to Pool (on superchain)
-    // This is only need for non-CL pools
-    // The mapping between RootCLPool and CLPool is made in RootCLPoolFactory.ts without the need of a RPC call
-    // RPC call is needed here because RootPoolCreated event for non-CL pools doesn't have leafChainId
-    const chainId: number = event.chainId;
-    if (chainId !== 10 && chainId !== 8453) {
-      let rootPoolAddress: string | null = null;
-      try {
-        rootPoolAddress = await context.effect(getRootPoolAddress, {
-          chainId: chainId,
-          factory: ROOT_POOL_FACTORY_ADDRESS_OPTIMISM,
-          token0: event.params.token0,
-          token1: event.params.token1,
-          type: event.params.stable ? 0 : -1, // -1 for vAMM pools, 0 for sAMM pools, or the tick spacing value for CL pools
-        });
-      } catch (error) {
-        context.log.error(
-          `Error fetching root pool address for pool ${event.params.pool} on chain ${chainId}: ${error}`,
-        );
-        // Continue execution - pool is already created, just skip RootPool_LeafPool creation
-        return;
-      }
-
-      if (rootPoolAddress) {
-        context.RootPool_LeafPool.set({
-          id: RootPoolLeafPoolId(
-            10,
-            chainId,
-            rootPoolAddress,
-            event.params.pool,
-          ),
-          rootChainId: 10,
-          rootPoolAddress: rootPoolAddress,
-          leafChainId: chainId,
-          leafPoolAddress: event.params.pool,
-        });
-        await flushPendingVotesAndDistributionsForRootPool(
-          context,
+    // A superchain leaf V2 pool records its root pool on its own chain
+    // (ADR 0009, flow D). The root pool's address is the V2 RootPoolFactory's
+    // CREATE2 address for (this chain, token0, token1, stable), the value the
+    // leaf LpHelper returns (equal on all 480 cached LpHelper answers of the ten
+    // leaf chains), so no RPC and no other chain's rows are needed.
+    const chainId = event.chainId;
+    if (SUPERCHAIN_LEAF_CHAIN_IDS.includes(chainId)) {
+      const rootPoolAddress = predictV2RootPoolAddress(
+        ROOT_POOL_FACTORY_ADDRESS_OPTIMISM,
+        chainId,
+        event.params.token0,
+        event.params.token1,
+        event.params.stable,
+      );
+      context.RootPool_LeafPool.set({
+        id: RootPoolLeafPoolId(
+          SUPERCHAIN_ROOT_CHAIN_ID,
+          chainId,
           rootPoolAddress,
-          "[PoolFactory.PoolCreated]",
-        );
-      } else {
-        context.log.error(
-          `[PoolFactory.PoolCreated] Failed to get root pool address for pool ${event.params.pool} on chain ${chainId}`,
-        );
-        return;
-      }
+          event.params.pool,
+        ),
+        rootChainId: SUPERCHAIN_ROOT_CHAIN_ID,
+        rootPoolAddress,
+        leafChainId: chainId,
+        leafPoolAddress: event.params.pool,
+      });
     }
   },
 );
@@ -114,6 +94,7 @@ indexer.onEvent(
       poolEntity,
       false,
       context,
+      event.chainId,
     );
     if (chargedFee === undefined) {
       return;

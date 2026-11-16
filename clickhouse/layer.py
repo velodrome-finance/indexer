@@ -200,6 +200,25 @@ def series_cols() -> list[Col]:
     return [by_name[n] for n in SERIES_FIELDS]
 
 
+ROOT_PREV_FIELDS = ["emissions", "emissions_usd", "distributions"]
+
+
+def root_pool_series_cols() -> list[Col]:
+    """RootPool fields carried into the root pool series (id `{chainId}-{rootPoolAddress}`)."""
+    return [
+        Col("id", "str", "id"),
+        CHAIN_FROM_ID,
+        Col("root_pool_address", "idpart", expr=f"lower({id_part(2)})", ch_type="String",
+            verify_src="lower({rootPoolAddress})"),
+        Col("gauge_is_alive", "bool", "gaugeIsAlive"),
+        Col("votes", "big", "veNFTamountStaked"),
+        Col("emissions", "big", "totalEmissions"),
+        Col("emissions_usd", "big", "totalEmissionsUSD"),
+        Col("distributions", "count", "numberOfDistributions"),
+        Col("last_updated", "time", "lastUpdatedTimestamp"),
+    ]
+
+
 def token_cols() -> list[Col]:
     return [
         Col("id", "str", "id"),
@@ -392,6 +411,17 @@ ENTITIES: list[Entity] = [
     Entity("pool_day", "_pool_day", "Pool", "chain_id, pool_address, period", series_cols(), mode="day", prev_fields=PREV_FIELDS,
            period_expr="toStartOfDay(lastUpdatedTimestamp)",
            description="end-of-day pool state for every day in which the pool changed (exact, from the per-block history)"),
+    # Superchain root pools (ADR 0009): the vote weight and emissions of a leaf pool live on the
+    # root chain. Their hourly / daily series give pool_hourly / pool_daily those numbers for
+    # leaf pools (through root_leaf_pools), exactly as _pool_hour does for local pools.
+    Entity("root_pool_hour", "_root_pool_hour", "RootPool", "chain_id, root_pool_address, period", root_pool_series_cols(),
+           mode="hour", prev_fields=ROOT_PREV_FIELDS, period_expr="toStartOfHour(lastUpdatedTimestamp)",
+           series_key="chain_id, root_pool_address",
+           description="end-of-hour root pool state (votes, emissions) for every hour in which it changed"),
+    Entity("root_pool_day", "_root_pool_day", "RootPool", "chain_id, root_pool_address, period", root_pool_series_cols(),
+           mode="day", prev_fields=ROOT_PREV_FIELDS, period_expr="toStartOfDay(lastUpdatedTimestamp)",
+           series_key="chain_id, root_pool_address",
+           description="end-of-day root pool state (votes, emissions) for every day in which it changed"),
 ]
 
 def _aero_entities() -> list[Entity]:

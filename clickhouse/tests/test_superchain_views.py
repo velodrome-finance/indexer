@@ -6,8 +6,11 @@ envio database.
 
 Uses the same connection variables as analytics.py. Creates `analytics_test_src_sc` (the
 template's table structures, a few hand-written rows) and `analytics_test_sc`, installs the
-layer, checks root_pools, root_leaf_pools, leaf_pool_root_totals, root_pool_votes and
-super_swap_legs, and drops both (--keep to leave them).
+layer, checks root_pools, root_leaf_pools, leaf_pool_root_totals, root_pool_votes,
+super_swap_legs, and the root-side votes and emissions of leaf pools in pools, pool_hourly,
+pool_daily and chain_daily, and drops both (--keep to leave them). The template may be a shared
+or a per-chain envio database: rows get envio's chainId wherever the table has that column, and
+every chain gets an envio_chains row (the same frontier, so both modes see the same rows).
 """
 
 from __future__ import annotations
@@ -58,6 +61,10 @@ def main():
             failures.append(name)
 
     def row(table, ckpt, values: dict, change="SET"):
+        if has_chain.get(f"envio_history_{table}") and "chainId" not in values:
+            values = {**values, "chainId": int(values["id"].split("-")[0])}
+        elif not has_chain.get(f"envio_history_{table}"):
+            values = {k: v for k, v in values.items() if k != "chainId"}
         cols = ", ".join(f"`{k}`" for k in [*values, "envio_checkpoint_id", "envio_change"])
         vals = ", ".join(v if isinstance(v, str) and v.startswith("toDateTime64") else repr(v) if isinstance(v, str) else
                          ("1" if v is True else "0" if v is False else str(v)) for v in values.values())
@@ -77,21 +84,37 @@ def main():
         if t in have:
             x(f"CREATE TABLE {SRC}.{t} AS {a.template}.{t}")
     x(f"INSERT INTO {SRC}.envio_info VALUES (1, 'instance-SC')")
-    x(f"INSERT INTO {SRC}.envio_chains VALUES (10, 100, 1)")
+    chain_cols = [r["name"] for r in ch.rows(f"SELECT name FROM system.columns WHERE database = '{SRC}' AND table = 'envio_chains' ORDER BY position")]
+    for c in (10, 252, 34443, 1750):
+        vals = {"chain_id": c, "checkpoint_id": 100}
+        x(f"INSERT INTO {SRC}.envio_chains ({', '.join(vals)}) VALUES ({', '.join(str(v) for v in vals.values())})")
+    has_chain = {t: int(ch.scalar(f"SELECT count() FROM system.columns WHERE database = '{SRC}' AND table = '{t}' AND name = 'chainId'") or 0) > 0
+                 for t in TABLES if t in have}
+    print(f"template {a.template}: envio_chains columns {chain_cols}; per-chain views: {A.Ctx(ch, a.template, 'x').per_chain()}")
 
     # leaf pools: the CL leaf (right factory), a pool with the same hash from another factory,
-    # and a V2 leaf; stored fields as the cross-chain handlers fill them today
-    for pid, factory, h, votes, em in ((f"252-{LEAF_CL}", CL_FACTORY, HASH, 7, 3), (f"252-{LEAF_CL_OTHER}", OTHER_FACTORY, HASH, 0, 0),
-                                       (f"34443-{LEAF_V2}", "0x0000000000000000000000000000000000000001", "", 5, 2)):
+    # and a V2 leaf. Their own vote and emission fields are 0 (not filled since the per-chain
+    # flip), except the other-factory pool, which keeps what it stores (it has no root pool).
+    for pid, factory, h, votes, em in ((f"252-{LEAF_CL}", CL_FACTORY, HASH, 0, 0), (f"252-{LEAF_CL_OTHER}", OTHER_FACTORY, HASH, 11, 13),
+                                       (f"34443-{LEAF_V2}", "0x0000000000000000000000000000000000000001", "", 0, 0)):
         row("Pool", 10, {"id": pid, "chainId": int(pid.split("-")[0]), "poolAddress": pid.split("-")[1], "factoryAddress": factory,
                          "rootPoolMatchingHash": h, "veNFTamountStaked": str(votes), "totalEmissions": str(em),
-                         "totalEmissionsUSD": str(em * 2), "lastUpdatedTimestamp": ts(T)})
+                         "totalEmissionsUSD": str(em * 2), "totalLiquidityUSD": str(10**18), "totalVolumeUSD": "5",
+                         "deployment": "VELODROME", "lastUpdatedTimestamp": ts(T)})
     # root pools (CL, V2, and a V2 root pool no leaf mapped); CL's later version above the frontier
     row("RootPool", 20, {"id": f"10-{CL_ROOT}", "chainId": 10, "rootPoolAddress": CL_ROOT, "leafChainId": 252, "isCL": True,
                          "token0": TOK0, "token1": TOK1, "tickSpacing": 100, "rootFactoryAddress": CL_FACTORY,
                          "rootPoolMatchingHash": HASH, "gaugeAddress": "0x00000000000000000000000000000000000000Ee",
                          "gaugeIsAlive": True, "veNFTamountStaked": "7", "totalEmissions": "3", "totalEmissionsUSD": "6",
                          "numberOfDistributions": 2, "createdBlockNumber": "1", "createdTimestamp": ts(T), "lastUpdatedTimestamp": ts(T)})
+    # two hours later the CL root pool gets a distribution and more votes; the leaf pool does not
+    # change in that hour, so pool_hourly / pool_daily need a root-only row for it
+    row("RootPool", 25, {"id": f"10-{CL_ROOT}", "chainId": 10, "rootPoolAddress": CL_ROOT, "leafChainId": 252, "isCL": True,
+                         "token0": TOK0, "token1": TOK1, "tickSpacing": 100, "rootFactoryAddress": CL_FACTORY,
+                         "rootPoolMatchingHash": HASH, "gaugeAddress": "0x00000000000000000000000000000000000000Ee",
+                         "gaugeIsAlive": True, "veNFTamountStaked": "8", "totalEmissions": "5", "totalEmissionsUSD": "10",
+                         "numberOfDistributions": 3, "createdBlockNumber": "1", "createdTimestamp": ts(T),
+                         "lastUpdatedTimestamp": ts(T + 7200)})
     row("RootPool", 150, {"id": f"10-{CL_ROOT}", "chainId": 10, "rootPoolAddress": CL_ROOT, "leafChainId": 252, "isCL": True,
                           "token0": TOK0, "token1": TOK1, "tickSpacing": 100, "rootFactoryAddress": CL_FACTORY,
                           "rootPoolMatchingHash": HASH, "veNFTamountStaked": "999", "totalEmissions": "3",
@@ -103,10 +126,11 @@ def main():
                              "gaugeIsAlive": True, "veNFTamountStaked": votes, "totalEmissions": em, "totalEmissionsUSD": em,
                              "numberOfDistributions": 1, "createdBlockNumber": "1", "createdTimestamp": ts(T),
                              "lastUpdatedTimestamp": ts(T)})
-    # mappings the leaf writes: the V2 leaf, and a CL row (the flush path) that must not count twice
+    # mappings the leaf writes: the V2 leaf, and a CL row (as a shared-mode database still has
+    # them from the removed flush path) that must not count twice. Written by the leaf chain.
     for rp, leaf_chain, leaf in ((V2_ROOT, 34443, LEAF_V2), (CL_ROOT, 252, LEAF_CL)):
-        row("RootPool_LeafPool", 40, {"id": f"10-{leaf_chain}-{rp}-{leaf}", "rootChainId": 10, "rootPoolAddress": rp,
-                                      "leafChainId": leaf_chain, "leafPoolAddress": leaf})
+        row("RootPool_LeafPool", 40, {"id": f"10-{leaf_chain}-{rp}-{leaf}", "chainId": leaf_chain, "rootChainId": 10,
+                                      "rootPoolAddress": rp, "leafChainId": leaf_chain, "leafPoolAddress": leaf})
     row("RootPoolVote", 50, {"id": f"10-7-{CL_ROOT}", "chainId": 10, "rootPoolAddress": CL_ROOT, "tokenId": 7,
                              "veNFTStateId": "10-7", "veNFTamountStaked": "4", "lastUpdatedTimestamp": ts(T)})
     # SuperSwaps: tx A dispatched m1, m2 and only m2 reached a destination swap; tx B dispatched
@@ -126,19 +150,40 @@ def main():
     def q(sql):
         return ch.rows(sql.replace("{db}", DB))
 
-    check("root_pools: committed versions only (CL weight 7, not 999 above the frontier)",
+    check("root_pools: committed versions only (CL weight 8, not 999 above the frontier)",
           [(r["root_pool_address"], r["votes_raw"]) for r in q("SELECT root_pool_address, toString(votes_raw) AS votes_raw FROM {db}.root_pools ORDER BY 1")],
-          sorted([(ORPHAN_ROOT.lower(), "1"), (CL_ROOT.lower(), "7"), (V2_ROOT.lower(), "5")]))
+          sorted([(ORPHAN_ROOT.lower(), "1"), (CL_ROOT.lower(), "8"), (V2_ROOT.lower(), "5")]))
     check("root_leaf_pools: CL by hash + factory (other factory excluded), V2 by the leaf mapping, no orphan",
           [(r["kind"], r["root_pool_address"], r["leaf_chain_id"], r["leaf_pool_address"])
            for r in q("SELECT kind, root_pool_address, leaf_chain_id, leaf_pool_address FROM {db}.root_leaf_pools ORDER BY kind")],
           [("CL", CL_ROOT.lower(), 252, LEAF_CL.lower()), ("V2", V2_ROOT.lower(), 34443, LEAF_V2.lower())])
-    check("leaf_pool_root_totals: root numbers next to the stored leaf fields",
-          [(r["leaf_pool_address"], r["votes_raw"], r["stored_votes_raw"], r["emissions_raw"], r["stored_emissions_raw"])
-           for r in q("SELECT leaf_pool_address, toString(votes_raw) AS votes_raw, toString(stored_votes_raw) AS stored_votes_raw, "
-                      "toString(emissions_raw) AS emissions_raw, toString(stored_emissions_raw) AS stored_emissions_raw "
-                      "FROM {db}.leaf_pool_root_totals ORDER BY 1")],
-          sorted([(LEAF_CL.lower(), "7", "7", "3", "3"), (LEAF_V2.lower(), "5", "5", "2", "2")]))
+    check("leaf_pool_root_totals: the root pool's numbers per leaf pool",
+          [(r["leaf_pool_address"], r["votes_raw"], r["emissions_raw"], r["emissions_usd_raw"])
+           for r in q("SELECT leaf_pool_address, toString(votes_raw) AS votes_raw, toString(emissions_raw) AS emissions_raw, "
+                      "toString(emissions_usd_raw) AS emissions_usd_raw FROM {db}.leaf_pool_root_totals ORDER BY 1")],
+          sorted([(LEAF_CL.lower(), "8", "5", "10"), (LEAF_V2.lower(), "5", "2", "2")]))
+    check("pools: a mapped leaf pool shows its root pool's votes and emissions, an unmapped one its own",
+          [(r["pool_address"], r["votes"], r["emissions_total"], r["emissions_usd_total"], r["root_pool_address"])
+           for r in q("SELECT pool_address, votes * 1e18 AS votes, emissions_total * 1e18 AS emissions_total, "
+                      "emissions_usd_total * 1e18 AS emissions_usd_total, root_pool_address FROM {db}.pools ORDER BY 1")],
+          sorted([(LEAF_CL.lower(), 8.0, 5.0, 10.0, CL_ROOT.lower()), (LEAF_CL_OTHER.lower(), 11.0, 13.0, 26.0, None),
+                  (LEAF_V2.lower(), 5.0, 2.0, 2.0, V2_ROOT.lower())]))
+    h0, h2 = T - T % 3600, T - T % 3600 + 7200
+    check("pool_hourly: root emissions and votes per hour, a root-only hour with the leaf state carried",
+          [(r["hour"], r["pool_changed"], r["votes"], r["emissions"], r["emissions_usd"], r["tvl_usd"], r["tvl_usd_change"], r["volume_usd"])
+           for r in q(f"SELECT toUnixTimestamp(hour) AS hour, pool_changed, votes * 1e18 AS votes, emissions * 1e18 AS emissions, "
+                      f"emissions_usd * 1e18 AS emissions_usd, tvl_usd, tvl_usd_change, volume_usd * 1e18 AS volume_usd "
+                      f"FROM {{db}}.pool_hourly WHERE pool_address = '{LEAF_CL.lower()}' ORDER BY hour")],
+          [(h0, 1, 7.0, 3.0, 6.0, 1.0, 1.0, 5.0), (h2, 0, 8.0, 2.0, 4.0, 1.0, 0.0, 0.0)])
+    check("pool_daily: one day, both root changes",
+          [(r["pool_changed"], r["votes"], r["emissions"]) for r in
+           q(f"SELECT pool_changed, votes * 1e18 AS votes, emissions * 1e18 AS emissions FROM {{db}}.pool_daily "
+             f"WHERE pool_address = '{LEAF_CL.lower()}'")],
+          [(1, 8.0, 5.0)] if h0 // 86400 == h2 // 86400 else [(1, 7.0, 3.0), (0, 8.0, 2.0)])
+    check("chain_hourly: a root-only hour is not an active pool",
+          [(r["hour"], r["active_pools"]) for r in
+           q("SELECT toUnixTimestamp(hour) AS hour, active_pools FROM {db}.chain_hourly WHERE chain_id = 252 ORDER BY hour")],
+          [(h0, 2), (h2, 0)])
     check("root_pool_votes: a veNFT's vote with its leaf pool",
           [(r["token_id"], r["leaf_pool_address"], r["votes_raw"])
            for r in q("SELECT token_id, leaf_pool_address, toString(votes_raw) AS votes_raw FROM {db}.root_pool_votes")],

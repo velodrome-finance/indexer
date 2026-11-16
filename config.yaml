@@ -2,6 +2,11 @@
 name: Velodrome_v2
 description: Multi-chain indexer for Velodrome V2, Aerodrome and Aero (MetaDEX) pools
 rollback_on_reorg: true
+# Every entity and effect cache is per-chain (docs/adr/0009-per-chain-entities.md):
+# no handler reads or writes another chain's rows, so chains can run in separate
+# worker processes, reorgs and history are per chain, and a chain can be added to
+# an existing database with `envio start --chain <id>` without a resync.
+disable_default_cross_chain: true
 raw_events: false
 # Docs: https://docs.envio.dev/docs/HyperIndex/configuration-file#storage
 storage:

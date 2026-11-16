@@ -57,7 +57,6 @@ export async function loadOrCreateEscrowState(
   return (
     existing ?? {
       id: `${chainId}`,
-      chainId,
       supply: 0n,
       permanentStakeBalance: 0n,
       accumulatorAmount: 0n,
@@ -88,7 +87,6 @@ export function persistEscrowState(
     const epoch = getSnapshotEpoch(timestamp);
     context.SAeroEscrowStateSnapshot.set({
       id: AeroSnapshotId(next.id, epoch.getTime()),
-      chainId: next.chainId,
       timestamp: epoch,
       supply: next.supply,
       permanentStakeBalance: next.permanentStakeBalance,
@@ -121,7 +119,6 @@ export function createSAeroPositionEntity(
 ): SAeroPosition {
   return {
     id: SAeroPositionId(chainId, tokenId),
-    chainId,
     tokenId,
     owner,
     amount: 0n,
@@ -198,7 +195,6 @@ export function writeSAeroEvent(
 ): void {
   context.SAeroPositionEvent.set({
     id: AeroEventId(ev.chainId, ev.transactionHash, ev.logIndex, leg),
-    chainId: ev.chainId,
     kind,
     tokenId: position.tokenId,
     owner: position.owner,

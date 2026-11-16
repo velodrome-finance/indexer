@@ -73,6 +73,7 @@ describe("FactoryRegistry Events", () => {
       const configId = `${factoryRegistryAddress}_${chainId}`;
       const existingConfig = {
         id: configId,
+        chainId,
         currentActivePoolFactory: toChecksumAddress(
           "0x3333333333333333333333333333333333333333",
         ),
@@ -140,6 +141,7 @@ describe("FactoryRegistry Events", () => {
       const configId = `${factoryRegistryAddress}_${chainId}`;
       const existingConfig = {
         id: configId,
+        chainId,
         currentActivePoolFactory: poolFactoryAddress,
         currentActiveVotingRewardsFactory: votingRewardsFactoryAddress,
         currentActiveGaugeFactory: gaugeFactoryAddress,

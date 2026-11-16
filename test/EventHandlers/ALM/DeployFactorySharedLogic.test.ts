@@ -46,9 +46,10 @@ describe("findStrategyPosition", () => {
     return { context, warn };
   };
 
-  it("ignores identical positions minted on another chain or in another pool", async () => {
+  // Per-chain mode: getWhere only returns the handler's chain, so another
+  // chain's identical position can no longer reach this filter.
+  it("ignores identical positions minted in another pool", async () => {
     const { context, warn } = contextReturning([
-      position({ tokenId: 1n, chainId: 57073, mintLogIndex: 0 }),
       position({ tokenId: 2n, pool: otherPool, mintLogIndex: 1 }),
       position({ tokenId: 61956n, mintLogIndex: 5 }),
     ]);

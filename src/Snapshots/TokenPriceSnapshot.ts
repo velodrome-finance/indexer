@@ -21,15 +21,11 @@ import {
  * - `pinned`   — tier-0 token (destination token / stablecoin) at exactly $1
  * - `pool`     — derived from the deepest qualifying pool (`pricingPoolId`,
  *                `pricingDepthUSD` say which pool and how deep)
- * - `canonical` — the same asset's stored price on its canonical chain won the
- *                depth comparison (`pricingSourceTokenId`, `pricingDepthUSD`
- *                say which token and how deep; ADR 0004)
- * - `canonical-seed` — nothing qualified and the live canonical source was
- *                outside its ±2 h window; the committed hourly seed's price of
- *                the source (`pricingSourceTokenId`) for `pricingSeedHour`
- *                (ADR 0008)
- * - `canonical-snapshot` — nothing qualified, no live source and no seed
- *                hour; the source's own hourly `TokenPriceSnapshot`
+ * - `canonical-seed` — no local pool qualified; the committed hourly seed's
+ *                price of the canonical source (`pricingSourceTokenId`) for
+ *                `pricingSeedHour` (ADR 0008)
+ * - `canonical-snapshot` — no local pool qualified and no seed hour; the
+ *                source's own hourly `TokenPriceSnapshot`
  *                (`pricingSourceTokenId`) for `pricingSeedHour`, the last
  *                complete hour before the block or up to two hours earlier,
  *                read from ClickHouse by the `getCanonicalSourcePrice` effect
@@ -39,13 +35,15 @@ import {
  *                ago, every tier; `lastSuccessfulPriceTimestamp` dates it)
  * - `unpriced` — nothing qualified and nothing fresh to carry; price is 0
  *
- * Earlier rows may carry tags that are no longer produced: `rebind` (the ADR
- * 0003 fallback copy, replaced by `canonical`) and the oracle-era `fresh` /
- * `pool-implied`.
+ * Earlier rows may carry tags that are no longer produced: `canonical` (the
+ * live read of the source chain's `Token`, ADR 0004, removed with per-chain
+ * entities in ADR 0009), `rebind` (the ADR 0003 fallback copy) and the
+ * oracle-era `fresh` / `pool-implied`.
  */
 export const PRICE_SOURCE = {
   PINNED: "pinned",
   POOL: "pool",
+  /** No longer written (ADR 0009); kept so older rows keep a known tag. */
   CANONICAL: "canonical",
   CANONICAL_SEED: "canonical-seed",
   CANONICAL_SNAPSHOT: "canonical-snapshot",
@@ -127,7 +125,6 @@ export function createTokenPriceSnapshot(
   return {
     id: TokenPriceSnapshotId(input.chainId, input.address, input.timestamp),
     address: input.address,
-    chainId: input.chainId,
     pricePerUSDNew: input.pricePerUSDNew,
     isWhitelisted: input.isWhitelisted,
     lastUpdatedTimestamp: input.timestamp,

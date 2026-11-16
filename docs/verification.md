@@ -138,8 +138,7 @@ All amounts are compared in integers. "Exact" means equal.
 |---|---|---|
 | `gauge.counters` | gauge deposit / withdraw / claim counts and Σ rewards claimed per pool, over every gauge of the pool | exact |
 | `gauge.staked` | currentLiquidityStaked: V2 Σ Deposit − Σ Withdraw = `totalSupply()` (sample); CL Σ L of NFTs the gauge holds. CL stakedLiquidityInRange and stakedReserve0/1 recomputed from those NFTs | liquidity exact; staked reserves 2 wei per NFT or relative 1e-6 |
-| `rewards.emissions` | Pool.totalEmissions = Σ NotifyReward on the pool's gauges (on leaf chains this needs Optimism in the same instance, otherwise skipped with both numbers shown) | exact |
-| `rewards.cross-chain-pending` | PendingVote / PendingDistribution / PendingRootPoolMapping rows that never resolved | informational |
+| `rewards.emissions` | root chains: Pool.totalEmissions = Σ DistributeReward to the pool's gauges; leaf chains: skipped with Σ NotifyReward shown (a leaf pool's emissions are on its RootPool on Optimism since ADR 0009) | exact |
 | `rewards.voting-claims` | pools with fee / bribe claims on-chain have non-zero claimed USD (token amounts are not stored) | informational |
 | `usd.volume` | for the sample pools, totalVolumeUSD = Σ min trusted leg, priced with the token's TokenPriceSnapshot of the swap's hour | relative 0.5% |
 | `usd.v2-fees` | for the sample V2 pools, totalFeesGeneratedUSD = Σ (fee the pool took / amountIn) × the handler's base leg | relative 0.5% |

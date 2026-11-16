@@ -1,4 +1,3 @@
-import type { Token } from "envio";
 import { createTestIndexer } from "envio";
 import {
   AERO_NFPM_ADDRESS,
@@ -108,7 +107,7 @@ describe("Aero gauges, staking and emissions", () => {
       symbol: "xAERO",
       chainId,
       pricePerUSDNew: E18 / 2n,
-    } as Token);
+    });
     const tokens = {
       token0_id: TokenId(chainId, mockToken0Data.address),
       token1_id: TokenId(chainId, mockToken1Data.address),

@@ -13,7 +13,6 @@ import type { handlerContext } from "../EntityTypes";
 import { registerPricingPool } from "../Pricing/PoolRoute";
 import {
   type CLFactoryPoolCreatedEvent,
-  flushPendingRootPoolMappingAndVotes,
   processCLFactoryPoolCreated,
 } from "./CLFactory/CLFactoryPoolCreatedLogic";
 import { processCLFactoryTickSpacingEnabled } from "./CLFactory/CLFactoryTickSpacingEnabledLogic";
@@ -27,16 +26,13 @@ type CLFactoryTickSpacingEnabledEvent =
  * Creates the Pool for a CL PoolCreated from either CL factory contract.
  *
  * The legacy `CLFactory` and the `AeroCLFactory` emit the same PoolCreated;
- * the contract that emitted it decides `deployment`. An AERO pool is never a
- * superchain leaf pool and has no legacy gauge config, so it skips the
- * root-pool reconciliation (and its `getWhere`) and is created without the
- * chain's legacy `CLGaugeConfig`.
+ * the contract that emitted it decides `deployment`. An AERO pool has no legacy
+ * gauge config, so it is created without the chain's legacy `CLGaugeConfig`.
  *
  * @param event - The PoolCreated event
  * @param context - Handler context
  * @param deployment - Deployment of the emitting factory
- * @returns Promise that resolves once the pool, its pricing registration and
- *   (legacy only) the root-pool reconciliation are staged
+ * @returns Promise that resolves once the pool and its pricing registration are staged
  */
 async function handleCLPoolCreated(
   event: CLFactoryPoolCreatedEvent,
@@ -130,19 +126,6 @@ async function handleCLPoolCreated(
     event.params.token0,
     event.params.token1,
   );
-
-  // Only a legacy leaf pool can be the leaf of an Optimism root pool.
-  if (!isAero) {
-    await flushPendingRootPoolMappingAndVotes(
-      context,
-      event.chainId,
-      event.params.token0,
-      event.params.token1,
-      event.params.tickSpacing,
-      event.params.pool,
-      event.srcAddress,
-    );
-  }
 }
 
 /**
@@ -163,7 +146,6 @@ async function handleTickSpacingEnabled(
         event.srcAddress,
         event.params.tickSpacing,
       ),
-      chainId: event.chainId,
       factoryAddress: event.srcAddress,
       tickSpacing: event.params.tickSpacing,
       fee: BigInt(event.params.fee),

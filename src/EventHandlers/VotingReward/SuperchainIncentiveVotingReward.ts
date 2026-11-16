@@ -56,6 +56,7 @@ indexer.onEvent(
             loadedData.userData,
             context,
             new Date(data.timestamp * 1000),
+            event.chainId,
           )
         : Promise.resolve(),
     ]);

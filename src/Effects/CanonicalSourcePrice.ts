@@ -5,7 +5,7 @@ import { S, createEffect } from "envio";
  * (ADR 0009, flow F, option 1). A leaf token with a canonical source (WETH on a
  * leaf chain → Optimism WETH, XVELO → Optimism VELO, xAERO → Base AERO; see
  * `CANONICAL_SOURCES` in src/PriceOverrides.ts) that has no qualifying local
- * pool, no live source and no seed hour asks for the source's
+ * pool and no seed hour asks for the source's
  * `TokenPriceSnapshot` of the last complete clock hour before its block.
  *
  * Reading ClickHouse instead of the source chain's `Token` row is what makes
@@ -25,9 +25,6 @@ import { S, createEffect } from "envio";
  *   envio's username and password are used).
  * - `PRICING_CANONICAL_CLICKHOUSE_DATABASE`: another database for the source.
  * - `PRICING_CANONICAL_SNAPSHOT_EFFECT=false` turns the effect off.
- * - `PRICING_CANONICAL_LIVE_READ=false` turns off the live cross-chain `Token`
- *   read (ADR 0004) in src/PriceOracle.ts, so the seed and this effect are the
- *   only canonical sources, as in per-chain mode.
  */
 
 // Local constants so this module needs no chain configuration.
@@ -88,8 +85,6 @@ export interface CanonicalPriceClickHouse {
 
 /** The pricing switches and the effect's ClickHouse connection. */
 export interface CanonicalPriceSettings {
-  /** Whether the live cross-chain `Token` read (ADR 0004) runs. Default true. */
-  readonly liveRead: boolean;
   /** Whether the snapshot effect is called. Default true. */
   readonly snapshotEffect: boolean;
   /** Where to read; undefined when ClickHouse is not configured (effect off). */
@@ -120,7 +115,6 @@ function parseSwitch(value: string | undefined, fallback: boolean): boolean {
 export function readCanonicalPriceSettings(
   env: Readonly<Record<string, string | undefined>>,
 ): CanonicalPriceSettings {
-  const liveRead = parseSwitch(env.PRICING_CANONICAL_LIVE_READ, true);
   const snapshotEffect = parseSwitch(
     env.PRICING_CANONICAL_SNAPSHOT_EFFECT,
     true,
@@ -131,7 +125,7 @@ export function readCanonicalPriceSettings(
   const database =
     env.PRICING_CANONICAL_CLICKHOUSE_DATABASE?.trim() ||
     env.ENVIO_CLICKHOUSE_DATABASE?.trim();
-  if (!rawUrl || !database) return { liveRead, snapshotEffect };
+  if (!rawUrl || !database) return { snapshotEffect };
 
   // fetch() refuses URLs with credentials: move them to the auth header.
   const parsed = new URL(
@@ -147,7 +141,6 @@ export function readCanonicalPriceSettings(
   parsed.username = "";
   parsed.password = "";
   return {
-    liveRead,
     snapshotEffect,
     clickhouse: {
       url: parsed.toString().replace(/\/$/, ""),

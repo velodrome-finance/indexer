@@ -1,10 +1,8 @@
-import type { Token } from "envio";
 import { createTestIndexer } from "envio";
 import {
   AERO_NFPM_ADDRESS,
   FeeToTickSpacingMappingId,
   POOL_DEPLOYMENT,
-  PendingRootPoolMappingId,
   PoolId,
   TokenId,
   rootPoolMatchingHash,
@@ -60,13 +58,13 @@ describe("Aero factories", () => {
       id: TokenId(chainId, token0),
       address: token0,
       chainId,
-    } as Token);
+    });
     idx.Token.set({
       ...mockToken1Data,
       id: TokenId(chainId, token1),
       address: token1,
       chainId,
-    } as Token);
+    });
   }
 
   function tickSpacingEnabled(
@@ -186,26 +184,10 @@ describe("Aero factories", () => {
       expect(litePoolRow?.deployment).toBe(POOL_DEPLOYMENT.AERO);
     });
 
-    it("does not let an Ink Aero pool claim a pending legacy root-pool mapping", async () => {
+    it("writes no RootPool_LeafPool for an Ink Aero CL pool (leaf CL pools write no mapping, ADR 0009 flow E)", async () => {
       const chainId = 57073;
-      const rootPoolAddress = toChecksumAddress(
-        "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
-      );
-      const hash = rootPoolMatchingHash(chainId, token0, token1, 100n);
-      const pendingId = PendingRootPoolMappingId(10, rootPoolAddress);
       const idx = createTestIndexer();
       seedTokens(idx, chainId);
-      idx.PendingRootPoolMapping.set({
-        id: pendingId,
-        rootChainId: 10,
-        rootPoolAddress,
-        rootFactoryAddress: LEGACY_INK_CL_FACTORY,
-        leafChainId: chainId,
-        token0,
-        token1,
-        tickSpacing: 100n,
-        rootPoolMatchingHash: hash,
-      });
       await idx.process({
         chains: {
           [chainId]: {
@@ -216,8 +198,9 @@ describe("Aero factories", () => {
           },
         },
       });
-      expect(await idx.PendingRootPoolMapping.get(pendingId)).toBeDefined();
       expect(await idx.Pool.get(PoolId(chainId, pool))).toBeDefined();
+      expect(await idx.RootPool_LeafPool.getAll()).toEqual([]);
+      expect(await idx.RootPool.getAll()).toEqual([]);
     });
 
     it("tags legacy CL pools VELODROME off Base", async () => {
@@ -242,6 +225,9 @@ describe("Aero factories", () => {
       expect(p?.rootPoolMatchingHash).toBe(
         rootPoolMatchingHash(chainId, token0, token1, 100n),
       );
+      // A leaf CL pool only stores its matching hash; the analytics layer joins
+      // it to Optimism's RootPool (ADR 0009 flow E), so no mapping row here.
+      expect(await idx.RootPool_LeafPool.getAll()).toEqual([]);
     });
   });
 
@@ -307,8 +293,8 @@ describe("Aero factories", () => {
       expect(v?.baseFee).toBe(3000n); // 30 bps in FEE_SCALE
       expect(v?.factoryAddress).toBe(VOLATILE_FACTORY);
       expect(v?.rootPoolMatchingHash).toBeUndefined();
-      // The legacy leaf PoolFactory resolves the Optimism root pool over RPC;
-      // an Aero pool must not (no RootPool_LeafPool row is written).
+      // The legacy leaf PoolFactory records its Optimism root pool (CREATE2
+      // address, ADR 0009 flow D); an Aero pool must not (no RootPool_LeafPool row).
       for (const leafPoolAddress of [stablePool, volatilePool]) {
         expect(
           await idx.RootPool_LeafPool.getWhere({

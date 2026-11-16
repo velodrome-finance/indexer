@@ -18,12 +18,19 @@ interface ALM_LP_WrapperDiff {
 /**
  * Generic function to update ALM_LP_Wrapper with any combination of fields.
  * Takes an epoch-aligned snapshot when entering a new snapshot epoch.
+ * @param diff - The changes to apply
+ * @param current - The current ALM_LP_Wrapper
+ * @param timestamp - The event timestamp
+ * @param context - The handler context
+ * @param chainId - Chain of the event being handled (the wrapper's chain)
+ * @returns Promise that resolves once the upsert (and any snapshot) is staged
  */
 export async function updateALMLPWrapper(
   diff: Partial<ALM_LP_WrapperDiff>,
   current: ALM_LP_Wrapper,
   timestamp: Date,
   context: handlerContext,
+  chainId: number,
 ): Promise<void> {
   // Clamp lpAmount to >= 0n on write (issue #816). The V1-withdraw fallback can
   // subtract more than was added: a V1 `Withdraw` emits the input parameter, not
@@ -59,7 +66,7 @@ export async function updateALMLPWrapper(
   };
 
   if (shouldSnapshot(current.lastSnapshotTimestamp, timestamp)) {
-    setALMLPWrapperSnapshot(updated, timestamp, context);
+    setALMLPWrapperSnapshot(updated, timestamp, context, chainId);
     updated = {
       ...updated,
       lastSnapshotTimestamp: getSnapshotEpoch(timestamp),

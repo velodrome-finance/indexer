@@ -1,4 +1,3 @@
-import type { Token } from "envio";
 import { createTestIndexer } from "envio";
 import {
   POOL_DEPLOYMENT,
@@ -42,8 +41,8 @@ describe("Pool ClaimWithAccount (Aero V2)", () => {
       totalUnstakedFeesCollected1: 0n,
     });
     indexer.Pool.set(pool);
-    indexer.Token.set(mockToken0Data as Token);
-    indexer.Token.set(mockToken1Data as Token);
+    indexer.Token.set(mockToken0Data);
+    indexer.Token.set(mockToken1Data);
 
     await indexer.process({
       chains: {

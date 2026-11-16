@@ -117,7 +117,11 @@ export async function processVotingRewardClaimRewards(
   );
 
   // Convert reward amount to USD
-  const rewardAmountUSD = getTrustedUSD(data.amount, updatedRewardToken);
+  const rewardAmountUSD = getTrustedUSD(
+    data.amount,
+    updatedRewardToken,
+    data.chainId,
+  );
 
   // Determine if this is a bribe or fee reward
   const isBribe = field === PoolAddressField.BRIBE_VOTING_REWARD_ADDRESS;

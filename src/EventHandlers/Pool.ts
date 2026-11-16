@@ -164,7 +164,13 @@ indexer.onEvent(
       // The rest is arithmetic on rows already loaded plus the user's
       // snapshot-time reads; issue those and skip the arithmetic.
       await Promise.all([
-        preloadUserStatsPerPoolUpdate(userData, timestamp, context, poolData),
+        preloadUserStatsPerPoolUpdate(
+          userData,
+          timestamp,
+          context,
+          event.chainId,
+          poolData,
+        ),
         context.V2SwapFeesInTx.get(pendingFeeId),
       ]);
       return;
@@ -203,6 +209,7 @@ indexer.onEvent(
             userData,
             context,
             timestamp,
+            event.chainId,
             poolData,
           )
         : Promise.resolve(),
@@ -257,7 +264,13 @@ indexer.onEvent(
       // user's snapshot-time staked positions, the swap's pending fee and the
       // tx's oUSDT swap registry. Issue those and skip the arithmetic.
       await Promise.all([
-        preloadUserStatsPerPoolUpdate(userData, timestamp, context, poolData),
+        preloadUserStatsPerPoolUpdate(
+          userData,
+          timestamp,
+          context,
+          event.chainId,
+          poolData,
+        ),
         context.V2SwapFeesInTx.get(pendingFeeId),
         isOUSDTPool
           ? context.TxOUSDTSwapRegistry.get(event.transaction.hash)
@@ -296,6 +309,7 @@ indexer.onEvent(
         userData,
         context,
         timestamp,
+        event.chainId,
         poolData,
       ),
     ]);
@@ -460,6 +474,7 @@ async function handlePoolClaim(
       userData,
       context,
       timestamp,
+      event.chainId,
       poolData,
     ),
   ]);

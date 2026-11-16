@@ -155,6 +155,7 @@ indexer.onEvent(
       event.params.amount1,
       event.block.timestamp,
       LiquidityChangeType.REMOVE,
+      event.chainId,
     );
   },
 );
@@ -239,6 +240,7 @@ indexer.onEvent(
               userData,
               context,
               timestamp,
+              event.chainId,
               poolData,
             ),
           ]
@@ -303,7 +305,14 @@ indexer.onEvent(
         event.chainId,
         event.block.number,
       ),
-      updateUserStatsPerPool(userDiff, userData, context, timestamp, poolData),
+      updateUserStatsPerPool(
+        userDiff,
+        userData,
+        context,
+        timestamp,
+        event.chainId,
+        poolData,
+      ),
     ]);
   },
 );
@@ -361,6 +370,7 @@ indexer.onEvent(
               userData,
               context,
               timestamp,
+              event.chainId,
               poolData,
             ),
           ]
@@ -414,7 +424,6 @@ indexer.onEvent(
   async ({ event, context }) => {
     context.CLPoolPendingInitialize.set({
       id: PoolId(event.chainId, event.srcAddress),
-      chainId: event.chainId,
       poolAddress: event.srcAddress,
       sqrtPriceX96: event.params.sqrtPriceX96,
       tick: event.params.tick,
@@ -510,6 +519,7 @@ indexer.onEvent(
       event.params.amount1,
       event.block.timestamp,
       LiquidityChangeType.ADD,
+      event.chainId,
     );
 
     // Aero pools: the Aero NFPM's IncreaseLiquidity carries the range, so only
@@ -539,7 +549,6 @@ indexer.onEvent(
     );
     context.CLPoolMintEvent.set({
       id: mintEventId,
-      chainId: event.chainId,
       pool: event.srcAddress,
       owner: event.params.owner,
       tickLower: event.params.tickLower,
@@ -643,7 +652,13 @@ indexer.onEvent(
       // the user's snapshot-time staked positions and the tx's oUSDT swap
       // registry. Issue those and skip the arithmetic (preload writes are no-ops).
       await Promise.all([
-        preloadUserStatsPerPoolUpdate(userData, timestamp, context, poolData),
+        preloadUserStatsPerPoolUpdate(
+          userData,
+          timestamp,
+          context,
+          event.chainId,
+          poolData,
+        ),
         isOUSDTPool
           ? context.TxOUSDTSwapRegistry.get(event.transaction.hash)
           : undefined,
@@ -677,7 +692,14 @@ indexer.onEvent(
         event.chainId,
         event.block.number,
       ),
-      updateUserStatsPerPool(userDiff, userData, context, timestamp, poolData),
+      updateUserStatsPerPool(
+        userDiff,
+        userData,
+        context,
+        timestamp,
+        event.chainId,
+        poolData,
+      ),
     ]);
 
     // Create OUSDTSwaps entity

@@ -8,6 +8,7 @@ import {
   isTrusted,
 } from "../../src/PriceTrust";
 import "../eventHandlersRegistration";
+import type { WithChain } from "../testHelpers";
 import { setupCommon } from "./Pool/common";
 
 // The Aero TokenRegistry's ListingSet is a price-trust signal (ADR 0005):
@@ -20,7 +21,7 @@ describe("AeroTokenRegistry.ListingSet", () => {
   );
   // SPY on Robinhood: not a connector.
   const spy = toChecksumAddress("0x117cc2133c37b721f49de2a7a74833232b3b4c0c");
-  const base: Token = {
+  const base: WithChain<Token> = {
     ...mockToken0Data,
     id: TokenId(chainId, spy),
     address: spy,
@@ -63,21 +64,21 @@ describe("AeroTokenRegistry.ListingSet", () => {
   it("trusts a listed token (LISTED) and untrusts it when delisted", async () => {
     const idx = createTestIndexer();
     idx.Token.set(base);
-    expect(isTrusted(base)).toBe(false);
+    expect(isTrusted(base, chainId)).toBe(false);
 
     const listed = await listing(idx, true);
     expect(listed?.isListedOnAero).toBe(true);
     expect(listed?.isWhitelisted).toBe(false);
     expect(listed?.priceTrustOutcome).toBe(PRICE_TRUST_OUTCOME.TRUSTED);
     expect(listed?.priceTrustReason).toBe(PRICE_TRUST_REASON.LISTED);
-    expect(isTrusted(listed)).toBe(true);
+    expect(isTrusted(listed, chainId)).toBe(true);
     // The price-refresh clock is not touched by a listing change.
     expect(listed?.lastUpdatedTimestamp).toEqual(base.lastUpdatedTimestamp);
 
     const delisted = await listing(idx, false);
     expect(delisted?.isListedOnAero).toBe(false);
     expect(delisted?.priceTrustReason).toBe(PRICE_TRUST_REASON.NON_WL);
-    expect(isTrusted(delisted)).toBe(false);
+    expect(isTrusted(delisted, chainId)).toBe(false);
   });
 
   it("ranks WL above LISTED above CONNECTOR, and the blacklist beats all", () => {

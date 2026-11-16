@@ -208,6 +208,7 @@ describe("PoolTransferLogic", () => {
         expect.anything(),
         mockContext,
         TIMESTAMP_DATE,
+        CHAIN_ID,
       );
     });
 
@@ -231,6 +232,7 @@ describe("PoolTransferLogic", () => {
         expect.anything(),
         mockContext,
         TIMESTAMP_DATE,
+        CHAIN_ID,
       );
     });
 
@@ -255,6 +257,7 @@ describe("PoolTransferLogic", () => {
         expect.anything(),
         mockContext,
         TIMESTAMP_DATE,
+        CHAIN_ID,
       );
       expect(updateUserStatsPerPoolSpy).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -263,6 +266,7 @@ describe("PoolTransferLogic", () => {
         expect.anything(),
         mockContext,
         TIMESTAMP_DATE,
+        CHAIN_ID,
       );
     });
 
@@ -299,6 +303,7 @@ describe("PoolTransferLogic", () => {
         expect.anything(),
         mockContext,
         TIMESTAMP_DATE,
+        CHAIN_ID,
       );
     });
 
@@ -377,6 +382,7 @@ describe("PoolTransferLogic", () => {
           expect.anything(),
           mockContext,
           TIMESTAMP_DATE,
+          CHAIN_ID,
         );
       });
 
@@ -408,6 +414,7 @@ describe("PoolTransferLogic", () => {
           expect.anything(),
           mockContext,
           TIMESTAMP_DATE,
+          CHAIN_ID,
         );
       });
 
@@ -493,7 +500,6 @@ describe("PoolTransferLogic", () => {
       expect(mockContext.PoolTransferInTx.set).toHaveBeenCalledWith(
         expect.objectContaining({
           id: transferId,
-          chainId: CHAIN_ID,
           txHash: TX_HASH,
           pool: POOL_ADDRESS,
           logIndex: LOG_INDEX,
@@ -704,6 +710,7 @@ describe("PoolTransferLogic", () => {
         expect.anything(),
         mockContext,
         TIMESTAMP_DATE,
+        CHAIN_ID,
       );
       expect(mockContext.PoolTransferInTx.set).not.toHaveBeenCalled();
     });

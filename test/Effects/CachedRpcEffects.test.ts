@@ -1,13 +1,12 @@
 /**
  * Cache correctness for the effects that used to persist transient failures
- * (getRootPoolAddress, getSwapFee): a default produced by
+ * (getSwapFee; getRootPoolAddress was deleted with flow D, ADR 0009): a default produced by
  * an RPC outage must leave `context.cache === false`; real answers and
  * deterministic reverts stay cached.
  */
 import { HttpRequestError } from "viem";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { getLegacyConstants, toChecksumAddress } from "../../src/Constants";
-import { getRootPoolAddress } from "../../src/Effects/RootPool";
+import { toChecksumAddress } from "../../src/Constants";
 import { getSwapFee } from "../../src/Effects/SwapFee";
 import {
   captureReadError,
@@ -18,7 +17,6 @@ import {
 
 const A = toChecksumAddress("0x1111111111111111111111111111111111111111");
 const B = toChecksumAddress("0x2222222222222222222222222222222222222222");
-const ROOT = toChecksumAddress("0x3333333333333333333333333333333333333333");
 
 let revert: unknown;
 let pruned: unknown;
@@ -36,15 +34,6 @@ beforeAll(async () => {
 });
 
 const cases = [
-  {
-    name: "getRootPoolAddress",
-    chainId: 1135,
-    effect: getRootPoolAddress,
-    input: { chainId: 1135, factory: A, token0: A, token1: B, type: 0 },
-    answer: ROOT,
-    expected: ROOT,
-    defaultValue: "",
-  },
   {
     name: "getSwapFee",
     chainId: 8453,
@@ -111,20 +100,4 @@ describe.each(cases)("$name", (c) => {
     expect(output).toBe(c.expected);
     expect(context.cache).toBe(true);
   });
-});
-
-it("getRootPoolAddress reads the chain's LpHelper", async () => {
-  const readContract = vi.fn(async () => ROOT);
-  const restore = installRpcMocks(1135, { readContract } as never);
-  try {
-    await runEffect(getRootPoolAddress, cases[0].input);
-    expect(readContract.mock.calls[0]).toEqual([
-      expect.objectContaining({
-        address: getLegacyConstants(1135).lpHelperAddress,
-        functionName: "root_lp_address",
-      }),
-    ]);
-  } finally {
-    restore();
-  }
 });

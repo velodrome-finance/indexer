@@ -128,6 +128,7 @@ export async function applyAeroStakeToPool(
       pool,
       poolData,
       context,
+      data.chainId,
     );
   }
 
@@ -179,6 +180,7 @@ export async function applyAeroStakeToPool(
       userData,
       context,
       timestamp,
+      data.chainId,
       poolData,
     ),
   ]);
@@ -208,7 +210,6 @@ export async function processAeroGaugeStake(
   const isDeposit = data.kind === AERO_STAKE_EVENT_KIND.DEPOSIT;
   context.AeroGaugeStakeEvent.set({
     id: AeroEventId(data.chainId, data.transactionHash, data.logIndex),
-    chainId: data.chainId,
     kind: data.kind,
     gaugeAddress: data.gaugeAddress,
     poolAddress: gauge.poolAddress,

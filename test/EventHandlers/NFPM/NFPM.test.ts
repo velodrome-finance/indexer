@@ -145,6 +145,7 @@ describe("NFPM Events", () => {
       mintIndexer.CLPoolMintEvent.set(mockCLPoolMintEvent);
       mintIndexer.TxCLPoolMintRegistry.set({
         id: TxCLPoolMintRegistryId(chainId, transactionHash),
+        chainId,
         mintEventIds: [mockCLPoolMintEvent.id],
       });
       mintIndexer.Token.set(mockToken0Data);

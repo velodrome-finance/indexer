@@ -42,10 +42,9 @@ export async function processFeesCollected(
     getRehydrated(context.Token, "Token", TokenId(event.chainId, token)),
   ]);
   const timestamp = new Date(event.block.timestamp * 1000);
-  const amountUSD = getTrustedUSD(amount, tokenRow);
+  const amountUSD = getTrustedUSD(amount, tokenRow, event.chainId);
   context.AeroVotingRewardsEvent.set({
     id: AeroEventId(event.chainId, event.transaction.hash, event.logIndex),
-    chainId: event.chainId,
     kind: AERO_VOTING_REWARDS_EVENT_KIND.FEES_COLLECTED,
     votingRewardsManager: event.srcAddress,
     gaugeAddress: gauge,
@@ -142,11 +141,10 @@ async function recordRewardsFlow(
   const tokenRow = token
     ? await getRehydrated(context.Token, "Token", TokenId(event.chainId, token))
     : undefined;
-  const amountUSD = getTrustedUSD(flow.amount, tokenRow);
+  const amountUSD = getTrustedUSD(flow.amount, tokenRow, event.chainId);
 
   context.AeroVotingRewardsEvent.set({
     id: AeroEventId(event.chainId, event.transaction.hash, event.logIndex),
-    chainId: event.chainId,
     kind: flow.kind,
     votingRewardsManager: event.srcAddress,
     gaugeAddress: manager?.gaugeAddress ?? "",
@@ -165,7 +163,6 @@ async function recordRewardsFlow(
   if (funding && programId && token && flow.programId !== undefined) {
     context.AeroIncentiveProgram.set({
       id: programId,
-      chainId: event.chainId,
       votingRewardsManager: event.srcAddress,
       gaugeAddress: manager?.gaugeAddress ?? "",
       poolAddress: manager?.poolAddress ?? "",

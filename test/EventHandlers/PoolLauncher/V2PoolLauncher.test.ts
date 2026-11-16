@@ -2,6 +2,7 @@ import type { PoolLauncherPool, Token } from "envio";
 import { createTestIndexer } from "envio";
 import { PoolId, TokenId, toChecksumAddress } from "../../../src/Constants";
 import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
+import type { WithChain } from "../../testHelpers";
 import { type MockPool, setupCommon } from "../Pool/common";
 
 describe("V2PoolLauncher Events", () => {
@@ -26,7 +27,7 @@ describe("V2PoolLauncher Events", () => {
   );
   const mockTimestamp = new Date(1000000 * 1000);
 
-  const mockToken0: Token = {
+  const mockToken0: WithChain<Token> = {
     ...mockToken0Data,
     id: TokenId(
       mockChainId,
@@ -42,7 +43,7 @@ describe("V2PoolLauncher Events", () => {
     isWhitelisted: true,
   };
 
-  const mockToken1: Token = {
+  const mockToken1: WithChain<Token> = {
     ...mockToken1Data,
     id: TokenId(
       mockChainId,
@@ -157,7 +158,7 @@ describe("V2PoolLauncher Events", () => {
       );
 
       // Create existing PoolLauncherPool
-      const existingPoolLauncherPool: PoolLauncherPool = {
+      const existingPoolLauncherPool: WithChain<PoolLauncherPool> = {
         id: PoolId(mockChainId, underlyingPool),
         underlyingPool,
         launcher: mockLauncherAddress,
@@ -302,7 +303,7 @@ describe("V2PoolLauncher Events", () => {
 
   describe("V2PoolLauncher.EmergingFlagged", () => {
     it("should flag existing PoolLauncherPool as emerging", async () => {
-      const existingPoolLauncherPool: PoolLauncherPool = {
+      const existingPoolLauncherPool: WithChain<PoolLauncherPool> = {
         id: PoolId(mockChainId, mockPoolAddress),
         underlyingPool: mockPoolAddress,
         launcher: mockLauncherAddress,
@@ -390,7 +391,7 @@ describe("V2PoolLauncher Events", () => {
 
   describe("V2PoolLauncher.EmergingUnflagged", () => {
     it("should unflag existing PoolLauncherPool as emerging", async () => {
-      const existingPoolLauncherPool: PoolLauncherPool = {
+      const existingPoolLauncherPool: WithChain<PoolLauncherPool> = {
         id: PoolId(mockChainId, mockPoolAddress),
         underlyingPool: mockPoolAddress,
         launcher: mockLauncherAddress,
@@ -478,7 +479,7 @@ describe("V2PoolLauncher Events", () => {
 
   describe("V2PoolLauncher.CreationTimestampSet", () => {
     it("should update creation timestamp for existing PoolLauncherPool", async () => {
-      const existingPoolLauncherPool: PoolLauncherPool = {
+      const existingPoolLauncherPool: WithChain<PoolLauncherPool> = {
         id: PoolId(mockChainId, mockPoolAddress),
         underlyingPool: mockPoolAddress,
         launcher: mockLauncherAddress,
@@ -619,6 +620,7 @@ describe("V2PoolLauncher Events", () => {
       // Set up existing config
       const existingConfig = {
         id: configId,
+        chainId: mockChainId,
         version: "V2",
         pairableTokens: [existingToken],
       };
@@ -664,6 +666,7 @@ describe("V2PoolLauncher Events", () => {
       // Set up existing config with the same token
       const existingConfig = {
         id: configId,
+        chainId: mockChainId,
         version: "V2",
         pairableTokens: [tokenAddress],
       };
@@ -712,6 +715,7 @@ describe("V2PoolLauncher Events", () => {
       // Set up existing config with multiple tokens
       const existingConfig = {
         id: configId,
+        chainId: mockChainId,
         version: "V2",
         pairableTokens: [tokenToRemove, remainingToken],
       };
@@ -794,6 +798,7 @@ describe("V2PoolLauncher Events", () => {
       // Set up existing config
       const existingConfig = {
         id: configId,
+        chainId: mockChainId,
         version: "V2",
         pairableTokens: [existingToken],
       };
@@ -840,6 +845,7 @@ describe("V2PoolLauncher Events", () => {
       // Set up existing config
       const existingConfig = {
         id: oldConfigId,
+        chainId: mockChainId,
         version: "V2",
         pairableTokens: [
           toChecksumAddress("0x1111111111111111111111111111111111111111"),

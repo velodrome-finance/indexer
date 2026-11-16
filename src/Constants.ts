@@ -401,11 +401,6 @@ export const RPC_APP_RETRY = {
 /** @see createFallbackRpcClient in src/Effects/RpcClient.ts */
 export { createFallbackRpcClient } from "./Effects/RpcClient";
 
-export enum CrossChainPendingResolutionLogPrefix {
-  Votes = "[processAllPendingVotesForRootPool]",
-  Distributions = "[processAllPendingDistributionsForRootPool]",
-}
-
 /**
  * The legacy (pre-Aero) on-chain spot-price oracle of a Velodrome/Aerodrome
  * deployment. Read only by the `getTokenPrice` effect, which is kept for
@@ -1051,32 +1046,6 @@ export const TokenId = (chainId: number, address: string) =>
  */
 export const PoolId = (chainId: number, pool: string) => `${chainId}-${pool}`;
 
-/**
- * Known "sink" root pool addresses. These contracts were registered via
- * RootPoolCreated / GaugeCreated but their on-chain bytecode is a revert-only
- * stub (no token0/token1/factory/tickSpacing). They have no real leaf pool
- * counterpart and can never be reconciled, so handlers short-circuit on them:
- * Voted/Abstained/DistributeReward events are silently dropped instead of
- * emitting noisy "mapping not found" logs or creating orphan Pending* records
- * that would never flush. See issue #601.
- */
-export const KNOWN_SINK_ROOT_POOLS: ReadonlySet<string> = new Set([
-  PoolId(
-    10, // Optimism — gauge 0x3B59a6B600f912260048a0f3a834C1039aEcD367
-    toChecksumAddress("0x333030A736B47D20346d82A473680658ac1C2b88"),
-  ),
-  PoolId(
-    8453, // Base — gauge 0x287C94a1fE647014317E91A0E42425D6a237081D
-    toChecksumAddress("0x97Cd4EB683E29695DC93eec95d47d4E7a35E2112"),
-  ),
-]);
-
-export const isKnownSinkRootPool = (
-  chainId: number,
-  poolAddress: string,
-): boolean =>
-  KNOWN_SINK_ROOT_POOLS.has(PoolId(chainId, toChecksumAddress(poolAddress)));
-
 /** Entity ID for ALM_LP_Wrapper. Format: {chainId}-{wrapperAddress}
  * @param chainId - Chain ID of the wrapper
  * @param wrapperAddress - Address of the wrapper (must be EIP-55 checksum-cased; do not pre-lowercase)
@@ -1130,43 +1099,6 @@ export const RootPoolLeafPoolId = (
   rootPoolAddress: string,
   leafPoolAddress: string,
 ) => `${rootChainId}-${leafChainId}-${rootPoolAddress}-${leafPoolAddress}`;
-
-/** Entity ID for PendingVote. Format: {chainId}-{rootPoolAddress}-{tokenId}-{txHash}-{logIndex}
- * @param chainId - Chain ID where the vote occurred
- * @param rootPoolAddress - Root pool address (must be EIP-55 checksum-cased; do not pre-lowercase)
- * @param tokenId - veNFT token ID
- * @param transactionHash - Transaction hash of the vote event (for uniqueness)
- * @param logIndex - Log index of the event (for uniqueness within same tx)
- */
-export const PendingVoteId = (
-  chainId: number,
-  rootPoolAddress: string,
-  tokenId: bigint,
-  transactionHash: string,
-  logIndex: number,
-) => `${chainId}-${rootPoolAddress}-${tokenId}-${transactionHash}-${logIndex}`;
-
-/** Entity ID for PendingRootPoolMapping. Format: {rootChainId}-{rootPoolAddress}
- * @param rootChainId - Root chain ID
- * @param rootPoolAddress - Root pool address (must be EIP-55 checksum-cased; do not pre-lowercase)
- */
-export const PendingRootPoolMappingId = (
-  rootChainId: number,
-  rootPoolAddress: string,
-) => `${rootChainId}-${rootPoolAddress}`;
-
-/** Entity ID for PendingDistribution. Format: {rootChainId}-{rootPoolAddress}-{blockNumber}-{logIndex}
- * @param rootChainId - Root chain ID
- * @param rootPoolAddress - Root pool address (must be EIP-55 checksum-cased; do not pre-lowercase)
- * @param blockNumber - Block number of the DistributeReward event
- * @param logIndex - Log index of the event (for uniqueness within block)
- */
-export const PendingDistributionId = (
-  rootChainId: number,
-  rootPoolAddress: string,
-  blockNumber: number,
-  logIndex: number,
-) => `${rootChainId}-${rootPoolAddress}-${blockNumber}-${logIndex}`;
 
 /** Entity ID for RootGauge_RootPool. Format: {rootChainId}-{rootGaugeAddress}
  * @param rootChainId - Root chain ID (e.g. Optimism)
@@ -1400,15 +1332,6 @@ export const PoolSnapshotId = (
   epochMs: number,
 ) => `${PoolId(chainId, poolAddress)}-${epochMs}`;
 
-/** Entity ID for DispatchId_event and ProcessId_event (Mailbox events): the
- * Hyperlane messageId itself, which is globally unique (keccak256 of the packed
- * message, including origin domain and the origin Mailbox's nonce) and is
- * delivered at most once, so consumers can resolve either row by primary key.
- * @param messageId - Hyperlane message id (bytes32 hex)
- * @returns string Entity ID.
- */
-export const MailboxMessageId = (messageId: string) => messageId;
-
 /** Entity ID for OUSDTSwaps.
  * @param transactionHash
  * @param chainId
@@ -1426,9 +1349,6 @@ export const OUSDTSwapsId = (
   amountOut: bigint,
 ) =>
   `${transactionHash}-${chainId}-${tokenInPool}-${amountIn}-${tokenOutPool}-${amountOut}`;
-
-/** Entity ID for SuperSwap. Uses Hyperlane messageId which is globally unique (keccak256 of packed message including origin domain + nonce). */
-export const SuperSwapId = (messageId: string) => messageId;
 
 /** Snapshot ID for UserStatsPerPoolSnapshot. epochMs = getSnapshotEpoch(timestamp).getTime()
  * @param chainId - Chain ID of the pool

@@ -89,7 +89,7 @@ describe("Snapshots Shared", () => {
       });
       const pool = common.createMockPool();
       const timestamp = new Date(oneHourMs * 5);
-      const snapshot = createPoolSnapshot(pool, timestamp);
+      const snapshot = createPoolSnapshot(pool, timestamp, pool.chainId);
 
       persistSnapshot({ type: SnapshotType.Pool, snapshot }, context);
 
@@ -104,7 +104,11 @@ describe("Snapshots Shared", () => {
       });
       const entity = common.createMockUserStatsPerPool();
       const timestamp = new Date(oneHourMs * 4);
-      const snapshot = createUserStatsPerPoolSnapshot(entity, timestamp);
+      const snapshot = createUserStatsPerPoolSnapshot(
+        entity,
+        timestamp,
+        entity.chainId,
+      );
 
       persistSnapshot(
         { type: SnapshotType.UserStatsPerPool, snapshot },
@@ -124,7 +128,11 @@ describe("Snapshots Shared", () => {
       });
       const entity = common.createMockNonFungiblePosition();
       const timestamp = new Date(oneHourMs * 6);
-      const snapshot = createNonFungiblePositionSnapshot(entity, timestamp);
+      const snapshot = createNonFungiblePositionSnapshot(
+        entity,
+        timestamp,
+        entity.chainId,
+      );
 
       persistSnapshot(
         { type: SnapshotType.NonFungiblePosition, snapshot },
@@ -144,7 +152,11 @@ describe("Snapshots Shared", () => {
       });
       const entity = common.mockALMLPWrapperData;
       const timestamp = new Date(oneHourMs * 3);
-      const snapshot = createALMLPWrapperSnapshot(entity, timestamp);
+      const snapshot = createALMLPWrapperSnapshot(
+        entity,
+        timestamp,
+        entity.chainId,
+      );
 
       persistSnapshot({ type: SnapshotType.ALMLPWrapper, snapshot }, context);
 
@@ -159,7 +171,11 @@ describe("Snapshots Shared", () => {
       });
       const entity = common.createMockVeNFTState();
       const timestamp = new Date(oneHourMs * 2);
-      const snapshot = createVeNFTStateSnapshot(entity, timestamp);
+      const snapshot = createVeNFTStateSnapshot(
+        entity,
+        timestamp,
+        entity.chainId,
+      );
 
       persistSnapshot({ type: SnapshotType.VeNFTState, snapshot }, context);
 
@@ -176,6 +192,7 @@ describe("Snapshots Shared", () => {
       const veNFTStateSnapshot = createVeNFTStateSnapshot(
         veNFTState,
         new Date(oneHourMs * 2),
+        veNFTState.chainId,
       );
       const poolVote = common.createMockVeNFTPoolVote({
         veNFTamountStaked: 100n,
@@ -185,6 +202,7 @@ describe("Snapshots Shared", () => {
         veNFTState,
         veNFTStateSnapshot,
         new Date(oneHourMs * 2),
+        veNFTState.chainId,
       );
 
       persistSnapshot({ type: SnapshotType.VeNFTPoolVote, snapshot }, context);

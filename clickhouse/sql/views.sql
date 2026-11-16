@@ -103,7 +103,29 @@ LEFT JOIN (SELECT chain_id, token_address, symbol, decimals FROM {{db}}._token F
 LEFT JOIN (SELECT chain_id, token_address, symbol, decimals FROM {{db}}._token FINAL) AS t1
   ON t1.chain_id = p.chain_id AND t1.token_address = p.token1_address;
 
--- Pools: current state, one row per pool.
+-- Root-side numbers of superchain leaf pools (ADR 0009). Since the per-chain flip a superchain
+-- leaf pool's vote weight and emissions are stored only on the root chain (RootPool); the leaf
+-- Pool's veNFTamountStaked / totalEmissions / totalEmissionsUSD stay 0. pools, pool_hourly and
+-- pool_daily take a mapped leaf pool's votes and emissions from these views. They are empty
+-- here; views_superchain.sql replaces them when the indexer has RootPool.
+CREATE OR REPLACE VIEW {{db}}.leaf_pool_root_totals AS
+SELECT toInt32(0) AS leaf_chain_id, '' AS leaf_pool_address, '' AS kind, toInt32(0) AS root_chain_id,
+  '' AS root_pool_address, CAST(NULL AS Nullable(String)) AS root_gauge_address, false AS root_gauge_is_alive,
+  toInt256(0) AS votes_raw, toFloat64(0) AS votes, toInt256(0) AS emissions_raw, toFloat64(0) AS emissions_total,
+  toInt256(0) AS emissions_usd_raw, toFloat64(0) AS emissions_usd_total, toUInt64(0) AS distributions_total
+WHERE 0;
+
+CREATE OR REPLACE VIEW {{db}}.leaf_pool_root_hourly AS
+SELECT toInt32(0) AS leaf_chain_id, '' AS leaf_pool_address, '' AS root_pool_address,
+  toDateTime(0, 'UTC') AS period, toInt256(0) AS votes_raw, toInt256(0) AS emissions_raw,
+  toInt256(0) AS emissions_usd_raw, toInt256(0) AS emissions_flow_raw, toInt256(0) AS emissions_usd_flow_raw
+WHERE 0;
+
+CREATE OR REPLACE VIEW {{db}}.leaf_pool_root_daily AS
+SELECT * FROM {{db}}.leaf_pool_root_hourly;
+
+-- Pools: current state, one row per pool. A superchain leaf pool's votes and emissions are its
+-- root pool's (leaf_pool_root_totals); root_pool_address says which.
 CREATE OR REPLACE VIEW {{db}}.pools AS
 SELECT
   d.chain_id AS chain_id,
@@ -137,13 +159,13 @@ SELECT
   p.swaps AS swaps_total,
   toFloat64(p.unstaked_fees_collected_usd) / 1e18 AS unstaked_fees_collected_usd_total,
   toFloat64(p.staked_fees_collected_usd) / 1e18 AS staked_fees_collected_usd_total,
-  toFloat64(p.emissions) / 1e18 AS emissions_total,
-  toFloat64(p.emissions_usd) / 1e18 AS emissions_usd_total,
+  toFloat64(if(rt.leaf_pool_address != '', rt.emissions_raw, p.emissions)) / 1e18 AS emissions_total,
+  toFloat64(if(rt.leaf_pool_address != '', rt.emissions_usd_raw, p.emissions_usd)) / 1e18 AS emissions_usd_total,
   toFloat64(p.gauge_rewards_claimed) / 1e18 AS gauge_rewards_claimed_total,
   toFloat64(p.gauge_rewards_claimed_usd) / 1e18 AS gauge_rewards_claimed_usd_total,
   toFloat64(p.bribes_claimed_usd) / 1e18 AS bribes_claimed_usd_total,
   toFloat64(p.fee_rewards_claimed_usd) / 1e18 AS fee_rewards_claimed_usd_total,
-  toFloat64(p.votes) / 1e18 AS votes,
+  toFloat64(if(rt.leaf_pool_address != '', rt.votes_raw, p.votes)) / 1e18 AS votes,
   toFloat64(p.gauge_reward_balance) / 1e18 AS gauge_reward_balance,
   toFloat64(p.gauge_reward_balance_usd) / 1e18 AS gauge_reward_balance_usd,
   toFloat64(p.flash_loan_volume_usd) / 1e18 AS flash_loan_volume_usd_total,
@@ -166,9 +188,11 @@ SELECT
   p.tvl_usd AS tvl_usd_raw,
   p.volume_usd AS volume_usd_raw,
   p.fees_usd AS fees_usd_raw,
-  p.id AS envio_id
+  p.id AS envio_id,
+  nullIf(rt.root_pool_address, '') AS root_pool_address
 FROM {{db}}._pool AS p FINAL
-INNER JOIN {{db}}.pool_dim AS d ON d.chain_id = p.chain_id AND d.pool_address = p.pool_address;
+INNER JOIN {{db}}.pool_dim AS d ON d.chain_id = p.chain_id AND d.pool_address = p.pool_address
+LEFT JOIN {{db}}.leaf_pool_root_totals AS rt ON rt.leaf_chain_id = p.chain_id AND rt.leaf_pool_address = p.pool_address;
 
 -- One row per (user, pool): cumulative activity and current balances.
 CREATE OR REPLACE VIEW {{db}}.user_pools AS
@@ -335,7 +359,9 @@ LEFT JOIN (SELECT chain_id, token_address, symbol FROM {{db}}._token FINAL) AS t
 -- pool's previous row (stored with it as prev_*, so no window function is needed and filters
 -- on chain_id / pool_address / hour reach the table's sort key). A period without a row had
 -- no change. Levels (tvl, reserves, staked) are end-of-period; carry the last row forward for
--- periods without one.
+-- periods without one. For a superchain leaf pool, votes (end of period) and emissions (in the
+-- period) are its root pool's, and a period in which only the root pool changed has a row too,
+-- with pool_changed = 0, the leaf pool's levels carried from its last change and no leaf flows.
 CREATE OR REPLACE VIEW {{db}}.pool_hourly AS
 SELECT
   s.chain_id AS chain_id,
@@ -359,13 +385,15 @@ SELECT
   toInt64(s.swaps) - toInt64(s.prev_swaps) AS swaps,
   toFloat64((s.unstaked_fees_collected_usd - s.prev_unstaked_fees_collected_usd)) / 1e18 AS unstaked_fees_collected_usd,
   toFloat64((s.staked_fees_collected_usd - s.prev_staked_fees_collected_usd)) / 1e18 AS staked_fees_collected_usd,
-  toFloat64((s.emissions - s.prev_emissions)) / 1e18 AS emissions,
-  toFloat64((s.emissions_usd - s.prev_emissions_usd)) / 1e18 AS emissions_usd,
+  toFloat64(if(r.leaf_pool_address != '', if(r.period = s.period, r.emissions_flow_raw, toInt256(0)),
+               s.emissions - s.prev_emissions)) / 1e18 AS emissions,
+  toFloat64(if(r.leaf_pool_address != '', if(r.period = s.period, r.emissions_usd_flow_raw, toInt256(0)),
+               s.emissions_usd - s.prev_emissions_usd)) / 1e18 AS emissions_usd,
   toFloat64((s.gauge_rewards_claimed_usd - s.prev_gauge_rewards_claimed_usd)) / 1e18 AS gauge_rewards_claimed_usd,
   toFloat64((s.bribes_claimed_usd - s.prev_bribes_claimed_usd)) / 1e18 AS bribes_claimed_usd,
   toFloat64((s.fee_rewards_claimed_usd - s.prev_fee_rewards_claimed_usd)) / 1e18 AS fee_rewards_claimed_usd,
   toFloat64(ifNull(s.flash_loan_volume_usd, 0) - ifNull(s.prev_flash_loan_volume_usd, 0)) / 1e18 AS flash_loan_volume_usd,
-  toFloat64(s.votes) / 1e18 AS votes,
+  toFloat64(if(r.leaf_pool_address != '', r.votes_raw, s.votes)) / 1e18 AS votes,
   toFloat64(s.gauge_reward_balance) / 1e18 AS gauge_reward_balance,
   toFloat64(s.gauge_reward_balance_usd) / 1e18 AS gauge_reward_balance_usd,
   toFloat64(s.current_fee) / 1e4 AS current_fee_pct,
@@ -374,8 +402,42 @@ SELECT
   toFloat64(s.volume_usd) / 1e18 AS volume_usd_total,
   toFloat64(s.fees_usd) / 1e18 AS fees_usd_total,
   s.swaps AS swaps_total,
-  toDateTime(s.last_updated) AS last_change_at
-FROM {{db}}._pool_hour AS s FINAL
+  toDateTime(s.last_updated) AS last_change_at,
+  s.pool_changed AS pool_changed
+FROM (
+  SELECT *, toUInt8(1) AS pool_changed FROM {{db}}._pool_hour FINAL
+  UNION ALL
+  -- periods in which only the root pool of a superchain leaf pool changed (a vote or an emission
+  -- on the root chain): the leaf pool's state carried from its last change, no leaf flows
+  SELECT l.* REPLACE (
+      r.period AS period,
+      l.tvl_usd AS prev_tvl_usd,
+      l.staked_usd AS prev_staked_usd,
+      l.volume_usd AS prev_volume_usd,
+      l.volume0 AS prev_volume0,
+      l.volume1 AS prev_volume1,
+      l.fees_usd AS prev_fees_usd,
+      l.swaps AS prev_swaps,
+      l.unstaked_fees_collected_usd AS prev_unstaked_fees_collected_usd,
+      l.staked_fees_collected_usd AS prev_staked_fees_collected_usd,
+      l.emissions AS prev_emissions,
+      l.emissions_usd AS prev_emissions_usd,
+      l.gauge_rewards_claimed_usd AS prev_gauge_rewards_claimed_usd,
+      l.bribes_claimed_usd AS prev_bribes_claimed_usd,
+      l.fee_rewards_claimed_usd AS prev_fee_rewards_claimed_usd,
+      l.flash_loan_volume_usd AS prev_flash_loan_volume_usd
+    ), toUInt8(0) AS pool_changed
+  FROM {{db}}.leaf_pool_root_hourly AS r
+  LEFT JOIN (SELECT chain_id, pool_address, period FROM {{db}}._pool_hour FINAL
+                  WHERE (chain_id, pool_address) IN (SELECT leaf_chain_id, leaf_pool_address FROM {{db}}.leaf_pool_root_hourly)) AS e
+    ON e.chain_id = r.leaf_chain_id AND e.pool_address = r.leaf_pool_address AND e.period = r.period
+  ASOF INNER JOIN (SELECT * FROM {{db}}._pool_hour FINAL
+                   WHERE (chain_id, pool_address) IN (SELECT leaf_chain_id, leaf_pool_address FROM {{db}}.leaf_pool_root_hourly)) AS l
+    ON l.chain_id = r.leaf_chain_id AND l.pool_address = r.leaf_pool_address AND l.period <= r.period
+  WHERE e.pool_address = ''  -- no leaf row in that period (LEFT ANTI JOIN returned nothing here, CH 26.2)
+) AS s
+ASOF LEFT JOIN {{db}}.leaf_pool_root_hourly AS r
+  ON r.leaf_chain_id = s.chain_id AND r.leaf_pool_address = s.pool_address AND r.period <= s.period
 LEFT JOIN {{db}}.pool_dim AS d ON d.chain_id = s.chain_id AND d.pool_address = s.pool_address;
 
 CREATE OR REPLACE VIEW {{db}}.pool_daily AS
@@ -401,13 +463,15 @@ SELECT
   toInt64(s.swaps) - toInt64(s.prev_swaps) AS swaps,
   toFloat64((s.unstaked_fees_collected_usd - s.prev_unstaked_fees_collected_usd)) / 1e18 AS unstaked_fees_collected_usd,
   toFloat64((s.staked_fees_collected_usd - s.prev_staked_fees_collected_usd)) / 1e18 AS staked_fees_collected_usd,
-  toFloat64((s.emissions - s.prev_emissions)) / 1e18 AS emissions,
-  toFloat64((s.emissions_usd - s.prev_emissions_usd)) / 1e18 AS emissions_usd,
+  toFloat64(if(r.leaf_pool_address != '', if(r.period = s.period, r.emissions_flow_raw, toInt256(0)),
+               s.emissions - s.prev_emissions)) / 1e18 AS emissions,
+  toFloat64(if(r.leaf_pool_address != '', if(r.period = s.period, r.emissions_usd_flow_raw, toInt256(0)),
+               s.emissions_usd - s.prev_emissions_usd)) / 1e18 AS emissions_usd,
   toFloat64((s.gauge_rewards_claimed_usd - s.prev_gauge_rewards_claimed_usd)) / 1e18 AS gauge_rewards_claimed_usd,
   toFloat64((s.bribes_claimed_usd - s.prev_bribes_claimed_usd)) / 1e18 AS bribes_claimed_usd,
   toFloat64((s.fee_rewards_claimed_usd - s.prev_fee_rewards_claimed_usd)) / 1e18 AS fee_rewards_claimed_usd,
   toFloat64(ifNull(s.flash_loan_volume_usd, 0) - ifNull(s.prev_flash_loan_volume_usd, 0)) / 1e18 AS flash_loan_volume_usd,
-  toFloat64(s.votes) / 1e18 AS votes,
+  toFloat64(if(r.leaf_pool_address != '', r.votes_raw, s.votes)) / 1e18 AS votes,
   toFloat64(s.gauge_reward_balance) / 1e18 AS gauge_reward_balance,
   toFloat64(s.gauge_reward_balance_usd) / 1e18 AS gauge_reward_balance_usd,
   toFloat64(s.current_fee) / 1e4 AS current_fee_pct,
@@ -416,14 +480,49 @@ SELECT
   toFloat64(s.volume_usd) / 1e18 AS volume_usd_total,
   toFloat64(s.fees_usd) / 1e18 AS fees_usd_total,
   s.swaps AS swaps_total,
-  toDateTime(s.last_updated) AS last_change_at
-FROM {{db}}._pool_day AS s FINAL
+  toDateTime(s.last_updated) AS last_change_at,
+  s.pool_changed AS pool_changed
+FROM (
+  SELECT *, toUInt8(1) AS pool_changed FROM {{db}}._pool_day FINAL
+  UNION ALL
+  -- periods in which only the root pool of a superchain leaf pool changed (a vote or an emission
+  -- on the root chain): the leaf pool's state carried from its last change, no leaf flows
+  SELECT l.* REPLACE (
+      r.period AS period,
+      l.tvl_usd AS prev_tvl_usd,
+      l.staked_usd AS prev_staked_usd,
+      l.volume_usd AS prev_volume_usd,
+      l.volume0 AS prev_volume0,
+      l.volume1 AS prev_volume1,
+      l.fees_usd AS prev_fees_usd,
+      l.swaps AS prev_swaps,
+      l.unstaked_fees_collected_usd AS prev_unstaked_fees_collected_usd,
+      l.staked_fees_collected_usd AS prev_staked_fees_collected_usd,
+      l.emissions AS prev_emissions,
+      l.emissions_usd AS prev_emissions_usd,
+      l.gauge_rewards_claimed_usd AS prev_gauge_rewards_claimed_usd,
+      l.bribes_claimed_usd AS prev_bribes_claimed_usd,
+      l.fee_rewards_claimed_usd AS prev_fee_rewards_claimed_usd,
+      l.flash_loan_volume_usd AS prev_flash_loan_volume_usd
+    ), toUInt8(0) AS pool_changed
+  FROM {{db}}.leaf_pool_root_daily AS r
+  LEFT JOIN (SELECT chain_id, pool_address, period FROM {{db}}._pool_day FINAL
+                  WHERE (chain_id, pool_address) IN (SELECT leaf_chain_id, leaf_pool_address FROM {{db}}.leaf_pool_root_daily)) AS e
+    ON e.chain_id = r.leaf_chain_id AND e.pool_address = r.leaf_pool_address AND e.period = r.period
+  ASOF INNER JOIN (SELECT * FROM {{db}}._pool_day FINAL
+                   WHERE (chain_id, pool_address) IN (SELECT leaf_chain_id, leaf_pool_address FROM {{db}}.leaf_pool_root_daily)) AS l
+    ON l.chain_id = r.leaf_chain_id AND l.pool_address = r.leaf_pool_address AND l.period <= r.period
+  WHERE e.pool_address = ''  -- no leaf row in that period (LEFT ANTI JOIN returned nothing here, CH 26.2)
+) AS s
+ASOF LEFT JOIN {{db}}.leaf_pool_root_daily AS r
+  ON r.leaf_chain_id = s.chain_id AND r.leaf_pool_address = s.pool_address AND r.period <= s.period
 LEFT JOIN {{db}}.pool_dim AS d ON d.chain_id = s.chain_id AND d.pool_address = s.pool_address;
 
 -- Chain x deployment totals per day / hour. tvl_usd and staked_usd carry every pool's last
 -- known value forward (running sum of the pools' changes), so a day on which a pool did not
 -- change still counts its liquidity. Days on which no pool of that chain and deployment
--- changed have no row.
+-- changed have no row. emissions_usd includes superchain leaf pools' root-side emissions; a
+-- period in which only a root pool changed does not count as an active pool.
 CREATE OR REPLACE VIEW {{db}}.chain_daily AS
 SELECT
   chain_id,
@@ -433,7 +532,7 @@ SELECT
   sum(volume_usd) AS volume_usd,
   sum(fees_usd) AS fees_usd,
   sum(swaps) AS swaps,
-  count() AS active_pools,
+  countIf(pool_changed = 1) AS active_pools,
   sum(sum(tvl_usd_change)) OVER (PARTITION BY chain_id, deployment ORDER BY day ROWS UNBOUNDED PRECEDING) AS tvl_usd,
   sum(sum(staked_usd_change)) OVER (PARTITION BY chain_id, deployment ORDER BY day ROWS UNBOUNDED PRECEDING) AS staked_usd,
   sum(unstaked_fees_collected_usd) AS unstaked_fees_collected_usd,
@@ -454,7 +553,7 @@ SELECT
   sum(volume_usd) AS volume_usd,
   sum(fees_usd) AS fees_usd,
   sum(swaps) AS swaps,
-  count() AS active_pools,
+  countIf(pool_changed = 1) AS active_pools,
   sum(sum(tvl_usd_change)) OVER (PARTITION BY chain_id, deployment ORDER BY hour ROWS UNBOUNDED PRECEDING) AS tvl_usd,
   sum(sum(staked_usd_change)) OVER (PARTITION BY chain_id, deployment ORDER BY hour ROWS UNBOUNDED PRECEDING) AS staked_usd
 FROM {{db}}.pool_hourly

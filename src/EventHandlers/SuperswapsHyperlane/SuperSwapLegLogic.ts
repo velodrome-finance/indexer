@@ -5,8 +5,8 @@
  * message id: the origin chain at CrossChainSwap (`SuperSwapOriginLeg`), the
  * destination chain at the first oUSDT swap of a transaction that processed
  * messages (`SuperSwapDestinationLeg`). The analytics layer joins them on the
- * message id (`super_swap_legs`). The cross-chain stitching into `SuperSwap`
- * keeps running until the per-chain flip.
+ * message id (`super_swap_legs`), which replaces the `SuperSwap` entity the
+ * cross-chain stitching wrote before the per-chain flip.
  */
 import type { OUSDTSwaps } from "envio";
 import { OUSDT_ADDRESS } from "../../Constants";
@@ -36,8 +36,8 @@ export const TxProcessIdRegistryId = (
 
 /**
  * The non-oUSDT side of an oUSDT swap: the token sold for oUSDT (origin) or
- * bought with it (destination) and its amount, as the SuperSwap stitching
- * reads it. Undefined when the swap does not involve oUSDT.
+ * bought with it (destination) and its amount, as the former SuperSwap
+ * stitching read it. Undefined when the swap does not involve oUSDT.
  *
  * @param swap - An OUSDTSwaps row (or the registry's copy of it)
  * @returns The token and amount, or undefined
@@ -62,7 +62,7 @@ export function nonOUSDTSide(
  * transaction dispatched (in dispatch order), with the bridge and the
  * transaction's first oUSDT swap. Nothing when the bridge is not oUSDT, the
  * transaction dispatched nothing or swapped no oUSDT (the conditions under
- * which the stitching creates no SuperSwap either).
+ * which the former stitching created no SuperSwap either).
  *
  * @param chainId - Origin chain
  * @param transactionHash - The CrossChainSwap transaction
@@ -90,7 +90,6 @@ export async function writeSuperSwapOriginLegs(
   dispatches.messageIds.forEach((messageId, dispatchIndex) => {
     context.SuperSwapOriginLeg.set({
       id: SuperSwapLegId(chainId, messageId),
-      chainId,
       messageId,
       dispatchIndex,
       transactionHash,
@@ -208,7 +207,6 @@ function writeDestinationLegs(
   for (const messageId of messageIds) {
     context.SuperSwapDestinationLeg.set({
       id: SuperSwapLegId(chainId, messageId),
-      chainId,
       messageId,
       transactionHash,
       destinationChainToken: side.token,

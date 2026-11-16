@@ -2,6 +2,7 @@ import type { ALM_LP_Wrapper, UserStatsPerPool } from "envio";
 import { createTestIndexer } from "envio";
 import { ALMLPWrapperId, toChecksumAddress } from "../../../src/Constants";
 import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
+import type { WithChain } from "../../testHelpers";
 import { setupCommon } from "../Pool/common";
 
 describe("ALMCore Rebalance Event", () => {
@@ -225,7 +226,7 @@ describe("ALMCore Rebalance Event", () => {
     const sharedPool = toChecksumAddress(
       "0xc2026f3fb6fc51F4EcAE40a88b4509cB6C143ed4",
     );
-    const soneiumWrapper: ALM_LP_Wrapper = {
+    const soneiumWrapper: WithChain<ALM_LP_Wrapper> = {
       ...mockALMLPWrapperData,
       id: ALMLPWrapperId(
         soneium,
@@ -237,7 +238,7 @@ describe("ALMCore Rebalance Event", () => {
       tickLower: 105000n,
       tickUpper: 117000n,
     };
-    const inkWrapper: ALM_LP_Wrapper = {
+    const inkWrapper: WithChain<ALM_LP_Wrapper> = {
       ...mockALMLPWrapperData,
       id: ALMLPWrapperId(
         ink,
@@ -336,7 +337,7 @@ describe("ALMCore Rebalance Event", () => {
 
     it("picks the same-chain wrapper whose position is being rebalanced when a pool has several", async () => {
       const indexer = createTestIndexer();
-      const v1Wrapper: ALM_LP_Wrapper = {
+      const v1Wrapper: WithChain<ALM_LP_Wrapper> = {
         ...mockALMLPWrapperData,
         id: ALMLPWrapperId(
           chainId,
@@ -344,7 +345,7 @@ describe("ALMCore Rebalance Event", () => {
         ),
         tokenId: 1n,
       };
-      const v2Wrapper: ALM_LP_Wrapper = {
+      const v2Wrapper: WithChain<ALM_LP_Wrapper> = {
         ...mockALMLPWrapperData,
         id: ALMLPWrapperId(
           chainId,
@@ -371,7 +372,7 @@ describe("ALMCore Rebalance Event", () => {
 
     it("skips the event when several same-chain wrappers cannot be told apart", async () => {
       const indexer = createTestIndexer();
-      const wrapperA: ALM_LP_Wrapper = {
+      const wrapperA: WithChain<ALM_LP_Wrapper> = {
         ...mockALMLPWrapperData,
         id: ALMLPWrapperId(
           chainId,
@@ -379,7 +380,7 @@ describe("ALMCore Rebalance Event", () => {
         ),
         tokenId: 1n,
       };
-      const wrapperB: ALM_LP_Wrapper = {
+      const wrapperB: WithChain<ALM_LP_Wrapper> = {
         ...mockALMLPWrapperData,
         id: ALMLPWrapperId(
           chainId,

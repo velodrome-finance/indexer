@@ -7,31 +7,19 @@
  *
  *   npx -y tsx@4.19.2 scripts/smoke-effects.ts
  *
- * Needs ENVIO_DRPC_API_KEY or ENVIO_OPTIMISM/LISK/MODE_RPC_URL. About 15 requests.
+ * Needs ENVIO_DRPC_API_KEY or ENVIO_OPTIMISM_RPC_URL. About 13 requests.
  */
 
 import "dotenv/config";
 import { toChecksumAddress } from "../src/Constants";
 import { hasContractBytecode } from "../src/Effects/Bytecode";
-import { getRootPoolAddress } from "../src/Effects/RootPool";
 import { getRpcStats } from "../src/Effects/RpcGateway";
 import { getSwapFee } from "../src/Effects/SwapFee";
 import { getTokenDetails, getTokenPrice } from "../src/Effects/Token";
 import { getTokenMetadata } from "../src/Effects/TokenMetadata";
 
 const CHAIN_ID = 10;
-const LISK_CHAIN_ID = 1135;
-const MODE_CHAIN_ID = 34443;
-const ROOT_FACTORY = toChecksumAddress(
-  "0x31832f2a97Fd20664D76Cc421207669b55CE4BC0",
-);
 const WETH = toChecksumAddress("0x4200000000000000000000000000000000000006");
-const LSK_LISK = toChecksumAddress(
-  "0xac485391EB2d7D88253a7F1eF18C37f4242D1A24",
-);
-const EZETH_MODE = toChecksumAddress(
-  "0x2416092f143378750bb29b79eD961ab195CcEea5",
-);
 const CL_FACTORY_OPTIMISM = toChecksumAddress(
   "0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F",
 );
@@ -100,20 +88,6 @@ async function main(): Promise<void> {
     factoryAddress: CL_FACTORY_OPTIMISM,
     chainId: CHAIN_ID,
     blockNumber: BLOCK_NUMBER,
-  });
-  await run("getRootPoolAddress (WETH/LSK vAMM, Lisk)", getRootPoolAddress, {
-    chainId: LISK_CHAIN_ID,
-    factory: ROOT_FACTORY,
-    token0: WETH,
-    token1: LSK_LISK,
-    type: -1,
-  });
-  await run("getRootPoolAddress (ezETH/WETH sAMM, Mode)", getRootPoolAddress, {
-    chainId: MODE_CHAIN_ID,
-    factory: ROOT_FACTORY,
-    token0: EZETH_MODE,
-    token1: WETH,
-    type: 0,
   });
   console.log("\nRPC stats:", JSON.stringify(getRpcStats()));
 }

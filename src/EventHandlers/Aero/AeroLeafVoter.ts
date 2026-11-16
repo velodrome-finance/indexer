@@ -109,6 +109,7 @@ export async function processGaugeCapSettled(
       timestamp,
       event.block.number,
       context,
+      event.chainId,
     );
   }
 }
@@ -134,7 +135,7 @@ export async function processEmissionsMinted(
     loadAeroGauge(event.chainId, event.params.gauge, context),
     loadAeroRewardToken(event.chainId, context),
   ]);
-  const amountUSD = rewardTokenUSD(amount, rewardToken);
+  const amountUSD = rewardTokenUSD(amount, rewardToken, event.chainId);
   persistLeafVoterState(
     {
       ...state,
@@ -243,7 +244,6 @@ export async function processRedeemed(
   if (isRootInternal) return;
   context.AeroRedemptionEvent.set({
     id: AeroEventId(event.chainId, event.transaction.hash, event.logIndex),
-    chainId: event.chainId,
     kind: AERO_REDEMPTION_EVENT_KIND.INITIATED,
     sourceChainId: event.chainId,
     redeemer,
@@ -294,7 +294,13 @@ export async function processGaugeLifecycle(
   };
   persistAeroGauge(updated, timestamp, context);
   if (wasAlive !== isAeroGaugeAlive(updated)) {
-    await syncAeroPoolGaugeLink(updated, timestamp, blockNumber, context);
+    await syncAeroPoolGaugeLink(
+      updated,
+      timestamp,
+      blockNumber,
+      context,
+      chainId,
+    );
   }
 }
 

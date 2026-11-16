@@ -39,11 +39,8 @@ export function isCounterpartyPriceFresh(
  * - `override`: operator blacklist (src/PriceOverrides.ts) → price 0
  * - `pinned`: tier-0 token → exactly $1
  * - `pool`: the deepest qualifying candidate was a local pool (`sourceId` = pool id)
- * - `canonical`: the deepest qualifying candidate was the same asset's price on
- *   its canonical chain (`sourceId` = source token id)
- * - `seed`: nothing qualified and the live canonical source was outside its
- *   ±2 h window, so the committed hourly seed gave the source's price for the
- *   block's hour (`sourceId` = source token id, `seedHourMs` = the hour used;
+ * - `seed`: no local pool qualified, so the committed hourly seed gave the
+ *   canonical source's price for the block's hour (`sourceId` = source token id, `seedHourMs` = the hour used;
  *   ADR 0008)
  * - `snapshot`: as `seed`, but the seed had no hour, so the source's own
  *   hourly snapshot was read from ClickHouse (`getCanonicalSourcePrice`,
@@ -54,7 +51,7 @@ export type PriceResolution =
   | { readonly kind: "override" }
   | { readonly kind: "pinned" }
   | {
-      readonly kind: "pool" | "canonical";
+      readonly kind: "pool";
       readonly priceUSD: bigint;
       readonly sourceId: string;
       readonly depthUSD: bigint;
@@ -82,11 +79,11 @@ export interface AppliedPrice {
   readonly priceSource: PriceSource;
   /** Pool the price came through (`pool` resolutions only). */
   readonly pricingPoolId?: string;
-  /** Canonical source token whose price was used (`canonical` / `seed` / `snapshot` resolutions). */
+  /** Canonical source token whose price was used (`seed` / `snapshot` resolutions). */
   readonly pricingSourceTokenId?: string;
-  /** Depth of the winning candidate, USD 1e18-base (`pool` / `canonical` only). */
+  /** Depth of the winning candidate, USD 1e18-base (`pool` only). */
   readonly pricingDepthUSD?: bigint;
-  /** Route length: 1 for a direct pool or canonical price, 2 for a two-hop pool route. */
+  /** Route length: 1 for a direct pool, 2 for a two-hop pool route. */
   readonly pricingHops?: number;
   /** Two-hop only: the peer token the price went through. */
   readonly pricingViaTokenId?: string;
@@ -124,12 +121,11 @@ export function isPriceRefreshDue(
  *
  * - `lastUpdatedTimestamp` advances on every refresh, whatever the outcome.
  * - `lastSuccessfulPriceTimestamp` advances only on a successful price
- *   (`pinned`, `pool`, `canonical`, `seed`, `snapshot`).
+ *   (`pinned`, `pool`, `seed`, `snapshot`).
  *
- * `Token.pricingDepthUSD` records the depth behind the stored price, so this
- * token can itself serve as a canonical source compared by depth on other
- * chains: the winning candidate's depth on `pool` / `canonical`, kept while a
- * price is carried, cleared when the price is pinned, overridden or dropped.
+ * `Token.pricingDepthUSD` records the depth behind the stored price: the
+ * winning pool candidate's depth, kept while a price is carried, cleared when
+ * the price is pinned, overridden or dropped.
  *
  * When nothing qualifies (`none`), the last price is carried while the last
  * success is under {@link PRICE_CARRY_WINDOW_MS} old, so missing data never
@@ -186,14 +182,6 @@ export function applyPriceResolution(
         pricingHops: resolution.hops ?? 1,
         pricingViaTokenId: resolution.viaTokenId,
         pricingViaPoolId: resolution.viaPoolId,
-      };
-    case "canonical":
-      return {
-        token: success(resolution.priceUSD, resolution.depthUSD),
-        priceSource: PRICE_SOURCE.CANONICAL,
-        pricingSourceTokenId: resolution.sourceId,
-        pricingDepthUSD: resolution.depthUSD,
-        pricingHops: 1,
       };
     case "seed":
     case "snapshot":

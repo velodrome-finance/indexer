@@ -125,6 +125,7 @@ describe("UserStatsPerPool CL snapshot USD via direct gets", () => {
       userStats,
       ctx,
       epoch2Timestamp,
+      mockChainId,
     );
 
     expect(result.currentLiquidityStakedUSD).toBe(0n);
@@ -156,6 +157,7 @@ describe("UserStatsPerPool CL snapshot USD via direct gets", () => {
       userStats,
       ctx,
       epoch2Timestamp,
+      mockChainId,
     );
 
     // Should be > 0 (exact value depends on CL math but definitely non-zero for in-range position)
@@ -214,6 +216,7 @@ describe("UserStatsPerPool CL snapshot USD via direct gets", () => {
       singleStats,
       ctxSingle,
       epoch2Timestamp,
+      mockChainId,
     );
 
     const result = await updateUserStatsPerPool(
@@ -221,6 +224,7 @@ describe("UserStatsPerPool CL snapshot USD via direct gets", () => {
       userStats,
       ctx,
       epoch2Timestamp,
+      mockChainId,
     );
 
     // Multi should be greater than single (2x liquidity in tighter range = more USD)
@@ -256,6 +260,7 @@ describe("UserStatsPerPool CL snapshot USD via direct gets", () => {
       userStats,
       ctx,
       epoch2Timestamp,
+      mockChainId,
     );
 
     // Should still compute USD for position 42 (> 0), just skip 99
@@ -291,6 +296,7 @@ describe("UserStatsPerPool CL snapshot USD via direct gets", () => {
         userStats,
         ctx,
         epoch2Timestamp,
+        mockChainId,
       ),
     ).resolves.toBeDefined();
   });
@@ -321,6 +327,7 @@ describe("UserStatsPerPool CL snapshot USD via direct gets", () => {
       userStats,
       ctx,
       epoch2Timestamp,
+      mockChainId,
     );
 
     expect(ctx.UserStatsPerPoolSnapshot.set).toHaveBeenCalledWith(
@@ -398,6 +405,7 @@ describe("UserStatsPerPool CL snapshot USD via direct gets", () => {
           userStats,
           updateCtx,
           epoch2Timestamp,
+          mockChainId,
         );
 
         const preloadCtx = buildMockContext({ positions });
@@ -406,6 +414,7 @@ describe("UserStatsPerPool CL snapshot USD via direct gets", () => {
           userStats,
           epoch2Timestamp,
           preloadCtx,
+          mockChainId,
         );
 
         expect(updateReads).toHaveLength(expectedReads);

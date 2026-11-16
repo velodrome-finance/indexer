@@ -12,10 +12,10 @@ describe("NonFungiblePosition", () => {
   const poolAddress = toChecksumAddress(
     "0x0000000000000000000000000000000000000001",
   );
+  const CHAIN_ID = 10;
   const nfpmAddress = defaultNfpmAddress;
   const mockNonFungiblePosition: NonFungiblePosition = {
     id: NonFungiblePositionId(10, poolAddress, 1n),
-    chainId: 10,
     tokenId: 1n,
     nfpmAddress: nfpmAddress,
     owner: toChecksumAddress("0x1111111111111111111111111111111111111111"),
@@ -65,7 +65,6 @@ describe("NonFungiblePosition", () => {
       beforeEach(async () => {
         const transferDiff = {
           id: NonFungiblePositionId(10, poolAddress, 1n),
-          chainId: 10,
           tokenId: 1n,
           owner: toChecksumAddress(
             "0x2222222222222222222222222222222222222222",
@@ -79,6 +78,7 @@ describe("NonFungiblePosition", () => {
           mockNonFungiblePosition,
           mockContext as handlerContext,
           timestamp,
+          CHAIN_ID,
         );
         const mockSet = vi.mocked(mockContext.NonFungiblePosition?.set);
         result = mockSet?.mock.calls[0]?.[0] as NonFungiblePosition;
@@ -116,6 +116,7 @@ describe("NonFungiblePosition", () => {
           mockNonFungiblePosition,
           mockContext as handlerContext,
           timestamp,
+          CHAIN_ID,
         );
         const mockSet = vi.mocked(mockContext.NonFungiblePosition?.set);
         result = mockSet?.mock.calls[0]?.[0] as NonFungiblePosition;
@@ -147,6 +148,7 @@ describe("NonFungiblePosition", () => {
           mockNonFungiblePosition,
           mockContext as handlerContext,
           timestamp,
+          CHAIN_ID,
         );
         const mockSet = vi.mocked(mockContext.NonFungiblePosition?.set);
         result = mockSet?.mock.calls[0]?.[0] as NonFungiblePosition;
@@ -180,6 +182,7 @@ describe("NonFungiblePosition", () => {
           mockNonFungiblePosition,
           mockContext as handlerContext,
           timestamp,
+          CHAIN_ID,
         );
         const mockSet = vi.mocked(mockContext.NonFungiblePosition?.set);
         result = mockSet?.mock.calls[0]?.[0] as NonFungiblePosition;

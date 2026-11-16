@@ -187,8 +187,8 @@ The watermark comes from part metadata (the tables are partitioned by
 `max(_version)` per sequence is read from the parts' min/max index, not from the column), and
 the history's checkpoint skip index limits a refresh to the granules that changed.
 
-The pool series (`_pool_hour`, `_pool_day`) and the Aero series (`_aero_gauge_day`,
-`_aero_leaf_voter_day`) use the same machinery with the key `(entity, period)`: the row kept for
+The pool series (`_pool_hour`, `_pool_day`), the root pool series (`_root_pool_hour`,
+`_root_pool_day`) and the Aero series (`_aero_gauge_day`, `_aero_leaf_voter_day`) use the same machinery with the key `(entity, period)`: the row kept for
 a period is the entity's last version written in that period, its exact end-of-period state from
 the per-block history (not from the hourly snapshots). Each row also stores the counters' values
 at the end of the entity's previous period (`prev_*`), so a period's flow is a subtraction:
@@ -224,6 +224,7 @@ frontier (`source_rows_behind`) and the sequences holding a version above their 
 | Metal sync with the proposed schema (custom `orderBy`, `Decimal(38,0)` sources) | backfill | 18 pools, 3,733 user-pool rows, 512 positions, 54,363 token prices, 30,960 pool-hours | all equal |
 | Metal, shared sequence (`velo_pc_s`, 9a5d3ad), 2026-11-16 | the previous layer version installed, then upgraded in place (no table rebuilt, refreshes replaced) | 18 pools, 3,726 user-pool rows, 512 positions, 53,102 token prices, 30,960 pool-hours, 4,037 pool-days | all equal |
 | per-chain sequences (`velo_pc_a`, ADR 0009 proof branch): Metal + Mode, then Lisk and Superseed each added with `envio start --chain` while the refreshes ran, verified during and after each add | backfill at 1750:158,754 / 34443:2,404,056, then refreshes | 287 pools, 547,351 user-pool rows, 34,096 positions, 434,937 token prices, 539,931 pool-hours, 54,315 pool-days | all equal. The previous layer version on the same database lost every row a later-added chain wrote below the other chains' checkpoints: 14 of 81 Lisk pools, 274,781 user-pool rows, all of Superseed |
+| per-chain flip (`velo_fl_pc`, ADR 0009 step 4): Metal, Mode, Lisk, Unichain and Optimism restricted to the root side, then Fraxtal added with `velo add-chain` while the refreshes ran, verified after the add; and the same chains in shared mode at 1046116 (`velo_fl_shared`) | backfill at the end blocks, then refreshes (Fraxtal loaded by the refreshes only) | per-chain: 363 pools, 652,522 user-pool rows, 59,641 positions, 680,903 token prices, 830,902 pool-hours, 73,840 pool-days, 64,205 root-pool-hours, 29,079 root-pool-days; shared: 292 pools, 632,738 user-pool rows, 625,496 pool-hours, the same root series | all equal (per-chain `verify` needed `ANALYTICS_VERIFY_CHUNK_ROWS=1000000` on the 4-thread scratch server) |
 <!-- VERIFY:END -->
 
 `clickhouse/tests/test_mechanism.py` plays the edge cases on a synthetic envio database (rows
@@ -243,9 +244,9 @@ Views (the analyst API). Flows in the series are per period; `*_total` columns a
 | `chains` | chain | chain names, which deployment legacy pools there belong to, Aero chains, wound-down chains |
 | `tokens` | token | symbol, decimals, current USD price, price trust (`is_price_trusted`), `is_unpriced` |
 | `pool_dim` | pool | static pool facts: pair, type (`CL100`, `vAMM`, `sAMM`), tokens and decimals |
-| `pools` | pool | current TVL, reserves, staked USD and share, cumulative volume / fees / swaps / rewards, fee rates, price, gauge |
-| `pool_hourly` / `pool_daily` | pool × hour / day with a change | end-of-period TVL, reserves, staked; flows in the period: volume, fees, swaps, collected fees, emissions, rewards |
-| `chain_hourly` / `chain_daily` | chain × deployment × hour / day | totals of the above; TVL and staked USD carried forward for pools without a change |
+| `pools` | pool | current TVL, reserves, staked USD and share, cumulative volume / fees / swaps / rewards, fee rates, price, gauge; for a superchain leaf pool, votes and emissions from its root pool (`root_pool_address`) |
+| `pool_hourly` / `pool_daily` | pool × hour / day with a change | end-of-period TVL, reserves, staked; flows in the period: volume, fees, swaps, collected fees, emissions, rewards. A superchain leaf pool's votes and emissions come from its root pool, which adds rows for periods in which only the root pool changed (`pool_changed = 0`) |
+| `chain_hourly` / `chain_daily` | chain × deployment × hour / day | totals of the above; TVL and staked USD carried forward for pools without a change; `active_pools` counts pools that changed |
 | `user_pools` | user × pool | swaps, volume, fees paid, liquidity added / removed, fees collected, rewards, LP balance, ALM |
 | `user_pool_snapshots(chain_id, user)` | user × pool × active hour | a wallet's hourly history on one chain (parameterized view over envio's snapshots) |
 | `positions` | CL NFT position that exists | owner, pool, range, in range, staked, token amounts and USD value at the current price |
@@ -267,13 +268,14 @@ Views (the analyst API). Flows in the series are per period; `*_total` columns a
 | `known_data_issues` | chain × range | ranges where the indexed data is known to be wrong or incomplete |
 | `root_pools` | superchain root pool | the root chain's record of a root pool (ADR 0009): leaf chain, pair, root factory, root gauge, vote weight (`Voter.weights`), emissions and their USD |
 | `root_leaf_pools` | root pool × leaf pool | which leaf pool a root pool stands for: CL by matching hash and factory, V2 by the leaf chain's `RootPool_LeafPool` |
-| `leaf_pool_root_totals` | leaf pool | a superchain leaf pool's vote weight and emissions from the root chain, next to the leaf `Pool`'s stored fields (`stored_*`, filled by the cross-chain handlers until the per-chain flip) |
+| `leaf_pool_root_totals` | leaf pool | a superchain leaf pool's vote weight and emissions from the root chain (what the leaf `Pool` stored before the per-chain flip; `pools` shows them) |
+| `leaf_pool_root_hourly` / `leaf_pool_root_daily` | leaf pool × hour / day in which its root pool changed | the root pool's end-of-period vote weight and cumulative emissions and the emissions in the period, for `pool_hourly` / `pool_daily` |
 | `root_pool_votes` | veNFT × root pool | one veNFT's current vote on a root pool, with its leaf pool |
-| `super_swap_legs` | SuperSwap | SuperSwaps from the per-chain legs (`SuperSwapOriginLeg` ⋈ `SuperSwapDestinationLeg` on message id), the replacement of the `SuperSwap` entity |
+| `super_swap_legs` | SuperSwap | SuperSwaps from the per-chain legs (`SuperSwapOriginLeg` ⋈ `SuperSwapDestinationLeg` on message id); the replacement of the `SuperSwap` entity, removed at the per-chain flip (same fields, `origin_timestamp` / `destination_timestamp` instead of one `timestamp`) |
 
 Storage tables (exact integers, for reconciliation; read them with `FINAL`): `_pool`, `_token`,
 `_user_pool`, `_position`, `_venft`, `_venft_vote`, `_alm_wrapper`, `_token_price`,
-`_pool_hour`, `_pool_day`, and for Aero `_aero_gauge`, `_aero_gauge_factory`,
+`_pool_hour`, `_pool_day`, `_root_pool_hour`, `_root_pool_day` (superchain root pools), and for Aero `_aero_gauge`, `_aero_gauge_factory`,
 `_aero_leaf_voter`, `_aero_voting_rewards_manager`, `_aero_incentive_program`,
 `_saero_position`, `_saero_escrow`, `_aero_root_allocation`, `_aero_root_gauge_vote`,
 `_aero_root_chain`, `_aero_leaf_token`, `_aero_leaf_allocation`, `_aero_minter`,
@@ -791,8 +793,10 @@ Aero sync: **3 rows, 0.013 s** (first run 0.021 s; read 6 rows, 1.8 kB). Product
   Flows for missing periods are 0; levels (TVL, reserves, prices, caps) carry over from the
   previous row. `chain_daily` / `chain_hourly` carry every pool forward, but a day on which no
   pool of a chain changed has no row at all.
-- **Period buckets use block time** (`lastUpdatedTimestamp`). A legacy leaf pool updated by an
-  Optimism root-gauge distribution carries the Optimism block's time.
+- **Period buckets use block time** (`lastUpdatedTimestamp`). A superchain leaf pool's votes and
+  emissions in `pool_hourly` / `pool_daily` are bucketed by the root chain's (Optimism's) block
+  time of the vote or distribution, as they were when the cross-chain handlers wrote them onto
+  the leaf pool.
 - **A reorg that restores an older hour.** If a reorg's restored state lands in an earlier
   period than a period the layer already holds for that entity, the later period keeps its
   `prev_*` values (and its state from orphaned blocks) until a later change lands in it.
@@ -830,6 +834,18 @@ Aero sync: **3 rows, 0.013 s** (first run 0.021 s; read 6 rows, 1.8 kB). Product
   issue #902): an idle staker is never revalued and often reads $0. Pool-level `staked_usd` is
   live for CL pools; for V2 pools it is set at gauge events and can go stale (#899).
 - **Top "users" are often contracts**: routers, aggregators, vaults, gauges and the NFPM.
+- **Superchain leaf pools' votes and emissions live on the root chain** (ADR 0009). Since the
+  per-chain flip the indexer stores them only on Optimism (`RootPool`, `RootPoolVote`); the leaf
+  `Pool`'s `veNFTamountStaked`, `totalEmissions` and `totalEmissionsUSD` stay 0 on superchain
+  leaf pools, and so do leaf users' `veNFTamountStaked` and the leaf-keyed `VeNFTPoolVote` rows.
+  The layer joins them back: `pools.votes` / `emissions_*_total`, `pool_hourly` / `pool_daily`
+  `votes` / `emissions*` and `chain_*` take a mapped leaf pool's numbers from its root pool
+  (`root_leaf_pools`), so analysts see the same numbers as before. Read a leaf pool's 0 in the
+  raw envio tables or the `_pool` storage table as "stored on the root chain", not "no votes". A
+  leaf pool's per-veNFT votes are in `root_pool_votes` (join `venfts` on `token_id` for the
+  owner); `user_pools.venft_votes` and `venft_votes` have no rows for superchain leaf pools any
+  more. The root numbers need Optimism in the same database (with the root factories, the Voter
+  and VeNFT); without it a leaf pool shows 0.
 - **`votes` is the pool's legacy vote weight** (envio `veNFTamountStaked`, veToken units ÷ 1e18,
   as the Voter holds it). `gauge_reward_balance` (envio `totalVotesDeposited`, despite its name)
   is the gauge's undistributed reward-token balance at its last `DistributeReward`, derived from
@@ -838,8 +854,8 @@ Aero sync: **3 rows, 0.013 s** (first run 0.021 s; read 6 rows, 1.8 kB). Product
   chain's own legacy reward token (VELO, AERO v1, XVELO, …): sum the `*_usd` columns across
   chains. Legacy emission fields stay 0 on Aero pools (Aero emissions are in the Aero views).
 - **Legacy emissions before the oracle era read $0 in USD** for 188 pools (#738) though the
-  token amounts are right, and leaf-chain legacy emissions need Optimism's root gauges in the
-  same sync (the ten-chain test sync has none, so they read 0 there).
+  token amounts are right, and leaf-chain legacy emissions need Optimism's root pools in the
+  same database (the ten-chain test sync has none, so they read 0 there).
 - **Superseed blocks 10,313,359 to 10,521,629** (about 2025-05-08 to 05-13) came from a
   non-canonical fork in HyperSync; mints and liquidity events are missing, and Superseed pool,
   position and user numbers are wrong from then on (`known_data_issues`).

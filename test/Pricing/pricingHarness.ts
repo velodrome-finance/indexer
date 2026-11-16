@@ -2,6 +2,7 @@ import type { Token, TokenPriceSnapshot, TokenPricingPools } from "envio";
 import { PoolId, TokenId, toChecksumAddress } from "../../src/Constants";
 import type { Pool, handlerContext } from "../../src/EntityTypes";
 import { setupCommon } from "../EventHandlers/Pool/common";
+import type { WithChain } from "../testHelpers";
 
 /**
  * Real Optimism (chain 10) addresses, so tiers come from the live
@@ -67,7 +68,7 @@ export function makeToken(
   price: bigint,
   refreshedAt: number,
   overrides: Partial<Token> = {},
-): Token {
+): WithChain<Token> {
   return common.createMockToken({
     id: TokenId(chainId, address),
     address,
@@ -100,7 +101,7 @@ export function makePool(
   token0: string,
   token1: string,
   state: Partial<Pool>,
-): Pool {
+): WithChain<Pool> {
   return common.createMockPool({
     chainId,
     poolAddress,
@@ -113,7 +114,7 @@ export function makePool(
     isStable: false,
     sqrtPriceX96: 0n,
     ...state,
-  }) as unknown as Pool;
+  }) as unknown as WithChain<Pool>;
 }
 
 /** 2^96, the Q64.96 unit of `sqrtPriceX96`. */

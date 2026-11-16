@@ -81,7 +81,7 @@ describe("PriceResolution", () => {
       expect(applied.pricingDepthUSD).toBe(USD(9));
     });
 
-    it("pool and canonical store the winning depth on the token", () => {
+    it("pool stores the winning depth on the token", () => {
       const pool = applyPriceResolution(
         priced,
         {
@@ -95,24 +95,25 @@ describe("PriceResolution", () => {
       expect(pool.token.pricingDepthUSD).toBe(USD(9));
     });
 
-    it("canonical: takes the source price and records the source token", () => {
-      const applied = applyPriceResolution(
-        priced,
-        {
-          kind: "canonical",
-          priceUSD: USD(5),
-          sourceId: "10-0xWETH",
-          depthUSD: USD(7_000_000),
-        },
-        nowMs,
-      );
-      expect(applied.token.pricePerUSDNew).toBe(USD(5));
-      expect(applied.token.pricingDepthUSD).toBe(USD(7_000_000));
-      expect(applied.token.lastSuccessfulPriceTimestamp).toEqual(at(now));
-      expect(applied.priceSource).toBe("canonical");
-      expect(applied.pricingSourceTokenId).toBe("10-0xWETH");
-      expect(applied.pricingDepthUSD).toBe(USD(7_000_000));
-      expect(applied.pricingPoolId).toBeUndefined();
+    it("seed and snapshot: take the source price, record the source token and hour, no depth", () => {
+      const seedHourMs = (now - HOUR_S) * 1000;
+      for (const [kind, source] of [
+        ["seed", "canonical-seed"],
+        ["snapshot", "canonical-snapshot"],
+      ] as const) {
+        const applied = applyPriceResolution(
+          { ...priced, pricingDepthUSD: USD(9) },
+          { kind, priceUSD: USD(5), sourceId: "10-0xWETH", seedHourMs },
+          nowMs,
+        );
+        expect(applied.token.pricePerUSDNew).toBe(USD(5));
+        expect(applied.token.pricingDepthUSD).toBeUndefined();
+        expect(applied.token.lastSuccessfulPriceTimestamp).toEqual(at(now));
+        expect(applied.priceSource).toBe(source);
+        expect(applied.pricingSourceTokenId).toBe("10-0xWETH");
+        expect(applied.pricingSeedHour).toEqual(new Date(seedHourMs));
+        expect(applied.pricingPoolId).toBeUndefined();
+      }
     });
 
     it("keeps the depth while carrying and clears it when pinned, overridden or unpriced", () => {

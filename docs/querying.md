@@ -169,7 +169,7 @@ query OnePool {
     token0Price       # ÷ 1e18  (token1 per token0)
     currentFee        # ÷ 1e4 → percent
     gaugeIsAlive
-    veNFTamountStaked # legacy vote weight, ÷ 1e18
+    veNFTamountStaked # legacy vote weight, ÷ 1e18 (0 on superchain leaf pools: see RootPool)
     token0_id
     token1_id
   }
@@ -215,9 +215,9 @@ query TokenPrice {
   ) {
     lastUpdatedTimestamp
     pricePerUSDNew
-    priceSource            # pinned / pool / canonical = freshly priced this hour
+    priceSource            # pinned / pool / canonical-seed / canonical-snapshot = priced this hour
     pricingPoolId          # pool the price came through (priceSource = pool)
-    pricingSourceTokenId   # cross-chain source token (priceSource = canonical)
+    pricingSourceTokenId   # cross-chain source token (priceSource = canonical-*)
     pricingDepthUSD        # depth of the winning candidate, ÷ 1e18 → USD
   }
 }
@@ -290,7 +290,7 @@ query PoolIncentives {
     name
     totalBribeClaimedUSD       # ÷ 1e18
     totalFeeRewardClaimedUSD   # ÷ 1e18
-    totalEmissionsUSD          # ÷ 1e18  (see the caveats below)
+    totalEmissionsUSD          # ÷ 1e18  (see the caveats below; 0 on superchain leaf pools)
     bribeVotingRewardAddress
     feeVotingRewardAddress
   }
@@ -314,20 +314,69 @@ query ChainTVL {
 }
 ```
 
-### Cross-chain superswaps (oUSDT via Hyperlane)
+### Votes and emissions of a superchain leaf pool (Mode, Lisk, Metal, …)
+
+A superchain leaf pool is voted for, and gets its emissions, on Optimism through
+a placeholder "root pool". Since the per-chain flip (ADR 0009) those numbers are
+stored only on Optimism, in `RootPool` (one per root pool) and `RootPoolVote`
+(one per veNFT and root pool); the leaf `Pool`'s `veNFTamountStaked`,
+`totalEmissions` and `totalEmissionsUSD` stay `0`. Find the root pool of a leaf
+pool by its pair:
 
 ```graphql
-query SuperSwaps {
-  SuperSwap(order_by: { timestamp: desc }, limit: 20) {
-    originChainId
-    destinationChainId
-    sourceChainToken
-    destinationChainToken
-    oUSDTamount
-    timestamp
+query LeafPoolVotes {
+  # a CL leaf pool: its rootPoolMatchingHash, e.g. "34443_0x..._0x..._100"
+  RootPool(where: { rootPoolMatchingHash: { _eq: "34443_0x..._0x..._100" } }) {
+    rootPoolAddress
+    veNFTamountStaked          # Voter.weights(rootPool), ÷ 1e18
+    totalEmissions             # VELO, ÷ 1e18
+    totalEmissionsUSD          # ÷ 1e18
+    gaugeAddress gaugeIsAlive
+  }
+  # a V2 leaf pool: the leaf chain records its root pool
+  RootPool_LeafPool(where: { leafPoolAddress: { _eq: "0x..." } }) {
+    rootPoolAddress
   }
 }
 ```
+
+A CL root pool also has to match the leaf pool's factory: the leaf pool's
+`factoryAddress` equals the root pool's `rootFactoryAddress`. The ClickHouse
+layer does this join for you (`pools`, `leaf_pool_root_totals`; see
+[`clickhouse.md`](clickhouse.md)).
+
+### Cross-chain superswaps (oUSDT via Hyperlane)
+
+The `SuperSwap` entity was removed at the per-chain flip (ADR 0009). Each chain
+writes its own side, keyed by the Hyperlane message id: `SuperSwapOriginLeg` at
+the origin's `CrossChainSwap` and `SuperSwapDestinationLeg` at the destination's
+first oUSDT swap after `ProcessId`. Both are ClickHouse-only, so there is no
+GraphQL query for them any more; the `super_swap_legs` view in the ClickHouse
+layer joins them (same fields as the entity, with `origin_timestamp` and
+`destination_timestamp`), and also finds the SuperSwaps the handler-side
+stitching used to lose.
+
+## What changed for GraphQL consumers (per-chain entities, 2026-11)
+
+Every entity is now stored per chain (ADR 0009). Chains index independently, a
+chain can be added without a resync, and no handler reads another chain's rows.
+For API consumers:
+
+| what | before | after |
+|---|---|---|
+| `chainId` on an entity | a declared field on 51 entities | envio's own column, on **every** entity (same name and values; also on entities that had none, such as `VeNFTPoolVote` and `OUSDTSwaps`) |
+| primary key | `id` | `(id, chainId)`: `X_by_pk` needs both `id` and `chainId`; ids keep their `{chainId}-…` format, so filtering on `id` alone still finds one row |
+| superchain leaf pool votes (`Pool.veNFTamountStaked`) | written onto the leaf pool by Optimism's handlers | `0`; on Optimism's `RootPool.veNFTamountStaked` |
+| superchain leaf pool emissions (`Pool.totalEmissions`, `totalEmissionsUSD`, and in `PoolSnapshot`) | added onto the leaf pool by Optimism's `DistributeReward` | `0`; on `RootPool.totalEmissions` / `totalEmissionsUSD` |
+| a leaf user's vote (`UserStatsPerPool.veNFTamountStaked` on a leaf pool) and leaf-keyed `VeNFTPoolVote` rows | written by Optimism's `Voted` / `Abstained` | not written; `RootPoolVote` (veNFT × root pool, on Optimism) |
+| `SuperSwap` | entity | removed; ClickHouse `super_swap_legs` |
+| `PendingVote`, `PendingDistribution`, `PendingRootPoolMapping` | internal | removed |
+| `RootPool_LeafPool` | CL and V2 rows, written by Optimism and the leaf | V2 rows only, written by the leaf chain; CL leaf pools match their `RootPool` by `rootPoolMatchingHash` and factory |
+| `TokenPriceSnapshot.priceSource = canonical` | the live price of the source chain's `Token` | no longer written; leaf tokens fall back to `canonical-seed` / `canonical-snapshot` (the source's hourly price) |
+
+Local pools (Optimism's and Base's own pools, Aero pools) keep their vote and
+emission fields as before. A `0` on a superchain leaf pool means "stored on
+the root chain", not "no votes".
 
 ## Aero gauges, emissions and governance
 
@@ -443,7 +492,8 @@ The following are non-obvious properties of the data rather than defects.
   leaf chains that never whitelisted tokens on-chain (e.g. **Mode**, **Swell**)
   and on WETH-paired pools on **Soneium**/**Metal** — connector legs count even
   when `isWhitelisted` is `false`. On `TokenPriceSnapshot`, filter `priceSource`
-  to `pinned`, `pool`, or `canonical` (or `pricePerUSDNew > 0`) to exclude
+  to `pinned`, `pool`, `canonical-seed` or `canonical-snapshot` (`canonical` on
+  rows written before the per-chain flip), or `pricePerUSDNew > 0`, to exclude
   carried and zeroed ticks. There is at most one snapshot per token per clock
   hour.
 - **Token prices come from indexed pool state, not an on-chain oracle.** Each

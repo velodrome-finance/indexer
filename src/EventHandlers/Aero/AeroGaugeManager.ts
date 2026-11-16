@@ -51,7 +51,6 @@ export async function processAeroGaugeManagerGaugeCreated(
   if (!manager) {
     context.AeroVotingRewardsManager.set({
       id: managerId,
-      chainId: event.chainId,
       address: votingRewardsManager,
       gaugeAddress,
       poolAddress: target,

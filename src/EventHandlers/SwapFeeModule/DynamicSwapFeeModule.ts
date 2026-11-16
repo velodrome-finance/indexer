@@ -26,6 +26,7 @@ indexer.onEvent(
       pool,
       true,
       context,
+      event.chainId,
     );
     if (baseFee === undefined) {
       return;
@@ -54,7 +55,6 @@ indexer.onEvent(
 
     const config: DynamicFeeGlobalConfig = {
       id: configId,
-      chainId: event.chainId,
       secondsAgo: BigInt(event.params.secondsAgo),
     };
 

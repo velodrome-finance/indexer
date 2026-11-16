@@ -114,7 +114,13 @@ async function processGaugeCreated(
     };
   }
   persistAeroGauge(gauge, timestamp, context);
-  await syncAeroPoolGaugeLink(gauge, timestamp, params.blockNumber, context);
+  await syncAeroPoolGaugeLink(
+    gauge,
+    timestamp,
+    params.blockNumber,
+    context,
+    params.chainId,
+  );
 }
 
 /**
@@ -153,7 +159,13 @@ async function processEmissionCapSet(
   };
   persistAeroGauge(updated, timestamp, context);
   if (wasAlive !== isAeroGaugeAlive(updated)) {
-    await syncAeroPoolGaugeLink(updated, timestamp, blockNumber, context);
+    await syncAeroPoolGaugeLink(
+      updated,
+      timestamp,
+      blockNumber,
+      context,
+      chainId,
+    );
   }
 }
 

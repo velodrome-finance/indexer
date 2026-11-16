@@ -12,6 +12,7 @@ import {
   PRICE_TRUST_OUTCOME,
   PRICE_TRUST_REASON,
 } from "../../../src/PriceTrust";
+import type { WithChain } from "../../testHelpers";
 import { type MockPool, setupCommon } from "../Pool/common";
 
 describe("SuperchainLeafVoter Events", () => {
@@ -269,7 +270,7 @@ describe("SuperchainLeafVoter Events", () => {
       const expectedPricePerUSDNew = BigInt(10000000);
 
       it("should update the existing token entity", async () => {
-        const token: Token = {
+        const token: WithChain<Token> = {
           id: TokenId(chainId, tokenAddress),
           address: tokenAddress,
           symbol: "TEST",
@@ -279,7 +280,7 @@ describe("SuperchainLeafVoter Events", () => {
           pricePerUSDNew: expectedPricePerUSDNew,
           isWhitelisted: false,
           lastUpdatedTimestamp: new Date(0),
-        } as Token;
+        } as WithChain<Token>;
 
         const indexer = createTestIndexer();
         indexer.Token.set(token);
@@ -329,7 +330,7 @@ describe("SuperchainLeafVoter Events", () => {
         const expectedPricePerUSDNew = BigInt(10000000);
 
         it("should update the existing token entity to de-whitelist it", async () => {
-          const token: Token = {
+          const token: WithChain<Token> = {
             id: TokenId(chainId, tokenAddress),
             address: tokenAddress,
             symbol: "TEST",
@@ -339,7 +340,7 @@ describe("SuperchainLeafVoter Events", () => {
             pricePerUSDNew: expectedPricePerUSDNew,
             isWhitelisted: true, // Initially whitelisted
             lastUpdatedTimestamp: new Date(0),
-          } as Token;
+          } as WithChain<Token>;
 
           const indexer = createTestIndexer();
           indexer.Token.set(token);
@@ -446,7 +447,7 @@ describe("SuperchainLeafVoter Events", () => {
           priceTrustOutcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
           priceTrustReason: PRICE_TRUST_REASON.NON_WL,
           lastUpdatedTimestamp: new Date(0),
-        } as Token;
+        } as WithChain<Token>;
 
         const indexer = createTestIndexer();
         indexer.Token.set(existing);
@@ -501,7 +502,7 @@ describe("SuperchainLeafVoter Events", () => {
           priceTrustOutcome: PRICE_TRUST_OUTCOME.TRUSTED,
           priceTrustReason: PRICE_TRUST_REASON.WL,
           lastUpdatedTimestamp: new Date(0),
-        } as Token;
+        } as WithChain<Token>;
 
         const indexer = createTestIndexer();
         indexer.Token.set(existing);
@@ -554,7 +555,7 @@ describe("SuperchainLeafVoter Events", () => {
           priceTrustOutcome: PRICE_TRUST_OUTCOME.TRUSTED,
           priceTrustReason: PRICE_TRUST_REASON.WL,
           lastUpdatedTimestamp: new Date(0),
-        } as Token;
+        } as WithChain<Token>;
 
         const indexer = createTestIndexer();
         indexer.Token.set(existing);
@@ -607,7 +608,7 @@ describe("SuperchainLeafVoter Events", () => {
           priceTrustOutcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
           priceTrustReason: PRICE_TRUST_REASON.NON_WL,
           lastUpdatedTimestamp: new Date(0),
-        } as Token;
+        } as WithChain<Token>;
 
         const indexer = createTestIndexer();
         indexer.Token.set(existing);

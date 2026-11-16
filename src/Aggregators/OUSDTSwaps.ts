@@ -8,8 +8,8 @@ import { writeSuperSwapDestinationLegsForSwap } from "../EventHandlers/Superswap
  * Accepts In/Out amounts for both tokens and determines swap direction.
  *
  * Also records the swap in `TxOUSDTSwapRegistry` when it is the first oUSDT
- * swap seen in its transaction, so the SuperSwap stitching can resolve a tx's
- * oUSDT swap by primary key instead of `OUSDTSwaps.getWhere({ transactionHash })`.
+ * swap seen in its transaction (read by primary key by the SuperSwap legs, see
+ * `SuperSwapLegLogic.ts`), and then writes the transaction's destination legs.
  *
  * @param transactionHash - Transaction hash of the swap
  * @param chainId - Chain ID of the swap
@@ -102,35 +102,4 @@ export async function createOUSDTSwapEntity(
     swap,
     context,
   );
-}
-
-/**
- * Loads the first oUSDT swap recorded in a transaction (see `TxOUSDTSwapRegistry`).
- *
- * Returns it in the shape `OUSDTSwaps.getWhere({ transactionHash })` used to
- * return: an empty array when the tx has no oUSDT swap, else a one-element
- * array holding the swap consumers read as `[0]`.
- *
- * @param transactionHash - Transaction hash to look up
- * @param context - Handler context
- * @returns Promise resolving to `[]` or `[firstSwap]`
- */
-export async function loadFirstOUSDTSwapInTx(
-  transactionHash: string,
-  context: handlerContext,
-): Promise<OUSDTSwaps[]> {
-  const registry = await context.TxOUSDTSwapRegistry.get(transactionHash);
-  if (!registry) {
-    return [];
-  }
-  return [
-    {
-      id: registry.swapId,
-      transactionHash,
-      tokenInPool: registry.tokenInPool,
-      tokenOutPool: registry.tokenOutPool,
-      amountIn: registry.amountIn,
-      amountOut: registry.amountOut,
-    },
-  ];
 }

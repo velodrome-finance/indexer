@@ -27,6 +27,7 @@ indexer.onEvent(
       pool,
       pool.isCL,
       context,
+      event.chainId,
     );
     if (chargedFee !== undefined) {
       const diff: Partial<Pool> = {
@@ -48,7 +49,6 @@ indexer.onEvent(
 
     const config: DynamicFeeGlobalConfig = {
       id: configId,
-      chainId: event.chainId,
       secondsAgo: undefined, // This is only defined for DynamicSwapFeeModule.ts
     };
 

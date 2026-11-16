@@ -10,8 +10,6 @@ export { getTokenMetadata } from "./TokenMetadata";
 
 export { getSwapFee } from "./SwapFee";
 
-export { getRootPoolAddress } from "./RootPool";
-
 // Bytecode-gate effect (filters EOAs / non-contract addresses at Token creation sites)
 export { hasContractBytecode } from "./Bytecode";
 

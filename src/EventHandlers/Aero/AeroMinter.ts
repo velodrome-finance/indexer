@@ -41,7 +41,6 @@ async function loadOrCreateMinterState(
   return (
     existing ?? {
       id: AeroContractStateId(chainId, minter),
-      chainId,
       minter,
       baseRate: undefined,
       dynamicRate: undefined,
@@ -95,7 +94,6 @@ async function updateMinterState(
     const epoch = getSnapshotEpoch(timestamp);
     context.AeroMinterSnapshot.set({
       id: AeroSnapshotId(next.id, epoch.getTime()),
-      chainId: next.chainId,
       timestamp: epoch,
       baseRate: next.baseRate,
       dynamicRate: next.dynamicRate,
@@ -134,7 +132,6 @@ function writeMinterEvent(
 ): void {
   context.AeroMinterEvent.set({
     id: AeroEventId(event.chainId, event.transaction.hash, event.logIndex),
-    chainId: event.chainId,
     kind,
     value: values.value,
     value2: values.value2,

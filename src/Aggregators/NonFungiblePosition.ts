@@ -31,19 +31,27 @@ export interface NonFungiblePositionDiff {
  * firing Decrease without Increase — the raw subtraction would persist as negative.
  * The clamp emits a `[NEG_NFP_LIQUIDITY_GUARD]` error log so the signal stays
  * visible without aborting the indexer.
+ *
+ * @param diff - The changes to apply
+ * @param current - The current NonFungiblePosition
+ * @param context - The handler context
+ * @param timestamp - The event timestamp
+ * @param chainId - Chain of the event being handled (the position's chain)
+ * @returns void (the upsert and any snapshot are staged on the context)
  */
 export function updateNonFungiblePosition(
   diff: Partial<NonFungiblePositionDiff>,
   current: NonFungiblePosition,
   context: handlerContext,
   timestamp: Date,
+  chainId: number,
 ): void {
   const delta = diff.incrementalLiquidity ?? 0n;
   const rawLiquidity = current.liquidity + delta;
   let clampedLiquidity = rawLiquidity;
   if (rawLiquidity < 0n) {
     context.log.error(
-      `[NEG_NFP_LIQUIDITY_GUARD] tokenId=${current.tokenId} chain=${current.chainId} prior=${current.liquidity} delta=${delta} clampedTo=0`,
+      `[NEG_NFP_LIQUIDITY_GUARD] tokenId=${current.tokenId} chain=${chainId} prior=${current.liquidity} delta=${delta} clampedTo=0`,
     );
     clampedLiquidity = 0n;
   }
@@ -67,7 +75,12 @@ export function updateNonFungiblePosition(
   };
 
   if (shouldSnapshot(current.lastSnapshotTimestamp, timestamp)) {
-    setNonFungiblePositionSnapshot(nonFungiblePosition, timestamp, context);
+    setNonFungiblePositionSnapshot(
+      nonFungiblePosition,
+      timestamp,
+      context,
+      chainId,
+    );
     nonFungiblePosition = {
       ...nonFungiblePosition,
       lastSnapshotTimestamp: getSnapshotEpoch(timestamp),

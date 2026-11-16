@@ -14,18 +14,20 @@ import {
  * Creates an epoch-aligned snapshot of ALM_LP_Wrapper (no persistence).
  * @param entity - ALM_LP_Wrapper to snapshot
  * @param timestamp - Timestamp used to compute snapshot epoch
+ * @param chainId - Chain of the event being handled (the entity's chain)
  * @returns Epoch-aligned ALM_LP_WrapperSnapshot
  */
 export function createALMLPWrapperSnapshot(
   entity: ALM_LP_Wrapper,
   timestamp: Date,
+  chainId: number,
 ): ALM_LP_WrapperSnapshot {
   const epoch = getSnapshotEpoch(timestamp);
   const wrapperAddress = entity.id.includes("-")
     ? entity.id.split("-").slice(1).join("-")
     : entity.id;
   const snapshotId = ALMLPWrapperSnapshotId(
-    entity.chainId,
+    chainId,
     wrapperAddress,
     epoch.getTime(),
   );
@@ -33,7 +35,6 @@ export function createALMLPWrapperSnapshot(
     id: snapshotId,
     wrapper: wrapperAddress,
     pool: entity.pool,
-    chainId: entity.chainId,
     token0: entity.token0,
     token1: entity.token1,
     lpAmount: entity.lpAmount,
@@ -59,16 +60,18 @@ export function createALMLPWrapperSnapshot(
  * @param entity - ALM_LP_Wrapper to snapshot
  * @param timestamp - Timestamp used to compute snapshot epoch
  * @param context - Handler context
+ * @param chainId - Chain of the event being handled (the entity's chain)
  * @returns void
  */
 export function setALMLPWrapperSnapshot(
   entity: ALM_LP_Wrapper,
   timestamp: Date,
   context: handlerContext,
+  chainId: number,
 ): void {
   const snapshotForPersist: SnapshotForPersist = {
     type: SnapshotType.ALMLPWrapper,
-    snapshot: createALMLPWrapperSnapshot(entity, timestamp),
+    snapshot: createALMLPWrapperSnapshot(entity, timestamp, chainId),
   };
   persistSnapshot(snapshotForPersist, context);
 }

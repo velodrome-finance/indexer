@@ -173,8 +173,8 @@ export function generatePoolName(
 
 /**
  * Sorts items by blockchain event order: block number ascending, then log index ascending.
- * Use when replaying deferred events (e.g. PendingVote, PendingDistribution) so they are
- * applied in the same order they occurred on-chain.
+ * Use when replaying buffered events so they are applied in the same order they
+ * occurred on-chain.
  * @param items - Array to sort (not mutated; returns a new sorted array)
  * @param getBlockNumber - Extracts block number from each item
  * @param getLogIndex - Optional. Extracts log index from each item; defaults to 0 when omitted
@@ -210,6 +210,7 @@ export function sortByBlockThenLogIndex<T>(
  * @param amount1 - Token1 amount (raw, in token1's decimal base)
  * @param token0 - Token0 instance; undefined or untrusted contributes 0n
  * @param token1 - Token1 instance; undefined or untrusted contributes 0n
+ * @param chainId - Chain of the event being handled (the tokens' chain)
  * @returns Total USD (1e18-base), summing only trusted legs
  */
 export function calculateTotalUSD(
@@ -217,8 +218,12 @@ export function calculateTotalUSD(
   amount1: bigint,
   token0: Token | undefined,
   token1: Token | undefined,
+  chainId: number,
 ): bigint {
-  return getTrustedUSD(amount0, token0) + getTrustedUSD(amount1, token1);
+  return (
+    getTrustedUSD(amount0, token0, chainId) +
+    getTrustedUSD(amount1, token1, chainId)
+  );
 }
 
 /**
@@ -254,7 +259,7 @@ function cappedLegUSD(
   ratioTinC: bigint,
   chainId: number,
 ): bigint {
-  const trustedUSD = getTrustedUSD(amountT, tokenT);
+  const trustedUSD = getTrustedUSD(amountT, tokenT, chainId);
   // Nothing to cap: untrusted / zero leg, no priced T, or no usable pool ratio.
   if (trustedUSD <= 0n || !tokenT || ratioTinC <= 0n) return trustedUSD;
 
@@ -434,6 +439,7 @@ export function calculatePositionAmountsFromLiquidity(
  * @param sqrtPriceX96 - Current pool sqrt(price) Q64.96
  * @param tickLower - Range lower tick
  * @param tickUpper - Range upper tick
+ * @param chainId - Chain of the event being handled (the pool's chain)
  * @param token0Instance - Token0 for USD pricing (optional)
  * @param token1Instance - Token1 for USD pricing (optional)
  * @returns USD value in 1e18 units, or 0n on error / missing tokens
@@ -443,6 +449,7 @@ export function concentratedLiquidityToUSD(
   sqrtPriceX96: bigint,
   tickLower: bigint,
   tickUpper: bigint,
+  chainId: number,
   token0Instance?: Token,
   token1Instance?: Token,
 ): bigint {
@@ -453,7 +460,13 @@ export function concentratedLiquidityToUSD(
       tickLower,
       tickUpper,
     );
-    return calculateTotalUSD(amount0, amount1, token0Instance, token1Instance);
+    return calculateTotalUSD(
+      amount0,
+      amount1,
+      token0Instance,
+      token1Instance,
+      chainId,
+    );
   } catch {
     return 0n;
   }
@@ -467,6 +480,7 @@ export function concentratedLiquidityToUSD(
  * @param poolEntity - Non-CL pool entity with reserve0, reserve1, totalLPTokenSupply
  * @param poolData - Token instances for USD pricing
  * @param _context - Handler context (unused; for API consistency)
+ * @param chainId - Chain of the event being handled (the pool's chain)
  * @returns USD value in 1e18 units, or 0n if stake ≤ 0 or totalSupply missing/zero
  */
 export function computeNonCLStakedUSD(
@@ -478,6 +492,7 @@ export function computeNonCLStakedUSD(
     token1Instance?: Token;
   },
   _context: handlerContext,
+  chainId: number,
 ): bigint {
   if (stakeAmount <= 0n) {
     return 0n;
@@ -491,7 +506,13 @@ export function computeNonCLStakedUSD(
   }
   const amount0 = (stakeAmount * reserve0) / totalSupply;
   const amount1 = (stakeAmount * reserve1) / totalSupply;
-  return calculateTotalUSD(amount0, amount1, token0Instance, token1Instance);
+  return calculateTotalUSD(
+    amount0,
+    amount1,
+    token0Instance,
+    token1Instance,
+    chainId,
+  );
 }
 
 /**

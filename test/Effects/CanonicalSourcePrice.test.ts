@@ -179,7 +179,7 @@ describe("buildCanonicalSourcePriceQuery", () => {
 });
 
 describe("readCanonicalPriceSettings", () => {
-  it("defaults: both switches on, envio's ClickHouse", () => {
+  it("defaults: the snapshot effect on, envio's ClickHouse", () => {
     expect(
       readCanonicalPriceSettings({
         ENVIO_CLICKHOUSE_HOST: "http://127.0.0.1:8160",
@@ -188,7 +188,6 @@ describe("readCanonicalPriceSettings", () => {
         ENVIO_CLICKHOUSE_PASSWORD: "pw",
       }),
     ).toEqual({
-      liveRead: true,
       snapshotEffect: true,
       clickhouse: {
         url: "http://127.0.0.1:8160",
@@ -232,14 +231,13 @@ describe("readCanonicalPriceSettings", () => {
     });
   });
 
-  it("switches off; no ClickHouse without host and database", () => {
+  it("switch off; no ClickHouse without host and database", () => {
     expect(
       readCanonicalPriceSettings({
-        PRICING_CANONICAL_LIVE_READ: "false",
         PRICING_CANONICAL_SNAPSHOT_EFFECT: "0",
         ENVIO_CLICKHOUSE_HOST: "http://a:1",
       }),
-    ).toEqual({ liveRead: false, snapshotEffect: false });
+    ).toEqual({ snapshotEffect: false });
   });
 });
 

@@ -351,7 +351,8 @@ describe("config.yaml ↔ Constants.ts factory parity (#770, subsumes #769)", ()
 
   it("ROOT_POOL_FACTORY_ADDRESS_OPTIMISM stays in sync with the superchain non-CL factory", () => {
     // The constant's name is historical; semantically it is the non-CL pool factory
-    // used in cross-chain root↔leaf V2 lookups (getRootPoolAddress in PoolFactory.ts).
+    // whose CREATE2 address a leaf V2 PoolCreated predicts for its root pool
+    // (predictV2RootPoolAddress in PoolFactory.ts, ADR 0009 flow D).
     // The same address appears as `PoolFactory.address` on every superchain leaf chain,
     // so we assert internal consistency against SUPERCHAIN_LEAF_VOTER_NONCL_POOLS_FACTORY_LIST
     // — that list itself is checked against config.yaml above.

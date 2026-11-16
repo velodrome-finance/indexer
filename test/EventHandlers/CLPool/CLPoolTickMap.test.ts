@@ -1,4 +1,3 @@
-import type { Token } from "envio";
 import { createTestIndexer } from "envio";
 import { segmentReserveDelta } from "../../../src/Aggregators/CLStakedLiquidity";
 import { toChecksumAddress } from "../../../src/Constants";
@@ -68,8 +67,8 @@ describe("CLPool handlers and PoolTickMap", () => {
     });
     await registerCLPool(indexer, chainId, pool.poolAddress);
     indexer.Pool.set(pool);
-    indexer.Token.set(mockToken0Data as Token);
-    indexer.Token.set(mockToken1Data as Token);
+    indexer.Token.set(mockToken0Data);
+    indexer.Token.set(mockToken1Data);
     return { indexer, pool };
   }
 
@@ -176,6 +175,7 @@ describe("CLPool handlers and PoolTickMap", () => {
     });
     indexer.PoolTickMap.set({
       id: pool.id,
+      chainId,
       tickEdges: [-5000n, 5000n],
       tickEdgeNets: [S / 2n, -(S / 2n)],
       stakedTickEdges: [-2000n, 2000n],

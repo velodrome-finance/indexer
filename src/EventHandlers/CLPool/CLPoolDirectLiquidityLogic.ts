@@ -34,6 +34,7 @@ import {
  * @param amount1 - Raw token1 amount from the event.
  * @param blockTimestamp - Block timestamp in seconds.
  * @param changeType - `ADD` for Mint, `REMOVE` for Burn.
+ * @param chainId - Chain of the event being handled (the pool's chain).
  * @returns Promise that resolves once the owner's UserStatsPerPool flow has been
  *   staged, or immediately when the flow is NFPM-routed (skipped).
  */
@@ -46,6 +47,7 @@ export async function attributeDirectCLLiquidityChange(
   amount1: bigint,
   blockTimestamp: number,
   changeType: LiquidityChangeType,
+  chainId: number,
 ): Promise<void> {
   const nfpmAddress = poolData.liquidityPoolAggregator.nfpmAddress;
   if (nfpmAddress == null || owner === nfpmAddress) {
@@ -60,5 +62,6 @@ export async function attributeDirectCLLiquidityChange(
     amount1,
     blockTimestamp,
     changeType,
+    chainId,
   );
 }

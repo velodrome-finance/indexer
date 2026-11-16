@@ -56,7 +56,6 @@ describe("TokenPriceSnapshot", () => {
       expect(createTokenPriceSnapshot(input)).toEqual({
         id: TokenPriceSnapshotId(chainId, address, timestamp),
         address,
-        chainId,
         pricePerUSDNew: input.pricePerUSDNew,
         isWhitelisted: true,
         lastUpdatedTimestamp: timestamp,
