@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=./node_modules/envio/evm.schema.json
+# Per-chain mechanics probe (envio 3.16.0): WETH transfers on small OP-stack chains.
+name: pcmin
+disable_default_cross_chain: true
+rollback_on_reorg: true
+storage:
+  postgres:
+    default: true
+  clickhouse:
+    default: true
+contracts:
+  - name: Weth
+    handler: src/handlers/Weth.ts
+    events:
+      - event: "Transfer(address indexed from, address indexed to, uint256 value)"
+chains:
+  - id: 34443 # Mode
+    start_block: 47278250
+    end_block: 47298250
+    contracts:
+      - name: Weth
+        address: "0x4200000000000000000000000000000000000006"
+  - id: 1868 # Soneium
+    start_block: 30794670
+    end_block: 30814670
+    contracts:
+      - name: Weth
+        address: "0x4200000000000000000000000000000000000006"
+  - id: 130 # Unichain
+    start_block: 64025762
+    end_block: 64045762
+    contracts:
+      - name: Weth
+        address: "0x4200000000000000000000000000000000000006"
+  - id: 1135 # Lisk
+    start_block: 39696606
+    end_block: 39716606
+    contracts:
+      - name: Weth
+        address: "0x4200000000000000000000000000000000000006"
+  - id: 57073 # Ink
+    start_block: 61245600
+    end_block: 61267100
+    contracts:
+      - name: Weth
+        address: "0x4200000000000000000000000000000000000006"

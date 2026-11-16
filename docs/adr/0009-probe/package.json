@@ -1,0 +1,17 @@
+{
+  "name": "hyperindex-upstream-repros",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "codegen": "envio codegen",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "envio": "3.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.3",
+    "vitest": "4.1.0"
+  }
+}
