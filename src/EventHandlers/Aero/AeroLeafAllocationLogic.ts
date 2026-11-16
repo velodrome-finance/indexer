@@ -1,4 +1,5 @@
 import type { AeroGauge, AeroLeafTokenState } from "envio";
+import { chainIdOf } from "../../Constants";
 import { getRehydrated } from "../../EntityTimestamps";
 import type { handlerContext } from "../../EntityTypes";
 import {
@@ -59,7 +60,6 @@ export async function loadOrCreateLeafTokenState(
   return (
     existing ?? {
       id: AeroLeafTokenStateId(chainId, tokenId),
-      chainId,
       tokenId,
       chainAllocation: 0n,
       gauges: [],
@@ -148,7 +148,6 @@ export async function processLeafChainAllocated(
   );
   context.AeroAllocationEvent.set({
     id: AeroEventId(ev.chainId, ev.transactionHash, ev.logIndex),
-    chainId: ev.chainId,
     level: AERO_ALLOCATION_LEVEL.LEAF,
     kind: AERO_ALLOCATION_EVENT_KIND.CHAIN_ALLOCATED,
     tokenId,
@@ -195,8 +194,7 @@ function rebook(
     if (oldAmount === newAmount) continue;
     const gauge = gaugeRows.get(gaugeAddress);
     context.AeroLeafAllocation.set({
-      id: AeroLeafAllocationId(token.chainId, token.tokenId, gaugeAddress),
-      chainId: token.chainId,
+      id: AeroLeafAllocationId(chainIdOf(token), token.tokenId, gaugeAddress),
       tokenId: token.tokenId,
       gaugeAddress,
       poolAddress: gauge?.poolAddress,
@@ -289,7 +287,6 @@ export async function processLeafGaugesAllocated(
 
   // Rows: every listed entry, then every gauge the split dropped.
   const rowBase = {
-    chainId: ev.chainId,
     level: AERO_ALLOCATION_LEVEL.LEAF,
     kind: AERO_ALLOCATION_EVENT_KIND.GAUGE_ALLOCATED,
     tokenId,
@@ -370,7 +367,6 @@ export async function processLeafEmergencyDeallocationApplied(
   );
   context.AeroAllocationEvent.set({
     id: AeroEventId(ev.chainId, ev.transactionHash, ev.logIndex),
-    chainId: ev.chainId,
     level: AERO_ALLOCATION_LEVEL.LEAF,
     kind: AERO_ALLOCATION_EVENT_KIND.EMERGENCY_DEALLOCATION_APPLIED,
     tokenId,
@@ -404,7 +400,6 @@ export function processLeafDeallocated(
 ): void {
   context.AeroAllocationEvent.set({
     id: AeroEventId(ev.chainId, ev.transactionHash, ev.logIndex),
-    chainId: ev.chainId,
     level: AERO_ALLOCATION_LEVEL.LEAF,
     kind: AERO_ALLOCATION_EVENT_KIND.DEALLOCATED,
     tokenId,

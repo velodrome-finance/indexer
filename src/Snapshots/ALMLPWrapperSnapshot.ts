@@ -2,7 +2,7 @@ import type { ALM_LP_Wrapper, ALM_LP_WrapperSnapshot } from "envio";
 
 import type { handlerContext } from "../EntityTypes";
 
-import { ALMLPWrapperSnapshotId } from "../Constants";
+import { ALMLPWrapperSnapshotId, chainIdOf } from "../Constants";
 import {
   type SnapshotForPersist,
   SnapshotType,
@@ -25,7 +25,7 @@ export function createALMLPWrapperSnapshot(
     ? entity.id.split("-").slice(1).join("-")
     : entity.id;
   const snapshotId = ALMLPWrapperSnapshotId(
-    entity.chainId,
+    chainIdOf(entity),
     wrapperAddress,
     epoch.getTime(),
   );
@@ -33,7 +33,6 @@ export function createALMLPWrapperSnapshot(
     id: snapshotId,
     wrapper: wrapperAddress,
     pool: entity.pool,
-    chainId: entity.chainId,
     token0: entity.token0,
     token1: entity.token1,
     lpAmount: entity.lpAmount,

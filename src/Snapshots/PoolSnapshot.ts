@@ -1,6 +1,6 @@
 import type { handlerContext } from "../EntityTypes";
 
-import { PoolSnapshotId } from "../Constants";
+import { PoolSnapshotId, chainIdOf } from "../Constants";
 import type { Pool, PoolSnapshot } from "../EntityTypes";
 import {
   type SnapshotForPersist,
@@ -22,13 +22,12 @@ export function createPoolSnapshot(
   const epoch = getSnapshotEpoch(timestamp);
 
   const snapshotId = PoolSnapshotId(
-    entity.chainId,
+    chainIdOf(entity),
     entity.poolAddress,
     epoch.getTime(),
   );
   return {
     id: snapshotId,
-    chainId: entity.chainId,
     name: entity.name,
     poolAddress: entity.poolAddress,
     token0_id: entity.token0_id,

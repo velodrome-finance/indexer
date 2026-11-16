@@ -220,7 +220,6 @@ export async function processAeroNFPMIncreaseLiquidity(
     context.AeroNFPMPendingMint.deleteUnsafe(positionId);
     position = {
       id: positionId,
-      chainId: event.chainId,
       tokenId,
       nfpmAddress: event.srcAddress,
       owner: (pendingMint as { owner: string }).owner,

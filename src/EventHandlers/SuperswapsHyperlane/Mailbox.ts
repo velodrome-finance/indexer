@@ -1,6 +1,7 @@
 import { indexer } from "envio";
 import type { DispatchId_event, ProcessId_event } from "envio";
 import { MailboxMessageId, SuperSwapId } from "../../Constants";
+import { logPerChainStubOnce } from "../../PerChainStubs";
 import { attemptSuperSwapCreationFromProcessId } from "./SuperSwapLogic";
 
 indexer.onEvent(
@@ -10,12 +11,21 @@ indexer.onEvent(
     const transactionHash = event.transaction.hash;
     const entity: DispatchId_event = {
       id: MailboxMessageId(messageId),
-      chainId: event.chainId,
       transactionHash,
       messageId: messageId,
     };
 
     context.DispatchId_event.set(entity);
+    // TODO(ADR 0009, flow G): the destination chain's ProcessId_event / swap
+    // rows are not visible from here (and vice versa), so a SuperSwap is only
+    // stitched when both legs are on this chain. Each side keeps its own rows;
+    // the migration writes per-side SuperSwap rows joined by messageId in
+    // ClickHouse and drops the staging rows.
+    logPerChainStubOnce(
+      context.log,
+      "G",
+      "SuperSwap stitching only sees this chain's legs; cross-chain pairs stay unstitched.",
+    );
 
     // Record the messageId under its tx so consumers can list a source tx's
     // dispatches by primary key (see TxDispatchIdRegistry in schema.graphql).
@@ -55,7 +65,6 @@ indexer.onEvent(
     const messageId = event.params.messageId;
     const entity: ProcessId_event = {
       id: MailboxMessageId(messageId),
-      chainId: event.chainId,
       transactionHash: event.transaction.hash,
       messageId: messageId,
     };
@@ -68,6 +77,7 @@ indexer.onEvent(
       messageId,
       event.block.timestamp,
       context,
+      event.chainId,
     );
   },
 );

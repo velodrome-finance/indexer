@@ -414,7 +414,6 @@ indexer.onEvent(
   async ({ event, context }) => {
     context.CLPoolPendingInitialize.set({
       id: PoolId(event.chainId, event.srcAddress),
-      chainId: event.chainId,
       poolAddress: event.srcAddress,
       sqrtPriceX96: event.params.sqrtPriceX96,
       tick: event.params.tick,
@@ -539,7 +538,6 @@ indexer.onEvent(
     );
     context.CLPoolMintEvent.set({
       id: mintEventId,
-      chainId: event.chainId,
       pool: event.srcAddress,
       owner: event.params.owner,
       tickLower: event.params.tickLower,

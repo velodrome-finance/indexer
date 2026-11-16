@@ -1,6 +1,7 @@
 import { indexer } from "envio";
 import type { ALM_LP_Wrapper } from "envio";
 import { updateALMLPWrapper } from "../../Aggregators/ALMLPWrapper";
+import { chainIdOf } from "../../Constants";
 import { getWhereRehydrated } from "../../EntityTimestamps";
 import type { handlerContext } from "../../EntityTypes";
 
@@ -39,7 +40,7 @@ export async function findALMLPWrapperForRebalance(
     (await getWhereRehydrated(context.ALM_LP_Wrapper, "ALM_LP_Wrapper", {
       pool: { _eq: poolAddress },
     })) ?? [];
-  const sameChain = wrappers.filter((w) => w.chainId === chainId);
+  const sameChain = wrappers.filter((w) => chainIdOf(w) === chainId);
 
   if (sameChain.length === 0) {
     context.log.warn(

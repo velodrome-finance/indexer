@@ -13,6 +13,7 @@ import {
   NonFungiblePositionId,
   PoolId,
   ZERO_ADDRESS,
+  chainIdOf,
 } from "../../Constants";
 import { getRehydrated, getWhereRehydrated } from "../../EntityTimestamps";
 import type { handlerContext } from "../../EntityTypes";
@@ -42,7 +43,7 @@ export async function loadStrategyPositionLiquidity(
   const position = await getRehydrated(
     context.NonFungiblePosition,
     "NonFungiblePosition",
-    NonFungiblePositionId(wrapper.chainId, nfpmAddress, wrapper.tokenId),
+    NonFungiblePositionId(chainIdOf(wrapper), nfpmAddress, wrapper.tokenId),
   );
   return position?.liquidity;
 }
@@ -229,7 +230,7 @@ export async function getMatchingBurnTransferInTx(
 
   const matchingBurns = (transfersInTxHash ?? []).filter(
     (t: ALMLPWrapperTransferInTx) =>
-      t.chainId === chainId &&
+      chainIdOf(t) === chainId &&
       t.wrapperAddress === wrapperAddress &&
       t.from === sender &&
       t.isBurn === true &&
@@ -547,7 +548,6 @@ function storeBurnTransferForMatching(
   );
   (context as handlerContext).ALMLPWrapperTransferInTx.set({
     id: transferId,
-    chainId: chainId,
     txHash: txHash,
     wrapperAddress: wrapperAddress,
     logIndex: logIndex,

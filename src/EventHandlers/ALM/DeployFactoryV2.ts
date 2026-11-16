@@ -71,7 +71,6 @@ indexer.onEvent(
     // amount0/amount1 are derived at snapshot time from liquidity + sqrtPriceX96 + ticks
     context.ALM_LP_Wrapper.set({
       id: ALMLPWrapperId(event.chainId, lpWrapper),
-      chainId: event.chainId,
       pool: pool,
       token0: token0,
       token1: token1,

@@ -440,7 +440,6 @@ export async function handleMintTransfer(
   if (event.params.from === ZERO_ADDRESS) {
     context.VeNFTState.set({
       id: VeNFTId(event.chainId, event.params.tokenId),
-      chainId: event.chainId,
       tokenId: event.params.tokenId,
       owner: event.params.to,
       // TVL-changing flows such as Split emit Transfer before the amount-carrying event.

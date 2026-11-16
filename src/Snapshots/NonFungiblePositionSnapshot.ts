@@ -2,7 +2,7 @@ import type { NonFungiblePosition, NonFungiblePositionSnapshot } from "envio";
 
 import type { handlerContext } from "../EntityTypes";
 
-import { NonFungiblePositionSnapshotId } from "../Constants";
+import { NonFungiblePositionSnapshotId, chainIdOf } from "../Constants";
 import {
   type SnapshotForPersist,
   SnapshotType,
@@ -22,14 +22,13 @@ export function createNonFungiblePositionSnapshot(
 ): NonFungiblePositionSnapshot {
   const epoch = getSnapshotEpoch(timestamp);
   const snapshotId = NonFungiblePositionSnapshotId(
-    entity.chainId,
+    chainIdOf(entity),
     entity.nfpmAddress,
     entity.tokenId,
     epoch.getTime(),
   );
   return {
     id: snapshotId,
-    chainId: entity.chainId,
     tokenId: entity.tokenId,
     nfpmAddress: entity.nfpmAddress,
     owner: entity.owner,

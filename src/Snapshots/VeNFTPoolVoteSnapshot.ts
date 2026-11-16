@@ -7,7 +7,7 @@ import type {
 
 import type { handlerContext } from "../EntityTypes";
 
-import { VeNFTPoolVoteSnapshotId } from "../Constants";
+import { VeNFTPoolVoteSnapshotId, chainIdOf } from "../Constants";
 import {
   type SnapshotForPersist,
   SnapshotType,
@@ -33,12 +33,11 @@ export function createVeNFTPoolVoteSnapshot(
 
   return {
     id: VeNFTPoolVoteSnapshotId(
-      veNFTState.chainId,
+      chainIdOf(veNFTState),
       veNFTState.tokenId,
       entity.poolAddress,
       epoch.getTime(),
     ),
-    chainId: veNFTState.chainId,
     tokenId: veNFTState.tokenId,
     poolAddress: entity.poolAddress,
     veNFTamountStaked: entity.veNFTamountStaked,

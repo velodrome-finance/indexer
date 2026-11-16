@@ -10,6 +10,7 @@ import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
+import { chainIdOf } from "../../Constants";
 import type { handlerContext } from "../../EntityTypes";
 import {
   calculatePositionAmountsFromLiquidity,
@@ -59,7 +60,7 @@ export async function attributeLiquidityChangeToUserStatsPerPool(
   const userData = await loadOrCreateUserData(
     owner,
     poolAddress,
-    poolData.liquidityPoolAggregator.chainId,
+    chainIdOf(poolData.liquidityPoolAggregator),
     context,
     timestamp,
   );

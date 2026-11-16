@@ -258,7 +258,6 @@ export async function storeTransferForMatching(
     );
     context.PoolTransferInTx.set({
       id: transferId,
-      chainId: chainId,
       txHash: txHash,
       pool: poolAddress,
       logIndex: logIndex,

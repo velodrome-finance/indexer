@@ -2,7 +2,7 @@ import type { VeNFTState } from "envio";
 
 import type { handlerContext } from "../EntityTypes";
 
-import { VeNFTId } from "../Constants";
+import { VeNFTId, chainIdOf } from "../Constants";
 import { getRehydrated } from "../EntityTimestamps";
 import { getSnapshotEpoch, shouldSnapshot } from "../Snapshots/Shared";
 import { setVeNFTStateSnapshot } from "../Snapshots/VeNFTStateSnapshot";
@@ -72,8 +72,7 @@ export async function updateVeNFTState(
 
   let veNFTState: VeNFTState = {
     ...current,
-    id: diff.id ?? VeNFTId(current.chainId, current.tokenId),
-    chainId: diff.chainId ?? current.chainId,
+    id: diff.id ?? VeNFTId(chainIdOf(current), current.tokenId),
     tokenId: diff.tokenId ?? current.tokenId,
     owner: diff.owner ?? current.owner,
     locktime: diff.locktime ?? current.locktime, // lockTime of the deposit action

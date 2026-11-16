@@ -2,7 +2,7 @@ import type { UserStatsPerPool, UserStatsPerPoolSnapshot } from "envio";
 
 import type { handlerContext } from "../EntityTypes";
 
-import { UserStatsPerPoolSnapshotId } from "../Constants";
+import { UserStatsPerPoolSnapshotId, chainIdOf } from "../Constants";
 import {
   type SnapshotForPersist,
   SnapshotType,
@@ -22,7 +22,7 @@ export function createUserStatsPerPoolSnapshot(
 ): UserStatsPerPoolSnapshot {
   const epoch = getSnapshotEpoch(timestamp);
   const snapshotId = UserStatsPerPoolSnapshotId(
-    entity.chainId,
+    chainIdOf(entity),
     entity.userAddress,
     entity.poolAddress,
     epoch.getTime(),
@@ -31,7 +31,6 @@ export function createUserStatsPerPoolSnapshot(
     id: snapshotId,
     userAddress: entity.userAddress,
     poolAddress: entity.poolAddress,
-    chainId: entity.chainId,
     timestamp: epoch,
     lpBalance: entity.lpBalance,
     totalLiquidityAddedUSD: entity.totalLiquidityAddedUSD,

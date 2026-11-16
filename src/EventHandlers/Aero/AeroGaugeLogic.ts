@@ -5,7 +5,7 @@ import type {
   Token,
 } from "envio";
 import { updatePool } from "../../Aggregators/Pool";
-import { POOL_DEPLOYMENT, PoolId, TokenId } from "../../Constants";
+import { POOL_DEPLOYMENT, PoolId, TokenId, chainIdOf } from "../../Constants";
 import { getRehydrated } from "../../EntityTimestamps";
 import type { handlerContext } from "../../EntityTypes";
 import { calculateTotalUSD } from "../../Helpers";
@@ -79,7 +79,6 @@ export function createAeroGaugeEntity(params: {
 }): AeroGauge {
   return {
     id: AeroGaugeId(params.chainId, params.gauge),
-    chainId: params.chainId,
     gaugeAddress: params.gauge,
     pool_id: PoolId(params.chainId, params.pool),
     poolAddress: params.pool,
@@ -146,7 +145,6 @@ export function persistAeroGauge(
     const epoch = getSnapshotEpoch(timestamp);
     context.AeroGaugeSnapshot.set({
       id: AeroSnapshotId(next.id, epoch.getTime()),
-      chainId: next.chainId,
       gaugeAddress: next.gaugeAddress,
       poolAddress: next.poolAddress,
       isCL: next.isCL,
@@ -214,7 +212,7 @@ export async function syncAeroPoolGaugeLink(
     pool,
     timestamp,
     context,
-    gauge.chainId,
+    chainIdOf(gauge),
     blockNumber,
   );
 }
@@ -244,7 +242,6 @@ export async function loadOrCreateAeroGaugeFactory(
   if (existing) return existing;
   return {
     id: AeroGaugeFactoryId(chainId, factory),
-    chainId,
     factoryAddress: factory,
     isCL,
     defaultCap: undefined,
@@ -280,7 +277,6 @@ export async function loadOrCreateLeafVoterState(
   if (existing) return existing;
   return {
     id: AeroLeafVoterStateId(chainId),
-    chainId,
     leafVoter: AERO_LEAF_VOTER_ADDRESS,
     rewardToken: aeroRewardToken(chainId),
     chainStatus: undefined,
@@ -324,7 +320,6 @@ export function persistLeafVoterState(
     const epoch = getSnapshotEpoch(timestamp);
     context.AeroLeafVoterStateSnapshot.set({
       id: AeroSnapshotId(next.id, epoch.getTime()),
-      chainId: next.chainId,
       timestamp: epoch,
       totalEmissionsCredited: next.totalEmissionsCredited,
       totalCapSurplus: next.totalCapSurplus,

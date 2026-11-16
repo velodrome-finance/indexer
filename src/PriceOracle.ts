@@ -1,9 +1,10 @@
 import type { Token } from "envio";
-import { TokenId } from "./Constants";
+import { TokenId, chainIdOf } from "./Constants";
 import { getTokenDetails, hasContractBytecode } from "./Effects/Index";
 import { getRehydrated } from "./EntityTimestamps";
 import type { handlerContext } from "./EntityTypes";
 import type { Pool } from "./EntityTypes";
+import { logPerChainStubOnce } from "./PerChainStubs";
 import { getCanonicalSource, isBlacklistedToken } from "./PriceOverrides";
 import { getGateDecisionFromSignals } from "./PriceTrust";
 import { lookupCanonicalSeedPrice } from "./Pricing/CanonicalPriceSeed";
@@ -121,7 +122,6 @@ export async function createTokenEntity(
     address: tokenAddress,
     symbol: tokenDetails.symbol,
     name: tokenDetails.name, // Now using the actual name from token details
-    chainId: chainId,
     decimals: BigInt(tokenDetails.decimals),
     ...initialTokenPriceFields(chainId, tokenAddress, blockDatetime),
     lastUpdatedTimestamp: blockDatetime,
@@ -199,7 +199,7 @@ export async function refreshTokenPrice(
   chainId: number,
   context: handlerContext,
 ): Promise<Token> {
-  if (token.chainId !== chainId) {
+  if (chainIdOf(token) !== chainId) {
     // A token's price clock may only advance with its own chain's block time.
     // The caller's block number / timestamp belong to `chainId`, so refuse
     // rather than stamp this token with another chain's clock.
@@ -267,7 +267,7 @@ export function isTokenRefreshNoop(
   chainId: number,
 ): boolean {
   return (
-    token.chainId === chainId &&
+    chainIdOf(token) === chainId &&
     Boolean(token.symbol && token.name) &&
     !isPriceRefreshDue(token.lastUpdatedTimestamp, blockTimestamp * 1000)
   );
@@ -664,6 +664,18 @@ async function findCanonicalCandidate(
   const source = getCanonicalSource(chainId, token.address);
   if (!source) return undefined;
   const sourceId = TokenId(source.chainId, source.address);
+  if (source.chainId !== chainId) {
+    // TODO(ADR 0009, flow F): another chain's Token is not visible to this
+    // handler. No live candidate; the caller falls back to the committed
+    // hourly seed (ADR 0008). The head-of-chain replacement is decided in
+    // ADR 0009.
+    logPerChainStubOnce(
+      context.log,
+      "F",
+      "Canonical price candidate: the source chain's Token is not read; seed and local pools only.",
+    );
+    return { sourceId, candidate: undefined };
+  }
   const sourceToken = await getRehydrated(context.Token, "Token", sourceId);
   return {
     sourceId,

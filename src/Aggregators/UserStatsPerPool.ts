@@ -6,6 +6,7 @@ import {
   NonFungiblePositionId,
   PoolId,
   UserStatsPerPoolId,
+  chainIdOf,
 } from "../Constants";
 import { getRehydrated } from "../EntityTimestamps";
 import { concentratedLiquidityToUSD } from "../Helpers";
@@ -123,7 +124,6 @@ export function createUserStatsPerPoolEntity(
     id: UserStatsPerPoolId(chainId, userAddress, poolAddress),
     userAddress: userAddress,
     poolAddress: poolAddress,
-    chainId: chainId,
 
     // Liquidity metrics
     lpBalance: 0n,
@@ -219,7 +219,7 @@ export async function preloadUserStatsPerPoolUpdate(
     poolEntity = await getRehydrated(
       context.Pool,
       "Pool",
-      PoolId(current.chainId, current.poolAddress),
+      PoolId(chainIdOf(current), current.poolAddress),
     );
     if (!poolEntity) return;
     await Promise.all([
@@ -240,7 +240,7 @@ export async function preloadUserStatsPerPoolUpdate(
         getRehydrated(
           context.NonFungiblePosition,
           "NonFungiblePosition",
-          NonFungiblePositionId(current.chainId, nfpmAddress, tokenId),
+          NonFungiblePositionId(chainIdOf(current), nfpmAddress, tokenId),
         ),
       ),
     );
@@ -271,7 +271,7 @@ export async function updateUserStatsPerPool(
   const clampedLpBalance = lpBalanceRaw < 0n ? 0n : lpBalanceRaw;
   if (lpBalanceRaw < 0n) {
     context.log.warn(
-      `[NEG_LP_BALANCE_GUARD][updateUserStatsPerPool] field=lpBalance userAddress=${current.userAddress} poolAddress=${current.poolAddress} chainId=${current.chainId} priorLpBalance=${current.lpBalance} delta=${diff.incrementalLpBalance ?? 0n} clampedTo=${clampedLpBalance}`,
+      `[NEG_LP_BALANCE_GUARD][updateUserStatsPerPool] field=lpBalance userAddress=${current.userAddress} poolAddress=${current.poolAddress} chainId=${chainIdOf(current)} priorLpBalance=${current.lpBalance} delta=${diff.incrementalLpBalance ?? 0n} clampedTo=${clampedLpBalance}`,
     );
   }
 
@@ -288,7 +288,7 @@ export async function updateUserStatsPerPool(
   const clampedAlmLpAmount = almLpAmountRaw < 0n ? 0n : almLpAmountRaw;
   if (almLpAmountRaw < 0n) {
     context.log.warn(
-      `[NEG_ALM_LP_AMOUNT_GUARD][updateUserStatsPerPool] field=almLpAmount userAddress=${current.userAddress} poolAddress=${current.poolAddress} chainId=${current.chainId} priorAlmLpAmount=${current.almLpAmount} delta=${diff.incrementalAlmLpAmount ?? 0n} clampedTo=${clampedAlmLpAmount}`,
+      `[NEG_ALM_LP_AMOUNT_GUARD][updateUserStatsPerPool] field=almLpAmount userAddress=${current.userAddress} poolAddress=${current.poolAddress} chainId=${chainIdOf(current)} priorAlmLpAmount=${current.almLpAmount} delta=${diff.incrementalAlmLpAmount ?? 0n} clampedTo=${clampedAlmLpAmount}`,
     );
   }
 
@@ -487,7 +487,7 @@ export async function updateUserStatsPerPool(
       let token0Instance = preloadedPoolData?.token0Instance;
       let token1Instance = preloadedPoolData?.token1Instance;
       if (!poolEntity) {
-        const poolId = PoolId(updated.chainId, updated.poolAddress);
+        const poolId = PoolId(chainIdOf(updated), updated.poolAddress);
         poolEntity =
           (await getRehydrated(context.Pool, "Pool", poolId)) ?? undefined;
         if (poolEntity) {
@@ -513,7 +513,7 @@ export async function updateUserStatsPerPool(
               getRehydrated(
                 context.NonFungiblePosition,
                 "NonFungiblePosition",
-                NonFungiblePositionId(updated.chainId, nfpmAddress, tokenId),
+                NonFungiblePositionId(chainIdOf(updated), nfpmAddress, tokenId),
               ),
             ),
           );

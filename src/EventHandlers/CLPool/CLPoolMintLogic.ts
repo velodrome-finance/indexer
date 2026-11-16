@@ -1,6 +1,7 @@
 import type { EvmEvent } from "envio";
 import type { Token } from "envio";
 import type { PoolDiff } from "../../Aggregators/Pool";
+import { chainIdOf } from "../../Constants";
 import type { Pool } from "../../EntityTypes";
 import { calculateLiquidityUSD } from "../../Helpers";
 
@@ -43,7 +44,7 @@ export function processCLPoolMint(
     token1Instance,
     liquidityPoolAggregator.token0Price,
     liquidityPoolAggregator.token1Price,
-    liquidityPoolAggregator.chainId,
+    chainIdOf(liquidityPoolAggregator),
   );
 
   const currentTick = liquidityPoolAggregator.tick;

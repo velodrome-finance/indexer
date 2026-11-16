@@ -243,7 +243,6 @@ export async function processRedeemed(
   if (isRootInternal) return;
   context.AeroRedemptionEvent.set({
     id: AeroEventId(event.chainId, event.transaction.hash, event.logIndex),
-    chainId: event.chainId,
     kind: AERO_REDEMPTION_EVENT_KIND.INITIATED,
     sourceChainId: event.chainId,
     redeemer,

@@ -6,6 +6,7 @@ import {
   PoolId,
   TxCLPoolMintRegistryId,
   ZERO_ADDRESS,
+  chainIdOf,
 } from "../../Constants";
 import { getRehydrated } from "../../EntityTimestamps";
 import type { handlerContext } from "../../EntityTypes";
@@ -48,7 +49,6 @@ export async function createPositionFromCLPoolMint(
   // Create new entity with stable ID, using data from CLPoolMintEvent
   const position: NonFungiblePosition = {
     id: stableId,
-    chainId: mintEvent.chainId,
     tokenId: tokenId,
     nfpmAddress: nfpmAddress,
     owner: owner,
@@ -124,7 +124,7 @@ export async function handleMintTransfer(
 
   const matchingEvents = mintEvents.filter(
     (m) =>
-      m.chainId === event.chainId &&
+      chainIdOf(m) === event.chainId &&
       !m.consumedByTokenId &&
       m.logIndex < event.logIndex,
   );

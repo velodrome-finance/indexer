@@ -23,11 +23,13 @@ import {
   TokenId,
   VOTER_CLPOOLS_FACTORY_LIST,
   VOTER_NONCL_POOLS_FACTORY_LIST,
+  chainIdOf,
   getLegacyConstants,
   isKnownSinkRootPool,
 } from "../../Constants";
 import { getTokenDetails, hasContractBytecode } from "../../Effects/Index";
 import { getRehydrated } from "../../EntityTimestamps";
+import { logPerChainStubOnce } from "../../PerChainStubs";
 import {
   healTokenMetadata,
   initialTokenPriceFields,
@@ -147,7 +149,7 @@ indexer.onEvent(
 
     const poolData = poolResult.poolData;
     const { liquidityPoolAggregator } = poolData;
-    const poolChainId = liquidityPoolAggregator.chainId;
+    const poolChainId = chainIdOf(liquidityPoolAggregator);
     const poolAddress = liquidityPoolAggregator.poolAddress;
 
     const [veNFTPoolVote, userStats] = await Promise.all([
@@ -247,7 +249,7 @@ indexer.onEvent(
 
     const poolData = poolResult.poolData;
     const { liquidityPoolAggregator } = poolData;
-    const poolChainId = liquidityPoolAggregator.chainId;
+    const poolChainId = chainIdOf(liquidityPoolAggregator);
     const poolAddress = liquidityPoolAggregator.poolAddress;
 
     const { poolVoteDiff, userStatsPerPoolDiff, veNFTPoolVoteDiff } =
@@ -350,6 +352,14 @@ indexer.onEvent(
             })) ?? []
           ).filter((mapping) => mapping.rootChainId === eventChainId);
           if (rootPoolLeafPools.length !== 1) {
+            // TODO(ADR 0009, flow B): per-chain, a root gauge's emissions stay
+            // on the root chain; the leaf Pool's emission totals come from a
+            // ClickHouse view instead.
+            logPerChainStubOnce(
+              context.log,
+              "B",
+              "DistributeReward for a root gauge: kept on the root chain as a PendingDistribution; the leaf pool is not updated.",
+            );
             const logIndex = event.logIndex;
             context.PendingDistribution.set({
               id: PendingDistributionId(
@@ -410,7 +420,7 @@ indexer.onEvent(
       context,
       // For cross-chain distributions, pass eventChainId (OP) so the dynamic fee
       // guard in updateDynamicFeePools detects the chain mismatch and skips.
-      isCrossChainDistribution ? eventChainId : currentLiquidityPool.chainId,
+      isCrossChainDistribution ? eventChainId : chainIdOf(currentLiquidityPool),
       event.block.number,
     );
   },
@@ -506,7 +516,6 @@ indexer.onEvent(
           new Date(event.block.timestamp * 1000),
         ),
         address: event.params.token,
-        chainId: event.chainId,
         decimals: BigInt(tokenDetails.decimals),
         isWhitelisted: event.params._bool,
         isListedOnAero: undefined,

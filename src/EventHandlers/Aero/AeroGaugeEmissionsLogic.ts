@@ -113,7 +113,6 @@ export async function recordAeroEmissionsEvent(
   const timestamp = new Date(data.timestamp * 1000);
   context.AeroEmissionsEvent.set({
     id: AeroEventId(data.chainId, data.transactionHash, data.logIndex),
-    chainId: data.chainId,
     kind: data.kind,
     gaugeAddress: data.gaugeAddress,
     poolAddress: gauge.poolAddress,

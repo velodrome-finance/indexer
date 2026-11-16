@@ -26,6 +26,7 @@ import { loadVeNFTState } from "../../Aggregators/VeNFTState";
 import {
   CrossChainPendingResolutionLogPrefix,
   TokenId,
+  chainIdOf,
   getLegacyConstants,
 } from "../../Constants";
 import { getRehydrated, getWhereRehydrated } from "../../EntityTimestamps";
@@ -88,7 +89,7 @@ export async function processPendingVote(
   leafPoolData: PoolData,
 ): Promise<boolean> {
   const veNFTState = await loadVeNFTState(
-    pendingVote.chainId,
+    chainIdOf(pendingVote),
     pendingVote.tokenId,
     context,
   );
@@ -97,7 +98,7 @@ export async function processPendingVote(
   }
 
   const leafPool = leafPoolData.liquidityPoolAggregator;
-  const leafChainId = leafPool.chainId;
+  const leafChainId = chainIdOf(leafPool);
   const leafPoolAddress = leafPool.poolAddress;
   const timestamp =
     pendingVote.timestamp instanceof Date
@@ -146,7 +147,7 @@ export async function processPendingVote(
       context,
       // Pass root chainId so the dynamic fee guard detects chain mismatch and skips.
       // pendingVote.blockNumber is from the root chain (OP), not the leaf chain.
-      pendingVote.chainId,
+      chainIdOf(pendingVote),
       Number(pendingVote.blockNumber),
     ),
     updateUserStatsPerPool(userStatsPerPoolDiff, userStats, context, timestamp),
@@ -247,7 +248,7 @@ export async function processAllPendingVotesForRootPool(
   // address, so apply only those cast on the mapping's root chain.
   const pendingVotes = (
     await getPendingVotesByRootPool(context, rootPoolAddress)
-  ).filter((pendingVote) => pendingVote.chainId === rootChainId);
+  ).filter((pendingVote) => chainIdOf(pendingVote) === rootChainId);
 
   for (const pendingVote of pendingVotes) {
     // Reload leaf pool data each iteration: processPendingVote updates the pool (e.g. veNFTamountStaked)

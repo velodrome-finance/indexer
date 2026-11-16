@@ -1042,6 +1042,30 @@ export const TokenId = (chainId: number, address: string) =>
   `${chainId}-${address}`;
 
 /**
+ * The chain an entity belongs to, read from its id's `{chainId}-` (or
+ * `{chainId}_`) prefix.
+ *
+ * Per-chain mode (`disable_default_cross_chain`, ADR 0009): entities no longer
+ * declare a `chainId` field (envio adds its own `chainId` column, which
+ * handlers do not see), and a handler only ever loads rows of its own event's
+ * chain. Every entity id in this schema except the Hyperlane message rows
+ * starts with the chain id, so the prefix is the chain.
+ *
+ * Proof-branch shim: the migration replaces these reads by the event's chain
+ * id passed down from the handler.
+ *
+ * @param entity - Any entity whose id starts with `{chainId}-` or `{chainId}_`
+ * @returns The chain id
+ */
+export function chainIdOf(entity: { readonly id: string }): number {
+  const match = /^(\d+)[-_]|^(\d+)$/.exec(entity.id);
+  if (!match) {
+    throw new Error(`chainIdOf: id ${entity.id} has no chain id prefix`);
+  }
+  return Number(match[1] ?? match[2]);
+}
+
+/**
  * Create a unique ID for a pool on a specific chain as used by Pool.
  * Pool address must be EIP-55 checksum-cased (Envio's `event.params.*` already are).
  * Callers must NOT pre-lowercase — that triggers the silent miss documented in #633.

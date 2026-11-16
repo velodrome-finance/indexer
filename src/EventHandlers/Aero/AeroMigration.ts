@@ -86,7 +86,6 @@ indexer.onEvent(
     const p = event.params;
     context.AeroMigrationEvent.set({
       id: AeroEventId(event.chainId, event.transaction.hash, event.logIndex),
-      chainId: event.chainId,
       migrationContract: event.srcAddress,
       kind: AERO_MIGRATION_EVENT_KIND.VENFT,
       legacyToken,
@@ -124,7 +123,6 @@ indexer.onEvent(
     const p = event.params;
     context.AeroMigrationEvent.set({
       id: AeroEventId(event.chainId, event.transaction.hash, event.logIndex),
-      chainId: event.chainId,
       migrationContract: event.srcAddress,
       kind: AERO_MIGRATION_EVENT_KIND.LIQUID,
       legacyToken,
@@ -161,7 +159,6 @@ indexer.onEvent(
     const p = event.params;
     context.AeroMigrationEvent.set({
       id: AeroEventId(event.chainId, event.transaction.hash, event.logIndex),
-      chainId: event.chainId,
       migrationContract: event.srcAddress,
       kind: AERO_MIGRATION_EVENT_KIND.SETTLED,
       legacyToken: AERO_MIGRATION_LEGACY_TOKEN.VELO,

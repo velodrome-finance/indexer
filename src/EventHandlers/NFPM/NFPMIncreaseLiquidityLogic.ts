@@ -5,7 +5,11 @@ import {
   updateNonFungiblePosition,
 } from "../../Aggregators/NonFungiblePosition";
 import { loadPoolData } from "../../Aggregators/Pool";
-import { NonFungiblePositionId, TxCLPoolMintRegistryId } from "../../Constants";
+import {
+  NonFungiblePositionId,
+  TxCLPoolMintRegistryId,
+  chainIdOf,
+} from "../../Constants";
 import { getRehydrated } from "../../EntityTimestamps";
 import type { handlerContext } from "../../EntityTypes";
 import {
@@ -110,7 +114,7 @@ export async function processNFPMIncreaseLiquidity(
 
     const matchingMintEvents = mintEventsInTx.filter(
       (m) =>
-        m.chainId === event.chainId &&
+        chainIdOf(m) === event.chainId &&
         m.pool === position.pool &&
         m.tickLower === position.tickLower &&
         m.tickUpper === position.tickUpper &&

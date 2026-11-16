@@ -208,7 +208,6 @@ export async function processAeroGaugeStake(
   const isDeposit = data.kind === AERO_STAKE_EVENT_KIND.DEPOSIT;
   context.AeroGaugeStakeEvent.set({
     id: AeroEventId(data.chainId, data.transactionHash, data.logIndex),
-    chainId: data.chainId,
     kind: data.kind,
     gaugeAddress: data.gaugeAddress,
     poolAddress: gauge.poolAddress,

@@ -45,7 +45,6 @@ export async function processFeesCollected(
   const amountUSD = getTrustedUSD(amount, tokenRow);
   context.AeroVotingRewardsEvent.set({
     id: AeroEventId(event.chainId, event.transaction.hash, event.logIndex),
-    chainId: event.chainId,
     kind: AERO_VOTING_REWARDS_EVENT_KIND.FEES_COLLECTED,
     votingRewardsManager: event.srcAddress,
     gaugeAddress: gauge,
@@ -146,7 +145,6 @@ async function recordRewardsFlow(
 
   context.AeroVotingRewardsEvent.set({
     id: AeroEventId(event.chainId, event.transaction.hash, event.logIndex),
-    chainId: event.chainId,
     kind: flow.kind,
     votingRewardsManager: event.srcAddress,
     gaugeAddress: manager?.gaugeAddress ?? "",
@@ -165,7 +163,6 @@ async function recordRewardsFlow(
   if (funding && programId && token && flow.programId !== undefined) {
     context.AeroIncentiveProgram.set({
       id: programId,
-      chainId: event.chainId,
       votingRewardsManager: event.srcAddress,
       gaugeAddress: manager?.gaugeAddress ?? "",
       poolAddress: manager?.poolAddress ?? "",

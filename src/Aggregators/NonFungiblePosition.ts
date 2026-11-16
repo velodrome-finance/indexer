@@ -2,6 +2,7 @@ import type { NonFungiblePosition } from "envio";
 
 import type { handlerContext } from "../EntityTypes";
 
+import { chainIdOf } from "../Constants";
 import { setNonFungiblePositionSnapshot } from "../Snapshots/NonFungiblePositionSnapshot";
 import { getSnapshotEpoch, shouldSnapshot } from "../Snapshots/Shared";
 
@@ -43,7 +44,7 @@ export function updateNonFungiblePosition(
   let clampedLiquidity = rawLiquidity;
   if (rawLiquidity < 0n) {
     context.log.error(
-      `[NEG_NFP_LIQUIDITY_GUARD] tokenId=${current.tokenId} chain=${current.chainId} prior=${current.liquidity} delta=${delta} clampedTo=0`,
+      `[NEG_NFP_LIQUIDITY_GUARD] tokenId=${current.tokenId} chain=${chainIdOf(current)} prior=${current.liquidity} delta=${delta} clampedTo=0`,
     );
     clampedLiquidity = 0n;
   }

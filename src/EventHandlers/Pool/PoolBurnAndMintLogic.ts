@@ -4,7 +4,7 @@ import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
-import { TxPoolTransferRegistryId } from "../../Constants";
+import { TxPoolTransferRegistryId, chainIdOf } from "../../Constants";
 import { getRehydrated } from "../../EntityTimestamps";
 import type { handlerContext } from "../../EntityTypes";
 import { calculateTotalUSD } from "../../Helpers";
@@ -53,7 +53,7 @@ async function loadTransfersInTx(
   ).filter((t): t is PoolTransferInTx => t !== undefined);
 
   return transfers.filter(
-    (t) => t.chainId === chainId && t.pool === poolAddress,
+    (t) => chainIdOf(t) === chainId && t.pool === poolAddress,
   );
 }
 

@@ -1,5 +1,6 @@
 import type { EvmEvent, Token } from "envio";
 import type { PoolDiff } from "../../Aggregators/Pool";
+import { chainIdOf } from "../../Constants";
 import type { Pool } from "../../EntityTypes";
 import { calculateLiquidityUSD } from "../../Helpers";
 import {
@@ -84,7 +85,7 @@ export function processPoolSync(
       token1Instance,
       priceRatios.token0Price,
       priceRatios.token1Price,
-      liquidityPoolAggregator.chainId,
+      chainIdOf(liquidityPoolAggregator),
     );
   }
 

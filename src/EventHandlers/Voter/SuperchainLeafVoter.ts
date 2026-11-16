@@ -206,7 +206,6 @@ indexer.onEvent(
           new Date(event.block.timestamp * 1000),
         ),
         address: event.params.token,
-        chainId: event.chainId,
         decimals: BigInt(tokenDetails.decimals),
         isWhitelisted: event.params._bool,
         isListedOnAero: undefined,

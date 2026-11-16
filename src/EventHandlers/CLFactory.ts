@@ -10,10 +10,10 @@ import {
 } from "../Constants";
 import { getRehydrated } from "../EntityTimestamps";
 import type { handlerContext } from "../EntityTypes";
+import { logPerChainStubOnce } from "../PerChainStubs";
 import { registerPricingPool } from "../Pricing/PoolRoute";
 import {
   type CLFactoryPoolCreatedEvent,
-  flushPendingRootPoolMappingAndVotes,
   processCLFactoryPoolCreated,
 } from "./CLFactory/CLFactoryPoolCreatedLogic";
 import { processCLFactoryTickSpacingEnabled } from "./CLFactory/CLFactoryTickSpacingEnabledLogic";
@@ -132,15 +132,14 @@ async function handleCLPoolCreated(
   );
 
   // Only a legacy leaf pool can be the leaf of an Optimism root pool.
-  if (!isAero) {
-    await flushPendingRootPoolMappingAndVotes(
-      context,
-      event.chainId,
-      event.params.token0,
-      event.params.token1,
-      event.params.tickSpacing,
-      event.params.pool,
-      event.srcAddress,
+  if (!isAero && event.chainId !== 10 && event.chainId !== 8453) {
+    // TODO(ADR 0009, flow E): the leaf pool's root pool is joined in ClickHouse
+    // on `rootPoolMatchingHash` (stored on this Pool) and the root factory; the
+    // PendingRootPoolMapping rows written by Optimism are no longer visible here.
+    logPerChainStubOnce(
+      context.log,
+      "E",
+      "CL leaf PoolCreated: no PendingRootPoolMapping flush; the leaf pool carries rootPoolMatchingHash for the ClickHouse join.",
     );
   }
 }
@@ -163,7 +162,6 @@ async function handleTickSpacingEnabled(
         event.srcAddress,
         event.params.tickSpacing,
       ),
-      chainId: event.chainId,
       factoryAddress: event.srcAddress,
       tickSpacing: event.params.tickSpacing,
       fee: BigInt(event.params.fee),

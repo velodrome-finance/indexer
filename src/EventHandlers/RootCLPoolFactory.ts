@@ -7,6 +7,7 @@ import {
   RootPoolLeafPoolId,
   rootPoolMatchingHash,
 } from "../Constants";
+import { logPerChainStubOnce } from "../PerChainStubs";
 import { isLeafPoolOfRootFactory } from "./CLFactory/CLFactoryPoolCreatedLogic";
 import { flushPendingVotesAndDistributionsForRootPool } from "./Voter/CrossChainPendingResolution";
 
@@ -36,6 +37,15 @@ indexer.onEvent(
     );
 
     if (leafPools.length === 0) {
+      // TODO(ADR 0009, flow C): per-chain, the leaf chain's Pools are never
+      // visible here, so every root pool is stored as a PendingRootPoolMapping
+      // (a root-chain row keyed by the root pool, carrying the matching hash)
+      // and joined to the leaf pool in ClickHouse.
+      logPerChainStubOnce(
+        context.log,
+        "C",
+        "RootPoolCreated: leaf pools are not visible; stored as PendingRootPoolMapping on the root chain.",
+      );
       // Chains are not processed in time order during backfill, so the leaf
       // pool may simply not exist yet; CLFactory.PoolCreated on the leaf chain
       // resolves this entry (only from the matching factory).

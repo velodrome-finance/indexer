@@ -9,12 +9,12 @@ import {
 import { getRootPoolAddress } from "../Effects/RootPool";
 import { getRehydrated } from "../EntityTimestamps";
 import type { Pool } from "../EntityTypes";
+import { logPerChainStubOnce } from "../PerChainStubs";
 import { createV2PoolFromFactory } from "./PoolFactory/PoolFactoryPoolCreatedLogic";
 import {
   recordV2DefaultFee,
   resolveCustomSwapFee,
 } from "./SwapFeeModule/CustomSwapFeeSharedLogic";
-import { flushPendingVotesAndDistributionsForRootPool } from "./Voter/CrossChainPendingResolution";
 
 indexer.contractRegister(
   { contract: "PoolFactory", event: "PoolCreated" },
@@ -68,6 +68,10 @@ indexer.onEvent(
       }
 
       if (rootPoolAddress) {
+        // Flow D (ADR 0009): the leaf learns its root pool through the RPC
+        // effect (a call, not a cross-chain entity read) and writes the
+        // mapping on its own chain; ClickHouse joins it to the root chain's
+        // vote and emission rows.
         context.RootPool_LeafPool.set({
           id: RootPoolLeafPoolId(
             10,
@@ -80,10 +84,12 @@ indexer.onEvent(
           leafChainId: chainId,
           leafPoolAddress: event.params.pool,
         });
-        await flushPendingVotesAndDistributionsForRootPool(
-          context,
-          rootPoolAddress,
-          "[PoolFactory.PoolCreated]",
+        // TODO(ADR 0009, flow D): the flush read Optimism's PendingVote /
+        // PendingDistribution rows, which a leaf handler can no longer see.
+        logPerChainStubOnce(
+          context.log,
+          "D",
+          "V2 leaf PoolCreated: RootPool_LeafPool written on the leaf chain; pending root votes / distributions are not flushed (they stay on the root chain).",
         );
       } else {
         context.log.error(

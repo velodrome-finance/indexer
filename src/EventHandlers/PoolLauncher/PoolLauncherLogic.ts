@@ -46,7 +46,6 @@ export async function processPoolLauncherPool(
     // Create new PoolLauncherPool
     poolLauncherPool = {
       id: poolId,
-      chainId,
       underlyingPool: poolAddress,
       launcher: launcherAddress,
       creator,

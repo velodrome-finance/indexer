@@ -1,6 +1,5 @@
 type Pool {
   id: ID! # Format: {chainId}-{poolAddress} (PoolId)
-  chainId: Int! # chain id
   poolAddress: String! # address of the pool
   name: String! # name of the pool
   token0_id: String! # token0 id
@@ -139,7 +138,6 @@ type Pool {
 # Snapshot of the LiquidityPool entity
 type PoolSnapshot @storage(postgres: false, clickhouse: true) {
   id: ID! # Format: {chainId}-{poolAddress}-{epochMs} (PoolId-epochMs, epochMs from getSnapshotEpoch)
-  chainId: Int! # chain id
   name: String! # name of the pool
   poolAddress: String! # address of the pool
   token0_id: String! # token0 id
@@ -233,7 +231,6 @@ type UserStatsPerPool {
   id: ID! # Format: {chainId}-{userAddress}-{poolAddress} (UserStatsPerPoolId)
   userAddress: String! @index # user wallet address
   poolAddress: String! @index # address of the pool these stats are scoped to
-  chainId: Int! # chain id
 
   # Liquidity metrics
   lpBalance: BigInt! @config(precision: 76) # user's LP token balance (tracked from Transfer events)
@@ -294,7 +291,6 @@ type UserStatsPerPoolSnapshot @storage(postgres: false, clickhouse: true) {
   id: ID! # Format: {chainId}-{userAddress}-{poolAddress}-{epochMs} (UserStatsPerPoolSnapshotId)
   userAddress: String! @index # user wallet address
   poolAddress: String! @index # address of the pool these stats are scoped to
-  chainId: Int! # chain id
   timestamp: Timestamp! @index # snapshot epoch timestamp
 
   # Liquidity metrics
@@ -354,7 +350,6 @@ type Token {
   address: String! @index # token address
   symbol: String! # token symbol
   name: String! # token name
-  chainId: Int! @index # chain id
   decimals: BigInt! @config(precision: 76) # number of decimals
   pricePerUSDNew: BigInt! @config(precision: 76) # price of token per USD
   lastUpdatedTimestamp: Timestamp! # timestamp of last price refresh attempt (drives the once-per-clock-hour throttle; see src/PriceOracle.ts)
@@ -393,7 +388,6 @@ type TokenPriceSnapshot @storage(postgres: false, clickhouse: true) {
   id: ID! # Format: {chainId}-{address}-{epochMs} (TokenPriceSnapshotId; epochMs = hour bucket of the refresh). Rows written before ADR 0003 used {chainId}-{address}-{blockNumber}.
   address: String! @index # Address of the token
   pricePerUSDNew: BigInt! @config(precision: 76) # price of token per USD
-  chainId: Int! # chain id
   isWhitelisted: Boolean! # whether the token is whitelisted
   lastUpdatedTimestamp: Timestamp! @index # Timestamp of the last update
   # Provenance of pricePerUSDNew for this tick (ADR 0003): `pinned` (stablecoin /
@@ -436,7 +430,6 @@ type TokenPricingPools @storage(postgres: true, clickhouse: false) @internal {
 # Note: amount0, amount1, amountUSD are derived fields computed on-demand from liquidity + sqrtPriceX96 + ticks
 type NonFungiblePosition {
   id: ID! # Format: {chainId}-{nfpmAddress}-{tokenId} (NonFungiblePositionId). Natural key is (NFPM, tokenId); pool is metadata and preserved as a field. nfpmAddress disambiguates intra-chain tokenId collisions across multiple NFPMs (e.g. Optimism has two).
-  chainId: Int! # Chain ID where the NFT exists
   tokenId: BigInt! @index # Token ID of the NFT (from Transfer event)
   nfpmAddress: String! @index # Address of the NFPM contract that emitted the Transfer (a legacy NFPM or the Aero NFPM); disambiguates intra-chain tokenId collisions across multiple NFPMs (e.g. Optimism has two)
   owner: String! @index # Checksum address of the current owner (from Transfer event)
@@ -456,7 +449,6 @@ type NonFungiblePosition {
 # Snapshot of NonFungiblePosition at an epoch (full state for historical queries / recomputation)
 type NonFungiblePositionSnapshot @storage(postgres: false, clickhouse: true) {
   id: ID! # Format: {chainId}-{nfpmAddress}-{tokenId}-{epochMs} (NonFungiblePositionSnapshotId). nfpmAddress disambiguates intra-chain tokenId collisions across multiple NFPMs (e.g. Optimism has two).
-  chainId: Int! # chain id where the NFT exists
   tokenId: BigInt! @index # token ID of the NFT
   nfpmAddress: String! @index # address of the NFPM contract that emitted the Transfer
   owner: String! @index # checksum address of the owner at snapshot time
@@ -475,7 +467,6 @@ type NonFungiblePositionSnapshot @storage(postgres: false, clickhouse: true) {
 
 type VeNFTState {
   id: ID! # Format: {chainId}-{tokenId} (VeNFTId)
-  chainId: Int! # chain id
   tokenId: BigInt! @config(precision: 76) # veNFT token ID
   owner: String! # current owner address of the veNFT
   locktime: BigInt! @config(precision: 76) # lock expiry timestamp (seconds); 0 for permanent locks
@@ -490,7 +481,6 @@ type VeNFTState {
 # Snapshot of VeNFTState at an epoch (full state for historical queries)
 type VeNFTStateSnapshot @storage(postgres: false, clickhouse: true) {
   id: ID! # Format: {chainId}-{tokenId}-{epochMs} (VeNFTStateSnapshotId)
-  chainId: Int! # chain id
   tokenId: BigInt! @index # veNFT token ID
   owner: String! @index # owner address at snapshot time
   locktime: BigInt! @config(precision: 76) # lock expiry timestamp (seconds); 0 for permanent locks
@@ -514,7 +504,6 @@ type VeNFTPoolVote {
 
 type VeNFTPoolVoteSnapshot @storage(postgres: false, clickhouse: true) {
   id: ID! # Format: {chainId}-{tokenId}-{poolAddress}-{epochMs}
-  chainId: Int! # chain id
   tokenId: BigInt! @config(precision: 76) # veNFT token ID
   poolAddress: String! @index # pool this veNFT allocated votes to
   veNFTamountStaked: BigInt! @config(precision: 76) # vote weight allocated to the pool, in veToken units
@@ -529,7 +518,6 @@ type VeNFTPoolVoteSnapshot @storage(postgres: false, clickhouse: true) {
 # Therefore this single entity tracks everything for the wrapper and its strategy
 type ALM_LP_Wrapper {
   id: ID! # Format: {chainId}-{wrapperAddress} (ALMLPWrapperId)
-  chainId: Int! # The blockchain network ID where this wrapper exists
   pool: String! @index # Address of the pool this ALM wrapper is associated with
   token0: String! # Address of token 0
   token1: String! # Address of token 1
@@ -561,7 +549,6 @@ type ALM_LP_WrapperSnapshot @storage(postgres: false, clickhouse: true) {
   id: ID! # Format: {chainId}-{wrapperAddress}-{epochMs} (ALMLPWrapperSnapshotId)
   wrapper: String! @index # address of the ALM LP wrapper
   pool: String! @index # address of the pool this wrapper is associated with
-  chainId: Int! # chain id
   token0: String! # address of token0
   token1: String! # address of token1
   lpAmount: BigInt! @config(precision: 76) # total LP tokens wrapped at snapshot time
@@ -591,14 +578,12 @@ type FactoryRegistryConfig {
 
 type DynamicFeeGlobalConfig {
   id: ID! # Format: {chainId}-{moduleAddress} (DynamicSwapFeeModule or CustomSwapFeeModule)
-  chainId: Int! @index # chain id
   secondsAgo: BigInt @config(precision: 32) # The amount of time used to calculate price change
 }
 
 # One per underlying pool (per chain) launched or migrated via Pool Launcher
 type PoolLauncherPool {
   id: ID! # Format: {chainId}-{underlyingPool}
-  chainId: Int! # chain id
   underlyingPool: Bytes! # pool address
   launcher: String! # PoolLauncher contract address (the one that created or currently manages)
   creator: String! # msg.sender at Launch
@@ -681,7 +666,6 @@ type CLGaugeConfig {
 # the ProcessId consumer resolves it with a primary-key read.
 type DispatchId_event @storage(postgres: true, clickhouse: false) @internal {
   id: ID! # Format: {messageId}
-  chainId: Int! # Chain ID where the message was dispatched (origin chain)
   transactionHash: String! # Transaction hash of the dispatch transaction
   messageId: String! # Unique message ID identifying the cross-chain message in Hyperlane
 }
@@ -689,7 +673,6 @@ type DispatchId_event @storage(postgres: true, clickhouse: false) @internal {
 # Keyed by the Hyperlane messageId: a Mailbox delivers a message at most once.
 type ProcessId_event @storage(postgres: true, clickhouse: false) @internal {
   id: ID! # Format: {messageId}
-  chainId: Int! # Chain ID where the message was processed (destination chain)
   transactionHash: String! # Transaction hash of the process transaction
   messageId: String! # Unique message ID identifying the cross-chain message in Hyperlane (matches DispatchId messageId)
 }
@@ -749,7 +732,6 @@ type RootGauge_RootPool {
 # Deferred vote: stored when Voted/Abstained fires but RootPool_LeafPool mapping does not exist yet
 type PendingVote @storage(postgres: true, clickhouse: false) @internal {
   id: ID! # Format: {chainId}-{rootPoolAddress}-{tokenId}-{txHash}-{logIndex}
-  chainId: Int! # Chain ID for which the vote was intended
   rootPoolAddress: String! @index # Address of the root pool being voted on
   tokenId: BigInt! @config(precision: 76) # veNFT Token ID that cast the vote
   weight: BigInt! @config(precision: 76) # Weight of the vote in veToken units
@@ -770,7 +752,6 @@ type CLPoolPendingInitialize
   @internal
 {
   id: ID! # Format: {chainId}-{poolAddress} (PoolId)
-  chainId: Int! # chain id
   poolAddress: String! # address of the CL pool awaiting PoolCreated
   sqrtPriceX96: BigInt! @config(precision: 76) # initial sqrt price (Q96 fixed point) from the Initialize event
   tick: BigInt! @config(precision: 24) # initial tick from the Initialize event
@@ -810,7 +791,6 @@ type PendingDistribution @storage(postgres: true, clickhouse: false) @internal {
 # emitted one (the Optimism and Base PoolFactory) use the 5 / 30 bps constants.
 type PoolFactoryDefaultFee {
   id: ID! # Format: {chainId}-{factoryAddress}-{stable|volatile} (PoolFactoryDefaultFeeId)
-  chainId: Int! # chain id
   factoryAddress: String! @index # V2 pool factory that emitted SetDefaultFee
   isStable: Boolean! # pool type the default applies to
   fee: BigInt! @config(precision: 24) # default fee, FEE_SCALE 1e6 (the event's basis points x 100)
@@ -825,7 +805,6 @@ type PoolFactoryDefaultFee {
 # tick spacing (on Arc, tick spacing 50 is 0.05% on the lite-launch CLFactory, 0.30% on the Aero one).
 type FeeToTickSpacingMapping {
   id: ID! # Format: {chainId}-{factoryAddress}-{tickSpacing} (FeeToTickSpacingMappingId)
-  chainId: Int! @index # chain id
   factoryAddress: String! @index # CLFactory (legacy CLFactory or AeroCLFactory) that emitted TickSpacingEnabled
   tickSpacing: BigInt! @config(precision: 24) @index # Tick spacing value
   fee: BigInt! @config(precision: 24) # Fee value for this tick spacing
@@ -862,7 +841,6 @@ type PoolTickMap @storage(postgres: true, clickhouse: false) @internal {
 # Deleted immediately after consumption
 type CLPoolMintEvent @storage(postgres: true, clickhouse: false) @internal {
   id: ID! # Format: {chainId}_{poolAddress}_{txHash}_{logIndex}
-  chainId: Int! @index # chain id
   pool: String! @index # address of the CL pool the Mint fired on
   owner: String! # position owner from the Mint event
   tickLower: BigInt! @config(precision: 24) # lower tick of the minted range
@@ -966,7 +944,6 @@ type TxPoolTransferRegistry
 # the pool, both flags false; the Burn credits their `from`, #911) to reduce storage
 type PoolTransferInTx @storage(postgres: true, clickhouse: false) @internal {
   id: ID! # Format: {chainId}-{txHash}-{poolAddress}-{logIndex}
-  chainId: Int! @index # chain id
   txHash: String! @index # transaction hash containing the transfer
   pool: String! @index # address of the pool whose LP token was transferred
   logIndex: Int! # log index of the Transfer event within the transaction
@@ -988,7 +965,6 @@ type ALMLPWrapperTransferInTx
   @internal
 {
   id: ID! # Format: {chainId}-{txHash}-{wrapperAddress}-{logIndex}
-  chainId: Int! @index # chain id
   txHash: String! @index # transaction hash containing the transfer
   wrapperAddress: String! @index # address of the ALM LP wrapper whose token was transferred
   logIndex: Int! # log index of the Transfer event within the transaction
@@ -1009,7 +985,6 @@ type ALMLPWrapperTransferInTx
 # gauge→pool lookup; they have no dedicated entity.
 type RedistributorConfig {
   id: ID! # Format: {chainId}-{redistributorAddress}
-  chainId: Int! @index # chain id
   redistributorAddress: String! # Redistributor contract address
   keeper: String! # Current keeper address (empty string until SetKeeper fires)
   upkeepManager: String! # Current upkeep manager address (empty string until SetUpkeepManager fires)
@@ -1037,7 +1012,6 @@ type RedistributorConfig {
 # surplus. credited - minted - forfeited is what the gauge can still pay out.
 type AeroGauge {
   id: ID! # Format: {chainId}-{gaugeAddress} (AeroGaugeId)
-  chainId: Int! @index # chain id
   gaugeAddress: String! @index # gauge contract
   pool_id: String! @index # Pool id ({chainId}-{poolAddress}) of the gauge's target; the Pool row exists when the target is an indexed Aero pool
   poolAddress: String! @index # the gauge's target (pool) address
@@ -1091,7 +1065,6 @@ type AeroGauge {
 # emissions, weight and cap time series. ClickHouse only.
 type AeroGaugeSnapshot @storage(postgres: false, clickhouse: true) {
   id: ID! # Format: {chainId}-{gaugeAddress}-{epochMs}
-  chainId: Int! # chain id
   gaugeAddress: String! @index # gauge
   poolAddress: String! @index # the gauge's pool
   isCL: Boolean! # CL or V2 gauge
@@ -1126,7 +1099,6 @@ type AeroGaugePendingReferral
 # default cap is not emitted at deployment, so defaultCap is null until a DefaultCapSet.
 type AeroGaugeFactory {
   id: ID! # Format: {chainId}-{factoryAddress}
-  chainId: Int! @index # chain id
   factoryAddress: String! # gauge factory
   isCL: Boolean! # CL gauge factory (true) or V2 gauge factory (false)
   defaultCap: BigInt @config(precision: 76) # per-second cap new gauges start with (DefaultCapSet); null = never emitted (set at deployment)
@@ -1144,7 +1116,6 @@ type AeroGaugeFactory {
 # configuration and chain-level emission totals. Phase 3 adds the allocation fields.
 type AeroLeafVoterState {
   id: ID! # Format: {chainId}
-  chainId: Int! # chain id
   leafVoter: String! # LeafVoter address
   rewardToken: String! # token claims pay (AERO on Base, xAERO elsewhere)
   chainStatus: Int # LeafVoter ChainStatusSet: 1 Active, 2 Paused, 3 Suspended, 4 Sunset; null = never set (Active since construction)
@@ -1171,7 +1142,6 @@ type AeroLeafVoterState {
 # Hourly snapshot of AeroLeafVoterState (chain-level emission totals). ClickHouse only.
 type AeroLeafVoterStateSnapshot @storage(postgres: false, clickhouse: true) {
   id: ID! # Format: {chainId}-{epochMs}
-  chainId: Int! @index # chain id
   timestamp: Timestamp! @index # snapshot epoch (hour)
   totalEmissionsCredited: BigInt! @config(precision: 76) # see AeroLeafVoterState
   totalCapSurplus: BigInt! @config(precision: 76) # see AeroLeafVoterState
@@ -1190,7 +1160,6 @@ type AeroLeafVoterStateSnapshot @storage(postgres: false, clickhouse: true) {
 # liquidity, the incentive programs funded for allocators, and what sAERO allocators claim.
 type AeroVotingRewardsManager {
   id: ID! # Format: {chainId}-{votingRewardsManagerAddress}
-  chainId: Int! @index # chain id
   address: String! @index # VotingRewardsManager
   gaugeAddress: String! @index # its gauge
   poolAddress: String! @index # the gauge's pool
@@ -1208,7 +1177,6 @@ type AeroVotingRewardsManager {
 # One row per Aero gauge Deposit, Withdraw or EmergencyWithdraw. ClickHouse only.
 type AeroGaugeStakeEvent @storage(postgres: false, clickhouse: true) {
   id: ID! # Format: {chainId}-{txHash}-{logIndex}
-  chainId: Int! # chain id
   kind: String! # DEPOSIT | WITHDRAW | EMERGENCY_WITHDRAW (values pinned by AERO_STAKE_EVENT_KIND)
   gaugeAddress: String! @index # gauge
   poolAddress: String! @index # the gauge's pool
@@ -1227,7 +1195,6 @@ type AeroGaugeStakeEvent @storage(postgres: false, clickhouse: true) {
 # ClickHouse only.
 type AeroEmissionsEvent @storage(postgres: false, clickhouse: true) {
   id: ID! # Format: {chainId}-{txHash}-{logIndex}
-  chainId: Int! # chain id
   # CLAIMED (EmissionsClaimed: paid to recipient), DEFERRED (EmissionsDeferred: stored after a failed
   # mint), DEFERRED_CLAIMED (DeferredEmissionsClaimed), REFERRAL_DEFERRED (ReferralEmissionsDeferred:
   # the referral's cut of an LP claim), REFERRAL_CLAIMED (ReferralEmissionsClaimed),
@@ -1253,7 +1220,6 @@ type AeroEmissionsEvent @storage(postgres: false, clickhouse: true) {
 # ClickHouse only.
 type AeroRedemptionEvent @storage(postgres: false, clickhouse: true) {
   id: ID! # Format: {chainId}-{txHash}-{logIndex}
-  chainId: Int! # chain the event was emitted on
   kind: String! # INITIATED | PROCESSED | DEFERRED | BUFFER_DRAWN | DONATED | SURPLUS_SPENT (pinned by AERO_REDEMPTION_EVENT_KIND)
   sourceChainId: Int! # chain whose receipt tokens are redeemed (INITIATED: the emitting chain; root kinds: the event's chain id)
   redeemer: String # address whose xAERO was burned (INITIATED)
@@ -1269,7 +1235,6 @@ type AeroRedemptionEvent @storage(postgres: false, clickhouse: true) {
 # pulled from the gauge into the manager, per token). Phase 3 adds the allocator side. ClickHouse only.
 type AeroVotingRewardsEvent @storage(postgres: false, clickhouse: true) {
   id: ID! # Format: {chainId}-{txHash}-{logIndex}
-  chainId: Int! # chain id
   kind: String! # FEES_COLLECTED | FEES_CLAIMED | INCENTIVE_CREATED | INCENTIVE_CLAIMED | INCENTIVE_SWEPT (pinned by AERO_VOTING_REWARDS_EVENT_KIND)
   votingRewardsManager: String! @index # VotingRewardsManager
   gaugeAddress: String! @index # its gauge
@@ -1304,7 +1269,6 @@ type AeroVotingRewardsEvent @storage(postgres: false, clickhouse: true) {
 # VoterPaymentsModule charges, permanently staked, burned through Burn); it has no NFT and no owner.
 type SAeroPosition {
   id: ID! # Format: {chainId}-{tokenId} (SAeroPositionId)
-  chainId: Int! # chain id (Base)
   tokenId: BigInt! @config(precision: 76) @index # VotingEscrow tokenId
   owner: String! @index # current NFT owner (zero address for the accumulator)
   amount: BigInt! @config(precision: 76) # AERO staked (18 decimals)
@@ -1323,7 +1287,6 @@ type SAeroPosition {
 # One row per change to an sAERO position. ClickHouse only.
 type SAeroPositionEvent @storage(postgres: false, clickhouse: true) {
   id: ID! # Format: {chainId}-{txHash}-{logIndex}[-{leg}] (a Rebalance writes one row per leg)
-  chainId: Int! # chain id (Base)
   # MINT (NFT minted), TRANSFER (owner change), CREATE_STAKE / INCREASE_AMOUNT / INCREASE_PERIOD /
   # REVIVE_STAKE (Deposit by type), WITHDRAW, UPGRADE_PERMANENT, DOWNGRADE_PERMANENT, REBALANCE_OUT /
   # REBALANCE_IN (one row per VotingEscrow.Rebalance leg), BURN (accumulator).
@@ -1345,7 +1308,6 @@ type SAeroPositionEvent @storage(postgres: false, clickhouse: true) {
 # The VotingEscrow (sAERO) on Base: supply and position counts.
 type SAeroEscrowState {
   id: ID! # Format: {chainId}
-  chainId: Int! # chain id (Base)
   supply: BigInt! @config(precision: 76) # total AERO staked (Supply event; = sum of SAeroPosition.amount)
   permanentStakeBalance: BigInt! @config(precision: 76) # AERO in permanent positions (accumulator included), tracked from position changes
   accumulatorAmount: BigInt! @config(precision: 76) # AERO held by the tokenId-0 protocol accumulator
@@ -1359,7 +1321,6 @@ type SAeroEscrowState {
 # Hourly snapshot of SAeroEscrowState. ClickHouse only.
 type SAeroEscrowStateSnapshot @storage(postgres: false, clickhouse: true) {
   id: ID! # Format: {chainId}-{epochMs}
-  chainId: Int! # chain id
   timestamp: Timestamp! @index # snapshot epoch (hour)
   supply: BigInt! @config(precision: 76) # see SAeroEscrowState
   permanentStakeBalance: BigInt! @config(precision: 76) # see SAeroEscrowState
@@ -1372,7 +1333,6 @@ type SAeroEscrowStateSnapshot @storage(postgres: false, clickhouse: true) {
 # CHAIN0 to a chain, a confirmed leaf deallocation moves it back. Mirrors Voter.allocationChainAmounts.
 type AeroRootAllocation {
   id: ID! # Format: {chainId}-{tokenId}-{targetChainId}
-  chainId: Int! # chain of the root Voter (Base)
   tokenId: BigInt! @config(precision: 76) @index # sAERO position
   targetChainId: Int! @index # chain the power is booked on; 0 = CHAIN0 (idle, earns nothing)
   amount: BigInt! @config(precision: 76) # AERO booked (undecayed)
@@ -1383,7 +1343,6 @@ type AeroRootAllocation {
 # root Voter). Requested, not applied: the leaf may reject or redirect parts of it.
 type AeroRootGaugeVote {
   id: ID! # Format: {chainId}-{tokenId}-{targetChainId}
-  chainId: Int! # chain of the root Voter (Base)
   tokenId: BigInt! @config(precision: 76) @index # sAERO position
   targetChainId: Int! @index # chain the split was dispatched to
   gauges: [String!]! # gauge addresses (the zero address = park idle; the dealloc sentinel = return to CHAIN0)
@@ -1396,7 +1355,6 @@ type AeroRootGaugeVote {
 # accumulator power burned through Burned).
 type AeroRootChainState {
   id: ID! # Format: {chainId}-{targetChainId}
-  chainId: Int! # chain of the root Voter (Base)
   targetChainId: Int! @index # chain (0 = CHAIN0)
   isRegistered: Boolean! # ChainRegistered seen (chains registered at deployment emit nothing and are marked on first use)
   status: Int # ChainStatusSet: 1 Active, 2 Paused, 3 Suspended, 4 Sunset; null = never set
@@ -1418,7 +1376,6 @@ type AeroRootChainState {
 # budget is parked idle on the zero gauge and earns nothing.
 type AeroLeafTokenState {
   id: ID! # Format: {chainId}-{tokenId}
-  chainId: Int! @index # chain id
   tokenId: BigInt! @config(precision: 76) @index # sAERO position (lives on Base)
   chainAllocation: BigInt! @config(precision: 76) # budget on this chain (ChainAllocated; less dealloc returns)
   gauges: [String!]! # gauges the budget is booked on
@@ -1434,7 +1391,6 @@ type AeroLeafTokenState {
 # kept). Sum over tokenIds = AeroGauge.totalAllocated.
 type AeroLeafAllocation {
   id: ID! # Format: {chainId}-{tokenId}-{gaugeAddress}
-  chainId: Int! @index # chain id
   tokenId: BigInt! @config(precision: 76) @index # sAERO position
   gaugeAddress: String! @index # gauge
   poolAddress: String # the gauge's pool (null if the gauge is not indexed)
@@ -1449,7 +1405,6 @@ type AeroLeafAllocation {
 # ClickHouse only.
 type AeroAllocationEvent @storage(postgres: false, clickhouse: true) {
   id: ID! # Format: {chainId}-{txHash}-{logIndex}[-{leg}]
-  chainId: Int! # chain the event was emitted on
   level: String! # ROOT (root Voter, Base) | LEAF (LeafVoter)
   kind: String! # see above
   tokenId: BigInt! @config(precision: 76) @index # sAERO position (0 for TOKEN0 burns)
@@ -1467,7 +1422,6 @@ type AeroAllocationEvent @storage(postgres: false, clickhouse: true) {
 # An incentive program funded on a gauge's VotingRewardsManager, streamed to its allocators.
 type AeroIncentiveProgram {
   id: ID! # Format: {chainId}-{votingRewardsManager}-{programId}
-  chainId: Int! @index # chain id
   votingRewardsManager: String! @index # rewards manager
   gaugeAddress: String! @index # its gauge
   poolAddress: String! # the gauge's pool
@@ -1489,7 +1443,6 @@ type AeroIncentiveProgram {
 # setter emits (the deployment values are constructor arguments).
 type AeroMinterState {
   id: ID! # Format: {chainId}-{minterAddress}
-  chainId: Int! # chain id (Base)
   minter: String! # Minter address
   baseRate: BigInt @config(precision: 76) # BaseRateSet: base emission rate (AERO wei per second)
   dynamicRate: BigInt @config(precision: 76) # DynamicRateSet: dynamic rate target (raw, clamped to the band on read)
@@ -1511,7 +1464,6 @@ type AeroMinterState {
 # Hourly snapshot of AeroMinterState (mint totals and rates). ClickHouse only.
 type AeroMinterSnapshot @storage(postgres: false, clickhouse: true) {
   id: ID! # Format: {chainId}-{minterAddress}-{epochMs}
-  chainId: Int! # chain id
   timestamp: Timestamp! @index # snapshot epoch (hour)
   baseRate: BigInt @config(precision: 76) # see AeroMinterState
   dynamicRate: BigInt @config(precision: 76) # see AeroMinterState
@@ -1524,7 +1476,6 @@ type AeroMinterSnapshot @storage(postgres: false, clickhouse: true) {
 # One row per Minter configuration change (rates, band, operator, FED, module). ClickHouse only.
 type AeroMinterEvent @storage(postgres: false, clickhouse: true) {
   id: ID! # Format: {chainId}-{txHash}-{logIndex}
-  chainId: Int! # chain id
   kind: String! # BASE_RATE_SET | DYNAMIC_RATE_SET | TEAM_RATE_SET | RATE_BAND_SET | MAX_BASE_RATE_CHANGE_PIPS_SET | BASE_RATE_UPDATE_COOLDOWN_SET | OPERATOR_SET | FED_SET | DYNAMIC_RATE_MODULE_SET
   value: BigInt @config(precision: 76) # new numeric value (RATE_BAND_SET: the floor)
   value2: BigInt @config(precision: 76) # RATE_BAND_SET: the ceiling
@@ -1539,7 +1490,6 @@ type AeroMinterEvent @storage(postgres: false, clickhouse: true) {
 # ClickHouse only.
 type AeroMigrationEvent @storage(postgres: false, clickhouse: true) {
   id: ID! # Format: {chainId}-{txHash}-{logIndex}
-  chainId: Int! # chain id
   migrationContract: String! # migration contract
   kind: String! # VENFT (veNFT migrated), LIQUID (liquid tokens migrated), SETTLED (Optimism migration settled on Base)
   legacyToken: String! # AERO_V1 (Base) or VELO (Optimism)
@@ -1559,7 +1509,6 @@ type AeroMigrationEvent @storage(postgres: false, clickhouse: true) {
 # Totals of one migration contract.
 type AeroMigrationTotals {
   id: ID! # Format: {chainId}-{migrationContract}
-  chainId: Int! # chain id
   migrationContract: String! # migration contract
   legacyToken: String! # AERO_V1 or VELO (SETTLED totals: VELO)
   numberOfVeNFTs: BigInt! @config(precision: 76) # veNFTs migrated (VeNFTMigrated)

@@ -1,6 +1,6 @@
 import type { EvmEvent, Token } from "envio";
 import type { PoolDiff } from "../../Aggregators/Pool";
-import { CLPositionPendingPrincipalId } from "../../Constants";
+import { CLPositionPendingPrincipalId, chainIdOf } from "../../Constants";
 import type { handlerContext } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
 import { calculateLiquidityUSD } from "../../Helpers";
@@ -49,7 +49,7 @@ export async function processCLPoolBurn(
     token1Instance,
     liquidityPoolAggregator.token0Price,
     liquidityPoolAggregator.token1Price,
-    liquidityPoolAggregator.chainId,
+    chainIdOf(liquidityPoolAggregator),
   );
 
   // Track burned principal so Collect can isolate fees.

@@ -117,7 +117,6 @@ export function createTokenPriceSnapshot(
   return {
     id: TokenPriceSnapshotId(input.chainId, input.address, input.timestamp),
     address: input.address,
-    chainId: input.chainId,
     pricePerUSDNew: input.pricePerUSDNew,
     isWhitelisted: input.isWhitelisted,
     lastUpdatedTimestamp: input.timestamp,

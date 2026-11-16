@@ -491,11 +491,15 @@ export async function handleCrossChainSwapEvent(
  * @param messageId - The message ID from the ProcessId event
  * @param blockTimestamp - Block timestamp in seconds
  * @param context - Handler context for queries and entity operations
+ * @param handlerChainId - Chain of the ProcessId event. Per-chain (ADR 0009) a
+ *   DispatchId_event this handler can load lives on that chain; its id is the
+ *   bare messageId, so it carries no chain of its own.
  */
 export async function attemptSuperSwapCreationFromProcessId(
   messageId: string,
   blockTimestamp: number,
   context: handlerContext,
+  handlerChainId: number,
 ): Promise<void> {
   try {
     // Find the matching DispatchId_event (keyed by messageId)
@@ -508,7 +512,7 @@ export async function attemptSuperSwapCreationFromProcessId(
     }
 
     const sourceTransactionHash = dispatchIdEvent.transactionHash;
-    const sourceChainId = dispatchIdEvent.chainId;
+    const sourceChainId = handlerChainId;
 
     // Load OUSDTBridgedTransaction and DispatchId_event entities in parallel
     const [bridgedTransaction, sourceChainMessageIdEntities] =

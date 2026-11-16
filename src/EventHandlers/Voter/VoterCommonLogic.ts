@@ -15,6 +15,7 @@ import { getTokensDeposited } from "../../Effects/Index";
 import type { handlerContext } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
 import { normalizeTokenAmountTo1e18 } from "../../Helpers";
+import { logPerChainStubOnce } from "../../PerChainStubs";
 import { getTrustedUSD } from "../../PriceTrust";
 
 export interface VoterCommonResult {
@@ -241,6 +242,16 @@ export function createPendingVoteForDeferredProcessing(
   transactionHash: string,
   logIndex: number,
 ): void {
+  // TODO(ADR 0009, flow A): in per-chain mode every vote for a superchain root
+  // pool lands here and stays on the root chain (the leaf Pool, its
+  // UserStatsPerPool and VeNFTPoolVote are not visible). The migration
+  // replaces PendingVote by a root-pool vote entity joined to the leaf pool in
+  // ClickHouse.
+  logPerChainStubOnce(
+    context.log,
+    "A",
+    "Vote for a root pool: kept on the root chain as a PendingVote; the leaf pool is not updated.",
+  );
   context.PendingVote.set({
     id: PendingVoteId(
       chainId,
@@ -249,7 +260,6 @@ export function createPendingVoteForDeferredProcessing(
       transactionHash,
       logIndex,
     ),
-    chainId,
     rootPoolAddress,
     tokenId,
     weight,

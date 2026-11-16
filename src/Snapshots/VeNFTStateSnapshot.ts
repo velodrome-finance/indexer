@@ -2,7 +2,7 @@ import type { VeNFTState, VeNFTStateSnapshot } from "envio";
 import type { handlerContext } from "../EntityTypes";
 
 import { loadPoolVotesByVeNFT } from "../Aggregators/VeNFTPoolVote";
-import { VeNFTStateSnapshotId } from "../Constants";
+import { VeNFTStateSnapshotId, chainIdOf } from "../Constants";
 import {
   type SnapshotForPersist,
   SnapshotType,
@@ -23,13 +23,12 @@ export function createVeNFTStateSnapshot(
 ): VeNFTStateSnapshot {
   const epoch = getSnapshotEpoch(timestamp);
   const snapshotId = VeNFTStateSnapshotId(
-    entity.chainId,
+    chainIdOf(entity),
     entity.tokenId,
     epoch.getTime(),
   );
   return {
     id: snapshotId,
-    chainId: entity.chainId,
     tokenId: entity.tokenId,
     owner: entity.owner,
     locktime: entity.locktime,

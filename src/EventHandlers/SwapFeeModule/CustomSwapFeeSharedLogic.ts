@@ -3,6 +3,7 @@ import {
   DEFAULT_VAMM_FEE_BPS,
   FeeToTickSpacingMappingId,
   PoolFactoryDefaultFeeId,
+  chainIdOf,
   toCanonicalFeeScale,
 } from "../../Constants";
 import { getRehydrated } from "../../EntityTimestamps";
@@ -64,7 +65,7 @@ export async function resolveCustomSwapFee(
   }
   if (!isCLFee) {
     return getV2DefaultFee(
-      pool.chainId,
+      chainIdOf(pool),
       pool.factoryAddress,
       pool.isStable,
       context,
@@ -93,7 +94,7 @@ export async function getTickSpacingDefaultFee(
         context.FeeToTickSpacingMapping,
         "FeeToTickSpacingMapping",
         FeeToTickSpacingMappingId(
-          pool.chainId,
+          chainIdOf(pool),
           pool.factoryAddress,
           pool.tickSpacing,
         ),
@@ -101,7 +102,7 @@ export async function getTickSpacingDefaultFee(
     : undefined;
   if (!mapping) {
     context.log.warn(
-      `[${caller}] Fee reset to the tick-spacing default for pool ${pool.poolAddress} on chain ${pool.chainId}, but factory ${pool.factoryAddress} has no FeeToTickSpacingMapping for tick spacing ${pool.tickSpacing}; keeping the previous fee.`,
+      `[${caller}] Fee reset to the tick-spacing default for pool ${pool.poolAddress} on chain ${chainIdOf(pool)}, but factory ${pool.factoryAddress} has no FeeToTickSpacingMapping for tick spacing ${pool.tickSpacing}; keeping the previous fee.`,
     );
     return undefined;
   }
@@ -129,7 +130,6 @@ export function recordV2DefaultFee(
 ): void {
   context.PoolFactoryDefaultFee.set({
     id: PoolFactoryDefaultFeeId(chainId, factoryAddress, isStable),
-    chainId,
     factoryAddress,
     isStable,
     fee: toCanonicalFeeScale(feeBps, false),

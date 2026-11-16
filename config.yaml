@@ -2,6 +2,10 @@
 name: Velodrome_v2
 description: Multi-chain indexer for Velodrome V2, Aerodrome and Aero (MetaDEX) pools
 rollback_on_reorg: true
+# Every entity and effect cache is per-chain (docs/adr/0009-per-chain-entities.md):
+# no handler reads or writes another chain's rows, so chains can run in separate
+# processes and a chain can be added without a resync.
+disable_default_cross_chain: true
 raw_events: false
 # Docs: https://docs.envio.dev/docs/HyperIndex/configuration-file#storage
 storage:
@@ -1039,6 +1043,9 @@ chains:
     rpc:
       - url: ${ENVIO_MODE_RPC_URL:-}
         for: fallback
+    # PROOF ONLY (ADR 0009): stop where scratch/pc-b (shared mode, b598f24) was stopped,
+    # so the per-chain and shared runs can be compared row for row.
+    end_block: 47328689
     start_block: 0
     contracts:
       - name: CustomSwapFeeModule
@@ -1296,6 +1303,9 @@ chains:
         for: fallback
     hypersync_config:
       url: https://1750.hypersync.xyz # Metal L2 hypersync address
+    # PROOF ONLY (ADR 0009): stop where scratch/pc-b (shared mode, b598f24) was stopped,
+    # so the per-chain and shared runs can be compared row for row.
+    end_block: 41630723
     start_block: 0
     contracts:
       - name: V2CustomFeeModule

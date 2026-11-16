@@ -48,7 +48,6 @@ indexer.onEvent(
 
     const config: DynamicFeeGlobalConfig = {
       id: configId,
-      chainId: event.chainId,
       secondsAgo: undefined, // This is only defined for DynamicSwapFeeModule.ts
     };
 

@@ -1,4 +1,5 @@
 import type { NonFungiblePosition } from "envio";
+import { chainIdOf } from "../../Constants";
 import { getWhereRehydrated } from "../../EntityTimestamps";
 import type { handlerContext } from "../../EntityTypes";
 
@@ -47,7 +48,7 @@ export async function findStrategyPosition(
   const matching = positions
     .filter(
       (pos: NonFungiblePosition) =>
-        pos.chainId === chainId &&
+        chainIdOf(pos) === chainId &&
         pos.pool === pool &&
         pos.tickLower === tickLower &&
         pos.tickUpper === tickUpper &&

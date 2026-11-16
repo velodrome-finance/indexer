@@ -1,5 +1,5 @@
 import type { Token } from "envio";
-import { CHAIN_CONSTANTS, TEN_TO_THE_18_BI } from "./Constants";
+import { CHAIN_CONSTANTS, TEN_TO_THE_18_BI, chainIdOf } from "./Constants";
 import type { handlerContext } from "./EntityTypes";
 import { calculateTokenAmountUSD } from "./Helpers";
 import { isBlacklistedToken } from "./PriceOverrides";
@@ -100,7 +100,7 @@ export function isConnectorToken(chainId: number, address: string): boolean {
 export function isTrusted(token: Token | undefined): boolean {
   if (!token) return false;
   return getGateDecisionFromSignals(
-    token.chainId,
+    chainIdOf(token),
     token.address,
     token.isWhitelisted,
     token.isListedOnAero ?? false,
@@ -291,7 +291,7 @@ export function getGateDecision(
     };
   }
   const fresh = getGateDecisionFromSignals(
-    token.chainId,
+    chainIdOf(token),
     token.address,
     token.isWhitelisted,
     token.isListedOnAero ?? false,

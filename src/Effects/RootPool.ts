@@ -35,6 +35,9 @@ export const getRootPoolAddress = createRpcEffect(
     }),
     output: S.string,
     cache: true,
+    // Shared cache (ADR 0009): the input carries the chain id, so one table
+    // serves every chain and keeps the name it had before the per-chain flag.
+    crossChain: true,
   },
   ({ input, context }) => {
     // Only the legacy deployment has an LpHelper (leaf V2 pool -> root pool).
