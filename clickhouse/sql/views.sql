@@ -1,7 +1,10 @@
 -- Analyst views of the ClickHouse analytics layer (installed by clickhouse/analytics.py).
 --
 -- Placeholders: {{db}} = analytics database, {{src}} = the indexer's database (read only),
--- {{frontier}} = the indexer's commit frontier (highest committed checkpoint).
+-- {{frontier}} = the commit frontier (highest committed checkpoint) of a row of an envio history
+-- table: the indexer's, or the row's chain's when chains have their own checkpoint sequences.
+-- {{scope:<chain expr>}} = the checkpoint sequence of a row of that chain (the chain when
+-- per-chain, 0 when shared).
 -- {{col:<envio table>.<column>|<fallback>}} = the column when the indexer's schema has it,
 -- otherwise the fallback expression (older schemas).
 --
@@ -520,4 +523,8 @@ LEFT JOIN (
     SELECT chain_id, toDateTime(0), toDateTime(max(last_price_refresh)) FROM {{db}}._token FINAL GROUP BY chain_id
   ) GROUP BY chain_id
 ) AS ev ON ev.chain_id = c.chain_id
-CROSS JOIN (SELECT max(_version) AS layer_checkpoint, max(_loaded_at) AS layer_loaded_at FROM {{db}}._pool) AS ly;
+LEFT JOIN (
+  -- per checkpoint sequence: the whole indexer when shared, each chain when per-chain
+  SELECT {{scope:chain_id}} AS scope, max(_version) AS layer_checkpoint, max(_loaded_at) AS layer_loaded_at
+  FROM {{db}}._pool GROUP BY scope
+) AS ly ON ly.scope = {{scope:c.chain_id}};
