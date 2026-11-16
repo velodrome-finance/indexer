@@ -61,9 +61,23 @@ function parseSchema(src: string): Entity[] {
   const entities: Entity[] = [];
   let current: Entity | null = null;
   let pending: string[] = []; // contiguous comment lines awaiting a field/type
+  // Inside a multi-line type header: `type X` followed by directives spread
+  // over several lines (a `@storage(clickhouse: {...})` layout has nested
+  // braces and `key: value` lines that must not be read as fields). The header
+  // ends at the `{` that opens the body, outside any parenthesis.
+  let inHeader = false;
+  let headerParens = 0;
+  const parenDelta = (text: string) =>
+    (text.match(/\(/g)?.length ?? 0) - (text.match(/\)/g)?.length ?? 0);
 
   for (const raw of lines) {
     const line = raw.trim();
+
+    if (inHeader) {
+      headerParens += parenDelta(line);
+      if (headerParens <= 0 && line.endsWith("{")) inHeader = false;
+      continue;
+    }
 
     if (line === "") {
       pending = [];
@@ -81,6 +95,8 @@ function parseSchema(src: string): Entity[] {
       };
       entities.push(current);
       pending = [];
+      headerParens = parenDelta(line);
+      inHeader = !(headerParens <= 0 && line.endsWith("{"));
       continue;
     }
 
