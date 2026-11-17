@@ -1,7 +1,9 @@
 import { CHAIN_CONSTANTS, TokenId, toChecksumAddress } from "../src/Constants";
 import {
   getCanonicalSource,
+  getCanonicalSourcePools,
   isBlacklistedToken,
+  listCanonicalSourcePools,
   listCanonicalSources,
 } from "../src/PriceOverrides";
 import { PRICING_TIER, getPricingTier } from "../src/Pricing/PricingConfig";
@@ -271,6 +273,75 @@ describe("PriceOverrides", () => {
           toChecksumAddress("0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81"),
         ),
       ).toBeUndefined();
+    });
+  });
+
+  describe("canonical source pools (ADR 0010)", () => {
+    const sourceIds = new Set(
+      listCanonicalSources().map(({ source }) =>
+        TokenId(source.chainId, source.address),
+      ),
+    );
+
+    it("covers WETH and VELO on Optimism and AERO on Base", () => {
+      expect(
+        listCanonicalSourcePools()
+          .map(({ sourceTokenId }) => sourceTokenId)
+          .sort(),
+      ).toEqual(
+        [
+          TokenId(10, "0x4200000000000000000000000000000000000006"),
+          TokenId(
+            10,
+            toChecksumAddress("0x9560e827aF36c94D2Ac33a39bCE1Fe78631088Db"),
+          ),
+          TokenId(
+            8453,
+            toChecksumAddress("0x3f5bF3EdAc59d650D8fDf9657a71F2f904A3a4Ee"),
+          ),
+        ].sort(),
+      );
+    });
+
+    it("every entry is a canonical source, and each pool pairs it with a token pinned on that chain", () => {
+      for (const { sourceTokenId, pools } of listCanonicalSourcePools()) {
+        expect(sourceIds.has(sourceTokenId)).toBe(true);
+        expect(pools.length).toBeGreaterThan(0);
+        const chainId = Number(sourceTokenId.split("-")[0]);
+        const sourceAddress = sourceTokenId.split("-")[1];
+        for (const pool of pools) {
+          const sides = [pool.token0, pool.token1];
+          const source = sides.filter((t) => t.address === sourceAddress);
+          const quote = sides.filter((t) => t.address !== sourceAddress);
+          expect({ pool: pool.address, sides: source.length }).toEqual({
+            pool: pool.address,
+            sides: 1,
+          });
+          expect(getPricingTier(chainId, quote[0].address)).toBe(
+            PRICING_TIER.PINNED,
+          );
+          // Addresses are stored checksummed, token0 < token1 as on chain.
+          for (const address of [
+            pool.address,
+            ...sides.map((t) => t.address),
+          ]) {
+            expect(address).toBe(toChecksumAddress(address));
+          }
+          expect(
+            pool.token0.address.toLowerCase() <
+              pool.token1.address.toLowerCase(),
+          ).toBe(true);
+        }
+        expect(new Set(pools.map((p) => p.address)).size).toBe(pools.length);
+      }
+    });
+
+    it("a source without pools gets an empty list", () => {
+      expect(
+        getCanonicalSourcePools(
+          TokenId(1, "0x4200000000000000000000000000000000000006"),
+        ),
+      ).toEqual([]);
     });
   });
 });

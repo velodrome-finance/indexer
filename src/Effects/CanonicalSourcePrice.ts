@@ -25,6 +25,9 @@ import { S, createEffect } from "envio";
  *   envio's username and password are used).
  * - `PRICING_CANONICAL_CLICKHOUSE_DATABASE`: another database for the source.
  * - `PRICING_CANONICAL_SNAPSHOT_EFFECT=false` turns the effect off.
+ * - `PRICING_CANONICAL_RPC_EFFECT=false` turns off the RPC read that follows
+ *   this effect (src/Effects/CanonicalSourceRpcPrice.ts, ADR 0010). It is off
+ *   by default under a test runner, so tests make no network calls.
  */
 
 // Local constants so this module needs no chain configuration.
@@ -87,6 +90,11 @@ export interface CanonicalPriceClickHouse {
 export interface CanonicalPriceSettings {
   /** Whether the snapshot effect is called. Default true. */
   readonly snapshotEffect: boolean;
+  /**
+   * Whether the source chain is read over RPC when the seed and the snapshot
+   * effect have no price (ADR 0010). Default true; false under a test runner.
+   */
+  readonly rpcEffect: boolean;
   /** Where to read; undefined when ClickHouse is not configured (effect off). */
   readonly clickhouse?: CanonicalPriceClickHouse;
 }
@@ -119,13 +127,17 @@ export function readCanonicalPriceSettings(
     env.PRICING_CANONICAL_SNAPSHOT_EFFECT,
     true,
   );
+  const rpcEffect = parseSwitch(
+    env.PRICING_CANONICAL_RPC_EFFECT,
+    env.VITEST === undefined && env.NODE_ENV !== "test",
+  );
   const rawUrl =
     env.PRICING_CANONICAL_CLICKHOUSE_URL?.trim() ||
     env.ENVIO_CLICKHOUSE_HOST?.trim();
   const database =
     env.PRICING_CANONICAL_CLICKHOUSE_DATABASE?.trim() ||
     env.ENVIO_CLICKHOUSE_DATABASE?.trim();
-  if (!rawUrl || !database) return { snapshotEffect };
+  if (!rawUrl || !database) return { snapshotEffect, rpcEffect };
 
   // fetch() refuses URLs with credentials: move them to the auth header.
   const parsed = new URL(
@@ -142,6 +154,7 @@ export function readCanonicalPriceSettings(
   parsed.password = "";
   return {
     snapshotEffect,
+    rpcEffect,
     clickhouse: {
       url: parsed.toString().replace(/\/$/, ""),
       database,

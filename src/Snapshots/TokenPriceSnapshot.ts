@@ -30,6 +30,12 @@ import {
  *                complete hour before the block or up to two hours earlier,
  *                read from ClickHouse by the `getCanonicalSourcePrice` effect
  *                (ADR 0009, flow F)
+ * - `canonical-rpc` — as `canonical-snapshot`, but the source chain had not
+ *                indexed the hour yet; the source's own pool on its chain
+ *                (`pricingPoolId`, with its `pricingDepthUSD`) read over RPC
+ *                ten minutes before the block's clock hour, at the block
+ *                whose time is `pricingSeedHour`
+ *                (`getCanonicalSourceRpcPrice`, ADR 0010)
  * - `override` — forced to 0 by the operator blacklist
  * - `carried`  — nothing qualified; the prior price is kept (last success < 7 days
  *                ago, every tier; `lastSuccessfulPriceTimestamp` dates it)
@@ -47,6 +53,7 @@ export const PRICE_SOURCE = {
   CANONICAL: "canonical",
   CANONICAL_SEED: "canonical-seed",
   CANONICAL_SNAPSHOT: "canonical-snapshot",
+  CANONICAL_RPC: "canonical-rpc",
   OVERRIDE: "override",
   CARRIED: "carried",
   UNPRICED: "unpriced",
@@ -69,11 +76,11 @@ export interface TokenPriceSnapshotInput {
   readonly isWhitelisted: boolean;
   /** How the price was obtained. */
   readonly priceSource: PriceSource;
-  /** Pool the price was derived through (`pool` ticks only). */
+  /** Pool the price was derived through (`pool` ticks; `canonical-rpc`: the source chain's pool). */
   readonly pricingPoolId?: string;
-  /** Canonical source token whose price was used (`canonical`, `canonical-seed`, `canonical-snapshot` ticks). */
+  /** Canonical source token whose price was used (`canonical`, `canonical-seed`, `canonical-snapshot`, `canonical-rpc` ticks). */
   readonly pricingSourceTokenId?: string;
-  /** Depth of the winning candidate in USD, 1e18-base (`pool` / `canonical` ticks only). */
+  /** Depth of the winning candidate in USD, 1e18-base (`pool` / `canonical` ticks; `canonical-rpc`: the source pool's). */
   readonly pricingDepthUSD?: bigint;
   /** Route length (`pool` / `canonical` ticks): 1 direct, 2 through a tier-3 peer (ADR 0007). */
   readonly pricingHops?: number;
@@ -88,8 +95,9 @@ export interface TokenPriceSnapshotInput {
    */
   readonly lastSuccessfulPriceTimestamp?: Date;
   /**
-   * `canonical-seed` / `canonical-snapshot` ticks only: start of the source
-   * hour whose price was used.
+   * `canonical-seed` / `canonical-snapshot` ticks: start of the source hour
+   * whose price was used. `canonical-rpc` ticks: time of the source block
+   * read.
    */
   readonly pricingSeedHour?: Date;
 }

@@ -116,6 +116,34 @@ describe("PriceResolution", () => {
       }
     });
 
+    it("rpc: takes the source price and records the source's pool, its depth and the source block's time", () => {
+      const sourceBlockMs = (now - 700) * 1000;
+      const applied = applyPriceResolution(
+        { ...priced, pricingDepthUSD: USD(9) },
+        {
+          kind: "rpc",
+          priceUSD: USD(5),
+          sourceId: "10-0xWETH",
+          seedHourMs: sourceBlockMs,
+          poolId: "10-0xPOOL",
+          depthUSD: USD(3_000_000),
+        },
+        nowMs,
+      );
+      expect(applied.token.pricePerUSDNew).toBe(USD(5));
+      // The depth is the source chain's: not stored on this chain's token.
+      expect(applied.token.pricingDepthUSD).toBeUndefined();
+      expect(applied.token.lastSuccessfulPriceTimestamp).toEqual(at(now));
+      expect(applied).toMatchObject({
+        priceSource: "canonical-rpc",
+        pricingSourceTokenId: "10-0xWETH",
+        pricingSeedHour: new Date(sourceBlockMs),
+        pricingPoolId: "10-0xPOOL",
+        pricingDepthUSD: USD(3_000_000),
+      });
+      expect(applied.pricingHops).toBeUndefined();
+    });
+
     it("keeps the depth while carrying and clears it when pinned, overridden or unpriced", () => {
       const withDepth = { ...priced, pricingDepthUSD: USD(9) };
       expect(

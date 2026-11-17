@@ -45,6 +45,10 @@ export function isCounterpartyPriceFresh(
  * - `snapshot`: as `seed`, but the seed had no hour, so the source's own
  *   hourly snapshot was read from ClickHouse (`getCanonicalSourcePrice`,
  *   ADR 0009 flow F; `seedHourMs` = the source hour used)
+ * - `rpc`: as `snapshot`, but the source chain had no snapshot for the hour
+ *   yet, so the source's own pool was read on its chain over RPC
+ *   (`getCanonicalSourceRpcPrice`, ADR 0010; `seedHourMs` = the time of the
+ *   source block read, `poolId` / `depthUSD` = the source chain's pool)
  * - `none`: nothing qualified
  */
 export type PriceResolution =
@@ -69,6 +73,17 @@ export type PriceResolution =
       /** Start of the source hour used, in milliseconds. */
       readonly seedHourMs: number;
     }
+  | {
+      readonly kind: "rpc";
+      readonly priceUSD: bigint;
+      readonly sourceId: string;
+      /** Timestamp of the source block read, in milliseconds. */
+      readonly seedHourMs: number;
+      /** The source chain's pool the price was read from (pool id). */
+      readonly poolId: string;
+      /** That pool's stablecoin-side depth at the block, USD 1e18-base. */
+      readonly depthUSD: bigint;
+    }
   | { readonly kind: "none" };
 
 /** The token write and snapshot provenance a resolution produces. */
@@ -77,11 +92,11 @@ export interface AppliedPrice {
   readonly token: Token;
   /** Provenance tag for the TokenPriceSnapshot. */
   readonly priceSource: PriceSource;
-  /** Pool the price came through (`pool` resolutions only). */
+  /** Pool the price came through (`pool`; `rpc`: the source chain's pool). */
   readonly pricingPoolId?: string;
-  /** Canonical source token whose price was used (`seed` / `snapshot` resolutions). */
+  /** Canonical source token whose price was used (`seed` / `snapshot` / `rpc` resolutions). */
   readonly pricingSourceTokenId?: string;
-  /** Depth of the winning candidate, USD 1e18-base (`pool` only). */
+  /** Depth of the winning candidate, USD 1e18-base (`pool`; `rpc`: the source pool's). */
   readonly pricingDepthUSD?: bigint;
   /** Route length: 1 for a direct pool, 2 for a two-hop pool route. */
   readonly pricingHops?: number;
@@ -89,7 +104,10 @@ export interface AppliedPrice {
   readonly pricingViaTokenId?: string;
   /** Two-hop only: the pool that priced the peer. */
   readonly pricingViaPoolId?: string;
-  /** `seed` / `snapshot` only: the source hour whose price was used. */
+  /**
+   * `seed` / `snapshot`: the source hour whose price was used; `rpc`: the time
+   * of the source block read.
+   */
   readonly pricingSeedHour?: Date;
 }
 
@@ -121,7 +139,7 @@ export function isPriceRefreshDue(
  *
  * - `lastUpdatedTimestamp` advances on every refresh, whatever the outcome.
  * - `lastSuccessfulPriceTimestamp` advances only on a successful price
- *   (`pinned`, `pool`, `seed`, `snapshot`).
+ *   (`pinned`, `pool`, `seed`, `snapshot`, `rpc`).
  *
  * `Token.pricingDepthUSD` records the depth behind the stored price: the
  * winning pool candidate's depth, kept while a price is carried, cleared when
@@ -194,6 +212,17 @@ export function applyPriceResolution(
             : PRICE_SOURCE.CANONICAL_SNAPSHOT,
         pricingSourceTokenId: resolution.sourceId,
         pricingSeedHour: new Date(resolution.seedHourMs),
+      };
+    case "rpc":
+      // Token.pricingDepthUSD stays empty as for the seed: the depth is the
+      // source chain's, not a market on this chain. The snapshot records it.
+      return {
+        token: success(resolution.priceUSD, undefined),
+        priceSource: PRICE_SOURCE.CANONICAL_RPC,
+        pricingSourceTokenId: resolution.sourceId,
+        pricingSeedHour: new Date(resolution.seedHourMs),
+        pricingPoolId: resolution.poolId,
+        pricingDepthUSD: resolution.depthUSD,
       };
     case "none": {
       const lastSuccess = token.lastSuccessfulPriceTimestamp;

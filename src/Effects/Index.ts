@@ -19,5 +19,11 @@ export {
   getCanonicalSourcePrice,
 } from "./CanonicalSourcePrice";
 
+// Canonical source's price read from its own chain over RPC (ADR 0010)
+export {
+  getCanonicalRpcStats,
+  getCanonicalSourceRpcPrice,
+} from "./CanonicalSourceRpcPrice";
+
 // RPC observability
 export { getRpcStats } from "./RpcGateway";

@@ -833,3 +833,152 @@ export const listCanonicalSources = (): ReadonlyArray<{
   CANONICAL_SOURCES.flatMap(({ source, targets }) =>
     targets.map((target) => ({ target, source })),
   );
+
+/** One side of a {@link CanonicalSourcePool}. */
+export interface CanonicalSourcePoolToken {
+  /** Token address (EIP-55 checksum-cased). */
+  readonly address: string;
+  readonly decimals: number;
+}
+
+/**
+ * A pool on a canonical source's own chain that prices the source against a
+ * pinned stablecoin, read over RPC when neither the seed nor the source
+ * chain's snapshots cover an hour (`getCanonicalSourceRpcPrice`,
+ * docs/adr/0010-canonical-source-rpc-price.md).
+ */
+export interface CanonicalSourcePool {
+  /** Pool address (EIP-55 checksum-cased). */
+  readonly address: string;
+  /** CL pool (`slot0`) or V2 volatile pool (`getReserves`). */
+  readonly isCL: boolean;
+  readonly token0: CanonicalSourcePoolToken;
+  readonly token1: CanonicalSourcePoolToken;
+}
+
+const OPTIMISM_USDC: CanonicalSourcePoolToken = {
+  address: toChecksumAddress("0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85"),
+  decimals: 6,
+};
+const OPTIMISM_WETH: CanonicalSourcePoolToken = {
+  address: toChecksumAddress("0x4200000000000000000000000000000000000006"),
+  decimals: 18,
+};
+
+/**
+ * The pools read for each canonical source, keyed by source token id. They are
+ * the pools the source chain itself prices the token through (its deepest
+ * qualifying pools in the indexed data), so the RPC price and the source's own
+ * `TokenPriceSnapshot` agree. The deepest listed pool that passes the source
+ * chain's pricing rules at the block read wins, as on the source chain.
+ *
+ * Every pool pairs the source with a token pinned at $1 on that chain and is
+ * CL or V2 volatile (both asserted in test/PriceOverrides.test.ts; token order
+ * and decimals are checked against the chain by scripts/check-canonical-rpc-price.ts).
+ * A source without an entry (rsETH, SolvBTC, ezETH: priced through WETH or BTC
+ * pools) has no RPC price.
+ */
+const CANONICAL_SOURCE_POOLS: ReadonlyMap<
+  string,
+  ReadonlyArray<CanonicalSourcePool>
+> = new Map<string, ReadonlyArray<CanonicalSourcePool>>([
+  [
+    // Optimism WETH
+    TokenId(10, OPTIMISM_WETH.address),
+    [
+      {
+        // CL-100 USDC/WETH (Aero deployment, the deepest since 2026-10-22)
+        address: toChecksumAddress(
+          "0xcA231D91eC00385a54e541f504617d2197f9B7c3",
+        ),
+        isCL: true,
+        token0: OPTIMISM_USDC,
+        token1: OPTIMISM_WETH,
+      },
+      {
+        // CL-100 USDC/WETH (Velodrome Slipstream, the deepest before that)
+        address: toChecksumAddress(
+          "0x478946BcD4a5a22b316470F5486fAfb928C0bA25",
+        ),
+        isCL: true,
+        token0: OPTIMISM_USDC,
+        token1: OPTIMISM_WETH,
+      },
+    ],
+  ],
+  [
+    // Optimism VELO (the source of XVELO)
+    TokenId(
+      10,
+      toChecksumAddress("0x9560e827aF36c94D2Ac33a39bCE1Fe78631088Db"),
+    ),
+    [
+      {
+        // Volatile AMM USDC/VELO
+        address: toChecksumAddress(
+          "0xa0A215dE234276CAc1b844fD58901351a50fec8A",
+        ),
+        isCL: false,
+        token0: OPTIMISM_USDC,
+        token1: {
+          address: toChecksumAddress(
+            "0x9560e827aF36c94D2Ac33a39bCE1Fe78631088Db",
+          ),
+          decimals: 18,
+        },
+      },
+    ],
+  ],
+  [
+    // Base AERO (the source of xAERO)
+    TokenId(
+      8453,
+      toChecksumAddress("0x3f5bF3EdAc59d650D8fDf9657a71F2f904A3a4Ee"),
+    ),
+    [
+      {
+        // Volatile AMM AERO/USDC
+        address: toChecksumAddress(
+          "0xF634058dC94e6BF8e828E27621320C423bC8B18E",
+        ),
+        isCL: false,
+        token0: {
+          address: toChecksumAddress(
+            "0x3f5bF3EdAc59d650D8fDf9657a71F2f904A3a4Ee",
+          ),
+          decimals: 18,
+        },
+        token1: {
+          address: toChecksumAddress(
+            "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          ),
+          decimals: 6,
+        },
+      },
+    ],
+  ],
+]);
+
+/**
+ * The pools a canonical source may be priced through over RPC (see
+ * {@link CANONICAL_SOURCE_POOLS}).
+ * @param sourceTokenId - Source token id (`{chainId}-{address}`, checksum-cased)
+ * @returns The pools, or an empty list for a source without any
+ */
+export const getCanonicalSourcePools = (
+  sourceTokenId: string,
+): ReadonlyArray<CanonicalSourcePool> =>
+  CANONICAL_SOURCE_POOLS.get(sourceTokenId) ?? [];
+
+/**
+ * Every configured (source token id, pools) pair, for audits and tests.
+ * @returns The configured sources with their pools
+ */
+export const listCanonicalSourcePools = (): ReadonlyArray<{
+  sourceTokenId: string;
+  pools: ReadonlyArray<CanonicalSourcePool>;
+}> =>
+  [...CANONICAL_SOURCE_POOLS.entries()].map(([sourceTokenId, pools]) => ({
+    sourceTokenId,
+    pools,
+  }));

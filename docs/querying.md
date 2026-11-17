@@ -215,7 +215,7 @@ query TokenPrice {
   ) {
     lastUpdatedTimestamp
     pricePerUSDNew
-    priceSource            # pinned / pool / canonical-seed / canonical-snapshot = priced this hour
+    priceSource            # pinned / pool / canonical-seed / canonical-snapshot / canonical-rpc = priced this hour
     pricingPoolId          # pool the price came through (priceSource = pool)
     pricingSourceTokenId   # cross-chain source token (priceSource = canonical-*)
     pricingDepthUSD        # depth of the winning candidate, ÷ 1e18 → USD
@@ -372,7 +372,7 @@ For API consumers:
 | `SuperSwap` | entity | removed; ClickHouse `super_swap_legs` |
 | `PendingVote`, `PendingDistribution`, `PendingRootPoolMapping` | internal | removed |
 | `RootPool_LeafPool` | CL and V2 rows, written by Optimism and the leaf | V2 rows only, written by the leaf chain; CL leaf pools match their `RootPool` by `rootPoolMatchingHash` and factory |
-| `TokenPriceSnapshot.priceSource = canonical` | the live price of the source chain's `Token` | no longer written; leaf tokens fall back to `canonical-seed` / `canonical-snapshot` (the source's hourly price) |
+| `TokenPriceSnapshot.priceSource = canonical` | the live price of the source chain's `Token` | no longer written; leaf tokens fall back to `canonical-seed` / `canonical-snapshot` (the source's hourly price) or `canonical-rpc` (the source's pool, read over RPC) |
 
 Local pools (Optimism's and Base's own pools, Aero pools) keep their vote and
 emission fields as before. A `0` on a superchain leaf pool means "stored on
@@ -492,7 +492,7 @@ The following are non-obvious properties of the data rather than defects.
   leaf chains that never whitelisted tokens on-chain (e.g. **Mode**, **Swell**)
   and on WETH-paired pools on **Soneium**/**Metal** — connector legs count even
   when `isWhitelisted` is `false`. On `TokenPriceSnapshot`, filter `priceSource`
-  to `pinned`, `pool`, `canonical-seed` or `canonical-snapshot` (`canonical` on
+  to `pinned`, `pool`, `canonical-seed`, `canonical-snapshot` or `canonical-rpc` (`canonical` on
   rows written before the per-chain flip), or `pricePerUSDNew > 0`, to exclude
   carried and zeroed ticks. There is at most one snapshot per token per clock
   hour.

@@ -1,15 +1,20 @@
 import type { Token } from "envio";
-import { TokenId } from "./Constants";
+import { PoolId, TokenId } from "./Constants";
 import {
   getCanonicalPriceSettings,
   getCanonicalSourcePrice,
+  getCanonicalSourceRpcPrice,
   getTokenDetails,
   hasContractBytecode,
 } from "./Effects/Index";
 import { getRehydrated } from "./EntityTimestamps";
 import type { handlerContext } from "./EntityTypes";
 import type { Pool } from "./EntityTypes";
-import { getCanonicalSource, isBlacklistedToken } from "./PriceOverrides";
+import {
+  getCanonicalSource,
+  getCanonicalSourcePools,
+  isBlacklistedToken,
+} from "./PriceOverrides";
 import { getGateDecisionFromSignals } from "./PriceTrust";
 import { lookupCanonicalSeedPrice } from "./Pricing/CanonicalPriceSeed";
 import {
@@ -141,9 +146,10 @@ export async function createTokenEntity(
 /**
  * Refreshes a token's USD price from indexed pool state, at most once per
  * token per clock hour (docs/adr/0003-pool-derived-token-prices.md,
- * docs/adr/0009-per-chain-entities.md flow F). No RPC is involved: the price
- * comes from this chain's entities, the committed seed and, for a canonical
- * source on another chain, this deployment's ClickHouse.
+ * docs/adr/0009-per-chain-entities.md flow F). The price comes from this
+ * chain's entities, the committed seed and, for a canonical source on another
+ * chain, this deployment's ClickHouse. RPC is involved in one case only (step
+ * 3d): a canonical source's hour that neither the seed nor ClickHouse has yet.
  *
  * Resolution order on a due refresh:
  *
@@ -170,6 +176,13 @@ export async function createTokenEntity(
  *    effect once that hour is settled at the source (`canonical-snapshot`,
  *    ADR 0009 flow F). Off with `PRICING_CANONICAL_SNAPSHOT_EFFECT=false` or
  *    without ClickHouse settings.
+ * 3d. Same case, the source chain has no settled snapshot for that hour (a
+ *    backfill in which this chain is ahead of the source chain): the source's
+ *    own pool against a pinned stablecoin, read on the source chain over RPC
+ *    ten minutes before this block's clock hour by the cached cross-chain
+ *    `getCanonicalSourceRpcPrice` effect (`canonical-rpc`, ADR 0010). One
+ *    read per source per hour for the whole deployment. Off with
+ *    `PRICING_CANONICAL_RPC_EFFECT=false`.
  * 4. Tier-2 and tier-3 tokens only, when nothing in step 3 qualified: two-hop
  *    routes (ADR 0007). Each registered pool against another token C of the
  *    same tier (a peer pool) offers pool ratio × C's direct price, where C's direct price is
@@ -182,7 +195,7 @@ export async function createTokenEntity(
  *    success is under 7 days old, whatever the tier, else 0 (`unpriced`).
  *
  * Two clocks (#694): `lastUpdatedTimestamp` advances on every due refresh
- * (it is the throttle); `lastSuccessfulPriceTimestamp` only on steps 2–3.
+ * (it is the throttle); `lastSuccessfulPriceTimestamp` only on steps 2–4.
  * `pricingDepthUSD` stores the winning pool depth.
  * Every due refresh writes exactly one TokenPriceSnapshot, keyed by the clock
  * hour; a throttled call writes nothing.
@@ -406,6 +419,23 @@ async function resolveTokenPrice(
         priceUSD: snapshot.priceUSD,
         sourceId,
         seedHourMs: snapshot.sourceHourMs,
+      };
+    }
+    // The source chain has not indexed that hour yet: its own pool, read on
+    // its chain over RPC (ADR 0010).
+    const rpc = await findCanonicalRpcPrice(
+      sourceId,
+      blockTimestamp * 1000,
+      context,
+    );
+    if (rpc) {
+      return {
+        kind: "rpc",
+        priceUSD: rpc.priceUSD,
+        sourceId,
+        seedHourMs: rpc.sourceTimestamp * 1000,
+        poolId: PoolId(canonical.chainId, rpc.poolAddress),
+        depthUSD: rpc.depthUSD,
       };
     }
   }
@@ -675,6 +705,52 @@ async function findCanonicalSnapshotPrice(
     context.log.warn(
       `[refreshTokenPrice] getCanonicalSourcePrice failed for ${token.id} (source ${sourceId}): ${error}`,
     );
+    return undefined;
+  }
+}
+
+/**
+ * The canonical source's price ten minutes before this block's clock hour,
+ * read from the source's own pools on its chain over RPC (the
+ * `getCanonicalSourceRpcPrice` effect, ADR 0010). Only reached when the seed
+ * and the snapshot effect had no price, and only for a source with pools
+ * configured (`CANONICAL_SOURCE_POOLS`). The effect is keyed by source and
+ * hour alone, so every token and chain asking for the hour shares one read
+ * (and one cached row). It throws while there is no answer (RPC failure,
+ * source head behind): nothing is cached then and the token carries.
+ *
+ * @param sourceId - The canonical source token id
+ * @param blockTimestampMs - Current block timestamp in milliseconds
+ * @param context - Envio handler context
+ * @returns The price with the source pool, its depth and the source block's
+ *   time, or undefined
+ */
+async function findCanonicalRpcPrice(
+  sourceId: string,
+  blockTimestampMs: number,
+  context: handlerContext,
+): Promise<
+  | {
+      priceUSD: bigint;
+      depthUSD: bigint;
+      poolAddress: string;
+      sourceTimestamp: number;
+    }
+  | undefined
+> {
+  if (!getCanonicalPriceSettings().rpcEffect) return undefined;
+  if (getCanonicalSourcePools(sourceId).length === 0) return undefined;
+  const hourMs =
+    Math.floor(blockTimestampMs / PRICE_REFRESH_INTERVAL_MS) *
+    PRICE_REFRESH_INTERVAL_MS;
+  try {
+    const answer = await context.effect(getCanonicalSourceRpcPrice, {
+      sourceTokenId: sourceId,
+      hourMs,
+    });
+    return answer.priceUSD > 0n ? answer : undefined;
+  } catch {
+    // No answer yet; the effect has logged why.
     return undefined;
   }
 }

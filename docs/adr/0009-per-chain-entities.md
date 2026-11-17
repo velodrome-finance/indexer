@@ -2,7 +2,8 @@
 
 - **Status:** Accepted (2026-11-16); steps 1–4 done (step 4, the flip, on
   branch `perchain/flip`). Supersedes the cross-chain parts of ADR 0004
-  (canonical candidates) and extends ADR 0008 (seed).
+  (canonical candidates) and extends ADR 0008 (seed). ADR 0010 adds an RPC
+  read of the source's pool for hours the source chain has not indexed yet.
 
 ## Context
 

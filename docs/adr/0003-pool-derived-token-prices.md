@@ -1,6 +1,6 @@
 # ADR 0003: Derive token prices from indexed pool state
 
-- **Status:** Accepted (2026-11-13); the rebind fallback is superseded by ADR 0004 (canonical sources compete on depth)
+- **Status:** Accepted (2026-11-13); the rebind fallback is superseded by ADR 0004 (canonical sources compete on depth); ADR 0010 adds one cached RPC read (a canonical source's pool, in the backfill window only)
 
 ## Context
 

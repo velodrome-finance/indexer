@@ -7,12 +7,13 @@
  *
  *   npx -y tsx@4.19.2 scripts/smoke-effects.ts
  *
- * Needs ENVIO_DRPC_API_KEY or ENVIO_OPTIMISM_RPC_URL. About 13 requests.
+ * Needs ENVIO_DRPC_API_KEY or ENVIO_OPTIMISM_RPC_URL. About 20 requests.
  */
 
 import "dotenv/config";
 import { toChecksumAddress } from "../src/Constants";
 import { hasContractBytecode } from "../src/Effects/Bytecode";
+import { getCanonicalSourceRpcPrice } from "../src/Effects/CanonicalSourceRpcPrice";
 import { getRpcStats } from "../src/Effects/RpcGateway";
 import { getSwapFee } from "../src/Effects/SwapFee";
 import { getTokenDetails, getTokenPrice } from "../src/Effects/Token";
@@ -89,6 +90,15 @@ async function main(): Promise<void> {
     chainId: CHAIN_ID,
     blockNumber: BLOCK_NUMBER,
   });
+  // The last complete clock hour (docs/adr/0010-canonical-source-rpc-price.md).
+  await run(
+    "getCanonicalSourceRpcPrice (Optimism WETH)",
+    getCanonicalSourceRpcPrice,
+    {
+      sourceTokenId: `${CHAIN_ID}-${WETH}`,
+      hourMs: Math.floor(Date.now() / 3_600_000) * 3_600_000 - 3_600_000,
+    },
+  );
   console.log("\nRPC stats:", JSON.stringify(getRpcStats()));
 }
 

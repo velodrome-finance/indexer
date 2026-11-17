@@ -129,6 +129,8 @@ export interface PricingStore {
   effectCalls: string[];
   /** Inputs of every `getCanonicalSourcePrice` call, in order. */
   canonicalSourcePriceCalls: CanonicalSourcePriceInput[];
+  /** Inputs of every `getCanonicalSourceRpcPrice` call, in order. */
+  canonicalSourceRpcPriceCalls: CanonicalSourceRpcPriceInput[];
 }
 
 /** Input of the `getCanonicalSourcePrice` effect. */
@@ -144,11 +146,27 @@ export interface CanonicalSourcePriceOutput {
   sourceHourMs: number;
 }
 
+/** Input of the `getCanonicalSourceRpcPrice` effect. */
+export interface CanonicalSourceRpcPriceInput {
+  sourceTokenId: string;
+  hourMs: number;
+}
+
+/** Output of the `getCanonicalSourceRpcPrice` effect (`priceUSD = 0n`: no price). */
+export interface CanonicalSourceRpcPriceOutput {
+  priceUSD: bigint;
+  depthUSD: bigint;
+  poolAddress: string;
+  sourceBlock: number;
+  sourceTimestamp: number;
+}
+
 /**
  * In-memory handler context covering everything the price refresh touches:
  * Token (get/set), Pool (get), TokenPricingPools (get/set), TokenPriceSnapshot
  * (set, recorded in order), `effect` (getTokenDetails / hasContractBytecode,
- * and getCanonicalSourcePrice when `seed.canonicalSourcePrice` answers it; any
+ * getCanonicalSourcePrice when `seed.canonicalSourcePrice` answers it and
+ * getCanonicalSourceRpcPrice when `seed.canonicalSourceRpcPrice` does; any
  * other effect name is recorded and throws, so a stray RPC in the pricing path
  * fails the test) and `log`.
  *
@@ -158,6 +176,9 @@ export interface CanonicalSourcePriceOutput {
  * @param seed.pricingPools - TokenPricingPools rows as `{ tokenId: poolIds }`
  * @param seed.canonicalSourcePrice - Fake `getCanonicalSourcePrice` (absent:
  *   the effect throws like any unexpected effect)
+ * @param seed.canonicalSourceRpcPrice - Fake `getCanonicalSourceRpcPrice`; it
+ *   may throw, as the effect does while it has no answer (absent: the effect
+ *   throws like any unexpected effect)
  * @returns The store and its context
  */
 export function createPricingStore(seed: {
@@ -167,6 +188,9 @@ export function createPricingStore(seed: {
   canonicalSourcePrice?: (
     input: CanonicalSourcePriceInput,
   ) => CanonicalSourcePriceOutput | Promise<CanonicalSourcePriceOutput>;
+  canonicalSourceRpcPrice?: (
+    input: CanonicalSourceRpcPriceInput,
+  ) => CanonicalSourceRpcPriceOutput | Promise<CanonicalSourceRpcPriceOutput>;
 }): PricingStore {
   const tokens = new Map((seed.tokens ?? []).map((t) => [t.id, t]));
   const pools = new Map((seed.pools ?? []).map((p) => [p.id, p]));
@@ -179,6 +203,7 @@ export function createPricingStore(seed: {
   const snapshots: TokenPriceSnapshot[] = [];
   const effectCalls: string[] = [];
   const canonicalSourcePriceCalls: CanonicalSourcePriceInput[] = [];
+  const canonicalSourceRpcPriceCalls: CanonicalSourceRpcPriceInput[] = [];
 
   const context = {
     Token: {
@@ -211,6 +236,17 @@ export function createPricingStore(seed: {
         canonicalSourcePriceCalls.push(input as CanonicalSourcePriceInput);
         return seed.canonicalSourcePrice(input as CanonicalSourcePriceInput);
       }
+      if (
+        name === "getCanonicalSourceRpcPrice" &&
+        seed.canonicalSourceRpcPrice
+      ) {
+        canonicalSourceRpcPriceCalls.push(
+          input as CanonicalSourceRpcPriceInput,
+        );
+        return seed.canonicalSourceRpcPrice(
+          input as CanonicalSourceRpcPriceInput,
+        );
+      }
       if (name === "getTokenDetails") {
         return { name: "Healed", symbol: "HEAL", decimals: 18 };
       }
@@ -228,5 +264,6 @@ export function createPricingStore(seed: {
     snapshots,
     effectCalls,
     canonicalSourcePriceCalls,
+    canonicalSourceRpcPriceCalls,
   };
 }

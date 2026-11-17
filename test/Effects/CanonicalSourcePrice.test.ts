@@ -189,6 +189,7 @@ describe("readCanonicalPriceSettings", () => {
       }),
     ).toEqual({
       snapshotEffect: true,
+      rpcEffect: true,
       clickhouse: {
         url: "http://127.0.0.1:8160",
         database: "velo_a",
@@ -237,7 +238,19 @@ describe("readCanonicalPriceSettings", () => {
         PRICING_CANONICAL_SNAPSHOT_EFFECT: "0",
         ENVIO_CLICKHOUSE_HOST: "http://a:1",
       }),
-    ).toEqual({ snapshotEffect: false });
+    ).toEqual({ snapshotEffect: false, rpcEffect: true });
+  });
+
+  it("the RPC effect: on by default, off under a test runner unless set", () => {
+    const rpc = (env: Record<string, string>) =>
+      readCanonicalPriceSettings(env).rpcEffect;
+    expect(rpc({})).toBe(true);
+    expect(rpc({ PRICING_CANONICAL_RPC_EFFECT: "false" })).toBe(false);
+    expect(rpc({ VITEST: "true" })).toBe(false);
+    expect(rpc({ NODE_ENV: "test" })).toBe(false);
+    expect(rpc({ VITEST: "true", PRICING_CANONICAL_RPC_EFFECT: "true" })).toBe(
+      true,
+    );
   });
 });
 

@@ -113,6 +113,23 @@ fail, the effect returns a default that is never written to the effect cache,
 and the indexer logs `rpc.default_used` (error class, chain, operation) plus a
 per-chain `rpc.stats` line every minute. Alert on `default_transient`.
 
+#### RPC in the pricing path
+
+Prices come from indexed pools. One case reads the chain: a leaf token priced
+from a canonical source (leaf WETH, XVELO, xAERO) in an hour that the price
+seed does not cover and the source chain has not indexed yet, which happens in
+the last days of a backfill. The `getCanonicalSourceRpcPrice` effect then reads
+the source's pool at a final block (ADR `docs/adr/0010-canonical-source-rpc-price.md`).
+It is keyed by (source, hour), so the cost is about 10 calls per hour of that
+window for all chains together, and every answer is stored in the effect cache
+(`envio_effect_getCanonicalSourceRpcPrice`). Check it against live RPC with:
+
+```bash
+npx -y tsx@4.19.2 scripts/check-canonical-rpc-price.ts --hours 24
+```
+
+`PRICING_CANONICAL_RPC_EFFECT=false` turns it off.
+
 #### Token metadata seed cache
 
 `.envio/cache/<chainId>/getTokenMetadata.tsv` is committed. Envio loads it into
