@@ -111,6 +111,41 @@ price moved by that much. The RPC price is on average about three times
 closer to the source's price of the hour than the previous hour's snapshot
 is (mean difference 0.08–0.19% against 0.21–0.78%). The run made 364 block requests and 480 pool reads in 43 seconds.
 
+## Measured in a sync (2026-11-17)
+
+**Fraxtal alone, to the head** (18.95M events, 33 minutes, no error lines),
+with the seed of that day (Optimism VELO ending 2026-11-03, Optimism WETH
+2026-11-14) and no Optimism in the database, against the same sync one commit
+earlier:
+
+| | before | after |
+| --- | --- | --- |
+| XVELO hours after the seed's end: carried / unpriced | 91 / 124 | 0 / 0 |
+| XVELO hours priced `canonical-rpc` | – | 203 |
+| All tokens after the seed's end: carried | 312 | 0 |
+| All tokens after the seed's end: unpriced | 406 | 282 (7 tokens with no qualifying pool) |
+| Swaps in pools with both tokens priced, at the head | 57.7% | 77.9% |
+
+286 source-hours were asked (Optimism VELO 203, Optimism WETH 83), each once:
+369 pool reads and 446 block lookups, 815 HTTP requests. Against Optimism's
+own indexed price of the same hour: VELO median 0.00%, 95th percentile 0.77%,
+largest 2.95% (179 hours); WETH 0.17%, 0.50%, 2.14% (50 hours).
+
+**The same sync again with the cache file.** The 286 rows, dumped to
+`.envio/cache/getCanonicalSourceRpcPrice.tsv`, were loaded into a fresh
+database at start. The second sync asked 2 source-hours (the two clock hours
+that had passed since the dump), 7 HTTP requests, and wrote the same price and
+source on all 2,270 `TokenPriceSnapshot` rows of the window.
+
+**Arc and Ink, to the head** (52.9M events, 78 minutes, no error lines), for
+xAERO with no Base in the database: 79 xAERO hours after the seed's end are
+`canonical-rpc` (Arc 33, Ink 46) and none is carried; in the earlier
+seven-chain run, stopped three hours sooner, 75 xAERO hours on these two
+chains were carried at the seed's last price. 61 Base AERO source-hours
+were read once each across the two worker processes: 61 pool reads and 66 block
+lookups. Against Base's own indexed price of the same hour: median 0.12%, 95th
+percentile 0.51%, largest 0.92% (59 hours).
+
 ## Consequences
 
 - Handlers now make RPC calls for prices in one case. The volume is bounded

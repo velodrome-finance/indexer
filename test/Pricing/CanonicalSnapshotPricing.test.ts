@@ -38,8 +38,11 @@ const LISK_PEER = toChecksumAddress(
 const P_PEER_USDT = toChecksumAddress(`0x${"c2".padStart(40, "0")}`);
 const P_XVELO_PEER = toChecksumAddress(`0x${"c3".padStart(40, "0")}`);
 
-/** 2026-11-15 10:30 UTC: after the committed seed's last hour (2026-11-14 01:00). */
-const HOUR = 1_794_736_800;
+/**
+ * 2030-01-01 10:30 UTC: after the committed seed's last hour, and far enough
+ * out that a seed refresh does not move it inside the seed.
+ */
+const HOUR = 1_893_492_000;
 const T = HOUR + 1800;
 /** The hour the leaf asks for: the last complete hour before the block. */
 const ASKED_MS = (HOUR - HOUR_S) * 1000;

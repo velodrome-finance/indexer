@@ -130,6 +130,19 @@ npx -y tsx@4.19.2 scripts/check-canonical-rpc-price.ts --hours 24
 
 `PRICING_CANONICAL_RPC_EFFECT=false` turns it off.
 
+To carry these reads into a later resync of a fresh database, dump the effect
+cache of a synced deployment into the effect's seed file and commit it (Envio
+loads `.envio/cache/<effect>.tsv` when it initialises a database):
+
+```bash
+psql "$DATABASE_URL" -c "\\copy (SELECT id, output FROM \"envio_effect_getCanonicalSourceRpcPrice\" ORDER BY id) TO STDOUT WITH (FORMAT text, HEADER)" \
+  > .envio/cache/getCanonicalSourceRpcPrice.tsv
+```
+
+Rebuilding the price seed from the synced deployment
+(`scripts/build-canonical-price-seed.ts --clickhouse`) does the same job for
+those hours without the file: seed hours are never asked over RPC.
+
 #### Token metadata seed cache
 
 `.envio/cache/<chainId>/getTokenMetadata.tsv` is committed. Envio loads it into

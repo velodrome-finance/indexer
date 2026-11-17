@@ -77,6 +77,19 @@ so the difference is small.
   (Swell rsETH) and Base SolvBTC (Ink SolvBTC) are left out for the same
   reason. Their targets behave exactly as before.
 
+## Refreshes
+
+Each refresh keeps every hour already in the file and adds later ones.
+
+| date | Optimism WETH | Optimism VELO | Base AERO | added from |
+|---|---|---|---|---|
+| 2026-11-14 | to 2026-11-14 01:00 | unchanged | to 2026-11-14 01:00 | the finished Aero-only seven-chain sync |
+| 2026-11-17 | to 2026-11-16 04:00 (18,625 of 18,629 hours) | to 2026-11-16 04:00 (18,605 of 18,629) | to 2026-11-17 12:00 (636 of 636) | a full Optimism sync (`priceSource = pool`) and the Aero-only per-chain sync; the last, incomplete hour of each database left out |
+
+Where the 2026-11-17 inputs overlap the hours already in the file (the last 14
+days of each series), they differ by a median of 0.00% (WETH), 0.11% (VELO,
+oracle against pool) and 0.00% (AERO). The file is 400 KB.
+
 ## Measured (Metal, chain 1750, one sync)
 
 Before: the ten-chain legacy sync at the earlier tip, without the USDC.e pin,

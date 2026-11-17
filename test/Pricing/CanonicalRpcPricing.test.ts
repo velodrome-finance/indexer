@@ -35,8 +35,11 @@ const OP_WETH_ID = TokenId(OP, OP_WETH);
 const P_WETH_USDT = toChecksumAddress(`0x${"c1".padStart(40, "0")}`);
 const SOURCE_POOL = getCanonicalSourcePools(OP_WETH_ID)[0].address;
 
-/** 2026-11-15 10:30 UTC: after the committed seed's last hour (2026-11-14 01:00). */
-const HOUR = 1_794_736_800;
+/**
+ * 2030-01-01 10:30 UTC: after the committed seed's last hour, and far enough
+ * out that a seed refresh does not move it inside the seed.
+ */
+const HOUR = 1_893_492_000;
 const T = HOUR + 1800;
 const RPC_PRICE = 1_823_636_840_882_785_821_053n;
 const SNAPSHOT_PRICE = USD(1_800);
