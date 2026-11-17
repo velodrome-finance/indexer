@@ -609,6 +609,7 @@ const SUPERCHAINS = [
  *  - Bridged 1:1 superchain tokens (XVELO on every superchain -> VELO on
  *    Optimism; SuperERC20 mint/burn through Hyperlane preserves parity)
  *  - WETH on every leaf chain whose `weth` constant is ETH 1:1 -> Optimism WETH
+ *  - frxETH on Fraxtal -> Optimism WETH (about 1% off, accepted; see below)
  *  - LST/LRT and BTC-wrapper duals (rsETH, SolvBTC, ezETH)
  *
  * No source is tier 0 (a pinned token needs no candidate) and no source is
@@ -684,9 +685,13 @@ const CANONICAL_SOURCES: ReadonlyArray<{
     // Optimism WETH. All but Celo are the OP-stack predeploy at `0x4200…0006`;
     // Celo's `weth` is the native-bridge WETH (`0xD221…`), also ETH 1:1.
     // Left out: Base (a root deployment with its own deep WETH market, and the
-    // source of other entries), Optimism (the source) and Fraxtal, whose `weth`
-    // (`0xFC00…0006`) is frxETH — Frax's liquid-staking ether, a different asset
-    // that is not redeemable 1:1 on demand.
+    // source of other entries) and Optimism (the source).
+    // Fraxtal's `weth` (`0xFC00…0006`) is frxETH, Frax's liquid-staking ether:
+    // a different asset, not redeemable 1:1 on demand, mapped anyway (ADR 0007,
+    // 2026-11-17 amendment). Its last qualifying market drained on 2026-10-01
+    // and most of Fraxtal is priced through it; it has traded within about 1%
+    // of ETH (quarterly median −0.02% to −1.04%). The source is only used when
+    // no local pool qualifies, so frxETH keeps its own price while it has one.
     // History: Metal (#892) was the first entry, because its oUSDT-denominated
     // pools priced WETH ~28% high.
     source: {
@@ -706,6 +711,12 @@ const CANONICAL_SOURCES: ReadonlyArray<{
         chainId: 42220, // Celo
         address: toChecksumAddress(
           "0xD221812de1BD094f35587EE8E174B07B6167D9Af",
+        ),
+      },
+      {
+        chainId: 252, // Fraxtal (frxETH)
+        address: toChecksumAddress(
+          "0xFC00000000000000000000000000000000000006",
         ),
       },
     ],

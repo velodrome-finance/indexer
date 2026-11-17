@@ -186,17 +186,24 @@ describe("PriceOverrides", () => {
       });
     });
 
-    it("leaves out Base (own deep market), Optimism (the source) and Fraxtal (frxETH, not ETH)", () => {
-      expect(getCanonicalSource(8453, WETH_OP_STACK)).toBeUndefined();
-      expect(getCanonicalSource(10, WETH_OP_STACK)).toBeUndefined();
-      expect(
-        getCanonicalSource(252, CHAIN_CONSTANTS[252].weth),
-      ).toBeUndefined();
+    it("binds Fraxtal's frxETH (its `weth` constant) to WETH/Optimism", () => {
+      expect(CHAIN_CONSTANTS[252].weth).toBe(
+        "0xFC00000000000000000000000000000000000006",
+      );
+      expect(getCanonicalSource(252, CHAIN_CONSTANTS[252].weth)).toEqual({
+        chainId: 10,
+        address: WETH_OP_STACK,
+      });
     });
 
-    it("covers the `weth` constant of every chain except Optimism, Base and Fraxtal", () => {
+    it("leaves out Base (own deep market) and Optimism (the source)", () => {
+      expect(getCanonicalSource(8453, WETH_OP_STACK)).toBeUndefined();
+      expect(getCanonicalSource(10, WETH_OP_STACK)).toBeUndefined();
+    });
+
+    it("covers the `weth` constant of every chain except Optimism and Base", () => {
       for (const [chainId, constants] of Object.entries(CHAIN_CONSTANTS)) {
-        const expected = [10, 8453, 252].includes(Number(chainId))
+        const expected = [10, 8453].includes(Number(chainId))
           ? undefined
           : { chainId: 10, address: WETH_OP_STACK };
         expect({
