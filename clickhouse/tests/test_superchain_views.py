@@ -6,7 +6,7 @@ envio database.
 
 Uses the same connection variables as analytics.py. Creates `analytics_test_src_sc` (the
 template's table structures, a few hand-written rows) and `analytics_test_sc`, installs the
-layer, checks root_pools, root_leaf_pools, leaf_pool_root_totals, root_pool_votes,
+layer, checks root_pools, root_leaf_pools, leaf_pool_root_totals, root_pool_votes, leaf_pool_user_votes,
 super_swap_legs, and the root-side votes and emissions of leaf pools in pools, pool_hourly,
 pool_daily and chain_daily, and drops both (--keep to leave them). The template may be a shared
 or a per-chain envio database: rows get envio's chainId wherever the table has that column, and
@@ -38,6 +38,7 @@ TOK0, TOK1 = "0xFc00000000000000000000000000000000000001", "0xFC0000000000000000
 CL_ROOT, V2_ROOT, ORPHAN_ROOT = "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74", "0x5b0DF9c40e3b571974167E642c15564C870E2816", "0x00000000000000000000000000000000000000aA"
 LEAF_CL, LEAF_CL_OTHER, LEAF_V2 = "0x3BBdBAD64b383885031c4d9C8Afe0C3327d79888", "0x00000000000000000000000000000000000000bB", "0x00000000000000000000000000000000000000cC"
 HASH = f"252_{TOK0}_{TOK1}_100"
+OWNER_A, OWNER_B = "0x00000000000000000000000000000000000A11cE", "0x0000000000000000000000000000000000000B0b"
 
 
 def main():
@@ -133,6 +134,14 @@ def main():
                                       "rootPoolAddress": rp, "leafChainId": leaf_chain, "leafPoolAddress": leaf})
     row("RootPoolVote", 50, {"id": f"10-7-{CL_ROOT}", "chainId": 10, "rootPoolAddress": CL_ROOT, "tokenId": 7,
                              "veNFTStateId": "10-7", "veNFTamountStaked": "4", "lastUpdatedTimestamp": ts(T)})
+    # a second veNFT of the same owner on the same root pool, one of another owner, one veNFT
+    # voting for the orphan root pool (no leaf pool), and a vote that went back to 0
+    for token, root, votes in ((8, CL_ROOT, "6"), (9, CL_ROOT, "1"), (8, ORPHAN_ROOT, "2"), (9, V2_ROOT, "0")):
+        row("RootPoolVote", 51, {"id": f"10-{token}-{root}", "chainId": 10, "rootPoolAddress": root, "tokenId": token,
+                                 "veNFTStateId": f"10-{token}", "veNFTamountStaked": votes, "lastUpdatedTimestamp": ts(T)})
+    for token, owner in ((7, OWNER_A), (8, OWNER_A), (9, OWNER_B)):
+        row("VeNFTState", 52, {"id": f"10-{token}", "chainId": 10, "tokenId": token, "owner": owner, "isAlive": True,
+                               "lastUpdatedTimestamp": ts(T)})
     # SuperSwaps: tx A dispatched m1, m2 and only m2 reached a destination swap; tx B dispatched
     # m3, m4 and both did (the first in dispatch order wins); tx C's m5 never arrived
     for tx, mid, idx in (("0xA", "0xm1", 0), ("0xA", "0xm2", 1), ("0xB", "0xm3", 0), ("0xB", "0xm4", 1), ("0xC", "0xm5", 0)):
@@ -184,10 +193,19 @@ def main():
           [(r["hour"], r["active_pools"]) for r in
            q("SELECT toUnixTimestamp(hour) AS hour, active_pools FROM {db}.chain_hourly WHERE chain_id = 252 ORDER BY hour")],
           [(h0, 2), (h2, 0)])
-    check("root_pool_votes: a veNFT's vote with its leaf pool",
-          [(r["token_id"], r["leaf_pool_address"], r["votes_raw"])
-           for r in q("SELECT token_id, leaf_pool_address, toString(votes_raw) AS votes_raw FROM {db}.root_pool_votes")],
-          [(7, LEAF_CL.lower(), "4")])
+    check("root_pool_votes: a veNFT's vote with its leaf pool (none for the orphan root pool)",
+          [(r["token_id"], r["root_pool_address"], r["leaf_pool_address"], r["votes_raw"])
+           for r in q("SELECT token_id, root_pool_address, leaf_pool_address, toString(votes_raw) AS votes_raw "
+                      "FROM {db}.root_pool_votes ORDER BY token_id, root_pool_address")],
+          sorted([(7, CL_ROOT.lower(), LEAF_CL.lower(), "4"), (8, CL_ROOT.lower(), LEAF_CL.lower(), "6"),
+                  (8, ORPHAN_ROOT.lower(), "", "2"), (9, CL_ROOT.lower(), LEAF_CL.lower(), "1"),
+                  (9, V2_ROOT.lower(), LEAF_V2.lower(), "0")]))
+    check("leaf_pool_user_votes: per owner and leaf pool, summed over the owner's veNFTs; no zero votes, no orphan",
+          [(r["leaf_chain_id"], r["leaf_pool_address"], r["user_address"], r["votes_raw"], r["venfts"])
+           for r in q("SELECT leaf_chain_id, leaf_pool_address, user_address, toString(votes_raw) AS votes_raw, venfts "
+                      "FROM {db}.leaf_pool_user_votes ORDER BY user_address")],
+          sorted([(252, LEAF_CL.lower(), OWNER_A.lower(), "10", 2), (252, LEAF_CL.lower(), OWNER_B.lower(), "1", 1)],
+                 key=lambda r: r[2]))
     check("super_swap_legs: per origin tx the first dispatched message that reached a destination swap",
           [(r["origin_transaction_hash"], r["message_id"], r["destination_chain_token_amount_raw"])
            for r in q("SELECT origin_transaction_hash, message_id, toString(destination_chain_token_amount_raw) AS "

@@ -156,6 +156,28 @@ LEFT JOIN {{db}}.root_leaf_pools AS m
   ON m.root_chain_id = v.chainId AND m.root_pool_address = lower(v.rootPoolAddress)
 WHERE v.envio_change = 'SET';
 
+-- A user's current vote weight on a superchain leaf pool: the root-pool votes of the veNFTs the
+-- user owns now, summed (what the leaf chain's UserStatsPerPool.veNFTamountStaked held before the
+-- per-chain flip, which also moved with the veNFT on a transfer; user_pools.venft_votes is 0 on
+-- leaf pools). A vote on a root pool with no leaf pool in this database is not listed here; it
+-- is in root_pool_votes.
+CREATE OR REPLACE VIEW {{db}}.leaf_pool_user_votes AS
+SELECT
+  v.leaf_chain_id AS leaf_chain_id,
+  v.leaf_pool_address AS leaf_pool_address,
+  v.root_chain_id AS root_chain_id,
+  v.root_pool_address AS root_pool_address,
+  n.owner AS user_address,
+  sum(v.votes_raw) AS votes_raw,
+  toFloat64(sum(v.votes_raw)) / 1e18 AS votes,
+  count() AS venfts,
+  max(v.last_updated) AS last_updated
+FROM {{db}}.root_pool_votes AS v
+INNER JOIN (SELECT chain_id, token_id, owner FROM {{db}}._venft FINAL) AS n
+  ON n.chain_id = v.root_chain_id AND n.token_id = v.token_id
+WHERE v.votes_raw != 0 AND v.leaf_pool_address != ''
+GROUP BY leaf_chain_id, leaf_pool_address, root_chain_id, root_pool_address, user_address;
+
 -- SuperSwaps stitched from the two legs each chain writes for itself (SuperSwapOriginLeg,
 -- SuperSwapDestinationLeg), by message id: the replacement of the SuperSwap entity (removed at
 -- the per-chain flip, ADR 0009), which it reproduces field for field, plus the SuperSwaps the

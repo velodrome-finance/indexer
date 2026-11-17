@@ -271,6 +271,7 @@ Views (the analyst API). Flows in the series are per period; `*_total` columns a
 | `leaf_pool_root_totals` | leaf pool | a superchain leaf pool's vote weight and emissions from the root chain (what the leaf `Pool` stored before the per-chain flip; `pools` shows them) |
 | `leaf_pool_root_hourly` / `leaf_pool_root_daily` | leaf pool × hour / day in which its root pool changed | the root pool's end-of-period vote weight and cumulative emissions and the emissions in the period, for `pool_hourly` / `pool_daily` |
 | `root_pool_votes` | veNFT × root pool | one veNFT's current vote on a root pool, with its leaf pool |
+| `leaf_pool_user_votes` | user × leaf pool | a user's current vote weight on a superchain leaf pool: the root-pool votes of the veNFTs the user owns now, summed (what the leaf `UserStatsPerPool.veNFTamountStaked` held before the per-chain flip) |
 | `super_swap_legs` | SuperSwap | SuperSwaps from the per-chain legs (`SuperSwapOriginLeg` ⋈ `SuperSwapDestinationLeg` on message id); the replacement of the `SuperSwap` entity, removed at the per-chain flip (same fields, `origin_timestamp` / `destination_timestamp` instead of one `timestamp`) |
 
 Storage tables (exact integers, for reconciliation; read them with `FINAL`): `_pool`, `_token`,
@@ -842,9 +843,9 @@ Aero sync: **3 rows, 0.013 s** (first run 0.021 s; read 6 rows, 1.8 kB). Product
   `votes` / `emissions*` and `chain_*` take a mapped leaf pool's numbers from its root pool
   (`root_leaf_pools`), so analysts see the same numbers as before. Read a leaf pool's 0 in the
   raw envio tables or the `_pool` storage table as "stored on the root chain", not "no votes". A
-  leaf pool's per-veNFT votes are in `root_pool_votes` (join `venfts` on `token_id` for the
-  owner); `user_pools.venft_votes` and `venft_votes` have no rows for superchain leaf pools any
-  more. The root numbers need Optimism in the same database (with the root factories, the Voter
+  leaf pool's per-veNFT votes are in `root_pool_votes` and its per-user votes (by the veNFTs'
+  current owner) in `leaf_pool_user_votes`; `user_pools.venft_votes` and `venft_votes` have no
+  rows for superchain leaf pools any more. The root numbers need Optimism in the same database (with the root factories, the Voter
   and VeNFT); without it a leaf pool shows 0.
 - **`votes` is the pool's legacy vote weight** (envio `veNFTamountStaked`, veToken units ÷ 1e18,
   as the Voter holds it). `gauge_reward_balance` (envio `totalVotesDeposited`, despite its name)
