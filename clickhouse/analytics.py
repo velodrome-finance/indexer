@@ -57,7 +57,7 @@ MAX_CHECKPOINTS_PER_REFRESH = int(os.environ.get("ANALYTICS_MAX_CHECKPOINTS_PER_
 CHAIN_SLOTS = int(os.environ.get("ANALYTICS_CHAIN_SLOTS", "32"))
 BACKFILL_CHUNK_ROWS = int(os.environ.get("ANALYTICS_BACKFILL_CHUNK_ROWS", "2000000"))
 RETRIES = int(os.environ.get("ANALYTICS_RETRIES", "30"))
-VERIFY_CHUNK_ROWS = int(os.environ.get("ANALYTICS_VERIFY_CHUNK_ROWS", "3000000"))
+VERIFY_CHUNK_ROWS = int(os.environ.get("ANALYTICS_VERIFY_CHUNK_ROWS", "1000000"))
 QUERY_SETTINGS = {
     "max_memory_usage": os.environ.get("ANALYTICS_MAX_MEMORY", "1200000000"),
     "max_bytes_before_external_group_by": os.environ.get("ANALYTICS_EXTERNAL_GROUP_BY", "400000000"),
@@ -538,6 +538,34 @@ def chunks(ctx: Ctx, e: Entity, target_rows: int) -> list[str]:
     return [chunk_pred(edges[i], edges[i + 1]) for i in range(len(edges) - 1)]
 
 
+def chunk_chain_filters(ctx: Ctx, e: Entity, preds: list[str]) -> list[str]:
+    """For each id-range chunk, an extra predicate that prunes the layer table to its chains.
+
+    The layer's tables are keyed by chain_id (and partitioned by it in per-chain mode), not by
+    id, so `WHERE id >= .. AND id < ..` alone makes every chunk read the whole table with FINAL:
+    1.4-1.9 GiB for a 1.9M-row hourly series, whatever the chunk size. Ids start with
+    `{chainId}-`, so the chains a chunk can touch follow from its bounds; ids of chain c lie in
+    [`c-`, `c.`) ('.' is the character after '-'). Returns "" where nothing can be pruned
+    (hash-bucket chunks, tables without chain_id).
+    """
+    if not any(r.name == "chain_id" for r in ctx.resolved(e)):
+        return ["" for _ in preds]
+    chains = [int(r["c"]) for r in ctx.ch.rows(
+        f"SELECT DISTINCT chain_id AS c FROM {q(ctx.db)}.{q(e.table)}")]
+    out = []
+    for pred in preds:
+        lo = re.search(r"id >= '((?:[^'\\]|\\.)*)'", pred)
+        hi = re.search(r"id < '((?:[^'\\]|\\.)*)'", pred)
+        if pred.startswith("cityHash64") or (lo is None and hi is None):
+            out.append("")
+            continue
+        keep = [c for c in chains
+                if (lo is None or f"{c}." > lo.group(1)) and (hi is None or f"{c}-" < hi.group(1))]
+        out.append("" if len(keep) == len(chains)
+                   else f" AND chain_id IN ({', '.join(str(c) for c in keep) or 'NULL'})")
+    return out
+
+
 def table_rows_src(ctx: Ctx, table: str) -> int:
     return int(
         ctx.ch.scalar(
@@ -854,6 +882,10 @@ def verify(ctx: Ctx, only: list[str] | None = None) -> bool:
     Refreshes are stopped while it runs so the watermark does not move.
     """
     ok = True
+    unknown = sorted(set(only or []) - {e.key for e in ENTITIES})
+    if unknown:
+        raise SystemExit(
+            f"verify: unknown table(s) {', '.join(unknown)}; known: {', '.join(e.key for e in ENTITIES)}")
     names = [rmv_name(e) for e in ENTITIES if ctx.has_source(e)]
     for n in names:
         ctx.ch.execute(f"SYSTEM STOP VIEW {q(ctx.db)}.{q(n)}")
@@ -920,14 +952,15 @@ def verify_entity(ctx: Ctx, e: Entity) -> bool:
     mism = ", ".join(f"countIf({p[0]} != {p[1]}) AS {q('m_' + n)}" for n, p in pairs)
     totals: dict[str, int] = {}
     # series compare every version of a pool-period and sort them for prev_: smaller chunks
-    for chunk in chunks(ctx, e, VERIFY_CHUNK_ROWS if e.mode == "latest" else VERIFY_CHUNK_ROWS // 4):
+    preds = chunks(ctx, e, VERIFY_CHUNK_ROWS if e.mode == "latest" else VERIFY_CHUNK_ROWS // 4)
+    for chunk, in_chains in zip(preds, chunk_chain_filters(ctx, e, preds)):
         sql = (
             f"SELECT count() AS compared, countIf(t.id = '') AS missing_in_layer, {mism}\n"
             f"FROM ({expected.format(chunk=chunk)}) AS e\n"
-            f"LEFT JOIN (SELECT * FROM {q(ctx.db)}.{q(e.table)} FINAL WHERE {chunk}) AS t ON {join_on}"
+            f"LEFT JOIN (SELECT * FROM {q(ctx.db)}.{q(e.table)} FINAL WHERE {chunk}{in_chains}) AS t ON {join_on}"
         )
         extra_sql = (
-            f"SELECT count() FROM (SELECT id{', period' if e.mode != 'latest' else ''} FROM {q(ctx.db)}.{q(e.table)} FINAL WHERE {chunk}) AS t "
+            f"SELECT count() FROM (SELECT id{', period' if e.mode != 'latest' else ''} FROM {q(ctx.db)}.{q(e.table)} FINAL WHERE {chunk}{in_chains}) AS t "
             f"LEFT ANTI JOIN ({expected.format(chunk=chunk)}) AS e ON {join_on}"
         )
         row = ctx.ch.rows(sql, {"join_use_nulls": "0"})[0]
