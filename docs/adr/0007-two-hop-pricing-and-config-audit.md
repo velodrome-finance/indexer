@@ -336,7 +336,8 @@ of its pool price against Optimism WETH ranges from −0.02% to −1.04%, and th
 in `CANONICAL_SOURCES` would let the seed and the live source cover the
 drained hours. It would restore most of the 79% at about 1% error. It was
 left out in ADR 0004 because frxETH is not redeemable 1:1 on demand; that
-remains a decision to take on its own.
+remains a decision to take on its own. Taken on 2026-11-17, see the amendment
+of that date below.
 
 ## Amendment (2026-11-14): connectors may use a connector peer
 
@@ -355,3 +356,53 @@ Everything else is unchanged: the peer's stored, carried or two-hop price is
 never used, the weaker hop sets the depth, and direct routes win. The
 construction stays acyclic for the same reason as in tier 3.
 
+## Amendment (2026-11-17): Fraxtal frxETH falls back to Optimism WETH
+
+### Decision
+
+Fraxtal's `weth` constant, frxETH (`0xFC00…0006`), is a canonical target of
+Optimism WETH in `CANONICAL_SOURCES`. frxETH is not ETH: it is not redeemable
+1:1 on demand and trades at a small discount. The mapping is accepted because
+the alternative is a chain that is mostly unpriced once frxETH's own market is
+gone.
+
+The canonical source is a fallback, not a competitor (`refreshTokenPrice`
+steps 3b and 3c): it is read only when no local pool qualifies. frxETH keeps
+its pool price in every hour it has one.
+
+### Measured
+
+Fraxtal alone, per-chain mode, at b899e9f, against Fraxtal in the twelve-chain
+sync at ea5d2ae. Optimism is not in either database, so the seed is the only
+source and it ends 2026-11-14 01:00.
+
+| frxETH hours by source | before | after |
+|---|---:|---:|
+| `pool` | 14,103 | 14,103 |
+| `canonical-seed` | 0 | 3,216 |
+| `carried` | 2,164 | 78 |
+| `unpriced` | 1,120 | 0 |
+
+- The 78 carried hours are the ones after the seed's end.
+- The seed hours fall mostly in 2026: 1,055 in Q1, 758 in Q2 and 1,024 since
+  2026-10-01, when the frxUSD/frxETH market drained.
+- At the 200 hours where the source switches between `pool` and
+  `canonical-seed`, the pool price is 0.03% above the seed price of the next
+  hour at the median (5th percentile −1.4%, 95th +1.76%, extremes −2.15% and
+  +11.39%).
+- Swaps in pools with both tokens priced at the head: 13.2% → 57.7% (4 → 12 of
+  71 pools). XVELO/frxETH (782k of 3.88M swaps) is not counted because XVELO's
+  source is absent here; with Optimism in the deployment the share is about
+  78%.
+- Token-hours with activity that have a price: 77.3% → 78.9%
+  (`price.coverage`).
+- The verification harness passes on the Fraxtal database (45 pass, 0 fail,
+  1 warn, the known `rewards.voting-claims` one), including
+  `price.vs-prod-oracle` (16 tokens) and `price.vs-defillama` (15 tokens).
+
+### Not changed by this
+
+sfrxETH, WFRAX, ezETH and wstETH stay unpriced for thousands of hours
+(sfrxETH 8,260 → 7,255, WFRAX 6,205 → 5,843, ezETH 8,880 → 8,586, wstETH
+4,171 → 4,151). Their own Fraxtal pools are under the depth floor in those
+hours; a fresh frxETH does not make them deeper.

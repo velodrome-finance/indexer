@@ -45,8 +45,9 @@ time order during a backfill, so the source chain can be months ahead.
   1:1 → Optimism WETH. That covers Lisk, Mode, Soneium, Unichain, Ink, Metal,
   Swell and Superseed (the OP-stack predeploy `0x4200…0006`) and Celo (native
   bridge WETH `0xD221…`). Left out: Base (a root deployment with its own deep
-  market, and itself a source), Optimism (the source) and Fraxtal, whose `weth`
-  is frxETH, a different liquid-staking asset. XVELO → Optimism VELO, rsETH →
+  market, and itself a source) and Optimism (the source). Fraxtal, whose `weth`
+  is frxETH, a different liquid-staking asset, was left out here and added on
+  2026-11-17 (ADR 0007, amendment of that date). XVELO → Optimism VELO, rsETH →
   Base wrsETH, SolvBTC → Base SolvBTC and ezETH → Optimism ezETH are kept. No
   source or target is a pinned tier-0 token, and no source is itself a target.
 - **Acyclic:** the source is read, never refreshed or routed, so the
