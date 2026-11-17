@@ -112,6 +112,54 @@ export async function chLatest(
 }
 
 /**
+ * Distinct ids per chain of a ClickHouse-only snapshot table, and how many of them
+ * do not end in an hour-aligned epoch. Counted in hash buckets of the id, so the
+ * largest table stays under the server's per-query memory cap.
+ * @param ch - ClickHouse client
+ * @param table - Snapshot entity name
+ * @param cp - Max checkpoint id (inclusive)
+ * @returns One row per chain
+ */
+export async function snapshotIdCounts(
+  ch: ChClient,
+  table: string,
+  cp: bigint,
+): Promise<{ chainId: string; n: number; badEpoch: number }[]> {
+  const cond = `envio_checkpoint_id <= ${cp}`;
+  const total = Number(
+    (
+      await ch.query(
+        `SELECT count() AS n FROM envio_history_${table} WHERE ${cond}`,
+      )
+    )[0]?.n ?? 0,
+  );
+  let buckets = Math.max(1, Math.ceil(total / 4_000_000));
+  for (;;) {
+    const acc = new Map<string, { n: number; badEpoch: number }>();
+    try {
+      for (let k = 0; k < buckets; k++) {
+        const b = buckets > 1 ? ` AND cityHash64(id) % ${buckets} = ${k}` : "";
+        const rows = await ch.query(
+          `SELECT chainId, uniqExact(id) AS n,
+                  uniqExactIf(id, toInt64OrZero(splitByChar('-', id)[-1]) % 3600000 != 0) AS badEpoch
+           FROM envio_history_${table} WHERE ${cond}${b} GROUP BY chainId`,
+        );
+        for (const r of rows) {
+          const a = acc.get(r.chainId as string) ?? { n: 0, badEpoch: 0 };
+          a.n += Number(r.n);
+          a.badEpoch += Number(r.badEpoch);
+          acc.set(r.chainId as string, a);
+        }
+      }
+      return [...acc].map(([chainId, a]) => ({ chainId, ...a }));
+    } catch (e) {
+      if (!/memory limit/i.test(String(e)) || buckets >= 256) throw e;
+      buckets *= 4;
+    }
+  }
+}
+
+/**
  * Postgres rows vs ClickHouse latest versions, for every entity stored in both, and
  * row counts of the ClickHouse-only snapshot tables.
  * @param idx - Indexed target
@@ -265,12 +313,9 @@ export async function checkStores(
     "VeNFTStateSnapshot",
     "VeNFTPoolVoteSnapshot",
   ]) {
-    const rows = await idx.ch.query(
-      `SELECT chainId, count() AS n, countIf(toInt64OrZero(splitByChar('-', id)[-1]) % 3600000 != 0) AS badEpoch
-       FROM (SELECT id, chainId FROM envio_history_${t} WHERE envio_checkpoint_id <= ${cp} ORDER BY id, envio_checkpoint_id DESC LIMIT 1 BY id) GROUP BY chainId`,
-    );
+    const rows = await snapshotIdCounts(idx.ch, t, cp);
     for (const r of rows) {
-      counts.stats[`${t}@${r.chainId}`] = Number(r.n);
+      counts.stats[`${t}@${r.chainId}`] = r.n;
       counts.compared++;
       if (
         !chains.includes(Number(r.chainId)) &&
@@ -283,7 +328,7 @@ export async function checkStores(
           truth: "chain not indexed by this instance",
         });
       }
-      if (Number(r.badEpoch) > 0)
+      if (r.badEpoch > 0)
         counts.add({
           key: `${t}@${r.chainId} ids`,
           indexed: `${r.badEpoch} ids not hour-aligned`,
