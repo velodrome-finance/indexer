@@ -21,8 +21,8 @@ importers:
         specifier: ^16.4.5
         version: 16.6.1
       envio:
-        specifier: 3.16.0
-        version: 3.16.0
+        specifier: 3.17.0
+        version: 3.17.0
       jsbi:
         specifier: ^4.3.2
         version: 4.3.2
@@ -1142,33 +1142,33 @@ packages:
     resolution: {integrity: sha512-+h1lkLKhZMTYjog1VEpJNG7NZJWcuc2DDk/qsqSTRRCOXiLjeQ1d1/udrUGhqMxUgAlwKNZ0cf2uqan5GLuS2A==}
     engines: {node: '>=6'}
 
-  envio-darwin-arm64@3.16.0:
-    resolution: {integrity: sha512-iHIIA87AD4qoLCZJf2J6TH/Ehvfz0b82bpq4x7ssPIythvwz6ghibx97bBLxAJMsrAnclQH/voC7czt1WzWZsg==}
+  envio-darwin-arm64@3.17.0:
+    resolution: {integrity: sha512-VvKVPZ29cL3HvbXGnt54sVduaYnltQioVEb491qqPuyz8J2FPthiOMwuVUs3pyKGb30mh93ZIVToMHWldWuqMg==}
     cpu: [arm64]
     os: [darwin]
 
-  envio-darwin-x64@3.16.0:
-    resolution: {integrity: sha512-j846ZxHbBr3UOLEk8cofuOUMezskq4fs17oFAG2VnTQkvWbQWPI0S/k3qFmO+/YRXKkSHUQ+gj6g0ZOLAXYXFQ==}
+  envio-darwin-x64@3.17.0:
+    resolution: {integrity: sha512-Oz+Nm+tRr4zyS6WqgK6YOPzasOkVfEM8g4WnDuA03UEH/zeFyokFw43PllusGed14q2Mxf0ATf1jhnnimTM3hg==}
     cpu: [x64]
     os: [darwin]
 
-  envio-linux-arm64@3.16.0:
-    resolution: {integrity: sha512-rYCHBB6fryS2xiQHTQHUov58Pgs5iMNqrjV3bVwfPwitHZo5gdUrU7utCWknhm4Yxp0NqM8N3lNro41xjOCCJA==}
+  envio-linux-arm64@3.17.0:
+    resolution: {integrity: sha512-qMM1lK6pQEeKdjgQE7TSbDHqK7r/haxHBrO14yk3TyzTL/IzHSB9rSAi75viHXQTlG0V0aTmWT1ix1LlbGW95Q==}
     cpu: [arm64]
     os: [linux]
 
-  envio-linux-x64-musl@3.16.0:
-    resolution: {integrity: sha512-6Z2cXHCSIgYFmuD94hcwWAgFUc1XxSYZFKIRLKG6h5l31Fu35cMpjEK1bKPr2myNCeKh5D1Dvvo9DIr6k8L8Aw==}
+  envio-linux-x64-musl@3.17.0:
+    resolution: {integrity: sha512-+GuM7u8aM7nHUHzaW+uewa9YbC3K9UcCYKW28rztDu6oezZVkAhjV1TNmWdmnQNmKu38GMoNmVGrjuSgSBmAoA==}
     cpu: [x64]
     os: [linux]
 
-  envio-linux-x64@3.16.0:
-    resolution: {integrity: sha512-BPeHwOoQb5To9WdRa3zaN2vdQGaz7JMPrcBJUQJ7MbhLQVE4otQkXzmGRFusUNlpY8oeIv053qP1xVx1GN1AJA==}
+  envio-linux-x64@3.17.0:
+    resolution: {integrity: sha512-kLxJq5qb7qAouQrXpMRTVPJ9BqrY6Qr7v1e6pzQBLQkPJUeA5b8RiNmR+4lsmclarVRLkBnoWNacSn3needr+A==}
     cpu: [x64]
     os: [linux]
 
-  envio@3.16.0:
-    resolution: {integrity: sha512-seypNAbTZiBgHn4yHbA5C3IonhtWVxVTNjNWMfGZlbSWcN4sKNwG9ZrFvPmpQgC0zO44YmJhjSevAtzHwW5DHg==}
+  envio@3.17.0:
+    resolution: {integrity: sha512-l0/5V0wZV73H9ImFf+8evHya3wPbqmbsUQvIK3cZKYnZxloMfrulUn9/ona3GtmwAJC2LDfyOLNg+oXMkApUAw==}
     engines: {node: '>=22.15.0'}
     hasBin: true
 
@@ -3469,22 +3469,22 @@ snapshots:
 
   env-paths@2.2.1: {}
 
-  envio-darwin-arm64@3.16.0:
+  envio-darwin-arm64@3.17.0:
     optional: true
 
-  envio-darwin-x64@3.16.0:
+  envio-darwin-x64@3.17.0:
     optional: true
 
-  envio-linux-arm64@3.16.0:
+  envio-linux-arm64@3.17.0:
     optional: true
 
-  envio-linux-x64-musl@3.16.0:
+  envio-linux-x64-musl@3.17.0:
     optional: true
 
-  envio-linux-x64@3.16.0:
+  envio-linux-x64@3.17.0:
     optional: true
 
-  envio@3.16.0:
+  envio@3.17.0:
     dependencies:
       '@rescript/runtime': 12.3.1
       bignumber.js: 9.3.1
@@ -3493,11 +3493,11 @@ snapshots:
       express: 4.22.3
       rescript-schema: 9.5.1
     optionalDependencies:
-      envio-darwin-arm64: 3.16.0
-      envio-darwin-x64: 3.16.0
-      envio-linux-arm64: 3.16.0
-      envio-linux-x64: 3.16.0
-      envio-linux-x64-musl: 3.16.0
+      envio-darwin-arm64: 3.17.0
+      envio-darwin-x64: 3.17.0
+      envio-linux-arm64: 3.17.0
+      envio-linux-x64: 3.17.0
+      envio-linux-x64-musl: 3.17.0
     transitivePeerDependencies:
       - rescript
       - supports-color

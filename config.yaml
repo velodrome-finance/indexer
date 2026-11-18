@@ -481,6 +481,8 @@ contracts:
       - event: Redistributed
       - event: SetKeeper
       - event: SetUpkeepManager
+# The order matters: envio deals chains to its worker processes in this order
+# (reversing direction each pass), so the busiest chains come first.
 chains:
   - id: 10 # Optimism
     # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,

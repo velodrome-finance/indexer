@@ -14,7 +14,7 @@ and the legacy-to-Aero migration are indexed into their own `Aero*` / `SAero*`
 entities ([ADR 0006](docs/adr/0006-aero-gauges-and-governance.md)).
 
 Built in TypeScript on the [Envio HyperIndex](https://docs.envio.dev/) platform
-(v3.16).
+(v3.17).
 
 > **Note:** This is an Envio HyperIndex project — **not** a TheGraph subgraph.
 

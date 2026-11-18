@@ -22,7 +22,7 @@ field reference is [`schema.md`](schema.md). This guide does not repeat them.
 
 ## Why there is a layer on top of envio's tables
 
-envio (HyperIndex 3.16) writes every entity stored in ClickHouse to an append-only table
+envio (HyperIndex 3.17) writes every entity stored in ClickHouse to an append-only table
 `envio_history_<Entity>`, one row per block in which the entity changed, sorted by
 `(id, envio_checkpoint_id)`, plus a view named after the entity that picks the newest row per
 id. Querying those directly is slow and awkward:
