@@ -1,10 +1,10 @@
-import type { Token } from "envio";
+import type { TokenPricingPools } from "envio";
 import { createTestIndexer } from "envio";
-import type { PublicClient } from "viem";
 import {
   DEFAULT_SAMM_FEE_BPS,
   DEFAULT_VAMM_FEE_BPS,
   PoolId,
+  ROOT_POOL_FACTORY_ADDRESS_OPTIMISM,
   RootPoolLeafPoolId,
   TokenId,
   toCanonicalFeeScale,
@@ -12,8 +12,7 @@ import {
 } from "../../src/Constants";
 import { rehydrateTimestamps } from "../../src/EntityTimestamps";
 import type { Pool } from "../../src/EntityTypes";
-import * as CrossChainPendingResolution from "../../src/EventHandlers/Voter/CrossChainPendingResolution";
-import { mutateChainConstants } from "../testHelpers";
+import { predictV2RootPoolAddress } from "../../src/EventHandlers/Voter/RootPoolLogic";
 import { setupCommon } from "./Pool/common";
 
 describe("PoolFactory Events", () => {
@@ -64,23 +63,19 @@ describe("PoolFactory Events", () => {
       id: TokenId(cid, token0Address),
       address: token0Address,
       chainId: cid,
-    } as Token);
+    });
     idx.Token.set({
       ...mockToken1Data,
       id: TokenId(cid, token1Address),
       address: token1Address,
       chainId: cid,
-    } as Token);
+    });
   }
 
   describe("PoolCreated event", () => {
     let createdPool: Pool | undefined;
-    let chainConstantsCleanup: (() => void) | undefined;
-
-    const fraxtalChainId = 252;
-    const mockLpHelperAddress = toChecksumAddress(
-      "0x2F44BD0Aff1826aec123cE3eA9Ce44445b64BB34",
-    );
+    let token0PricingPools: TokenPricingPools | undefined;
+    let token1PricingPools: TokenPricingPools | undefined;
 
     beforeEach(async () => {
       const indexer = createTestIndexer();
@@ -112,15 +107,20 @@ describe("PoolFactory Events", () => {
       });
       const rawPool = await indexer.Pool.get(PoolId(chainId, poolAddress));
       createdPool = rawPool ? rehydrateTimestamps("Pool", rawPool) : undefined;
+      [token0PricingPools, token1PricingPools] = await Promise.all([
+        indexer.TokenPricingPools.get(TokenId(chainId, token0Address)),
+        indexer.TokenPricingPools.get(TokenId(chainId, token1Address)),
+      ]);
+    });
+
+    it("registers the pool as a pricing candidate for WETH only (ADR 0003)", () => {
+      // WETH (tier 1) / USDC.e (tier-0 stablecoin): only the higher tier gains it.
+      expect(token0PricingPools?.pools).toEqual([PoolId(chainId, poolAddress)]);
+      expect(token1PricingPools).toBeUndefined();
     });
 
     afterEach(() => {
       vi.restoreAllMocks();
-      // Restore CHAIN_CONSTANTS if it was mutated
-      if (chainConstantsCleanup) {
-        chainConstantsCleanup();
-        chainConstantsCleanup = undefined;
-      }
     });
 
     it("should create a new LiquidityPool entity and Token entities", async () => {
@@ -314,7 +314,7 @@ describe("PoolFactory Events", () => {
         id: TokenId(chainId, token0Address),
         address: token0Address,
         chainId,
-      } as Token);
+      });
 
       await indexer.process({
         chains: {
@@ -351,6 +351,117 @@ describe("PoolFactory Events", () => {
         TokenId(chainId, eoaTokenAddress),
       );
       expect(eoaToken).toBeUndefined();
+    });
+  });
+
+  // A superchain leaf V2 pool records its Optimism root pool on its own chain:
+  // the V2 RootPoolFactory's CREATE2 address for (leaf chain, token0, token1,
+  // stable), no RPC and no Optimism row (ADR 0009, flow D).
+  describe("PoolCreated on a superchain leaf chain", () => {
+    const metalChainId = 1750 as const;
+    // The superchain leaf PoolFactory (same address on every leaf chain).
+    const leafPoolFactoryAddress = toChecksumAddress(
+      "0x31832f2a97Fd20664D76Cc421207669b55CE4BC0",
+    );
+    // Metal oUSDT / WETH vAMM: its leaf LpHelper answered root_lp_address
+    // 0xE96a48891686A15f7b55De3fCE9c97f412744A66 for this pair.
+    const oUSDT = toChecksumAddress(
+      "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
+    );
+    const weth = toChecksumAddress(
+      "0x4200000000000000000000000000000000000006",
+    );
+    const knownRootPool = toChecksumAddress(
+      "0xE96a48891686A15f7b55De3fCE9c97f412744A66",
+    );
+    const leafPool = toChecksumAddress(
+      "0x9999999999999999999999999999999999999991",
+    );
+
+    async function createLeafPool(stable: boolean) {
+      const indexer = createTestIndexer();
+      for (const [base, address] of [
+        [mockToken0Data, oUSDT],
+        [mockToken1Data, weth],
+      ] as const) {
+        indexer.Token.set({
+          ...base,
+          id: TokenId(metalChainId, address),
+          address,
+          chainId: metalChainId,
+        });
+      }
+      await indexer.process({
+        chains: {
+          [metalChainId]: {
+            simulate: [
+              {
+                contract: "PoolFactory",
+                event: "PoolCreated",
+                srcAddress: leafPoolFactoryAddress,
+                logIndex: 1,
+                block: {
+                  timestamp: 1000000,
+                  number: 123456,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  token0: oUSDT as `0x${string}`,
+                  token1: weth as `0x${string}`,
+                  pool: leafPool as `0x${string}`,
+                  stable,
+                },
+              },
+            ],
+          },
+        },
+      });
+      return indexer;
+    }
+
+    it("writes RootPool_LeafPool with the root factory's CREATE2 address", async () => {
+      const indexer = await createLeafPool(false);
+      expect(
+        predictV2RootPoolAddress(
+          ROOT_POOL_FACTORY_ADDRESS_OPTIMISM,
+          metalChainId,
+          oUSDT,
+          weth,
+          false,
+        ),
+      ).toBe(knownRootPool);
+
+      const rows = await indexer.RootPool_LeafPool.getAll();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        id: RootPoolLeafPoolId(10, metalChainId, knownRootPool, leafPool),
+        chainId: metalChainId,
+        rootChainId: 10,
+        rootPoolAddress: knownRootPool,
+        leafChainId: metalChainId,
+        leafPoolAddress: leafPool,
+      });
+      expect(
+        await indexer.Pool.get(PoolId(metalChainId, leafPool)),
+      ).toBeDefined();
+      // Nothing of the root chain is read or written from the leaf.
+      expect(await indexer.RootPool.getAll()).toEqual([]);
+    });
+
+    it("uses the stable flag in the CREATE2 salt", async () => {
+      const indexer = await createLeafPool(true);
+      const stableRoot = predictV2RootPoolAddress(
+        ROOT_POOL_FACTORY_ADDRESS_OPTIMISM,
+        metalChainId,
+        oUSDT,
+        weth,
+        true,
+      );
+      expect(stableRoot).not.toBe(knownRootPool);
+      const rows = await indexer.RootPool_LeafPool.getAll();
+      expect(rows.map((r) => r.id)).toEqual([
+        RootPoolLeafPoolId(10, metalChainId, stableRoot, leafPool),
+      ]);
     });
   });
 

@@ -3,10 +3,11 @@ import { createTestIndexer } from "envio";
 import { TokenId, VeNFTId, toChecksumAddress } from "../../../src/Constants";
 import * as VotingRewardSharedLogic from "../../../src/EventHandlers/VotingReward/VotingRewardSharedLogic";
 import { registerLeafVoterGauge } from "../../registerDynamicContracts";
+import type { WithChain } from "../../testHelpers";
 import { type MockPool, setupCommon } from "../Pool/common";
 
 describe("SuperchainIncentiveVotingReward Events", () => {
-  const { mockToken0Data, mockToken1Data } = setupCommon();
+  const { mockToken0Data, mockToken1Data, createMockToken } = setupCommon();
   const chainId = 252 as const;
   const votingRewardAddress = toChecksumAddress(
     "0x3333333333333333333333333333333333333333",
@@ -24,8 +25,18 @@ describe("SuperchainIncentiveVotingReward Events", () => {
   let userStats: ReturnType<
     ReturnType<typeof setupCommon>["createMockUserStatsPerPool"]
   >;
-  let rewardToken: Token;
-  let veNFT: VeNFTState;
+  let rewardToken: WithChain<Token>;
+  let veNFT: WithChain<VeNFTState>;
+  // The pool's tokens live on the pool's own chain: a handler only reads rows of
+  // its event's chain, so Optimism-keyed tokens would not load for a Fraxtal pool.
+  const token0 = createMockToken({
+    id: TokenId(chainId, mockToken0Data.address),
+    chainId,
+  });
+  const token1 = createMockToken(
+    { id: TokenId(chainId, mockToken1Data.address), chainId },
+    mockToken1Data,
+  );
 
   beforeEach(async () => {
     indexer = createTestIndexer();
@@ -37,6 +48,8 @@ describe("SuperchainIncentiveVotingReward Events", () => {
     // Set up liquidity pool with bribe voting reward address
     liquidityPool = createMockPool({
       chainId: chainId,
+      token0_id: token0.id,
+      token1_id: token1.id,
       bribeVotingRewardAddress: votingRewardAddress,
       feeVotingRewardAddress: "",
       veNFTamountStaked: 1000n, // Initial staked amount
@@ -62,7 +75,7 @@ describe("SuperchainIncentiveVotingReward Events", () => {
       totalValueLocked: 10000n,
       isAlive: true,
       lastUpdatedTimestamp: new Date(1000000 * 1000),
-    } as VeNFTState;
+    } as WithChain<VeNFTState>;
 
     // Set up reward token
     rewardToken = {
@@ -80,14 +93,14 @@ describe("SuperchainIncentiveVotingReward Events", () => {
       // must be set in lockstep with `lastUpdatedTimestamp` for the throttle to
       // preserve `pricePerUSDNew` (the heal-on-read otherwise bypasses it).
       lastSuccessfulPriceTimestamp: new Date(1000000 * 1000),
-    } as Token;
+    } as WithChain<Token>;
 
     // Set up entities in test indexer
     indexer.Pool.set(liquidityPool);
     indexer.UserStatsPerPool.set(userStats);
     indexer.VeNFTState.set(veNFT);
-    indexer.Token.set(mockToken0Data as Token);
-    indexer.Token.set(mockToken1Data as Token);
+    indexer.Token.set(token0);
+    indexer.Token.set(token1);
     indexer.Token.set(rewardToken);
   });
 

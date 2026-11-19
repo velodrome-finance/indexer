@@ -1,5 +1,9 @@
-import type { EvmEvent, Token } from "envio";
+import type { EvmEvent, PoolTickMap, Token } from "envio";
 import { processTickCrossings } from "../../Aggregators/CLStakedLiquidity";
+import {
+  type CLSwapFeeDerivation,
+  deriveCLSwapFee,
+} from "../../Aggregators/CLSwapFee";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { UserStatsPerPoolDiff } from "../../Aggregators/UserStatsPerPool";
 import { FEE_SCALE } from "../../Constants";
@@ -44,13 +48,6 @@ interface SwapFees {
   swapFeesInUSD: bigint;
 }
 
-interface SwapVolumeAndFees {
-  volumeInUSD: bigint;
-  swapFeesInToken0: bigint;
-  swapFeesInToken1: bigint;
-  swapFeesInUSD: bigint;
-}
-
 /** Compute fee amount in native token units from a CL fee rate and a swap amount. */
 function computeClFeeAmount(amount: bigint, feeRate: bigint): bigint {
   return (abs(amount) * feeRate) / FEE_SCALE;
@@ -71,10 +68,12 @@ export function calculateSwapVolume(
   const token0UsdValue = getTrustedUSD(
     abs(event.params.amount0),
     token0Instance,
+    event.chainId,
   );
   const token1UsdValue = getTrustedUSD(
     abs(event.params.amount1),
     token1Instance,
+    event.chainId,
   );
 
   const volumeInUSD = pickTrustedSwapVolumeUSD(token0UsdValue, token1UsdValue);
@@ -87,23 +86,30 @@ export function calculateSwapVolume(
 /**
  * Calculates swap fees.
  *
- * Raw fee amounts (`swapFeesInToken0`, `swapFeesInToken1`) come directly from the
- * input side of the swap and the pool's fee rate, normalized to 1e18 precision.
- * USD value (`swapFeesInUSD`) is derived from the input-leg's trusted USD —
- * `inputUsdValue × feeRate / FEE_SCALE` — restoring the AMM invariant
- * `cumulative_fees ≤ cumulative_collected` after slippage drift (issue #861).
- * Falls back to the min-protected `volumeInUSD` when the input leg is
- * untrusted, preserving the `pickTrustedSwapVolumeUSD` defence against
- * poisoned-price tokens (issue #733).
+ * Raw fee amounts (`swapFeesInToken0`, `swapFeesInToken1`) are charged on the
+ * input side of the swap only, normalized to 1e18 precision. They come from
+ * `derivation` — the swap's own `amountIn − principalIn` (see
+ * `src/Aggregators/CLSwapFee.ts`) — when it is present and accepted; otherwise
+ * from the stored rate (`currentFee ?? baseFee`, FEE_SCALE 1e6) × amountIn,
+ * which is the drift fallback. A zero rate is a legitimate zero-fee pool and
+ * yields zero fees without logging.
+ *
+ * USD value (`swapFeesInUSD`) is the input leg's trusted USD scaled by the same
+ * fee fraction (`feeIn / amountIn` when derived, `rate / FEE_SCALE` on the
+ * fallback), restoring the AMM invariant `cumulative_fees ≤ cumulative_collected`
+ * after slippage drift (issue #861). Falls back to the min-protected
+ * `volumeInUSD` when the input leg is untrusted, preserving the
+ * `pickTrustedSwapVolumeUSD` defence against poisoned-price tokens (issue #733).
  *
  * Exported for testing purposes only.
  *
  * @param event - CLPool Swap event
- * @param liquidityPoolAggregator - Pool entity providing the fee rate
+ * @param liquidityPoolAggregator - Pool entity providing the stored (fallback) fee rate
  * @param token0Instance - Token0 for decimals lookup (price unused for USD)
  * @param token1Instance - Token1 for decimals lookup (price unused for USD)
  * @param volumeInUSD - Already-trusted swap volume in USD (from `calculateSwapVolume`)
- * @param context - Handler context for error logging
+ * @param derivation - Swap-derived fee from `deriveCLSwapFee`; when omitted or
+ *   rejected (`ok: false`) the stored rate is used
  * @returns Raw token-unit fees plus invariant-respecting USD fee
  */
 export function calculateSwapFees(
@@ -112,35 +118,37 @@ export function calculateSwapFees(
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
   volumeInUSD: bigint,
-  context: handlerContext,
+  derivation?: CLSwapFeeDerivation,
 ): SwapFees {
-  // Get the current fee, falling back to baseFee if currentFee is undefined
-  const fee =
-    liquidityPoolAggregator.currentFee ?? liquidityPoolAggregator.baseFee;
-
-  if (!fee) {
-    context.log.error(
-      `[calculateSwapFees] Pool ${liquidityPoolAggregator.id} on chain ${event.chainId} has ${liquidityPoolAggregator.currentFee} for currentFee and ${liquidityPoolAggregator.baseFee} for baseFee. Cannot calculate swap fees.`,
-    );
-    // Set fees to 0 if fee is undefined (should not happen in practice)
-    return {
-      swapFeesInToken0: 0n,
-      swapFeesInToken1: 0n,
-      swapFeesInUSD: 0n,
-    };
+  // Fee in native token units plus the fee fraction (num / den) of the input
+  // leg, used to scale the USD value below. Fees are ONLY charged on the input
+  // token (positive amount); the output token (negative amount) has no fee.
+  let swapFeesInToken0Raw: bigint;
+  let swapFeesInToken1Raw: bigint;
+  let feeFractionNum: bigint;
+  let feeFractionDen: bigint;
+  if (derivation?.ok) {
+    swapFeesInToken0Raw = derivation.feeAmount0;
+    swapFeesInToken1Raw = derivation.feeAmount1;
+    feeFractionNum = derivation.feeAmount0 + derivation.feeAmount1;
+    feeFractionDen = derivation.amountIn;
+  } else {
+    // Stored rate, CL scale 1e6 (100 = 0.01%, 500 = 0.05%, 3000 = 0.30%).
+    const fee =
+      liquidityPoolAggregator.currentFee ??
+      liquidityPoolAggregator.baseFee ??
+      0n;
+    swapFeesInToken0Raw =
+      event.params.amount0 > 0n
+        ? computeClFeeAmount(event.params.amount0, fee)
+        : 0n;
+    swapFeesInToken1Raw =
+      event.params.amount1 > 0n
+        ? computeClFeeAmount(event.params.amount1, fee)
+        : 0n;
+    feeFractionNum = fee;
+    feeFractionDen = FEE_SCALE;
   }
-
-  // Calculate fees in token native units — fees are ONLY charged on the input token
-  // (positive amount). The output token (negative amount) has no fee.
-  // CL fee is in hundredths of a basis point (1e6 scale): 100 = 0.01%, 500 = 0.05%, 3000 = 0.30%
-  const swapFeesInToken0Raw =
-    event.params.amount0 > 0n
-      ? computeClFeeAmount(event.params.amount0, fee)
-      : 0n;
-  const swapFeesInToken1Raw =
-    event.params.amount1 > 0n
-      ? computeClFeeAmount(event.params.amount1, fee)
-      : 0n;
 
   // Normalize fees to 1e18 precision using helper function
   const token0Decimals = Number(token0Instance?.decimals ?? 18);
@@ -153,6 +161,10 @@ export function calculateSwapFees(
     swapFeesInToken1Raw,
     token1Decimals,
   );
+
+  if (feeFractionNum === 0n || feeFractionDen === 0n) {
+    return { swapFeesInToken0, swapFeesInToken1, swapFeesInUSD: 0n };
+  }
 
   // Derive fee USD from the INPUT leg's trusted USD (where the fee was
   // actually charged on-chain), but only when it agrees with the other leg
@@ -169,7 +181,7 @@ export function calculateSwapFees(
   const inputIsToken0 = event.params.amount0 > 0n;
   const safeTrustedUSD = (amount: bigint, token: Token | undefined): bigint => {
     if (!token || token.pricePerUSDNew === undefined) return 0n;
-    return getTrustedUSD(amount, token);
+    return getTrustedUSD(amount, token, event.chainId);
   };
   const inputUsdValue = inputIsToken0
     ? safeTrustedUSD(abs(event.params.amount0), token0Instance)
@@ -183,7 +195,7 @@ export function calculateSwapFees(
     (counterUsdValue === 0n ||
       inputUsdValue <= counterUsdValue * SLIPPAGE_TOLERANCE);
   const feeBaseUSD = inputIsCredible ? inputUsdValue : volumeInUSD;
-  const swapFeesInUSD = (feeBaseUSD * fee) / FEE_SCALE;
+  const swapFeesInUSD = (feeBaseUSD * feeFractionNum) / feeFractionDen;
 
   return {
     swapFeesInToken0,
@@ -193,22 +205,118 @@ export function calculateSwapFees(
 }
 
 /**
- * Calculates swap volume and fees
- * Fees are stored in 1e18 precision (like USD values) to preserve accuracy
+ * Computes the pool and user diffs for a CL Swap: volume, swap-derived fee,
+ * fee-free reserve deltas, staked-share deltas and the post-swap price state.
+ *
+ * The fee comes from the swap itself (`amountIn − principalIn`, see
+ * `src/Aggregators/CLSwapFee.ts`) — no RPC. When the tick-map walk disagrees
+ * with the event (ending liquidity ≠ `event.params.liquidity`) or the derived
+ * fee is negative or above 10% of the input, the swap is valued with the stored
+ * rate instead, `numberOfSwapFeeFallbacks` is incremented, and the first such
+ * swap of a pool logs one `[CL_SWAP_FEE_FALLBACK]` warning. An accepted swap
+ * large enough to measure its rate writes it to `currentFee`.
+ *
+ * The tick maps are read, never written: a swap does not change them.
+ *
+ * @param event - CLPool Swap event
+ * @param liquidityPoolAggregator - Pool state before the swap
+ * @param token0Instance - Token0 (decimals and price)
+ * @param token1Instance - Token1 (decimals and price)
+ * @param context - Handler context, used for logging only
+ * @param tickMap - The pool's PoolTickMap (`loadPoolTickMap`); defaults to
+ *   empty maps (no Mint / stake seen)
+ * @returns The pool diff and the swapper's user-stats diff
  */
-function calculateSwapVolumeAndFees(
+export async function processCLPoolSwap(
   event: EvmEvent<"CLPool", "Swap">,
   liquidityPoolAggregator: Pool,
   token0Instance: Token | undefined,
   token1Instance: Token | undefined,
   context: handlerContext,
-): SwapVolumeAndFees {
+  tickMap: PoolTickMap = {
+    id: liquidityPoolAggregator.id,
+    tickEdges: [],
+    tickEdgeNets: [],
+    stakedTickEdges: [],
+    stakedTickEdgeNets: [],
+  },
+): Promise<CLPoolSwapResult> {
   const { volumeInUSD } = calculateSwapVolume(
     event,
     token0Instance,
     token1Instance,
   );
 
+  // #803: derive the swap's reserve delta from pool geometry (fee-free) rather
+  // than the stale-fee approximation `amount − currentFee·amount`. The pool's
+  // sqrtPrice move, integrated over the TOTAL per-tick liquidity map, is the
+  // exact principal token flow (Δ1 = L·ΔsqrtPrice/Q96, Δ0 = L·ΔsqrtPrice·Q96/
+  // (S_a·S_b)); the fee never moves the price, so it is excluded by construction.
+  // This is the same edge-walk as the staked share (#666); it walks initialized
+  // edges directly (binary search) with no per-tick step cap.
+  //
+  // Seed: the walk starts from the cached pre-swap in-range liquidity (the last
+  // Swap's event liquidity plus in-range Mint/Burn deltas, exactly the pool's
+  // on-chain liquidity()), so it touches only the crossed edges instead of
+  // summing the whole map. If the walk then ends on a different liquidity than
+  // the event reports, the swap is re-walked from the map-derived seed
+  // (`deriveLiquidityInRange`, the previous behaviour) and that result is kept.
+  //
+  // Edge-map completeness: if the map is empty — e.g. a partial-history sync
+  // whose start block postdates the pool's Mints — the seed is 0n and swaps
+  // contribute no reserve delta (and the fee falls back to the stored rate).
+  // That is consistent with the reserve accumulator's full-history requirement
+  // (those pre-start Mints' principal would be absent from reserve0/1 too); a
+  // from-creation sync always has a complete map.
+  const oldTick = liquidityPoolAggregator.tick ?? 0n;
+  const oldSqrtPriceX96 = liquidityPoolAggregator.sqrtPriceX96 ?? 0n;
+  const cachedLiquidity = liquidityPoolAggregator.liquidityInRange ?? 0n;
+  const hasTotalMap = tickMap.tickEdges.length > 0;
+  const walkTotal = (seed: bigint | undefined) =>
+    processTickCrossings(
+      event.chainId,
+      event.srcAddress,
+      oldTick,
+      event.params.tick,
+      oldSqrtPriceX96,
+      event.params.sqrtPriceX96,
+      liquidityPoolAggregator.tickSpacing,
+      context,
+      cachedLiquidity,
+      hasTotalMap,
+      tickMap.tickEdges,
+      tickMap.tickEdgeNets,
+      "total",
+      seed,
+    );
+  let totalCrossings = walkTotal(hasTotalMap ? cachedLiquidity : 0n);
+  if (
+    hasTotalMap &&
+    totalCrossings.liquidityInRange !== event.params.liquidity
+  ) {
+    totalCrossings = walkTotal(undefined);
+  }
+  const reserveDelta0 = totalCrossings.delta0;
+  const reserveDelta1 = totalCrossings.delta1;
+
+  // Swap-derived fee: amountIn − principalIn on the input token, guarded by the
+  // event's authoritative post-swap liquidity (drift check).
+  const feeDerivation = deriveCLSwapFee({
+    amount0: event.params.amount0,
+    amount1: event.params.amount1,
+    principal0: reserveDelta0,
+    principal1: reserveDelta1,
+    walkEndLiquidity: totalCrossings.liquidityInRange,
+    eventLiquidity: event.params.liquidity,
+  });
+  if (
+    !feeDerivation.ok &&
+    (liquidityPoolAggregator.numberOfSwapFeeFallbacks ?? 0n) === 0n
+  ) {
+    context.log.warn(
+      `[CL_SWAP_FEE_FALLBACK] pool=${event.srcAddress} chain=${event.chainId} block=${event.block.number} reason=${feeDerivation.reason} derivedFee=${feeDerivation.derivedFee} amountIn=${feeDerivation.amountIn} walkLiquidity=${totalCrossings.liquidityInRange} eventLiquidity=${event.params.liquidity} storedFee=${liquidityPoolAggregator.currentFee}. Valuing with the stored rate; logged once per pool, see Pool.numberOfSwapFeeFallbacks for the count.`,
+    );
+  }
   const { swapFeesInToken0, swapFeesInToken1, swapFeesInUSD } =
     calculateSwapFees(
       event,
@@ -216,72 +324,26 @@ function calculateSwapVolumeAndFees(
       token0Instance,
       token1Instance,
       volumeInUSD,
-      context,
+      feeDerivation,
     );
-
-  return {
-    volumeInUSD,
-    swapFeesInToken0,
-    swapFeesInToken1,
-    swapFeesInUSD,
-  };
-}
-
-export async function processCLPoolSwap(
-  event: EvmEvent<"CLPool", "Swap">,
-  liquidityPoolAggregator: Pool,
-  token0Instance: Token | undefined,
-  token1Instance: Token | undefined,
-  context: handlerContext,
-): Promise<CLPoolSwapResult> {
-  // Calculate volume and fees
-  const { volumeInUSD, swapFeesInToken0, swapFeesInToken1, swapFeesInUSD } =
-    calculateSwapVolumeAndFees(
-      event,
-      liquidityPoolAggregator,
-      token0Instance,
-      token1Instance,
-      context,
-    );
-
-  // #803: derive the swap's reserve delta from pool geometry (fee-free) rather
-  // than the stale-fee approximation `amount − currentFee·amount`. The pool's
-  // sqrtPrice move, integrated over the TOTAL per-tick liquidity map, is the
-  // exact principal token flow (Δ1 = L·ΔsqrtPrice/Q96, Δ0 = L·ΔsqrtPrice·Q96/
-  // (S_a·S_b)); the fee never moves the price, so it is excluded by construction.
-  // This is the same edge-walk as the staked share (#666), seeded from the total
-  // edge map via deriveLiquidityInRange — so it stays correct even when the
-  // price starts at a boundary tick where the cached liquidityInRange is 0, and
-  // it walks initialized edges directly (binary search) with no per-tick step cap.
-  //
-  // Edge-map completeness: the seed comes from tickEdges (built by Mint/Burn from
-  // pool creation), NOT from the cached liquidityInRange. If the map is empty —
-  // e.g. a partial-history sync whose start block postdates the pool's Mints — the
-  // seed is 0n and swaps contribute no reserve delta. That is consistent with the
-  // reserve accumulator's full-history requirement (those pre-start Mints' principal
-  // would be absent from reserve0/1 too); a from-creation sync always has a complete map.
-  const totalCrossings = processTickCrossings(
-    event.chainId,
-    event.srcAddress,
-    liquidityPoolAggregator.tick ?? 0n,
-    event.params.tick,
-    liquidityPoolAggregator.sqrtPriceX96 ?? 0n,
-    event.params.sqrtPriceX96,
-    liquidityPoolAggregator.tickSpacing,
-    context,
-    liquidityPoolAggregator.liquidityInRange ?? 0n,
-    liquidityPoolAggregator.tickEdges.length > 0,
-    liquidityPoolAggregator.tickEdges,
-    liquidityPoolAggregator.tickEdgeNets,
-    "total",
-  );
-  const reserveDelta0 = totalCrossings.delta0;
-  const reserveDelta1 = totalCrossings.delta1;
   const newReserve0 = liquidityPoolAggregator.reserve0 + reserveDelta0;
   const newReserve1 = liquidityPoolAggregator.reserve1 + reserveDelta1;
 
-  // Staked-share tracking (#666) — unchanged. Same edge-walk math, but over the
-  // staked-only edge map, producing the staked slice of the reserve deltas.
+  // Staked-share tracking (#666). Same edge-walk math, but over the staked-only
+  // edge map, producing the staked slice of the reserve deltas. Seeded from the
+  // cached stakedLiquidityInRange — every writer stores the map-derived value at
+  // the current tick (gauge / NFPM / CLPool Mint & Burn derive it, swaps walk
+  // it) — unless updatePool may have clamped it (#891: clamped to
+  // liquidityInRange, so staked === total) or it is zero (also the #719
+  // negative floor); then it is re-derived from the map (#719 self-healing).
+  const cachedStakedLiquidity =
+    liquidityPoolAggregator.stakedLiquidityInRange ?? 0n;
+  const stakedSeed =
+    liquidityPoolAggregator.hasStakes &&
+    cachedStakedLiquidity > 0n &&
+    cachedStakedLiquidity < cachedLiquidity
+      ? cachedStakedLiquidity
+      : undefined;
   const {
     liquidityInRange: stakedLiquidityInRange,
     delta0: stakedDelta0,
@@ -289,23 +351,26 @@ export async function processCLPoolSwap(
   } = processTickCrossings(
     event.chainId,
     event.srcAddress,
-    liquidityPoolAggregator.tick ?? 0n,
+    oldTick,
     event.params.tick,
-    liquidityPoolAggregator.sqrtPriceX96 ?? 0n,
+    oldSqrtPriceX96,
     event.params.sqrtPriceX96,
     liquidityPoolAggregator.tickSpacing,
     context,
-    liquidityPoolAggregator.stakedLiquidityInRange ?? 0n,
+    cachedStakedLiquidity,
     liquidityPoolAggregator.hasStakes,
-    liquidityPoolAggregator.stakedTickEdges,
-    liquidityPoolAggregator.stakedTickEdgeNets,
+    tickMap.stakedTickEdges,
+    tickMap.stakedTickEdgeNets,
+    "staked",
+    stakedSeed,
   );
 
   // token0Price/token1Price are the pool-internal exchange rate, derived from
   // the swap's post-trade sqrtPriceX96 — NOT from token oracle prices. This
   // keeps the ratio oracle-independent so a mispriced token (e.g. a non-WL
   // scam token) can no longer inflate it without bound (#783). pickPriceRatios
-  // falls back to the last-known ratio per leg when decimals are unavailable.
+  // falls back to the last-known ratios when decimals are unavailable; at a
+  // tick bound the leg below 1e-18 is written as 0n, not kept stale.
   const priceRatios = pickPriceRatios(
     token0Instance && token1Instance
       ? deriveCLPriceRatios(
@@ -341,6 +406,12 @@ export async function processCLPoolSwap(
     token0Price: priceRatios.token0Price,
     token1Price: priceRatios.token1Price,
     incrementalNumberOfSwaps: 1n,
+    incrementalNumberOfSwapFeeFallbacks: feeDerivation.ok ? 0n : 1n,
+    // Effective rate of this swap (FEE_SCALE 1e6), when it is large enough to
+    // measure; otherwise the previous rate stays.
+    ...(feeDerivation.ok && feeDerivation.feeRate !== undefined
+      ? { currentFee: feeDerivation.feeRate }
+      : {}),
     incrementalReserve0: reserveDelta0,
     incrementalReserve1: reserveDelta1,
     currentTotalLiquidityUSD,

@@ -9,7 +9,7 @@ import {
 } from "../../Constants";
 import { getTokenDetails, hasContractBytecode } from "../../Effects/Index";
 import { getRehydrated } from "../../EntityTimestamps";
-import { healTokenMetadata } from "../../PriceOracle";
+import { healTokenMetadata, initialTokenPriceFields } from "../../PriceOracle";
 import { getGateDecisionFromSignals } from "../../PriceTrust";
 
 indexer.contractRegister(
@@ -161,6 +161,7 @@ indexer.onEvent(
         event.chainId,
         event.params.token,
         event.params._bool,
+        token.isListedOnAero ?? false,
       );
       const updatedToken: Token = {
         ...healed,
@@ -199,13 +200,16 @@ indexer.onEvent(
         id: TokenId(event.chainId, event.params.token),
         name: tokenDetails.name,
         symbol: tokenDetails.symbol,
-        pricePerUSDNew: 0n,
+        ...initialTokenPriceFields(
+          event.chainId,
+          event.params.token,
+          new Date(event.block.timestamp * 1000),
+        ),
         address: event.params.token,
-        chainId: event.chainId,
         decimals: BigInt(tokenDetails.decimals),
         isWhitelisted: event.params._bool,
+        isListedOnAero: undefined,
         lastUpdatedTimestamp: new Date(event.block.timestamp * 1000),
-        lastSuccessfulPriceTimestamp: undefined,
         priceTrustOutcome: decision.outcome,
         priceTrustReason: decision.reason,
       };

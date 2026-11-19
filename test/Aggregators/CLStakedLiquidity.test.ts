@@ -62,9 +62,37 @@ describe("CLStakedLiquidity", () => {
 
   describe("applyPositionToEdges", () => {
     it("should insert both edges with correct signs on stake", () => {
-      const { edges, nets } = applyPositionToEdges([], [], 100n, 200n, 500n);
+      const { edges, nets, changed } = applyPositionToEdges(
+        [],
+        [],
+        100n,
+        200n,
+        500n,
+      );
       expect(edges).toEqual([100n, 200n]);
       expect(nets).toEqual([500n, -500n]);
+      expect(changed).toBe(true);
+    });
+
+    it("returns the input arrays uncopied with changed=false when nothing changes", () => {
+      const edges = [100n, 200n];
+      const nets = [500n, -500n];
+      const zero = applyPositionToEdges(edges, nets, 100n, 200n, 0n);
+      expect(zero.changed).toBe(false);
+      expect(zero.edges).toBe(edges);
+      expect(zero.nets).toBe(nets);
+      const degenerate = applyPositionToEdges(edges, nets, 300n, 300n, 5n);
+      expect(degenerate).toMatchObject({
+        changed: false,
+        rejected: "degenerate_range",
+      });
+      expect(degenerate.edges).toBe(edges);
+      const outOfRange = applyPositionToEdges(edges, nets, -900000n, 0n, 5n);
+      expect(outOfRange).toMatchObject({
+        changed: false,
+        rejected: "ticks_out_of_range",
+      });
+      expect(outOfRange.nets).toBe(nets);
     });
 
     it("should keep the list sorted when inserting into the middle", () => {
@@ -259,6 +287,62 @@ describe("CLStakedLiquidity", () => {
           debug: vi.fn(),
         },
       } as unknown as handlerContext;
+    });
+
+    it("starts from seedLiquidity when given, summing no edges below oldTick", () => {
+      // Map prefix at tick 150 is 300 (edge 100), but the caller's seed is
+      // trusted as the in-range liquidity; crossing 200 (-300) then applies.
+      const seeded = processTickCrossings(
+        CHAIN_ID,
+        POOL_ADDRESS,
+        150n,
+        250n,
+        sqrtAt(150n),
+        sqrtAt(250n),
+        10n,
+        mockContext,
+        0n,
+        true,
+        [100n, 200n],
+        [300n, -300n],
+        "total",
+        1_000n,
+      );
+      expect(seeded.liquidityInRange).toBe(700n);
+      const derived = processTickCrossings(
+        CHAIN_ID,
+        POOL_ADDRESS,
+        150n,
+        250n,
+        sqrtAt(150n),
+        sqrtAt(250n),
+        10n,
+        mockContext,
+        0n,
+        true,
+        [100n, 200n],
+        [300n, -300n],
+        "total",
+      );
+      expect(derived.liquidityInRange).toBe(0n);
+      // Same seed as the prefix sum → identical walk.
+      const same = processTickCrossings(
+        CHAIN_ID,
+        POOL_ADDRESS,
+        150n,
+        250n,
+        sqrtAt(150n),
+        sqrtAt(250n),
+        10n,
+        mockContext,
+        0n,
+        true,
+        [100n, 200n],
+        [300n, -300n],
+        "total",
+        300n,
+      );
+      expect(same).toEqual(derived);
     });
 
     it("should derive the in-range counter from edges when oldTick === newTick", async () => {

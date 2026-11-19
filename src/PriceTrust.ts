@@ -2,7 +2,6 @@ import type { Token } from "envio";
 import { CHAIN_CONSTANTS, TEN_TO_THE_18_BI } from "./Constants";
 import type { handlerContext } from "./EntityTypes";
 import { calculateTokenAmountUSD } from "./Helpers";
-import { multiplyBase1e18 } from "./Maths";
 import { isBlacklistedToken } from "./PriceOverrides";
 
 /**
@@ -21,15 +20,18 @@ export type PriceTrustOutcome =
  * Centralised values for the per-token `priceTrustReason` schema field.
  *
  * - `WL` — protocol-whitelisted and not in the operator BLACKLIST (trusted)
- * - `CONNECTOR` — not protocol-whitelisted, but a configured price connector on
- *   its chain and not in the operator BLACKLIST (trusted, #898)
- * - `BLACKLISTED` — has a positive trust signal (whitelist and/or connector) but
- *   the operator BLACKLIST overrides it
- * - `NON_WL` — no positive trust signal: neither whitelisted nor a connector
- *   (regardless of BLACKLIST membership)
+ * - `LISTED` — not legacy-whitelisted, but listed in the chain's Aero
+ *   TokenRegistry (`Token.isListedOnAero`) and not blacklisted (trusted, ADR 0005)
+ * - `CONNECTOR` — neither whitelisted nor listed, but a configured price
+ *   connector on its chain and not in the operator BLACKLIST (trusted, #898)
+ * - `BLACKLISTED` — has a positive trust signal (whitelist, listing and/or
+ *   connector) but the operator BLACKLIST overrides it
+ * - `NON_WL` — no positive trust signal: neither whitelisted, listed nor a
+ *   connector (regardless of BLACKLIST membership)
  */
 export const PRICE_TRUST_REASON = {
   WL: "WL",
+  LISTED: "LISTED",
   CONNECTOR: "CONNECTOR",
   NON_WL: "NON_WL",
   BLACKLISTED: "BLACKLISTED",
@@ -53,18 +55,16 @@ export interface PriceTrustDecision {
 const CONNECTOR_SETS: ReadonlyMap<number, ReadonlySet<string>> = new Map(
   Object.entries(CHAIN_CONSTANTS).map(([chainId, constants]) => [
     Number(chainId),
-    new Set(
-      constants.oracle.priceConnectors.map((c) => c.address.toLowerCase()),
-    ),
+    new Set(constants.priceConnectors.map((c) => c.address.toLowerCase())),
   ]),
 );
 
 /**
  * Whether `address` is one of `chainId`'s configured price connectors — the
- * canonical base assets (WETH, USDC, the chain's gov token, …) the oracle
- * already uses to derive every other token's price (src/constants/
- * price_connectors.json, surfaced as `CHAIN_CONSTANTS[chainId].oracle
- * .priceConnectors`).
+ * canonical base assets (WETH, USDC, the chain's gov token, …) every other
+ * token's price is derived through (src/constants/price_connectors.json,
+ * surfaced as `CHAIN_CONSTANTS[chainId].priceConnectors`; tiers 0–2 of
+ * the pool-derived pricing in docs/adr/0003-pool-derived-token-prices.md).
  *
  * A token the indexer trusts enough to *derive* prices from is, by the same
  * token, trustworthy enough to *value* — so connector membership is a positive
@@ -94,15 +94,17 @@ export function isConnectorToken(chainId: number, address: string): boolean {
  *
  * @param token - Token entity from the indexer. Undefined inputs are
  *   treated as untrusted (the indexer cannot trust what it does not have).
+ * @param chainId - Chain of the event being handled (the token's chain)
  * @returns true when the token's price may be multiplied into USD aggregates;
  *   false otherwise
  */
-export function isTrusted(token: Token | undefined): boolean {
+export function isTrusted(token: Token | undefined, chainId: number): boolean {
   if (!token) return false;
   return getGateDecisionFromSignals(
-    token.chainId,
+    chainId,
     token.address,
     token.isWhitelisted,
+    token.isListedOnAero ?? false,
   ).trusted;
 }
 
@@ -115,49 +117,20 @@ export function isTrusted(token: Token | undefined): boolean {
  * @param amount - Raw token amount in the token's native decimal base
  * @param token - Token entity carrying decimals + pricePerUSDNew. Undefined
  *   or untrusted tokens contribute `0n`.
+ * @param chainId - Chain of the event being handled (the token's chain)
  * @returns USD value in 1e18-base, or `0n` when the gate denies trust
  */
 export function getTrustedUSD(
   amount: bigint,
   token: Token | undefined,
+  chainId: number,
 ): bigint {
-  if (!token || !isTrusted(token)) return 0n;
+  if (!token || !isTrusted(token, chainId)) return 0n;
   return calculateTokenAmountUSD(
     amount,
     Number(token.decimals),
     token.pricePerUSDNew,
   );
-}
-
-/**
- * Pool-implied USD price (1e18-base) for one leg of a pool, derived from the
- * pool's on-chain price ratio and the *counterparty* leg's trusted price. This
- * is an independent ground-truth witness to the per-token oracle route: it
- * comes from pool reserves / sqrtPriceX96, not from the route that can freeze
- * or glitch (#784/#785).
- *
- * For token0 the caller passes the pool's `token0Price` (1e18-scaled
- * token1-per-token0) and the token1 entity; for token1, `token1Price` and the
- * token0 entity. Gated by {@link isTrusted}: an untrusted or undefined
- * counterparty yields `0n` (no usable hint), so any consumer is inert unless
- * the other leg is a whitelisted, non-blacklisted token whose price is
- * reliable. A `0n` ratio (uninitialised pool) also yields `0n`.
- *
- * @param priceRatio1e18 - The priced token's value in counterparty units,
- *   1e18-scaled (the pool entity's `token0Price` / `token1Price`).
- * @param counterparty - The other token in the pool, carrying the trusted USD
- *   price. Undefined or untrusted ⇒ `0n`.
- * @returns USD-per-whole-token in 1e18-base (same scaling as `pricePerUSDNew`),
- *   or `0n` when the counterparty fails the trust gate or the ratio is 0.
- */
-export function getPoolImpliedUSD(
-  priceRatio1e18: bigint,
-  counterparty: Token | undefined,
-): bigint {
-  if (priceRatio1e18 <= 0n || !counterparty || !isTrusted(counterparty)) {
-    return 0n;
-  }
-  return multiplyBase1e18(priceRatio1e18, counterparty.pricePerUSDNew);
 }
 
 /**
@@ -168,12 +141,12 @@ export function getPoolImpliedUSD(
  *
  * Stricter than {@link isTrusted}: being protocol-whitelisted is not enough; a
  * hard anchor is one of the few tokens the indexer treats as a USD yardstick.
- * Stablecoins are valued at a hard $1 pin and WETH at its own oracle price (see
+ * Stablecoins are valued at a hard $1 pin and WETH at its own stored price (see
  * {@link getHardAnchorUnitUSD}).
  *
  * `destinationToken` is checked explicitly because `buildStablecoinSet`
  * (src/Constants.ts) deliberately EXCLUDES it from `stablecoins` — it is the
- * oracle's pricing target, not a connector — yet it is the primary stablecoin
+ * pricing target, not a connector — yet it is the primary stablecoin
  * on every chain (USDC on Optimism/Base, oUSDT on Lisk/Metal, …).
  *
  * @param chainId - Chain the token lives on
@@ -196,16 +169,17 @@ export function isHardAnchor(chainId: number, address: string): boolean {
  * USD value of one whole unit of a hard-anchor token (1e18-base), or `0n` when
  * the token is not a hard anchor on the chain or cannot be valued.
  *
- * Stablecoins and the chain's `destinationToken` are pinned to exactly $1 —
- * deliberately NOT their oracle `pricePerUSDNew`, so a drifting or poisoned
- * stablecoin oracle can never move the anchor used to sanity-check other legs.
- * WETH is valued at its oracle `pricePerUSDNew`; an unpriced WETH (`0n`) returns
- * `0n`, which makes every downstream cap check inert (an unusable anchor).
+ * Stablecoins and the chain's `destinationToken` are pinned to exactly $1
+ * regardless of their stored `pricePerUSDNew` (which the pricing code also pins
+ * to $1, ADR 0003), so the anchor used to sanity-check other legs can never
+ * drift. WETH is valued at its stored, pool-derived `pricePerUSDNew`; an
+ * unpriced WETH (`0n`) returns `0n`, which makes every downstream cap check
+ * inert (an unusable anchor).
  *
  * @param chainId - Chain the token lives on
  * @param token - Candidate anchor token (carries address + pricePerUSDNew).
  *   Undefined ⇒ `0n`.
- * @returns `$1` (1e18-base) for a stablecoin / destination anchor, WETH's oracle
+ * @returns `$1` (1e18-base) for a stablecoin / destination anchor, WETH's stored
  *   price for the WETH anchor, or `0n` when `token` is not a hard anchor
  */
 export function getHardAnchorUnitUSD(
@@ -223,7 +197,7 @@ export function getHardAnchorUnitUSD(
     return TEN_TO_THE_18_BI; // hard $1 pin
   }
   if (lower === constants.weth.toLowerCase()) {
-    return token.pricePerUSDNew; // WETH oracle price (0n ⇒ anchor unusable)
+    return token.pricePerUSDNew; // WETH stored price (0n ⇒ anchor unusable)
   }
   return 0n;
 }
@@ -234,8 +208,9 @@ export function getHardAnchorUnitUSD(
  * `priceTrustOutcome` / `priceTrustReason` fields are populated in lockstep
  * with `isWhitelisted` rather than left null until the first aggregator consult.
  *
- * Trust requires a positive signal: protocol whitelist OR a configured price
- * connector (#898). The operator BLACKLIST overrides either signal downward.
+ * Trust requires a positive signal: legacy protocol whitelist, Aero
+ * TokenRegistry listing (ADR 0005) OR a configured price connector (#898). The
+ * operator BLACKLIST overrides any signal downward.
  *
  * Reason precedence:
  *  - No positive signal at all ⇒ `NON_WL` — and BLACKLIST membership is
@@ -243,22 +218,24 @@ export function getHardAnchorUnitUSD(
  *    semantic that a non-whitelisted, non-connector token reports `NON_WL` even
  *    when blacklisted.
  *  - A positive signal exists but the address is blacklisted ⇒ `BLACKLISTED`
- *    (operator override beats both whitelist and connector).
- *  - Otherwise trusted, tagged `WL` when whitelisted (the stronger provenance)
- *    or `CONNECTOR` when trusted solely by connector membership.
+ *    (operator override beats every signal).
+ *  - Otherwise trusted, tagged `WL` when whitelisted (the stronger provenance),
+ *    else `LISTED` when Aero-listed, else `CONNECTOR`.
  *
  * @param chainId - Chain ID for BLACKLIST + connector lookup
  * @param address - Token address (EIP-55 checksum) for BLACKLIST + connector lookup
- * @param isWhitelisted - Protocol-whitelist signal from the Voter contract
+ * @param isWhitelisted - Protocol-whitelist signal from the legacy Voter contract
+ * @param isListedOnAero - Listing signal from the Aero TokenRegistry (default false)
  * @returns `{ trusted, outcome, reason }` decision
  */
 export function getGateDecisionFromSignals(
   chainId: number,
   address: string,
   isWhitelisted: boolean,
+  isListedOnAero = false,
 ): PriceTrustDecision {
   const isConnector = isConnectorToken(chainId, address);
-  if (!isWhitelisted && !isConnector) {
+  if (!isWhitelisted && !isListedOnAero && !isConnector) {
     return {
       trusted: false,
       outcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
@@ -277,7 +254,9 @@ export function getGateDecisionFromSignals(
     outcome: PRICE_TRUST_OUTCOME.TRUSTED,
     reason: isWhitelisted
       ? PRICE_TRUST_REASON.WL
-      : PRICE_TRUST_REASON.CONNECTOR,
+      : isListedOnAero
+        ? PRICE_TRUST_REASON.LISTED
+        : PRICE_TRUST_REASON.CONNECTOR,
   };
 }
 
@@ -299,12 +278,14 @@ export function getGateDecisionFromSignals(
  *
  * @param token - Token entity. Undefined is reported as `NON_WL` (no
  *   whitelist attestation exists) and never triggers a heal write.
+ * @param chainId - Chain of the event being handled (the token's chain)
  * @param context - Optional handler context. When provided, drift detected
  *   between stored and freshly-computed gate fields is corrected in-place.
  * @returns `{ trusted, outcome, reason }` decision derived from live signals
  */
 export function getGateDecision(
   token: Token | undefined,
+  chainId: number,
   context?: handlerContext,
 ): PriceTrustDecision {
   if (!token) {
@@ -315,9 +296,10 @@ export function getGateDecision(
     };
   }
   const fresh = getGateDecisionFromSignals(
-    token.chainId,
+    chainId,
     token.address,
     token.isWhitelisted,
+    token.isListedOnAero ?? false,
   );
   if (
     context &&

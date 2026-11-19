@@ -1,52 +1,7 @@
 import type { PublicClient } from "viem";
-import ERC20_ABI from "../../../abis/ERC20.json";
 import SpotPriceAggregatorABI from "../../../abis/SpotPriceAggregator.json";
 import PriceOracleABI from "../../../abis/VeloPriceOracleABI.json";
-import { CHAIN_CONSTANTS, PriceOracleType } from "../../Constants";
-
-/**
- * Fetches ERC20 token metadata (name, decimals, symbol) via multicall-style reads.
- * Pure RPC layer; call via RpcGateway for retry + error handling.
- *
- * @param contractAddress - ERC20 contract address to query.
- * @param ethClient - Viem public client for the chain where the token lives.
- * @returns Object with name, decimals, and symbol (empty string / 18 for missing or invalid values).
- * @throws Propagates RPC/contract errors; caller (e.g. executeRpcWithFallback) should log and return fallback.
- */
-export async function fetchTokenDetails(
-  contractAddress: string,
-  ethClient: PublicClient,
-): Promise<{ name: string; decimals: number; symbol: string }> {
-  const [nameResult, decimalsResult, symbolResult] = await Promise.all([
-    ethClient.readContract({
-      address: contractAddress as `0x${string}`,
-      abi: ERC20_ABI,
-      functionName: "name",
-      args: [],
-    }),
-    ethClient.readContract({
-      address: contractAddress as `0x${string}`,
-      abi: ERC20_ABI,
-      functionName: "decimals",
-      args: [],
-    }),
-    ethClient.readContract({
-      address: contractAddress as `0x${string}`,
-      abi: ERC20_ABI,
-      functionName: "symbol",
-      args: [],
-    }),
-  ]);
-
-  // Preserve contract-returned 0; some legit ERC20s have 0 decimals (e.g. IDRX).
-  const decimalsNum = decimalsResult == null ? 18 : Number(decimalsResult);
-
-  return {
-    name: nameResult?.toString() || "",
-    decimals: Number.isFinite(decimalsNum) ? decimalsNum : 18,
-    symbol: symbolResult?.toString() || "",
-  };
-}
+import { PriceOracleType, getLegacyConstants } from "../../Constants";
 
 /**
  * Fetches token price in USD from the chain's price oracle (V2, V3, or V4).
@@ -73,9 +28,9 @@ export async function fetchTokenPrice(
   blockNumber: number,
   ethClient: PublicClient,
 ): Promise<{ pricePerUSDNew: bigint; priceOracleType: string }> {
-  const priceOracleType = CHAIN_CONSTANTS[chainId].oracle.getType(blockNumber);
-  const priceOracleAddress =
-    CHAIN_CONSTANTS[chainId].oracle.getAddress(priceOracleType);
+  const { oracle } = getLegacyConstants(chainId);
+  const priceOracleType = oracle.getType(blockNumber);
+  const priceOracleAddress = oracle.getAddress(priceOracleType);
 
   if (
     priceOracleType === PriceOracleType.V3 ||

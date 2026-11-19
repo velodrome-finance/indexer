@@ -9,7 +9,8 @@ describe("FeeToTickSpacingMapping", () => {
   const TICK_SPACING = 100n;
   const INITIAL_FEE = 500n;
   const INITIAL_TIMESTAMP = 1000000;
-  const MAPPING_ID = FeeToTickSpacingMappingId(CHAIN_ID, TICK_SPACING);
+  const FACTORY = "0x548118C7E0B865C2CfA94D15EC86B666468ac758";
+  const MAPPING_ID = FeeToTickSpacingMappingId(CHAIN_ID, FACTORY, TICK_SPACING);
 
   let mockContext: Partial<handlerContext>;
   let currentMapping: FeeToTickSpacingMapping;
@@ -28,7 +29,7 @@ describe("FeeToTickSpacingMapping", () => {
 
     currentMapping = {
       id: MAPPING_ID,
-      chainId: CHAIN_ID,
+      factoryAddress: FACTORY,
       tickSpacing: TICK_SPACING,
       fee: INITIAL_FEE,
       lastUpdatedTimestamp: new Date(INITIAL_TIMESTAMP * 1000),
@@ -128,7 +129,6 @@ describe("FeeToTickSpacingMapping", () => {
         .calls[0]?.[0] as FeeToTickSpacingMapping;
 
       expect(updatedMapping.id).toBe(currentMapping.id);
-      expect(updatedMapping.chainId).toBe(currentMapping.chainId);
       expect(updatedMapping.tickSpacing).toBe(currentMapping.tickSpacing);
     });
 

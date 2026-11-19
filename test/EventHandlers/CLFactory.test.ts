@@ -1,20 +1,19 @@
 import type { CLGaugeConfig, Token } from "envio";
 import { createTestIndexer } from "envio";
 import {
-  CHAIN_CONSTANTS,
   FeeToTickSpacingMappingId,
-  PendingDistributionId,
-  PendingRootPoolMappingId,
-  PendingVoteId,
   PoolId,
-  RootGaugeRootPoolId,
-  RootPoolLeafPoolId,
   TokenId,
   VeNFTId,
   rootPoolMatchingHash,
   toChecksumAddress,
 } from "../../src/Constants";
 import { rehydrateTimestamps } from "../../src/EntityTimestamps";
+import {
+  RootPoolId,
+  RootPoolVoteId,
+} from "../../src/EventHandlers/Voter/RootPoolLogic";
+import type { WithChain } from "../testHelpers";
 import { setupCommon } from "./Pool/common";
 
 // An event only routes to a contract when its source address is one configured
@@ -42,8 +41,13 @@ describe("CLFactory Events", () => {
   const TICK_SPACING = 60n;
   const FEE = 500n;
   const createFeeToTickSpacingMapping = () => ({
-    id: FeeToTickSpacingMappingId(chainId, TICK_SPACING),
+    id: FeeToTickSpacingMappingId(
+      chainId,
+      CL_FACTORY_ADDRESS_BY_CHAIN[chainId],
+      TICK_SPACING,
+    ),
     chainId: chainId,
+    factoryAddress: CL_FACTORY_ADDRESS_BY_CHAIN[chainId],
     tickSpacing: TICK_SPACING,
     fee: FEE,
     lastUpdatedTimestamp: new Date(1000000 * 1000),
@@ -62,21 +66,22 @@ describe("CLFactory Events", () => {
       ...mockToken0Data,
       id: TokenId(chainId, mockToken0Data.address),
       chainId: chainId,
-    } satisfies Token;
+    } satisfies WithChain<Token>;
     const token1ForBase = {
       ...mockToken1Data,
       id: TokenId(chainId, mockToken1Data.address),
       chainId: chainId,
-    } satisfies Token;
+    } satisfies WithChain<Token>;
     indexer.Token.set(token0ForBase);
     indexer.Token.set(token1ForBase);
     const clGaugeConfig = {
       id: String(clGaugeConfigChainId),
+      chainId: clGaugeConfigChainId,
       defaultEmissionsCap: 0n,
       defaultMinStakeTime: 0n,
       penaltyRate: 0n,
       lastUpdatedTimestamp: new Date(1000000 * 1000),
-    } satisfies CLGaugeConfig;
+    } satisfies WithChain<CLGaugeConfig>;
     indexer.CLGaugeConfig.set(clGaugeConfig);
     if (includeFeeToTickSpacing) {
       const feeToTickSpacingMapping = createFeeToTickSpacingMapping();
@@ -128,12 +133,80 @@ describe("CLFactory Events", () => {
       expect(pool?.isCL).toBe(true);
     });
 
+    it("registers a tier-3 / tier-3 pool as a peer pool for both sides (ADR 0007)", async () => {
+      // 0x1111… / 0x2222… are both tier-3 tokens on Base.
+      const poolId = PoolId(chainId, poolAddress);
+      expect(
+        (await indexer.TokenPricingPools.get(TokenId(chainId, token0Address)))
+          ?.pools,
+      ).toEqual([poolId]);
+      expect(
+        (await indexer.TokenPricingPools.get(TokenId(chainId, token1Address)))
+          ?.pools,
+      ).toEqual([poolId]);
+    });
+
+    it("registers the pool as a pricing candidate for the higher-tier side (ADR 0003)", async () => {
+      const baseWeth = toChecksumAddress(
+        "0x4200000000000000000000000000000000000006",
+      );
+      const clPool = toChecksumAddress(
+        "0x4444444444444444444444444444444444444444",
+      );
+      const idx = createTestIndexer();
+      setupIndexerWithEntities(idx);
+      idx.Token.set({
+        ...mockToken1Data,
+        id: TokenId(chainId, baseWeth),
+        address: baseWeth,
+        chainId,
+      } satisfies WithChain<Token>);
+      await idx.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              {
+                contract: "CLFactory",
+                event: "PoolCreated",
+                srcAddress: CL_FACTORY_ADDRESS_BY_CHAIN[
+                  chainId
+                ] as `0x${string}`,
+                logIndex: 1,
+                block: {
+                  number: 1000000,
+                  timestamp: 1000000,
+                  hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+                },
+                params: {
+                  token0: token0Address as `0x${string}`, // tier 3
+                  token1: baseWeth as `0x${string}`, // tier 1
+                  pool: clPool,
+                  tickSpacing: TICK_SPACING,
+                },
+              },
+            ],
+          },
+        },
+      });
+      expect(
+        (await idx.TokenPricingPools.get(TokenId(chainId, token0Address)))
+          ?.pools,
+      ).toEqual([PoolId(chainId, clPool)]);
+      expect(
+        await idx.TokenPricingPools.get(TokenId(chainId, baseWeth)),
+      ).toBeUndefined();
+    });
+
     it("should process event even during preload phase", async () => {
       const preloadIndexer = createTestIndexer();
       setupIndexerWithEntities(preloadIndexer);
 
       // Verify the mapping exists before processing (using the same key format as the handler)
-      const mappingKey = FeeToTickSpacingMappingId(chainId, TICK_SPACING);
+      const mappingKey = FeeToTickSpacingMappingId(
+        chainId,
+        CL_FACTORY_ADDRESS_BY_CHAIN[chainId],
+        TICK_SPACING,
+      );
       const mappingBefore =
         await preloadIndexer.FeeToTickSpacingMapping.get(mappingKey);
       expect(mappingBefore).toBeDefined(); // Verify mapping exists before processing
@@ -240,14 +313,15 @@ describe("CLFactory Events", () => {
         ...mockToken0Data,
         id: TokenId(chainId, mockToken0Data.address),
         chainId,
-      } as Token);
+      });
       idx.CLGaugeConfig.set({
         id: String(chainId),
+        chainId,
         defaultEmissionsCap: 0n,
         defaultMinStakeTime: 0n,
         penaltyRate: 0n,
         lastUpdatedTimestamp: new Date(1000000 * 1000),
-      } satisfies CLGaugeConfig);
+      } satisfies WithChain<CLGaugeConfig>);
       idx.FeeToTickSpacingMapping.set(createFeeToTickSpacingMapping());
 
       await idx.process({
@@ -290,188 +364,11 @@ describe("CLFactory Events", () => {
       expect(eoaToken).toBeUndefined();
     });
 
-    describe("when PendingRootPoolMapping exists for the same rootPoolMatchingHash", () => {
-      const rootChainId = 10;
-      const rootPoolAddress = toChecksumAddress(
-        "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
-      );
-
-      it("should create RootPool_LeafPool and delete PendingRootPoolMapping", async () => {
-        const hash = rootPoolMatchingHash(
-          chainId,
-          token0Address,
-          token1Address,
-          TICK_SPACING,
-        );
-        const pendingMapping = {
-          id: PendingRootPoolMappingId(rootChainId, rootPoolAddress),
-          rootChainId,
-          rootPoolAddress,
-          leafChainId: chainId,
-          token0: token0Address,
-          token1: token1Address,
-          tickSpacing: TICK_SPACING,
-          rootPoolMatchingHash: hash,
-        };
-
-        const idx = createTestIndexer();
-        setupIndexerWithEntities(idx);
-        idx.PendingRootPoolMapping.set(pendingMapping);
-
-        await idx.process({
-          chains: {
-            [chainId]: {
-              simulate: [
-                {
-                  contract: "CLFactory",
-                  event: "PoolCreated",
-                  srcAddress: CL_FACTORY_ADDRESS_BY_CHAIN[
-                    chainId
-                  ] as `0x${string}`,
-                  logIndex: 1,
-                  block: {
-                    number: 1000000,
-                    timestamp: 1000000,
-                    hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
-                  },
-                  params: {
-                    token0: token0Address as `0x${string}`,
-                    token1: token1Address as `0x${string}`,
-                    pool: poolAddress,
-                    tickSpacing: TICK_SPACING,
-                  },
-                },
-              ],
-            },
-          },
-        });
-
-        const rootPoolLeafPool = await idx.RootPool_LeafPool.get(
-          RootPoolLeafPoolId(
-            rootChainId,
-            chainId,
-            rootPoolAddress,
-            poolAddress,
-          ),
-        );
-        expect(rootPoolLeafPool).toBeDefined();
-        expect(rootPoolLeafPool?.rootPoolAddress).toBe(rootPoolAddress);
-        expect(rootPoolLeafPool?.leafPoolAddress).toBe(poolAddress);
-        expect(rootPoolLeafPool?.leafChainId).toBe(chainId);
-
-        const stillPending = await idx.PendingRootPoolMapping.get(
-          pendingMapping.id,
-        );
-        expect(stillPending).toBeUndefined();
-      });
-
-      it("should flush pending votes when PendingVote and VeNFTState exist", async () => {
-        const { createMockVeNFTState } = setupCommon();
-
-        const hash = rootPoolMatchingHash(
-          chainId,
-          token0Address,
-          token1Address,
-          TICK_SPACING,
-        );
-        const pendingMapping = {
-          id: PendingRootPoolMappingId(rootChainId, rootPoolAddress),
-          rootChainId,
-          rootPoolAddress,
-          leafChainId: chainId,
-          token0: token0Address,
-          token1: token1Address,
-          tickSpacing: TICK_SPACING,
-          rootPoolMatchingHash: hash,
-        };
-        const tokenId = 1n;
-        const voteWeight = 100n;
-        const blockTimestamp = 1000000;
-        const blockNumber = 1000000;
-        const blockHash =
-          "0x1234567890123456789012345678901234567890123456789012345678901234";
-        const txHash = blockHash;
-        const logIndex = 1;
-        const pendingVote = {
-          id: PendingVoteId(
-            rootChainId,
-            rootPoolAddress,
-            tokenId,
-            txHash,
-            logIndex,
-          ),
-          chainId: rootChainId,
-          rootPoolAddress,
-          tokenId,
-          weight: voteWeight,
-          eventType: "Voted",
-          timestamp: new Date(blockTimestamp * 1000),
-          blockNumber: BigInt(blockNumber),
-          transactionHash: txHash,
-        };
-        const ownerAddress = toChecksumAddress(
-          "0x2222222222222222222222222222222222222222",
-        );
-        const veNFTState = createMockVeNFTState({
-          id: VeNFTId(rootChainId, tokenId),
-          chainId: rootChainId,
-          tokenId,
-          owner: ownerAddress,
-        });
-
-        const idx = createTestIndexer();
-        setupIndexerWithEntities(idx);
-        idx.PendingRootPoolMapping.set(pendingMapping);
-        idx.PendingVote.set(pendingVote);
-        idx.VeNFTState.set(veNFTState);
-
-        await idx.process({
-          chains: {
-            [chainId]: {
-              simulate: [
-                {
-                  contract: "CLFactory",
-                  event: "PoolCreated",
-                  srcAddress: CL_FACTORY_ADDRESS_BY_CHAIN[
-                    chainId
-                  ] as `0x${string}`,
-                  logIndex,
-                  block: {
-                    number: blockNumber,
-                    timestamp: blockTimestamp,
-                    hash: blockHash,
-                  },
-                  params: {
-                    token0: token0Address as `0x${string}`,
-                    token1: token1Address as `0x${string}`,
-                    pool: poolAddress,
-                    tickSpacing: TICK_SPACING,
-                  },
-                },
-              ],
-            },
-          },
-        });
-
-        const rootPoolLeafPool = await idx.RootPool_LeafPool.get(
-          RootPoolLeafPoolId(
-            rootChainId,
-            chainId,
-            rootPoolAddress,
-            poolAddress,
-          ),
-        );
-        expect(rootPoolLeafPool).toBeDefined();
-
-        const processedPendingVote = await idx.PendingVote.get(pendingVote.id);
-        expect(processedPendingVote).toBeUndefined();
-
-        const leafPool = await idx.Pool.get(PoolId(chainId, poolAddress));
-        expect(leafPool?.veNFTamountStaked).toBe(voteWeight);
-      });
-    });
-
-    describe("full E2E: root ahead then leaf catches up (flush)", () => {
+    // A leaf CL pool only stores rootPoolMatchingHash and factoryAddress; the
+    // analytics layer joins it to Optimism's RootPool on them. Nothing is
+    // mapped or flushed at leaf pool creation (ADR 0009, flow E), and the root
+    // pool's votes stay on Optimism's RootPool (flow A).
+    describe("on a superchain leaf chain (root pool created on Optimism)", () => {
       const rootChainId = 10 as const;
       const leafChainId = 252 as const; // Fraxtal
       const rootPoolAddress = toChecksumAddress(
@@ -480,6 +377,9 @@ describe("CLFactory Events", () => {
       const leafPoolAddress = toChecksumAddress(
         "0x3333333333333333333333333333333333333333",
       );
+      const voterAddress = toChecksumAddress(
+        "0x41C914ee0c7E1A5edCD0295623e6dC557B5aBf3C",
+      );
       const blockTimestamp = 1000000;
       const blockNumber = 1000000;
       const txHash =
@@ -487,383 +387,173 @@ describe("CLFactory Events", () => {
 
       function setupLeafChainEntities(
         idx: ReturnType<typeof createTestIndexer>,
-        leafChain: number,
-        leafToken0: string,
-        leafToken1: string,
-        tickSpacing: bigint,
-        fee: bigint = FEE,
       ): void {
-        const token0ForLeaf = {
-          ...mockToken0Data,
-          id: TokenId(leafChain, leafToken0),
-          address: toChecksumAddress(leafToken0),
-          chainId: leafChain,
-        } satisfies Token;
-        const token1ForLeaf = {
-          ...mockToken1Data,
-          id: TokenId(leafChain, leafToken1),
-          address: toChecksumAddress(leafToken1),
-          chainId: leafChain,
-        } satisfies Token;
-        idx.Token.set(token0ForLeaf);
-        idx.Token.set(token1ForLeaf);
-        const clGaugeConfig = {
-          id: String(leafChain),
+        for (const [base, address] of [
+          [mockToken0Data, token0Address],
+          [mockToken1Data, token1Address],
+        ] as const) {
+          idx.Token.set({
+            ...base,
+            id: TokenId(leafChainId, address),
+            address,
+            chainId: leafChainId,
+          } satisfies WithChain<Token>);
+        }
+        idx.CLGaugeConfig.set({
+          id: String(leafChainId),
+          chainId: leafChainId,
           defaultEmissionsCap: 0n,
           defaultMinStakeTime: 0n,
           penaltyRate: 0n,
           lastUpdatedTimestamp: new Date(1000000 * 1000),
-        } satisfies CLGaugeConfig;
-        idx.CLGaugeConfig.set(clGaugeConfig);
-        const feeToTickSpacingMapping = {
-          id: FeeToTickSpacingMappingId(leafChain, tickSpacing),
-          chainId: leafChain,
-          tickSpacing,
-          fee,
-          lastUpdatedTimestamp: new Date(1000000 * 1000),
-        };
-        idx.FeeToTickSpacingMapping.set(feeToTickSpacingMapping);
-      }
-
-      function setupCrossChainFlushE2E(options: {
-        rootChainId: typeof rootChainId;
-        leafChainId: typeof leafChainId;
-        rootPoolAddress: string;
-        leafPoolAddress: string;
-        blockTimestamp: number;
-        blockNumber: number;
-        txHash: string;
-        token0Address: string;
-        token1Address: string;
-        tickSpacing: bigint;
-        fee?: bigint;
-      }) {
-        const {
-          rootChainId: rcid,
-          leafChainId: lcid,
-          rootPoolAddress: rpa,
-          leafPoolAddress: lpa,
-          blockTimestamp: ts,
-          blockNumber: bn,
-          txHash: hash,
-          token0Address: t0,
-          token1Address: t1,
-          tickSpacing: ts2,
-          fee = FEE,
-        } = options;
-
-        const idx = createTestIndexer();
-        setupLeafChainEntities(idx, lcid, t0, t1, ts2, fee);
-
-        const rootPoolCreatedSimulate = {
-          contract: "RootCLPoolFactory" as const,
-          event: "RootPoolCreated" as const,
-          srcAddress: ROOT_CL_POOL_FACTORY_ADDRESS_OPTIMISM as `0x${string}`,
-          logIndex: 1,
-          block: { timestamp: ts, number: bn, hash },
-          params: {
-            token0: t0 as `0x${string}`,
-            token1: t1 as `0x${string}`,
-            tickSpacing: ts2,
-            chainid: BigInt(lcid),
-            pool: rpa as `0x${string}`,
-          },
-        };
-
-        const createClFactoryPoolCreatedSimulate = (
-          blockOffset = 1,
-          timestampOffset = 1,
-        ) => ({
-          contract: "CLFactory" as const,
-          event: "PoolCreated" as const,
-          srcAddress: CL_FACTORY_ADDRESS_BY_CHAIN[lcid] as `0x${string}`,
-          logIndex: 1,
-          block: {
-            number: bn + blockOffset,
-            timestamp: ts + timestampOffset,
-            hash,
-          },
-          params: {
-            token0: t0 as `0x${string}`,
-            token1: t1 as `0x${string}`,
-            pool: lpa as `0x${string}`,
-            tickSpacing: ts2,
-          },
-        });
-
-        return {
-          indexer: idx,
-          rootPoolCreatedSimulate,
-          createClFactoryPoolCreatedSimulate,
-          rcid,
-          lcid,
-        };
-      }
-
-      it("should flush PendingRootPoolMapping and PendingVote when processing RootPoolCreated, Voted, then CLFactory.PoolCreated (two processEvents: root chain 10, leaf chain 252)", async () => {
-        const { createMockVeNFTState } = setupCommon();
-        const voteTokenId = 1n;
-        const voteWeight = 100n;
-        const ownerAddress = toChecksumAddress(
-          "0x2222222222222222222222222222222222222222",
-        );
-
-        const e2e = setupCrossChainFlushE2E({
-          rootChainId,
-          leafChainId,
-          rootPoolAddress,
-          leafPoolAddress,
-          blockTimestamp,
-          blockNumber,
-          txHash,
-          token0Address,
-          token1Address,
+        } satisfies WithChain<CLGaugeConfig>);
+        idx.FeeToTickSpacingMapping.set({
+          id: FeeToTickSpacingMappingId(
+            leafChainId,
+            CL_FACTORY_ADDRESS_BY_CHAIN[leafChainId],
+            TICK_SPACING,
+          ),
+          chainId: leafChainId,
+          factoryAddress: CL_FACTORY_ADDRESS_BY_CHAIN[leafChainId],
           tickSpacing: TICK_SPACING,
+          fee: FEE,
+          lastUpdatedTimestamp: new Date(1000000 * 1000),
+        });
+      }
+
+      const rootPoolCreated = {
+        contract: "RootCLPoolFactory" as const,
+        event: "RootPoolCreated" as const,
+        srcAddress: ROOT_CL_POOL_FACTORY_ADDRESS_OPTIMISM as `0x${string}`,
+        logIndex: 1,
+        block: { timestamp: blockTimestamp, number: blockNumber, hash: txHash },
+        params: {
+          token0: token0Address as `0x${string}`,
+          token1: token1Address as `0x${string}`,
+          tickSpacing: TICK_SPACING,
+          chainid: BigInt(leafChainId),
+          pool: rootPoolAddress as `0x${string}`,
+        },
+      };
+      const voted = (logIndex: number, tokenId: bigint, weight: bigint) => ({
+        contract: "Voter" as const,
+        event: "Voted" as const,
+        srcAddress: voterAddress as `0x${string}`,
+        logIndex,
+        block: { number: blockNumber, timestamp: blockTimestamp, hash: txHash },
+        transaction: { hash: txHash },
+        params: {
+          voter: voterAddress,
+          pool: rootPoolAddress,
+          tokenId,
+          weight,
+          totalWeight: 1000n,
+        },
+      });
+      const leafPoolCreated = {
+        contract: "CLFactory" as const,
+        event: "PoolCreated" as const,
+        srcAddress: CL_FACTORY_ADDRESS_BY_CHAIN[leafChainId] as `0x${string}`,
+        logIndex: 1,
+        block: {
+          number: blockNumber + 1,
+          timestamp: blockTimestamp + 1,
+          hash: txHash,
+        },
+        params: {
+          token0: token0Address as `0x${string}`,
+          token1: token1Address as `0x${string}`,
+          pool: leafPoolAddress as `0x${string}`,
+          tickSpacing: TICK_SPACING,
+        },
+      };
+
+      it("stores the join keys of Optimism's RootPool and writes no RootPool_LeafPool", async () => {
+        const idx = createTestIndexer();
+        setupLeafChainEntities(idx);
+        await idx.process({
+          chains: { [rootChainId]: { simulate: [rootPoolCreated] } },
+        });
+        await idx.process({
+          chains: { [leafChainId]: { simulate: [leafPoolCreated] } },
         });
 
-        {
-          const veNFTState = createMockVeNFTState({
-            id: VeNFTId(rootChainId, voteTokenId),
-            chainId: rootChainId,
-            tokenId: voteTokenId,
-            owner: ownerAddress,
-          });
-
-          e2e.indexer.VeNFTState.set(veNFTState);
-
-          // Root chain first: RootPoolCreated + Voted create the
-          // PendingRootPoolMapping + PendingVote.
-          await e2e.indexer.process({
-            chains: {
-              [rootChainId]: {
-                simulate: [
-                  e2e.rootPoolCreatedSimulate,
-                  {
-                    contract: "Voter",
-                    event: "Voted",
-                    srcAddress: toChecksumAddress(
-                      "0x41C914ee0c7E1A5edCD0295623e6dC557B5aBf3C",
-                    ) as `0x${string}`,
-                    logIndex: 2,
-                    block: {
-                      number: blockNumber,
-                      timestamp: blockTimestamp,
-                      hash: txHash,
-                    },
-                    transaction: { hash: txHash },
-                    params: {
-                      voter: ownerAddress,
-                      pool: rootPoolAddress,
-                      tokenId: voteTokenId,
-                      weight: voteWeight,
-                      totalWeight: 1000n,
-                    },
-                  },
-                ],
-              },
-            },
-          });
-
-          // The leaf CLFactory.PoolCreated runs on a FRESH indexer carrying the
-          // post-root state. createTestIndexer supports only ONE process() per
-          // indexer (a 2nd process(), or a 2nd chain in the same process(),
-          // re-persists batch-1 entities whose Timestamp fields have
-          // round-tripped to strings and the writer throws date.toISOString).
-          // Re-seeding the rehydrated entities reproduces the "root ahead, leaf
-          // catches up" world the leaf event flushes.
-          const leafIndexer = createTestIndexer();
-          for (const e of await e2e.indexer.Token.getAll())
-            leafIndexer.Token.set(rehydrateTimestamps("Token", e));
-          for (const e of await e2e.indexer.CLGaugeConfig.getAll())
-            leafIndexer.CLGaugeConfig.set(
-              rehydrateTimestamps("CLGaugeConfig", e),
-            );
-          for (const e of await e2e.indexer.FeeToTickSpacingMapping.getAll())
-            leafIndexer.FeeToTickSpacingMapping.set(
-              rehydrateTimestamps("FeeToTickSpacingMapping", e),
-            );
-          for (const e of await e2e.indexer.VeNFTState.getAll())
-            leafIndexer.VeNFTState.set(rehydrateTimestamps("VeNFTState", e));
-          for (const e of await e2e.indexer.PendingVote.getAll())
-            leafIndexer.PendingVote.set(rehydrateTimestamps("PendingVote", e));
-          // PendingRootPoolMapping has no Timestamp field — copy as-is.
-          for (const e of await e2e.indexer.PendingRootPoolMapping.getAll())
-            leafIndexer.PendingRootPoolMapping.set(e);
-
-          const clFactoryPoolCreatedSimulate =
-            e2e.createClFactoryPoolCreatedSimulate(1, 1);
-
-          await leafIndexer.process({
-            chains: {
-              [leafChainId]: {
-                simulate: [clFactoryPoolCreatedSimulate],
-              },
-            },
-          });
-
-          const stillPending = await leafIndexer.PendingRootPoolMapping.get(
-            PendingRootPoolMappingId(rootChainId, rootPoolAddress),
-          );
-          expect(stillPending).toBeUndefined();
-
-          const rootPoolLeafPool = await leafIndexer.RootPool_LeafPool.get(
-            RootPoolLeafPoolId(
-              rootChainId,
-              leafChainId,
-              rootPoolAddress,
-              leafPoolAddress,
-            ),
-          );
-          expect(rootPoolLeafPool).toBeDefined();
-
-          const processedPendingVote = await leafIndexer.PendingVote.get(
-            PendingVoteId(rootChainId, rootPoolAddress, voteTokenId, txHash, 2),
-          );
-          expect(processedPendingVote).toBeUndefined();
-
-          const leafPool = await leafIndexer.Pool.get(
-            PoolId(leafChainId, leafPoolAddress),
-          );
-          expect(leafPool).toBeDefined();
-          expect(leafPool?.veNFTamountStaked).toBe(voteWeight);
-        }
+        const rootPool = await idx.RootPool.get(
+          RootPoolId(rootChainId, rootPoolAddress),
+        );
+        const leafPool = await idx.Pool.get(
+          PoolId(leafChainId, leafPoolAddress),
+        );
+        expect(leafPool?.rootPoolMatchingHash).toBe(
+          rootPoolMatchingHash(
+            leafChainId,
+            token0Address,
+            token1Address,
+            TICK_SPACING,
+          ),
+        );
+        expect(leafPool?.rootPoolMatchingHash).toBe(
+          rootPool?.rootPoolMatchingHash,
+        );
+        expect(leafPool?.factoryAddress).toBe(rootPool?.rootFactoryAddress);
+        expect(await idx.RootPool_LeafPool.getAll()).toEqual([]);
       });
 
-      it("should flush multiple PendingVotes for same root pool when CLFactory.PoolCreated is processed", async () => {
-        const rootPoolAddressMulti = toChecksumAddress(
-          "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
-        );
+      it("keeps Optimism's votes on the RootPool: the leaf pool's veNFTamountStaked stays 0 and no leaf user or VeNFTPoolVote is written", async () => {
         const { createMockVeNFTState } = setupCommon();
-        const voteWeight1 = 100n;
-        const voteWeight2 = 200n;
-        const tokenId1 = 1n;
-        const tokenId2 = 2n;
-        const blockTimestampMs = blockTimestamp * 1000;
-        const ownerAddress1 = toChecksumAddress(
-          "0x2222222222222222222222222222222222222222",
-        );
-        const ownerAddress2 = toChecksumAddress(
-          "0x3333333333333333333333333333333333333333",
-        );
-
-        const hash = rootPoolMatchingHash(
-          chainId,
-          token0Address,
-          token1Address,
-          TICK_SPACING,
-        );
-        const pendingMapping = {
-          id: PendingRootPoolMappingId(chainId, rootPoolAddressMulti),
-          rootChainId: chainId,
-          rootPoolAddress: rootPoolAddressMulti,
-          leafChainId: chainId,
-          token0: token0Address,
-          token1: token1Address,
-          tickSpacing: TICK_SPACING,
-          rootPoolMatchingHash: hash,
-        };
-        const blockHash =
-          "0x1234567890123456789012345678901234567890123456789012345678901234";
-        const txHashMulti = blockHash;
-        const pendingVote1 = {
-          id: PendingVoteId(
-            chainId,
-            rootPoolAddressMulti,
-            tokenId1,
-            txHashMulti,
-            1,
-          ),
-          chainId,
-          rootPoolAddress: rootPoolAddressMulti,
-          tokenId: tokenId1,
-          weight: voteWeight1,
-          eventType: "Voted",
-          timestamp: new Date(blockTimestampMs),
-          blockNumber: BigInt(blockNumber),
-          transactionHash: txHashMulti,
-        };
-        const pendingVote2 = {
-          id: PendingVoteId(
-            chainId,
-            rootPoolAddressMulti,
-            tokenId2,
-            txHashMulti,
-            2,
-          ),
-          chainId,
-          rootPoolAddress: rootPoolAddressMulti,
-          tokenId: tokenId2,
-          weight: voteWeight2,
-          eventType: "Voted",
-          timestamp: new Date(blockTimestampMs + 1),
-          blockNumber: BigInt(blockNumber),
-          transactionHash: txHashMulti,
-        };
-        const veNFTState1 = createMockVeNFTState({
-          id: VeNFTId(chainId, tokenId1),
-          chainId,
-          tokenId: tokenId1,
-          owner: ownerAddress1,
-        });
-        const veNFTState2 = createMockVeNFTState({
-          id: VeNFTId(chainId, tokenId2),
-          chainId,
-          tokenId: tokenId2,
-          owner: ownerAddress2,
-        });
-
         const idx = createTestIndexer();
-        setupIndexerWithEntities(idx);
-        idx.PendingRootPoolMapping.set(pendingMapping);
-        idx.PendingVote.set(pendingVote1);
-        idx.PendingVote.set(pendingVote2);
-        idx.VeNFTState.set(veNFTState1);
-        idx.VeNFTState.set(veNFTState2);
-
+        setupLeafChainEntities(idx);
+        for (const tokenId of [1n, 2n]) {
+          idx.VeNFTState.set(
+            createMockVeNFTState({
+              id: VeNFTId(rootChainId, tokenId),
+              chainId: rootChainId,
+              tokenId,
+            }),
+          );
+        }
         await idx.process({
           chains: {
-            [chainId]: {
+            [rootChainId]: {
               simulate: [
-                {
-                  contract: "CLFactory",
-                  event: "PoolCreated",
-                  srcAddress: CL_FACTORY_ADDRESS_BY_CHAIN[
-                    chainId
-                  ] as `0x${string}`,
-                  logIndex: 1,
-                  block: {
-                    number: blockNumber,
-                    timestamp: blockTimestamp,
-                    hash: blockHash,
-                  },
-                  params: {
-                    token0: token0Address as `0x${string}`,
-                    token1: token1Address as `0x${string}`,
-                    pool: poolAddress,
-                    tickSpacing: TICK_SPACING,
-                  },
-                },
+                rootPoolCreated,
+                voted(2, 1n, 100n),
+                voted(3, 2n, 50n),
               ],
             },
           },
         });
+        await idx.process({
+          chains: { [leafChainId]: { simulate: [leafPoolCreated] } },
+        });
 
-        expect(await idx.PendingVote.get(pendingVote1.id)).toBeUndefined();
-        expect(await idx.PendingVote.get(pendingVote2.id)).toBeUndefined();
-
-        const rootPoolLeafPool = await idx.RootPool_LeafPool.get(
-          RootPoolLeafPoolId(
-            chainId,
-            chainId,
-            rootPoolAddressMulti,
-            poolAddress,
-          ),
+        // By design (ADR 0009): leaf pool vote fields stay at their defaults.
+        const leafPool = await idx.Pool.get(
+          PoolId(leafChainId, leafPoolAddress),
         );
-        expect(rootPoolLeafPool).toBeDefined();
-
-        const leafPool = await idx.Pool.get(PoolId(chainId, poolAddress));
         expect(leafPool).toBeDefined();
-        expect(leafPool?.veNFTamountStaked).toBe(voteWeight1 + voteWeight2);
+        expect(leafPool?.veNFTamountStaked).toBe(0n);
+        expect(await idx.UserStatsPerPool.getAll()).toEqual([]);
+        expect(await idx.VeNFTPoolVote.getAll()).toEqual([]);
+
+        const rootPool = await idx.RootPool.get(
+          RootPoolId(rootChainId, rootPoolAddress),
+        );
+        expect(rootPool?.veNFTamountStaked).toBe(1000n); // totalWeight
+        expect(
+          (
+            await idx.RootPoolVote.get(
+              RootPoolVoteId(rootChainId, 1n, rootPoolAddress),
+            )
+          )?.veNFTamountStaked,
+        ).toBe(100n);
+        expect(
+          (
+            await idx.RootPoolVote.get(
+              RootPoolVoteId(rootChainId, 2n, rootPoolAddress),
+            )
+          )?.veNFTamountStaked,
+        ).toBe(50n);
       });
     });
   });
@@ -885,7 +575,11 @@ describe("CLFactory Events", () => {
     });
 
     it("should create a new mapping when it doesn't exist", async () => {
-      const mappingId = FeeToTickSpacingMappingId(CHAIN_ID, TICK_SPACING);
+      const mappingId = FeeToTickSpacingMappingId(
+        CHAIN_ID,
+        CL_FACTORY_ADDRESS_BY_CHAIN[CHAIN_ID],
+        TICK_SPACING,
+      );
 
       await indexer.process({
         chains: {
@@ -928,7 +622,11 @@ describe("CLFactory Events", () => {
     });
 
     it("should update existing mapping when it already exists", async () => {
-      const mappingId = FeeToTickSpacingMappingId(CHAIN_ID, TICK_SPACING);
+      const mappingId = FeeToTickSpacingMappingId(
+        CHAIN_ID,
+        CL_FACTORY_ADDRESS_BY_CHAIN[CHAIN_ID],
+        TICK_SPACING,
+      );
       const oldFee = 400n;
       const newFee = 600n;
       const oldTimestamp = 500000;
@@ -938,6 +636,7 @@ describe("CLFactory Events", () => {
       const existingMapping = {
         id: mappingId,
         chainId: CHAIN_ID,
+        factoryAddress: CL_FACTORY_ADDRESS_BY_CHAIN[CHAIN_ID],
         tickSpacing: TICK_SPACING,
         fee: oldFee,
         lastUpdatedTimestamp: new Date(oldTimestamp * 1000),
@@ -1021,6 +720,7 @@ describe("CLFactory Events", () => {
         for (const mapping of mappings) {
           const mappingId = FeeToTickSpacingMappingId(
             mapping.chainId,
+            CL_FACTORY_ADDRESS_BY_CHAIN[mapping.chainId],
             mapping.tickSpacing,
           );
           expectedMappings.push({
@@ -1095,24 +795,30 @@ describe("CLFactory.PoolCreated ↔ CLPoolPendingInitialize buffer", () => {
       ...mockToken0Data,
       id: TokenId(chainId, mockToken0Data.address),
       chainId,
-    } satisfies Token;
+    } satisfies WithChain<Token>;
     const token1 = {
       ...mockToken1Data,
       id: TokenId(chainId, mockToken1Data.address),
       chainId,
-    } satisfies Token;
+    } satisfies WithChain<Token>;
     idx.Token.set(token0);
     idx.Token.set(token1);
     idx.CLGaugeConfig.set({
       id: String(chainId),
+      chainId,
       defaultEmissionsCap: 0n,
       defaultMinStakeTime: 0n,
       penaltyRate: 0n,
       lastUpdatedTimestamp: new Date(1000000 * 1000),
-    } satisfies CLGaugeConfig);
+    } satisfies WithChain<CLGaugeConfig>);
     idx.FeeToTickSpacingMapping.set({
-      id: FeeToTickSpacingMappingId(chainId, TICK_SPACING),
+      id: FeeToTickSpacingMappingId(
+        chainId,
+        CL_FACTORY_ADDRESS_BY_CHAIN[chainId],
+        TICK_SPACING,
+      ),
       chainId,
+      factoryAddress: CL_FACTORY_ADDRESS_BY_CHAIN[chainId],
       tickSpacing: TICK_SPACING,
       fee: FEE,
       lastUpdatedTimestamp: new Date(1000000 * 1000),

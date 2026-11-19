@@ -20,10 +20,10 @@ function getVeNFTStateStore(
 }
 
 describe("VeNFTState", () => {
+  const CHAIN_ID = 10;
   let mockContext: Partial<handlerContext>;
   const mockVeNFTState: VeNFTState = {
     id: VeNFTId(10, 1n),
-    chainId: 10,
     tokenId: 1n,
     owner: toChecksumAddress("0x1111111111111111111111111111111111111111"),
     locktime: 100n,
@@ -113,7 +113,6 @@ describe("VeNFTState", () => {
       beforeEach(async () => {
         const depositDiff = {
           id: VeNFTId(10, 1n),
-          chainId: 10,
           tokenId: 1n,
           owner: toChecksumAddress(
             "0x1111111111111111111111111111111111111111",
@@ -128,6 +127,7 @@ describe("VeNFTState", () => {
           mockVeNFTState,
           timestamp,
           mockContext as handlerContext,
+          CHAIN_ID,
         );
         const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         expect(mockSet).toBeDefined();
@@ -156,6 +156,7 @@ describe("VeNFTState", () => {
           mockVeNFTState,
           timestamp,
           mockContext as handlerContext,
+          CHAIN_ID,
         );
         const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         expect(mockSet).toBeDefined();
@@ -186,6 +187,7 @@ describe("VeNFTState", () => {
           zeroShell,
           timestamp,
           mockContext as handlerContext,
+          CHAIN_ID,
         );
         const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         result = mockSet?.mock.calls[0]?.[0] as VeNFTState;
@@ -224,6 +226,7 @@ describe("VeNFTState", () => {
           mockVeNFTState,
           timestamp,
           mockContext as handlerContext,
+          CHAIN_ID,
         );
         const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         expect(mockSet).toBeDefined();
@@ -249,6 +252,7 @@ describe("VeNFTState", () => {
           mockVeNFTState,
           timestamp,
           mockContext as handlerContext,
+          CHAIN_ID,
         );
 
         const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
@@ -273,6 +277,7 @@ describe("VeNFTState", () => {
           permanentState,
           timestamp,
           mockContext as handlerContext,
+          CHAIN_ID,
         );
 
         const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
@@ -294,6 +299,7 @@ describe("VeNFTState", () => {
           permanentState,
           timestamp,
           mockContext as handlerContext,
+          CHAIN_ID,
         );
 
         const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
@@ -324,6 +330,7 @@ describe("VeNFTState", () => {
           freshState,
           timestamp,
           mockContext as handlerContext,
+          CHAIN_ID,
         );
 
         expect(mockContext.log?.warn).toHaveBeenCalledWith(
@@ -345,6 +352,7 @@ describe("VeNFTState", () => {
           permanentState,
           timestamp,
           mockContext as handlerContext,
+          CHAIN_ID,
         );
 
         expect(mockContext.log?.warn).not.toHaveBeenCalled();
@@ -364,6 +372,7 @@ describe("VeNFTState", () => {
           burnedState,
           timestamp,
           mockContext as handlerContext,
+          CHAIN_ID,
         );
 
         expect(mockContext.log?.warn).not.toHaveBeenCalled();
@@ -385,6 +394,7 @@ describe("VeNFTState", () => {
           mockVeNFTState,
           timestamp,
           mockContext as handlerContext,
+          CHAIN_ID,
         );
         const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         expect(mockSet).toBeDefined();
@@ -402,7 +412,6 @@ describe("VeNFTState", () => {
         // Create a dummy empty VeNFTState to add to
         const emptyVeNFT: VeNFTState = {
           id: "10-99",
-          chainId: 10,
           tokenId: 99n,
           owner: toChecksumAddress(
             "0x0000000000000000000000000000000000000000",
@@ -425,6 +434,7 @@ describe("VeNFTState", () => {
           emptyVeNFT,
           timestamp,
           mockContext as handlerContext,
+          CHAIN_ID,
         );
         const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         expect(mockSet).toBeDefined();
@@ -445,6 +455,7 @@ describe("VeNFTState", () => {
           mockVeNFTState, // lastSnapshotTimestamp: undefined
           timestamp,
           mockContext as handlerContext,
+          CHAIN_ID,
         );
         const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         const updated = mockSet.mock.calls[0][0] as VeNFTState;
@@ -459,7 +470,6 @@ describe("VeNFTState", () => {
         expect(mockContext.VeNFTStateSnapshot?.set).toHaveBeenCalledWith(
           expect.objectContaining({
             id: VeNFTStateSnapshotId(10, 1n, expectedEpoch.getTime()),
-            chainId: 10,
             tokenId: 1n,
             owner: mockVeNFTState.owner,
             locktime: mockVeNFTState.locktime,
@@ -482,6 +492,7 @@ describe("VeNFTState", () => {
           stateWithSnapshot,
           timestamp,
           mockContext as handlerContext,
+          CHAIN_ID,
         );
         const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         const updated = mockSet.mock.calls[0][0] as VeNFTState;
@@ -503,6 +514,7 @@ describe("VeNFTState", () => {
           stateWithOlderSnapshot,
           timestamp,
           mockContext as handlerContext,
+          CHAIN_ID,
         );
         const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         const updated = mockSet.mock.calls[0][0] as VeNFTState;
@@ -525,6 +537,7 @@ describe("VeNFTState", () => {
           stateWithNewerSnapshot,
           timestamp,
           mockContext as handlerContext,
+          CHAIN_ID,
         );
         const mockSet = vi.mocked(getVeNFTStateStore(mockContext).set);
         const updated = mockSet.mock.calls[0][0] as VeNFTState;

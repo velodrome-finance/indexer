@@ -1,0 +1,43 @@
+id	output
+["0x02D10A2009682bD7E35831D046036eC632eEdc96",5042]	{"name": "ASTEROID", "symbol": "ATR", "decimals": 18}
+["0x09d9a27D69FA7eD1a53B7377eC97c255536D3516",5042]	{"name": "Moisturized", "symbol": "MOISTURIZED", "decimals": 18}
+["0x0F2101440929348D402cE4EA206618D674385E9e",5042]	{"name": "Relay Routing Probe", "symbol": "RRP", "decimals": 18}
+["0x0fDae997d92e940F4E5a57c1976Ea2A847c81f7e",5042]	{"name": "BLINKY BOYS", "symbol": "BLINKY", "decimals": 18}
+["0x128cC466B61f542da60c70e3aA11c10e19B84EDB",5042]	{"name": "Wrapped Ether", "symbol": "WETH", "decimals": 18}
+["0x1520D4D744eD0Cea3C9a81c6D03e0b3FDA764c55",5042]	{"name": "ASTEROID", "symbol": "ASTRD", "decimals": 18}
+["0x171A4217b86A807A64eB94757Db6849fb4bDbAA0",5042]	{"name": "Circle Wrapped Bitcoin", "symbol": "cirBTC", "decimals": 8}
+["0x20077cC0d5E385A0Fe9C91bbC7DC744f51559307",5042]	{"name": "Aero", "symbol": "xAERO", "decimals": 18}
+["0x3600000000000000000000000000000000000000",5042]	{"name": "USDC", "symbol": "USDC", "decimals": 6}
+["0x3aC8f4893Bc1547bF5cB615014B471B6EF861C9d",5042]	{"name": "Hellmo", "symbol": "HELLMO", "decimals": 18}
+["0x41B4e0b2eA1cE8C93a45D5fc1bF94b271641fc25",5042]	{"name": "Hi Elmo", "symbol": "HIELMO", "decimals": 18}
+["0x48063ac32C5cc933FC9D81BaC0756106437014a0",5042]	{"name": "Pad69 V2 Live Test Buy", "symbol": "V2BUY", "decimals": 18}
+["0x4b2435439d22e7137D6c24904ea0b6e93d94F632",5042]	{"name": "ROCKET", "symbol": "RCKT", "decimals": 18}
+["0x53523Ec06c734fdfdc263CCe017D16fD03A243C5",5042]	{"name": "ALIEN", "symbol": "ALIEN", "decimals": 18}
+["0x5Ff03dC2464B842857826034B8FfDc0a3ba5F3e5",5042]	{"name": "What the Heck", "symbol": "WTH", "decimals": 18}
+["0x60f65E7dC4aa3aCab8D0BB1C1245D155d4DeE71A",5042]	{"name": "BitcoinBR", "symbol": "BTCBR", "decimals": 18}
+["0x76Ae29ACEE7cf671f64B0A805b322e1917EECCfE",5042]	{"name": "MARS", "symbol": "MARS", "decimals": 18}
+["0x82b3d390C34951578E8C5bB795C799eA5dFA7Dfa",5042]	{"name": "Celc", "symbol": "CELC", "decimals": 18}
+["0x8D2903F6837c9fE0875a74027aE707d6643893b8",5042]	{"name": "MARS", "symbol": "MARS", "decimals": 18}
+["0x96170D81D1afb13499d93e9b71B9871Ec176ca10",5042]	{"name": "Calien", "symbol": "CALIEN", "decimals": 18}
+["0x9bC27b3E534cc40226fD0F14A6DcbF4950b32856",5042]	{"name": "OpenLaunch", "symbol": "OL", "decimals": 18}
+["0x9eA52a48b23B6171e98094F05e647b9699E36194",5042]	{"name": "Meteorite", "symbol": "MTRT", "decimals": 18}
+["0xaA87E02d33B34E59173F2d39E640Dc61489BcB6C",5042]	{"name": "Doglien", "symbol": "DOGLIEN", "decimals": 18}
+["0xAAEE5aDEcbE6a0a55D9DE8b568CAfc239e261782",5042]	{"name": "ALIEN", "symbol": "ALN", "decimals": 18}
+["0xb95C44D1b0CFe7c148b5080024de0f749693C5f8",5042]	{"name": "Pad69 V2 Live Test Zero", "symbol": "V2ZERO", "decimals": 18}
+["0xbBe6aAB0Ed76e90AeA0d1cd978EC231c8AdCDF8b",5042]	{"name": "Agant GBP", "symbol": "GBPA", "decimals": 6}
+["0xBc43CE8DEc648EA298C4275559b81D6261c90b67",5042]	{"name": "Tolly", "symbol": "TOLLY", "decimals": 18}
+["0xbEf5f6d51CB62b58e6A8f77868681825C6fe21c1",5042]	{"name": "EURC", "symbol": "EURC", "decimals": 6}
+["0xc31f46e0D1c4cCEfeaCEaA20127E6C8B33227388",5042]	{"name": "Comet", "symbol": "CMT", "decimals": 18}
+["0xcB2900245887fD1AE98090b0B3d9065A057cd105",5042]	{"name": "Comet", "symbol": "CMT2", "decimals": 18}
+["0xCC4444035A49Cc2146548e2ED0BB197B70f86D20",5042]	{"name": "Aerodrome Finance", "symbol": "AERO", "decimals": 18}
+["0xcCE613125bA7Ce51c997c9041c6A2E3a04c1C06D",5042]	{"name": "Pad Six Nine", "symbol": "P69", "decimals": 18}
+["0xDDeC08b3F22ff1f0BaA8FbCD5Fd954262440Eda3",5042]	{"name": "Space Dog", "symbol": "SPDG", "decimals": 18}
+["0xE205b4e7Ac03E3f7b2060C3EDf2171AA7126C0d5",5042]	{"name": "ZAR Universal", "symbol": "ZARU", "decimals": 18}
+["0xe2608FFD6FD9955F9D71160853A5f6EFFeDD2B51",5042]	{"name": "Catsino", "symbol": "CATSINO", "decimals": 18}
+["0xE9098BCd010F4D3b2FA61B4D0EEf47b995acDDF1",5042]	{"name": "Pad 69", "symbol": "P69", "decimals": 18}
+["0xEb06886B6ef8B7e6cEBBDD17Eb674C447A765a93",5042]	{"name": "Laika", "symbol": "LAIKA", "decimals": 18}
+["0xEBbdb5A6697DeFcb60c0F36b4d808193A1196c64",5042]	{"name": "Turbo Cat", "symbol": "TURBO", "decimals": 18}
+["0xeCe5cA8bf9220718E5727754026757512212cb3c",5042]	{"name": "Argus", "symbol": "ARGUS", "decimals": 18}
+["0xF197FFC28c23E0309B5559e7a166f2c6164C80aA",5042]	{"name": "MXNB", "symbol": "MXNB", "decimals": 6}
+["0xf81DE2Daa158828B48c926B1099dAdc520B30EaA",5042]	{"name": "mars", "symbol": "mars", "decimals": 18}
+["0xF9ae55e78DcD35FAF4Dc9f834FCA297a3C10F361",5042]	{"name": "ROCKET", "symbol": "RCKT", "decimals": 18}

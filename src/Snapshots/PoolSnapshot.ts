@@ -13,22 +13,23 @@ import {
  * Creates an epoch-aligned snapshot of Pool (no persistence).
  * @param entity - Pool to snapshot
  * @param timestamp - Timestamp used to compute snapshot epoch
+ * @param chainId - Chain of the event being handled (the entity's chain)
  * @returns Epoch-aligned PoolSnapshot
  */
 export function createPoolSnapshot(
   entity: Pool,
   timestamp: Date,
+  chainId: number,
 ): PoolSnapshot {
   const epoch = getSnapshotEpoch(timestamp);
 
   const snapshotId = PoolSnapshotId(
-    entity.chainId,
+    chainId,
     entity.poolAddress,
     epoch.getTime(),
   );
   return {
     id: snapshotId,
-    chainId: entity.chainId,
     name: entity.name,
     poolAddress: entity.poolAddress,
     token0_id: entity.token0_id,
@@ -37,6 +38,7 @@ export function createPoolSnapshot(
     token1_address: entity.token1_address,
     isStable: entity.isStable,
     isCL: entity.isCL,
+    deployment: entity.deployment,
     reserve0: entity.reserve0,
     reserve1: entity.reserve1,
     totalLPTokenSupply: entity.totalLPTokenSupply,
@@ -71,6 +73,9 @@ export function createPoolSnapshot(
     numberOfGaugeRewardClaims: entity.numberOfGaugeRewardClaims,
     totalGaugeRewardsClaimedUSD: entity.totalGaugeRewardsClaimedUSD,
     totalGaugeRewardsClaimed: entity.totalGaugeRewardsClaimed,
+    totalGaugeEarlyWithdrawPenalties: entity.totalGaugeEarlyWithdrawPenalties,
+    totalGaugeEarlyWithdrawPenaltiesUSD:
+      entity.totalGaugeEarlyWithdrawPenaltiesUSD,
     currentLiquidityStaked: entity.currentLiquidityStaked,
     currentLiquidityStakedUSD: entity.currentLiquidityStakedUSD,
     timestamp: epoch,
@@ -106,16 +111,18 @@ export function createPoolSnapshot(
  * @param entity - Pool to snapshot
  * @param timestamp - Timestamp used to compute snapshot epoch
  * @param context - Handler context
+ * @param chainId - Chain of the event being handled (the entity's chain)
  * @returns void
  */
 export function setPoolSnapshot(
   entity: Pool,
   timestamp: Date,
   context: handlerContext,
+  chainId: number,
 ): void {
   const snapshotForPersist: SnapshotForPersist = {
     type: SnapshotType.Pool,
-    snapshot: createPoolSnapshot(entity, timestamp),
+    snapshot: createPoolSnapshot(entity, timestamp, chainId),
   };
   persistSnapshot(snapshotForPersist, context);
 }

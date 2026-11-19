@@ -14,15 +14,17 @@ import {
  * Creates an epoch-aligned snapshot of UserStatsPerPool (no persistence).
  * @param entity - UserStatsPerPool to snapshot
  * @param timestamp - Timestamp used to compute snapshot epoch
+ * @param chainId - Chain of the event being handled (the entity's chain)
  * @returns Epoch-aligned UserStatsPerPoolSnapshot
  */
 export function createUserStatsPerPoolSnapshot(
   entity: UserStatsPerPool,
   timestamp: Date,
+  chainId: number,
 ): UserStatsPerPoolSnapshot {
   const epoch = getSnapshotEpoch(timestamp);
   const snapshotId = UserStatsPerPoolSnapshotId(
-    entity.chainId,
+    chainId,
     entity.userAddress,
     entity.poolAddress,
     epoch.getTime(),
@@ -31,7 +33,6 @@ export function createUserStatsPerPoolSnapshot(
     id: snapshotId,
     userAddress: entity.userAddress,
     poolAddress: entity.poolAddress,
-    chainId: entity.chainId,
     timestamp: epoch,
     lpBalance: entity.lpBalance,
     totalLiquidityAddedUSD: entity.totalLiquidityAddedUSD,
@@ -54,6 +55,9 @@ export function createUserStatsPerPoolSnapshot(
     numberOfGaugeRewardClaims: entity.numberOfGaugeRewardClaims,
     totalGaugeRewardsClaimedUSD: entity.totalGaugeRewardsClaimedUSD,
     totalGaugeRewardsClaimed: entity.totalGaugeRewardsClaimed,
+    totalGaugeEarlyWithdrawPenalties: entity.totalGaugeEarlyWithdrawPenalties,
+    totalGaugeEarlyWithdrawPenaltiesUSD:
+      entity.totalGaugeEarlyWithdrawPenaltiesUSD,
     totalStakedFeesCollected0: entity.totalStakedFeesCollected0,
     totalStakedFeesCollected1: entity.totalStakedFeesCollected1,
     totalStakedFeesCollectedUSD: entity.totalStakedFeesCollectedUSD,
@@ -78,16 +82,18 @@ export function createUserStatsPerPoolSnapshot(
  * @param entity - UserStatsPerPool to snapshot
  * @param timestamp - Timestamp used to compute snapshot epoch
  * @param context - Handler context
+ * @param chainId - Chain of the event being handled (the entity's chain)
  * @returns void
  */
 export function setUserStatsPerPoolSnapshot(
   entity: UserStatsPerPool,
   timestamp: Date,
   context: handlerContext,
+  chainId: number,
 ): void {
   const snapshotForPersist: SnapshotForPersist = {
     type: SnapshotType.UserStatsPerPool,
-    snapshot: createUserStatsPerPoolSnapshot(entity, timestamp),
+    snapshot: createUserStatsPerPoolSnapshot(entity, timestamp, chainId),
   };
   persistSnapshot(snapshotForPersist, context);
 }

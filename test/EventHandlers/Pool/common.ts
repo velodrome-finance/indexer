@@ -26,6 +26,7 @@ import {
   PRICE_TRUST_OUTCOME,
   PRICE_TRUST_REASON,
 } from "../../../src/PriceTrust";
+import type { WithChain } from "../../testHelpers";
 
 // Canonical NFPM used for mock NonFungiblePosition fixtures (Optimism-old NFPM).
 // Named `default*` rather than a SCREAMING_CASE module constant because it's the
@@ -64,7 +65,7 @@ export function setupCommon() {
   const TOKEN1_ADDRESS = toChecksumAddress(
     "0x2222222222222222222222222222222222222222",
   );
-  const mockToken0Data: Token = {
+  const mockToken0Data: WithChain<Token> = {
     id: TokenId(CHAIN_ID, TOKEN0_ADDRESS),
     address: TOKEN0_ADDRESS as `0x${string}`,
     symbol: "USDT",
@@ -73,13 +74,15 @@ export function setupCommon() {
     pricePerUSDNew: 1n * TEN_TO_THE_18_BI, // 1 USD
     chainId: CHAIN_ID,
     isWhitelisted: true,
+    isListedOnAero: undefined,
     lastUpdatedTimestamp: new Date(),
     lastSuccessfulPriceTimestamp: new Date(),
+    pricingDepthUSD: undefined,
     priceTrustOutcome: PRICE_TRUST_OUTCOME.TRUSTED,
     priceTrustReason: PRICE_TRUST_REASON.WL,
   };
 
-  const mockToken1Data: Token = {
+  const mockToken1Data: WithChain<Token> = {
     id: TokenId(CHAIN_ID, TOKEN1_ADDRESS),
     address: TOKEN1_ADDRESS as `0x${string}`,
     symbol: "USDC",
@@ -88,8 +91,10 @@ export function setupCommon() {
     pricePerUSDNew: 1n * TEN_TO_THE_18_BI, // 1 USD
     chainId: CHAIN_ID,
     isWhitelisted: true,
+    isListedOnAero: undefined,
     lastUpdatedTimestamp: new Date(),
     lastSuccessfulPriceTimestamp: new Date(),
+    pricingDepthUSD: undefined,
     priceTrustOutcome: PRICE_TRUST_OUTCOME.TRUSTED,
     priceTrustReason: PRICE_TRUST_REASON.WL,
   };
@@ -140,6 +145,7 @@ export function setupCommon() {
     totalUnstakedFeesCollectedUSD: 300n * TEN_TO_THE_18_BI,
     totalStakedFeesCollectedUSD: 0n,
     numberOfSwaps: 1n,
+    numberOfSwapFeeFallbacks: 0n,
     token0Price: 1n * TEN_TO_THE_18_BI,
     token1Price: 1n * TEN_TO_THE_18_BI,
     totalVotesDeposited: 1n,
@@ -150,6 +156,7 @@ export function setupCommon() {
     totalEmissionsForfeited: 0n,
     gaugeIsAlive: true,
     isCL: false,
+    deployment: "VELODROME",
     lastUpdatedTimestamp: new Date(),
     lastSnapshotTimestamp: new Date(),
     name: "",
@@ -165,10 +172,6 @@ export function setupCommon() {
     stakedReserve0: 0n,
     stakedReserve1: 0n,
     hasStakes: false,
-    stakedTickEdges: [],
-    stakedTickEdgeNets: [],
-    tickEdges: [],
-    tickEdgeNets: [],
     totalFlashLoanFees0: 0n,
     totalFlashLoanFees1: 0n,
     totalFlashLoanFeesUSD: 0n,
@@ -181,6 +184,8 @@ export function setupCommon() {
     numberOfGaugeRewardClaims: 0n,
     totalGaugeRewardsClaimedUSD: 0n,
     totalGaugeRewardsClaimed: 0n,
+    totalGaugeEarlyWithdrawPenalties: 0n,
+    totalGaugeEarlyWithdrawPenaltiesUSD: 0n,
     currentLiquidityStaked: 0n,
     currentLiquidityStakedUSD: 0n,
 
@@ -206,11 +211,11 @@ export function setupCommon() {
     currentFee: 0n,
     // Unstaked Fee fields
     unstakedFee: undefined,
-    rootPoolMatchingHash: "",
+    rootPoolMatchingHash: "" as string | undefined,
     tickSpacing: 0n,
   };
 
-  const mockALMLPWrapperData: ALM_LP_Wrapper = {
+  const mockALMLPWrapperData: WithChain<ALM_LP_Wrapper> = {
     id: ALMLPWrapperId(
       CHAIN_ID,
       toChecksumAddress("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
@@ -283,6 +288,8 @@ export function setupCommon() {
     numberOfGaugeRewardClaims: 0n,
     totalGaugeRewardsClaimedUSD: 0n,
     totalGaugeRewardsClaimed: 0n,
+    totalGaugeEarlyWithdrawPenalties: 0n,
+    totalGaugeEarlyWithdrawPenaltiesUSD: 0n,
     totalStakedFeesCollected0: 0n,
     totalStakedFeesCollected1: 0n,
     totalStakedFeesCollectedUSD: 0n,
@@ -309,7 +316,7 @@ export function setupCommon() {
     lastSnapshotTimestamp: undefined,
   };
 
-  const mockVeNFTStateData: VeNFTState = {
+  const mockVeNFTStateData: WithChain<VeNFTState> = {
     id: VeNFTId(CHAIN_ID, 1n),
     chainId: CHAIN_ID,
     tokenId: 1n,
@@ -331,7 +338,7 @@ export function setupCommon() {
   };
 
   const defaultNFPMTokenId = 42n;
-  const mockNonFungiblePositionData: NonFungiblePosition = {
+  const mockNonFungiblePositionData: WithChain<NonFungiblePosition> = {
     id: NonFungiblePositionId(CHAIN_ID, defaultNfpmAddress, defaultNFPMTokenId),
     chainId: CHAIN_ID,
     tokenId: defaultNFPMTokenId,
@@ -355,8 +362,8 @@ export function setupCommon() {
    * Creates a mock NonFungiblePosition entity with customizable fields.
    */
   function createMockNonFungiblePosition(
-    overrides: Partial<NonFungiblePosition> = {},
-  ): NonFungiblePosition {
+    overrides: Partial<WithChain<NonFungiblePosition>> = {},
+  ): WithChain<NonFungiblePosition> {
     const chainId = overrides.chainId ?? CHAIN_ID;
     const pool = toChecksumAddress(overrides.pool ?? POOL_ADDRESS);
     const tokenId = overrides.tokenId ?? defaultNFPMTokenId;
@@ -389,7 +396,7 @@ export function setupCommon() {
    * @returns A complete UserStatsPerPool entity
    */
   function createMockUserStatsPerPool(
-    overrides: Partial<UserStatsPerPool> = {},
+    overrides: Partial<WithChain<UserStatsPerPool>> = {},
   ) {
     // Calculate id if userAddress, poolAddress, or chainId are provided
     const userAddress = toChecksumAddress(
@@ -426,7 +433,7 @@ export function setupCommon() {
    *   infer mutable bigint[] for stakedTickEdges / stakedTickEdgeNets — same
    *   readonly-vs-mutable workaround as createMockUserStatsPerPool).
    */
-  function createMockPool(overrides: Partial<Pool> = {}) {
+  function createMockPool(overrides: Partial<WithChain<Pool>> = {}) {
     // Calculate id if poolAddress or chainId are provided
     const chainId = overrides.chainId ?? CHAIN_ID;
     const poolAddress = toChecksumAddress(
@@ -445,19 +452,6 @@ export function setupCommon() {
     return {
       ...mockLiquidityPoolData,
       ...overrides,
-      // Array fields: ensure mutable bigint[] to satisfy both envio.d.ts
-      // (readonly bigint[]) and Indexer.gen.ts (bigint[]) types used by MockDb.set()
-      stakedTickEdges: [
-        ...(overrides.stakedTickEdges ?? mockLiquidityPoolData.stakedTickEdges),
-      ],
-      stakedTickEdgeNets: [
-        ...(overrides.stakedTickEdgeNets ??
-          mockLiquidityPoolData.stakedTickEdgeNets),
-      ],
-      tickEdges: [...(overrides.tickEdges ?? mockLiquidityPoolData.tickEdges)],
-      tickEdgeNets: [
-        ...(overrides.tickEdgeNets ?? mockLiquidityPoolData.tickEdgeNets),
-      ],
       poolAddress,
       chainId,
       id,
@@ -469,8 +463,8 @@ export function setupCommon() {
    * Creates a mock VeNFTState entity with customizable fields.
    */
   function createMockVeNFTState(
-    overrides: Partial<VeNFTState> = {},
-  ): VeNFTState {
+    overrides: Partial<WithChain<VeNFTState>> = {},
+  ): WithChain<VeNFTState> {
     const chainId = overrides.chainId ?? CHAIN_ID;
     const tokenId = overrides.tokenId ?? 1n;
     const id = overrides.id ?? VeNFTId(chainId, tokenId);
@@ -490,9 +484,9 @@ export function setupCommon() {
    * @param base - Base token to copy from (defaults to mockToken0Data)
    */
   function createMockToken(
-    overrides: Partial<Token> = {},
-    base: Token = mockToken0Data,
-  ): Token {
+    overrides: Partial<WithChain<Token>> = {},
+    base: WithChain<Token> = mockToken0Data,
+  ): WithChain<Token> {
     return { ...base, ...overrides };
   }
 
@@ -500,8 +494,8 @@ export function setupCommon() {
    * Creates a mock VeNFTPoolVote entity with customizable fields.
    */
   function createMockVeNFTPoolVote(
-    overrides: Partial<VeNFTPoolVote> = {},
-  ): VeNFTPoolVote {
+    overrides: Partial<WithChain<VeNFTPoolVote>> = {},
+  ): WithChain<VeNFTPoolVote> {
     const veNFTStateId = overrides.veNFTState_id ?? mockVeNFTStateData.id;
     const [chainIdPart, tokenIdPart] = veNFTStateId.split("-");
     const chainId = chainIdPart ? Number(chainIdPart) : CHAIN_ID;
@@ -515,6 +509,7 @@ export function setupCommon() {
       ...mockVeNFTPoolVoteData,
       ...overrides,
       id,
+      chainId: overrides.chainId ?? chainId,
       poolAddress,
       veNFTState_id: veNFTStateId,
     };

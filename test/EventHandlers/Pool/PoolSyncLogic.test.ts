@@ -6,7 +6,10 @@ import {
 } from "../../../src/Constants";
 import type { Pool, handlerContext } from "../../../src/EntityTypes";
 import { processPoolSync } from "../../../src/EventHandlers/Pool/PoolSyncLogic";
-import { deriveV2PriceRatios } from "../../../src/PoolPriceRatio";
+import {
+  deriveV2PriceRatios,
+  deriveV2StablePriceRatios,
+} from "../../../src/PoolPriceRatio";
 import { setupCommon } from "./common";
 
 describe("PoolSyncLogic", () => {
@@ -63,7 +66,6 @@ describe("PoolSyncLogic", () => {
     decimals: 6n,
     pricePerUSDNew: 1000000000000000000n, // 1 USD
     isWhitelisted: true,
-    chainId: 10,
     lastUpdatedTimestamp: new Date(1000000 * 1000),
   } as Token;
 
@@ -75,7 +77,6 @@ describe("PoolSyncLogic", () => {
     decimals: 18n,
     pricePerUSDNew: 2000000000000000000n, // 2 USD
     isWhitelisted: true,
-    chainId: 10,
     lastUpdatedTimestamp: new Date(1000000 * 1000),
   } as Token;
 
@@ -207,6 +208,32 @@ describe("PoolSyncLogic", () => {
       });
     });
 
+    it("derives a stable pool's ratios from the sAMM curve, not the reserve ratio (ADR 0003)", () => {
+      const stablePool = { ...mockPool, isStable: true } as Pool;
+      const expected = deriveV2StablePriceRatios(
+        mockEvent.params.reserve0,
+        mockEvent.params.reserve1,
+        mockToken0.decimals,
+        mockToken1.decimals,
+      );
+      const result = processPoolSync(
+        mockEvent,
+        stablePool,
+        mockToken0,
+        mockToken1,
+      );
+      expect(result.liquidityPoolDiff.token0Price).toBe(expected.token0Price);
+      expect(result.liquidityPoolDiff.token1Price).toBe(expected.token1Price);
+      expect(result.liquidityPoolDiff.token0Price).not.toBe(
+        deriveV2PriceRatios(
+          mockEvent.params.reserve0,
+          mockEvent.params.reserve1,
+          mockToken0.decimals,
+          mockToken1.decimals,
+        ).token0Price,
+      );
+    });
+
     it("derives token0Price/token1Price from reserves, ignoring token oracle prices (#783)", () => {
       // The ratios must equal the pure derivation from the synced reserves,
       // not either token's oracle price.
@@ -257,7 +284,6 @@ describe("PoolSyncLogic", () => {
         address: LFI,
         symbol: "LFI",
         name: "LFI",
-        chainId: BASE,
         decimals: 18n,
         pricePerUSDNew: 24n * TEN_TO_THE_18_BI, // poisoned oracle ~$24
       } as Token;
@@ -267,14 +293,12 @@ describe("PoolSyncLogic", () => {
         address: USDC,
         symbol: "USDC",
         name: "USD Coin",
-        chainId: BASE,
         decimals: 6n,
         pricePerUSDNew: 1n * TEN_TO_THE_18_BI,
       } as Token;
 
       const basePool = {
         ...mockPool,
-        chainId: BASE,
         isCL: false,
         token0_id: TokenId(BASE, LFI),
         token1_id: TokenId(BASE, USDC),

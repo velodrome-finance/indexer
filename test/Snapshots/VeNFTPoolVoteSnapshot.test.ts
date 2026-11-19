@@ -25,6 +25,7 @@ describe("VeNFTPoolVoteSnapshot", () => {
     const veNFTStateSnapshot = createVeNFTStateSnapshot(
       veNFTState,
       baseTimestamp,
+      veNFTState.chainId,
     );
     const poolVote = common.createMockVeNFTPoolVote({
       veNFTamountStaked: 123n,
@@ -35,6 +36,7 @@ describe("VeNFTPoolVoteSnapshot", () => {
       veNFTState,
       veNFTStateSnapshot,
       baseTimestamp,
+      veNFTState.chainId,
     );
 
     expect(snapshot).toEqual({
@@ -44,7 +46,6 @@ describe("VeNFTPoolVoteSnapshot", () => {
         poolVote.poolAddress,
         baseTimestamp.getTime(),
       ),
-      chainId: veNFTState.chainId,
       tokenId: veNFTState.tokenId,
       poolAddress: poolVote.poolAddress,
       veNFTamountStaked: 123n,
@@ -66,6 +67,7 @@ describe("VeNFTPoolVoteSnapshot", () => {
     const veNFTStateSnapshot = createVeNFTStateSnapshot(
       veNFTState,
       baseTimestamp,
+      veNFTState.chainId,
     );
     const poolVote = common.createMockVeNFTPoolVote({
       poolAddress: toChecksumAddress(
@@ -80,6 +82,7 @@ describe("VeNFTPoolVoteSnapshot", () => {
       veNFTStateSnapshot,
       baseTimestamp,
       context,
+      veNFTState.chainId,
     );
 
     expect(context.VeNFTPoolVoteSnapshot.set).toHaveBeenCalledWith(

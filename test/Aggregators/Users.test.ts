@@ -6,9 +6,11 @@ import {
 import {
   PoolId,
   UserStatsPerPoolId,
+  UserStatsPerPoolSnapshotId,
   toChecksumAddress,
 } from "../../src/Constants";
 import type { handlerContext } from "../../src/EntityTypes";
+import { getSnapshotEpoch } from "../../src/Snapshots/Shared";
 import { setupCommon } from "../EventHandlers/Pool/common";
 
 describe("UserStatsPerPool Aggregator", () => {
@@ -20,6 +22,13 @@ describe("UserStatsPerPool Aggregator", () => {
   );
   const mockChainId = 10;
   const mockTimestamp = new Date(1000000 * 1000);
+  const snapshotIdAt = (timestamp: Date) =>
+    UserStatsPerPoolSnapshotId(
+      mockChainId,
+      mockUserAddress,
+      mockPoolAddress,
+      getSnapshotEpoch(timestamp).getTime(),
+    );
 
   describe("createUserStatsPerPoolEntity", () => {
     it("should create a new user stats entity with correct initial values", () => {
@@ -35,7 +44,8 @@ describe("UserStatsPerPool Aggregator", () => {
       );
       expect(userStats.userAddress).toBe(mockUserAddress);
       expect(userStats.poolAddress).toBe(mockPoolAddress);
-      expect(userStats.chainId).toBe(mockChainId);
+      // Per-chain entities carry no chainId field (ADR 0009); the id pins the chain.
+      expect(userStats).not.toHaveProperty("chainId");
       expect(userStats.totalLiquidityAddedUSD).toBe(0n);
       expect(userStats.totalLiquidityRemovedUSD).toBe(0n);
       expect(userStats.totalFeesContributedUSD).toBe(0n);
@@ -97,6 +107,7 @@ describe("UserStatsPerPool Aggregator", () => {
         mockUserData,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
 
       expect(result.totalLiquidityAddedUSD).toBe(netLiquidityAddedUSD);
@@ -107,7 +118,7 @@ describe("UserStatsPerPool Aggregator", () => {
         expect.objectContaining({
           userAddress: mockUserAddress,
           poolAddress: mockPoolAddress,
-          chainId: mockChainId,
+          id: snapshotIdAt(mockTimestamp),
           totalLiquidityAddedUSD: netLiquidityAddedUSD,
           totalLiquidityRemovedUSD: 0n,
         }),
@@ -139,6 +150,7 @@ describe("UserStatsPerPool Aggregator", () => {
         mockUserData,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
 
       expect(result.totalLiquidityAddedUSD).toBe(0n);
@@ -148,7 +160,7 @@ describe("UserStatsPerPool Aggregator", () => {
         expect.objectContaining({
           userAddress: mockUserAddress,
           poolAddress: mockPoolAddress,
-          chainId: mockChainId,
+          id: snapshotIdAt(mockTimestamp),
           totalLiquidityAddedUSD: 0n,
           totalLiquidityRemovedUSD: 500n,
         }),
@@ -182,6 +194,7 @@ describe("UserStatsPerPool Aggregator", () => {
         mockUserData,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
 
       expect(result.totalFeesContributedUSD).toBe(1000n);
@@ -192,7 +205,7 @@ describe("UserStatsPerPool Aggregator", () => {
         expect.objectContaining({
           userAddress: mockUserAddress,
           poolAddress: mockPoolAddress,
-          chainId: mockChainId,
+          id: snapshotIdAt(mockTimestamp),
           totalFeesContributedUSD: 1000n,
           totalFeesContributed0: 500n,
           totalFeesContributed1: 300n,
@@ -228,6 +241,7 @@ describe("UserStatsPerPool Aggregator", () => {
         mockUserData,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
 
       expect(result.numberOfSwaps).toBe(1n);
@@ -239,7 +253,7 @@ describe("UserStatsPerPool Aggregator", () => {
         expect.objectContaining({
           userAddress: mockUserAddress,
           poolAddress: mockPoolAddress,
-          chainId: mockChainId,
+          id: snapshotIdAt(mockTimestamp),
           numberOfSwaps: 1n,
           totalSwapVolumeUSD: 5000n,
           totalSwapVolumeAmount0: 1000n,
@@ -275,6 +289,7 @@ describe("UserStatsPerPool Aggregator", () => {
         userStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
 
       expect(userStats.numberOfSwaps).toBe(1n);
@@ -286,7 +301,7 @@ describe("UserStatsPerPool Aggregator", () => {
         expect.objectContaining({
           userAddress: mockUserAddress,
           poolAddress: mockPoolAddress,
-          chainId: mockChainId,
+          id: snapshotIdAt(mockTimestamp),
           numberOfSwaps: 1n,
           totalSwapVolumeUSD: 5000n,
           totalSwapVolumeAmount0: 1000n,
@@ -306,6 +321,7 @@ describe("UserStatsPerPool Aggregator", () => {
         userStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
 
       expect(userStats.numberOfSwaps).toBe(2n);
@@ -325,6 +341,7 @@ describe("UserStatsPerPool Aggregator", () => {
         userStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
 
       expect(userStats.numberOfSwaps).toBe(3n);
@@ -359,6 +376,7 @@ describe("UserStatsPerPool Aggregator", () => {
         mockUserData,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
 
       expect(result.numberOfFlashLoans).toBe(1n);
@@ -368,7 +386,7 @@ describe("UserStatsPerPool Aggregator", () => {
         expect.objectContaining({
           userAddress: mockUserAddress,
           poolAddress: mockPoolAddress,
-          chainId: mockChainId,
+          id: snapshotIdAt(mockTimestamp),
           numberOfFlashLoans: 1n,
           totalFlashLoanVolumeUSD: 10000n,
         }),
@@ -405,6 +423,7 @@ describe("UserStatsPerPool Aggregator", () => {
         mockUserData,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
 
       expect(result.totalLiquidityAddedUSD).toBe(2000n);
@@ -419,7 +438,7 @@ describe("UserStatsPerPool Aggregator", () => {
         expect.objectContaining({
           userAddress: mockUserAddress,
           poolAddress: mockPoolAddress,
-          chainId: mockChainId,
+          id: snapshotIdAt(mockTimestamp),
           totalLiquidityAddedUSD: 2000n,
           totalFeesContributedUSD: 500n,
           numberOfSwaps: 2n,
@@ -469,6 +488,7 @@ describe("UserStatsPerPool Aggregator", () => {
         existingUserStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
 
       expect(result.totalLiquidityAddedUSD).toBe(3000n); // 2000 + 1000
@@ -483,7 +503,7 @@ describe("UserStatsPerPool Aggregator", () => {
         expect.objectContaining({
           userAddress: mockUserAddress,
           poolAddress: mockPoolAddress,
-          chainId: mockChainId,
+          id: snapshotIdAt(mockTimestamp),
           totalLiquidityAddedUSD: 3000n,
           totalFeesContributedUSD: 1500n,
           numberOfSwaps: 6n,
@@ -540,7 +560,6 @@ describe("UserStatsPerPool Aggregator", () => {
         ),
         symbol: "TK0",
         name: "Token0",
-        chainId: mockChainId,
         decimals: 18n,
         pricePerUSDNew: 1000000000000000000n,
         lastUpdatedTimestamp: currentTimestamp,
@@ -553,7 +572,6 @@ describe("UserStatsPerPool Aggregator", () => {
         ),
         symbol: "TK1",
         name: "Token1",
-        chainId: mockChainId,
         decimals: 18n,
         pricePerUSDNew: 1000000000000000000n,
         lastUpdatedTimestamp: currentTimestamp,
@@ -612,6 +630,7 @@ describe("UserStatsPerPool Aggregator", () => {
         existingUserStats,
         snapshotCtx,
         currentTimestamp,
+        mockChainId,
       );
 
       // Should have recomputed staked USD (not the stale 100n)
@@ -648,6 +667,7 @@ describe("UserStatsPerPool Aggregator", () => {
         existingUserStats,
         snapshotCtx,
         currentTimestamp,
+        mockChainId,
       );
 
       // LPA should not be loaded (skipped because staked == 0)
@@ -690,6 +710,7 @@ describe("UserStatsPerPool Aggregator", () => {
         existingUserStats,
         snapshotCtx,
         currentTimestamp,
+        mockChainId,
       );
 
       // Stale USD should be cleared to 0
@@ -736,6 +757,7 @@ describe("UserStatsPerPool Aggregator", () => {
         existingUserStats,
         snapshotCtx,
         currentTimestamp,
+        mockChainId,
       );
 
       // Should not query positions (non-CL pool)
@@ -808,6 +830,7 @@ describe("UserStatsPerPool Aggregator", () => {
         existingUserStats,
         snapshotCtx,
         currentTimestamp,
+        mockChainId,
       );
 
       // Staked share of the (capped) total: $2000 * 100 LP / 1000 LP = $200.
@@ -853,6 +876,7 @@ describe("UserStatsPerPool Aggregator", () => {
         existingUserStats,
         snapshotCtx,
         currentTimestamp,
+        mockChainId,
       );
 
       expect(result.currentLiquidityStakedUSD).toBe(10000000000000000000n); // $10
@@ -887,6 +911,7 @@ describe("UserStatsPerPool Aggregator", () => {
         existingUserStats,
         snapshotCtx,
         currentTimestamp,
+        mockChainId,
       );
 
       // Should not query positions (LPA not found)
@@ -934,6 +959,7 @@ describe("UserStatsPerPool Aggregator", () => {
         existingUserStats,
         snapshotCtx,
         currentTimestamp,
+        mockChainId,
       );
 
       // Should not query positions (sqrtPriceX96 == 0)
@@ -978,6 +1004,7 @@ describe("UserStatsPerPool Aggregator", () => {
         existingUserStats,
         mockContext,
         mockTimestamp,
+        mockChainId,
       );
 
       expect(result.totalLiquidityAddedUSD).toBe(2000n); // Unchanged
@@ -987,7 +1014,7 @@ describe("UserStatsPerPool Aggregator", () => {
         expect.objectContaining({
           userAddress: mockUserAddress,
           poolAddress: mockPoolAddress,
-          chainId: mockChainId,
+          id: snapshotIdAt(mockTimestamp),
           totalLiquidityAddedUSD: 2000n,
           totalLiquidityRemovedUSD: 500n,
         }),

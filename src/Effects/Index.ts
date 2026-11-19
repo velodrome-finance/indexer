@@ -5,10 +5,25 @@ export {
   roundBlockToInterval,
 } from "./Token";
 
-export { getSwapFee } from "./SwapFee";
+// Uniswap-v4-cache-compatible metadata effect underneath getTokenDetails
+export { getTokenMetadata } from "./TokenMetadata";
 
-// Voter-related effects
-export { getTokensDeposited } from "./Voter";
+export { getSwapFee } from "./SwapFee";
 
 // Bytecode-gate effect (filters EOAs / non-contract addresses at Token creation sites)
 export { hasContractBytecode } from "./Bytecode";
+
+// Canonical source's hourly price from ClickHouse (ADR 0009, flow F)
+export {
+  getCanonicalPriceSettings,
+  getCanonicalSourcePrice,
+} from "./CanonicalSourcePrice";
+
+// Canonical source's price read from its own chain over RPC (ADR 0010)
+export {
+  getCanonicalRpcStats,
+  getCanonicalSourceRpcPrice,
+} from "./CanonicalSourceRpcPrice";
+
+// RPC observability
+export { getRpcStats } from "./RpcGateway";

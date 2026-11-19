@@ -1,21 +1,23 @@
-import type { Token } from "envio";
 import { indexer } from "envio";
-import { createPoolEntity, updatePool } from "../Aggregators/Pool";
+import { updatePool } from "../Aggregators/Pool";
 import {
-  DEFAULT_SAMM_FEE_BPS,
-  DEFAULT_VAMM_FEE_BPS,
   PoolId,
   ROOT_POOL_FACTORY_ADDRESS_OPTIMISM,
   RootPoolLeafPoolId,
-  TokenId,
-  toCanonicalFeeScale,
+  legacyPoolDeployment,
 } from "../Constants";
-import { getRootPoolAddress } from "../Effects/RootPool";
 import { getRehydrated } from "../EntityTimestamps";
 import type { Pool } from "../EntityTypes";
-import { createTokenEntity } from "../PriceOracle";
-import type { TokenEntityMapping } from "./../CustomTypes";
-import { flushPendingVotesAndDistributionsForRootPool } from "./Voter/CrossChainPendingResolution";
+import { createV2PoolFromFactory } from "./PoolFactory/PoolFactoryPoolCreatedLogic";
+import {
+  recordV2DefaultFee,
+  resolveCustomSwapFee,
+} from "./SwapFeeModule/CustomSwapFeeSharedLogic";
+import {
+  SUPERCHAIN_LEAF_CHAIN_IDS,
+  SUPERCHAIN_ROOT_CHAIN_ID,
+  predictV2RootPoolAddress,
+} from "./Voter/RootPoolLogic";
 
 indexer.contractRegister(
   { contract: "PoolFactory", event: "PoolCreated" },
@@ -27,151 +29,48 @@ indexer.contractRegister(
 indexer.onEvent(
   { contract: "PoolFactory", event: "PoolCreated" },
   async ({ event, context }) => {
-    // Load token instances efficiently
-    const [poolToken0, poolToken1] = await Promise.all([
-      getRehydrated(
-        context.Token,
-        "Token",
-        TokenId(event.chainId, event.params.token0),
-      ),
-      getRehydrated(
-        context.Token,
-        "Token",
-        TokenId(event.chainId, event.params.token1),
-      ),
-    ]);
-
-    const poolTokenSymbols: string[] = [];
-    const poolTokenAddressMappings: TokenEntityMapping[] = [
-      { address: event.params.token0, tokenInstance: poolToken0 },
-      { address: event.params.token1, tokenInstance: poolToken1 },
-    ];
-
-    // Collect missing tokens and create them in parallel for better performance
-    const missingTokenMappings = poolTokenAddressMappings.filter(
-      (mapping) => mapping.tokenInstance === undefined,
+    // Pool + pricing registration, shared with the Aero factories.
+    await createV2PoolFromFactory(
+      {
+        chainId: event.chainId,
+        factoryAddress: event.srcAddress,
+        pool: event.params.pool,
+        token0: event.params.token0,
+        token1: event.params.token1,
+        isStable: event.params.stable,
+        blockNumber: event.block.number,
+        blockTimestamp: event.block.timestamp,
+        deployment: legacyPoolDeployment(event.chainId),
+      },
+      context,
     );
 
-    if (missingTokenMappings.length > 0) {
-      // createTokenEntity returns `null` only when the bytecode gate confirms
-      // the address is a non-contract (issue #677). Distinguish that from a
-      // thrown error (transient RPC failure) which `.catch` maps to `undefined`
-      // — only the former triggers the pool-boundary skip below.
-      const createTokenPromises = missingTokenMappings.map(
-        (mapping): Promise<Token | null | undefined> =>
-          createTokenEntity(
-            mapping.address,
-            event.chainId,
-            event.block.number,
-            context,
-            event.block.timestamp,
-          ).catch((error) => {
-            context.log.error(
-              `Error in pool factory fetching token details for ${mapping.address} on chain ${event.chainId}: ${error}`,
-            );
-            return undefined;
-          }),
+    // A superchain leaf V2 pool records its root pool on its own chain
+    // (ADR 0009, flow D). The root pool's address is the V2 RootPoolFactory's
+    // CREATE2 address for (this chain, token0, token1, stable), the value the
+    // leaf LpHelper returns (equal on all 480 cached LpHelper answers of the ten
+    // leaf chains), so no RPC and no other chain's rows are needed.
+    const chainId = event.chainId;
+    if (SUPERCHAIN_LEAF_CHAIN_IDS.includes(chainId)) {
+      const rootPoolAddress = predictV2RootPoolAddress(
+        ROOT_POOL_FACTORY_ADDRESS_OPTIMISM,
+        chainId,
+        event.params.token0,
+        event.params.token1,
+        event.params.stable,
       );
-
-      const createdTokens = await Promise.all(createTokenPromises);
-
-      for (let i = 0; i < missingTokenMappings.length; i++) {
-        const created = createdTokens[i];
-        if (created === null) {
-          // Bytecode gate (#677) rejected the token side: skip the Token row but
-          // STILL create the Pool — the factory has authoritatively registered
-          // it (closes #864). Dropping the pool here orphans every downstream
-          // entity (snapshots, user-stats) for an on-chain reality.
-          context.log.warn(
-            `[PoolFactory.PoolCreated] Pool ${event.params.pool} on chain ${event.chainId} has non-contract token side ${missingTokenMappings[i].address}; persisting Pool with empty symbol on that side`,
-          );
-        } else if (created !== undefined) {
-          missingTokenMappings[i].tokenInstance = created;
-        }
-      }
-    }
-
-    // Build symbol array — index-based so a missing token instance does not
-    // shift the other token's symbol into the wrong slot (#864).
-    for (let i = 0; i < poolTokenAddressMappings.length; i++) {
-      poolTokenSymbols[i] =
-        poolTokenAddressMappings[i].tokenInstance?.symbol ?? "";
-    }
-
-    // V2 PoolFactory reports fees in basis points; lift to canonical FEE_SCALE
-    // (1e6) so V2 and CL share one stored scale + divisor (issue #812).
-    const fee = toCanonicalFeeScale(
-      event.params.stable ? DEFAULT_SAMM_FEE_BPS : DEFAULT_VAMM_FEE_BPS,
-      false,
-    );
-
-    const pool = createPoolEntity({
-      poolAddress: event.params.pool,
-      chainId: event.chainId,
-      isCL: false,
-      isStable: event.params.stable,
-      token0Address: event.params.token0,
-      token1Address: event.params.token1,
-      token0Symbol: poolTokenSymbols[0],
-      token1Symbol: poolTokenSymbols[1],
-      timestamp: new Date(event.block.timestamp * 1000),
-      factoryAddress: event.srcAddress,
-      baseFee: fee,
-      currentFee: fee,
-      createdBlockNumber: BigInt(event.block.number),
-    });
-
-    // For new pool creation, set the entity directly (updatePool is for updates, not creation)
-    context.Pool.set(pool);
-
-    // For non-Optimism and non-Base pools, set the RootPool_LeafPool entity
-    // Mapping RootPool (on optimism) to Pool (on superchain)
-    // This is only need for non-CL pools
-    // The mapping between RootCLPool and CLPool is made in RootCLPoolFactory.ts without the need of a RPC call
-    // RPC call is needed here because RootPoolCreated event for non-CL pools doesn't have leafChainId
-    const chainId: number = event.chainId;
-    if (chainId !== 10 && chainId !== 8453) {
-      let rootPoolAddress: string | null = null;
-      try {
-        rootPoolAddress = await context.effect(getRootPoolAddress, {
-          chainId: chainId,
-          factory: ROOT_POOL_FACTORY_ADDRESS_OPTIMISM,
-          token0: event.params.token0,
-          token1: event.params.token1,
-          type: event.params.stable ? 0 : -1, // -1 for vAMM pools, 0 for sAMM pools, or the tick spacing value for CL pools
-        });
-      } catch (error) {
-        context.log.error(
-          `Error fetching root pool address for pool ${event.params.pool} on chain ${chainId}: ${error}`,
-        );
-        // Continue execution - pool is already created, just skip RootPool_LeafPool creation
-        return;
-      }
-
-      if (rootPoolAddress) {
-        context.RootPool_LeafPool.set({
-          id: RootPoolLeafPoolId(
-            10,
-            chainId,
-            rootPoolAddress,
-            event.params.pool,
-          ),
-          rootChainId: 10,
-          rootPoolAddress: rootPoolAddress,
-          leafChainId: chainId,
-          leafPoolAddress: event.params.pool,
-        });
-        await flushPendingVotesAndDistributionsForRootPool(
-          context,
+      context.RootPool_LeafPool.set({
+        id: RootPoolLeafPoolId(
+          SUPERCHAIN_ROOT_CHAIN_ID,
+          chainId,
           rootPoolAddress,
-          "[PoolFactory.PoolCreated]",
-        );
-      } else {
-        context.log.error(
-          `[PoolFactory.PoolCreated] Failed to get root pool address for pool ${event.params.pool} on chain ${chainId}`,
-        );
-        return;
-      }
+          event.params.pool,
+        ),
+        rootChainId: SUPERCHAIN_ROOT_CHAIN_ID,
+        rootPoolAddress,
+        leafChainId: chainId,
+        leafPoolAddress: event.params.pool,
+      });
     }
   },
 );
@@ -187,16 +86,22 @@ indexer.onEvent(
       return;
     }
 
-    // V2 SetCustomFee carries the fee in basis points; lift to FEE_SCALE (1e6).
-    // poolEntity.isCL is always false here (PoolFactory only owns V2 pools) — we
-    // still key on it so the canonical-scale rule is uniform across write sites.
-    const canonicalFee = toCanonicalFeeScale(
+    // V2 SetCustomFee carries the fee in basis points. Store what the factory
+    // charges, in FEE_SCALE (1e6): 420 is the zero-fee indicator, 0 resets to
+    // the stable/volatile default, anything else is lifted ×100 (issue #812).
+    const chargedFee = await resolveCustomSwapFee(
       BigInt(event.params.fee),
-      poolEntity.isCL,
+      poolEntity,
+      false,
+      context,
+      event.chainId,
     );
+    if (chargedFee === undefined) {
+      return;
+    }
     const diff: Partial<Pool> = {
-      baseFee: canonicalFee,
-      currentFee: canonicalFee, // When custom fee is set, both baseFee and currentFee are updated
+      baseFee: chargedFee,
+      currentFee: chargedFee, // When custom fee is set, both baseFee and currentFee are updated
     };
 
     await updatePool(
@@ -206,6 +111,26 @@ indexer.onEvent(
       context,
       event.chainId,
       event.block.number,
+    );
+  },
+);
+
+// SetDefaultFee(bool indexed stable, uint256 fee): superchain leaf PoolFactory
+// only; the Optimism / Base PoolFactory hard-codes its 5 / 30 bps defaults.
+// Emitted at deployment on every leaf chain and never since (HyperSync scan,
+// 2026-11-13). Pools created afterwards start at it (getV2DefaultFee); an
+// existing pool on the default keeps its stored fee until its next swap
+// re-derives it from the Fees event.
+indexer.onEvent(
+  { contract: "PoolFactory", event: "SetDefaultFee" },
+  async ({ event, context }) => {
+    recordV2DefaultFee(
+      event.chainId,
+      event.srcAddress,
+      event.params.stable,
+      event.params.fee,
+      event.block.timestamp,
+      context,
     );
   },
 );

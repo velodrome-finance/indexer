@@ -1,0 +1,16 @@
+id	output
+["0x471EcE3750Da237f93B8E339c536989b8978a438",42220]	{"name": "Celo native asset", "symbol": "CELO", "decimals": 18}
+["0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",42220]	{"name": "Tether USD", "symbol": "USD₮", "decimals": 6}
+["0x765DE816845861e75A25fCA122bb6898B8B1282a",42220]	{"name": "Mento Dollar", "symbol": "USDm", "decimals": 18}
+["0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",42220]	{"name": "Superchain Velodrome", "symbol": "XVELO", "decimals": 18}
+["0x83E04b17cE5CCc1b1dCaB192c618776114Fa064A",42220]	{"name": "Self.xyz Verified Celo", "symbol": "vCELO", "decimals": 18}
+["0x8aC2901Dd8A1F17a1A4768A6bA4C3751e3995B2D",42220]	{"name": "Wrapped BTC (Celo native bridge)", "symbol": "WBTC", "decimals": 8}
+["0x9995cc8F20Db5896943Afc8eE0ba463259c931ed",42220]	{"name": "Ethix", "symbol": "ETHIX", "decimals": 18}
+["0xD221812de1BD094f35587EE8E174B07B6167D9Af",42220]	{"name": "Wrapped Ether (Celo native bridge)", "symbol": "WETH", "decimals": 18}
+["0xD8763CBa276a3738E6DE85b4b3bF5FDed6D6cA73",42220]	{"name": "Mento Euro", "symbol": "EURm", "decimals": 18}
+["0xaf37E8B6C9ED7f6318979f56Fc287d76c30847ff",42220]	{"name": "XAUt0", "symbol": "XAUt0", "decimals": 6}
+["0xafcc6AE807187A31E84138F3860D4CE27973e01b",42220]	{"name": "Superchain OP", "symbol": "XOP", "decimals": 18}
+["0xcebA9300f2b948710d2653dD7B07f33A8B32118C",42220]	{"name": "USDC", "symbol": "USDC", "decimals": 6}
+["0xef4229c8c3250C675F21BCefa42f58EfbfF6002a",42220]	{"name": "USD Coin", "symbol": "USDC", "decimals": 6}
+["0xfC8dA7Cc54dAE3376308b8c39758f5EB5D06E0dF",42220]	{"name": "TESTCelo", "symbol": "TECELO", "decimals": 18}
+["0xa6438B910Fd62D07D85B1BAe4B6BfbedCf04d479",42220]	{"name": "unknown", "symbol": "UNKNOWN", "decimals": 18}

@@ -2,15 +2,19 @@ import type { EvmEvent } from "envio";
 import type { CLGaugeConfig, FeeToTickSpacingMapping, Token } from "envio";
 import { createPoolEntity } from "../../Aggregators/Pool";
 import {
-  RootPoolLeafPoolId,
+  type PoolDeployment,
+  legacyPoolDeployment,
   nfpmForCLPool,
-  rootPoolMatchingHash,
 } from "../../Constants";
 import type { TokenEntityMapping } from "../../CustomTypes";
 import type { handlerContext } from "../../EntityTypes";
 import type { Pool } from "../../EntityTypes";
 import { createTokenEntity } from "../../PriceOracle";
-import { flushPendingVotesAndDistributionsForRootPool } from "../Voter/CrossChainPendingResolution";
+
+/** PoolCreated from a legacy CLFactory or an AeroCLFactory (same ABI). */
+export type CLFactoryPoolCreatedEvent =
+  | EvmEvent<"CLFactory", "PoolCreated">
+  | EvmEvent<"AeroCLFactory", "PoolCreated">;
 
 export interface CLFactoryPoolCreatedResult {
   liquidityPoolAggregator: Pool;
@@ -43,6 +47,8 @@ export interface CLPoolPendingInitializeInput {
  * @param feeToTickSpacingMapping - FeeToTickSpacingMapping for this pool's tick spacing
  * @param context - The handler context
  * @param pendingInitialize - Optional opening price buffered by CLPool.Initialize
+ * @param deployment - Deployment of the emitting factory (defaults to the
+ *   chain's legacy deployment)
  * @returns The constructed aggregator. The pool is persisted even when a token
  *   side fails the #677 bytecode gate (#865, mirroring the V2 PoolFactory fix
  *   #864/#880): that side is left with an empty symbol and no Token row rather
@@ -50,7 +56,7 @@ export interface CLPoolPendingInitializeInput {
  *   (snapshots, user-stats, gauge/vote state).
  */
 export async function processCLFactoryPoolCreated(
-  event: EvmEvent<"CLFactory", "PoolCreated">,
+  event: CLFactoryPoolCreatedEvent,
   factoryAddress: string,
   poolToken0: Token | undefined,
   poolToken1: Token | undefined,
@@ -58,6 +64,7 @@ export async function processCLFactoryPoolCreated(
   feeToTickSpacingMapping: FeeToTickSpacingMapping,
   context: handlerContext,
   pendingInitialize?: CLPoolPendingInitializeInput,
+  deployment: PoolDeployment = legacyPoolDeployment(event.chainId),
 ): Promise<CLFactoryPoolCreatedResult> {
   try {
     const poolTokenSymbols: string[] = [];
@@ -114,6 +121,7 @@ export async function processCLFactoryPoolCreated(
     const baseAggregator = createPoolEntity({
       poolAddress: event.params.pool,
       chainId: event.chainId,
+      deployment,
       isCL: true,
       isStable: false,
       token0Address: event.params.token0,
@@ -155,60 +163,4 @@ export async function processCLFactoryPoolCreated(
     // Re-throw to let the caller handle it
     throw error;
   }
-}
-
-/**
- * If a PendingRootPoolMapping exists for this leaf pool's (token0, token1, tickSpacing),
- * creates the RootPool_LeafPool mapping, deletes the pending mapping, and flushes any
- * pending votes for that root pool.
- * @param context - The handler context
- * @param leafChainId - The chain ID of the leaf pool
- * @param token0 - The address of token0
- * @param token1 - The address of token1
- * @param tickSpacing - The tick spacing of the pool
- * @param leafPoolAddress - The address of the leaf pool
- * @returns void
- */
-export async function flushPendingRootPoolMappingAndVotes(
-  context: handlerContext,
-  leafChainId: number,
-  token0: string,
-  token1: string,
-  tickSpacing: bigint | number,
-  leafPoolAddress: string,
-): Promise<void> {
-  const hash = rootPoolMatchingHash(leafChainId, token0, token1, tickSpacing);
-  const pendingMappings =
-    (await context.PendingRootPoolMapping.getWhere({
-      rootPoolMatchingHash: { _eq: hash },
-    })) ?? [];
-  if (pendingMappings.length === 0) {
-    return;
-  }
-
-  if (pendingMappings.length > 1) {
-    context.log.warn(
-      `[flushPendingRootPoolMappingAndVotes] Multiple PendingRootPoolMapping entries for rootPoolMatchingHash ${hash}. Processing first only.`,
-    );
-  }
-
-  const pending = pendingMappings[0];
-  context.RootPool_LeafPool.set({
-    id: RootPoolLeafPoolId(
-      pending.rootChainId,
-      leafChainId,
-      pending.rootPoolAddress,
-      leafPoolAddress,
-    ),
-    rootChainId: pending.rootChainId,
-    rootPoolAddress: pending.rootPoolAddress,
-    leafChainId,
-    leafPoolAddress,
-  });
-  context.PendingRootPoolMapping.deleteUnsafe(pending.id);
-  await flushPendingVotesAndDistributionsForRootPool(
-    context,
-    pending.rootPoolAddress,
-    "[flushPendingRootPoolMappingAndVotes]",
-  );
 }

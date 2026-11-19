@@ -35,6 +35,8 @@ export interface UserStatsPerPoolDiff {
   incrementalNumberOfGaugeRewardClaims: bigint;
   incrementalTotalGaugeRewardsClaimedUSD: bigint;
   incrementalTotalGaugeRewardsClaimed: bigint;
+  incrementalTotalGaugeEarlyWithdrawPenalties: bigint;
+  incrementalTotalGaugeEarlyWithdrawPenaltiesUSD: bigint;
   incrementalTotalStakedFeesCollected0: bigint;
   incrementalTotalStakedFeesCollected1: bigint;
   incrementalTotalStakedFeesCollectedUSD: bigint;
@@ -123,7 +125,6 @@ export function createUserStatsPerPoolEntity(
     id: UserStatsPerPoolId(chainId, userAddress, poolAddress),
     userAddress: userAddress,
     poolAddress: poolAddress,
-    chainId: chainId,
 
     // Liquidity metrics
     lpBalance: 0n,
@@ -155,6 +156,8 @@ export function createUserStatsPerPoolEntity(
     numberOfGaugeRewardClaims: 0n,
     totalGaugeRewardsClaimedUSD: 0n,
     totalGaugeRewardsClaimed: 0n,
+    totalGaugeEarlyWithdrawPenalties: 0n,
+    totalGaugeEarlyWithdrawPenaltiesUSD: 0n,
     totalStakedFeesCollected0: 0n,
     totalStakedFeesCollected1: 0n,
     totalStakedFeesCollectedUSD: 0n,
@@ -185,15 +188,89 @@ export function createUserStatsPerPoolEntity(
 }
 
 /**
+ * Preload-pass stand-in for {@link updateUserStatsPerPool}: issues the reads
+ * it would make, without its arithmetic, so a handler can return early in the
+ * preload pass and still have those reads batched.
+ *
+ * `updateUserStatsPerPool` reads only at a snapshot boundary, and only for a
+ * user with staked liquidity: the staked CL positions (and, without
+ * `preloadedPoolData`, the pool and its tokens). Mirrors those conditions on
+ * `current`, which is exact for diffs that do not move staked liquidity
+ * (swaps, fees, flash loans); for any other diff a miss only costs an
+ * unbatched read in the run proper.
+ *
+ * @param current - The user's stats row as loaded
+ * @param timestamp - Event time
+ * @param context - Handler context
+ * @param chainId - Chain of the event being handled (the user's pool's chain)
+ * @param preloadedPoolData - The pool data the run proper will pass, if any
+ * @returns Promise that resolves once the reads have completed
+ */
+export async function preloadUserStatsPerPoolUpdate(
+  current: UserStatsPerPool,
+  timestamp: Date,
+  context: handlerContext,
+  chainId: number,
+  preloadedPoolData?: PoolData,
+): Promise<void> {
+  if (
+    !shouldSnapshot(current.lastSnapshotTimestamp, timestamp) ||
+    current.currentLiquidityStaked <= 0n
+  ) {
+    return;
+  }
+  let poolEntity = preloadedPoolData?.liquidityPoolAggregator;
+  if (!poolEntity) {
+    poolEntity = await getRehydrated(
+      context.Pool,
+      "Pool",
+      PoolId(chainId, current.poolAddress),
+    );
+    if (!poolEntity) return;
+    await Promise.all([
+      getRehydrated(context.Token, "Token", poolEntity.token0_id),
+      getRehydrated(context.Token, "Token", poolEntity.token1_id),
+    ]);
+  }
+  const nfpmAddress = poolEntity.nfpmAddress;
+  if (
+    poolEntity.isCL &&
+    poolEntity.sqrtPriceX96 &&
+    poolEntity.sqrtPriceX96 !== 0n &&
+    current.stakedCLPositionTokenIds.length > 0 &&
+    nfpmAddress
+  ) {
+    await Promise.all(
+      current.stakedCLPositionTokenIds.map((tokenId) =>
+        getRehydrated(
+          context.NonFungiblePosition,
+          "NonFungiblePosition",
+          NonFungiblePositionId(chainId, nfpmAddress, tokenId),
+        ),
+      ),
+    );
+  }
+}
+
+/**
  * Generic function to update UserStatsPerPool with any combination of fields
  * Similar to updatePool pattern.
  * Takes an epoch-aligned snapshot when entering a new snapshot epoch.
+ * @param diff - The changes to apply
+ * @param current - The user's current stats row
+ * @param context - Handler context
+ * @param timestamp - Event time
+ * @param chainId - Chain of the event being handled (the user's pool's chain)
+ * @param preloadedPoolData - Pool + tokens the caller already loaded, reused
+ *   for the snapshot-time staked USD recompute
+ * @returns The updated row (also staged on the context)
  */
 export async function updateUserStatsPerPool(
   diff: Partial<UserStatsPerPoolDiff>,
   current: UserStatsPerPool,
   context: handlerContext,
   timestamp: Date,
+  chainId: number,
   preloadedPoolData?: PoolData,
 ): Promise<UserStatsPerPool> {
   // Clamp lpBalance to >= 0n on write (issue #816). A holder that existed before
@@ -208,7 +285,7 @@ export async function updateUserStatsPerPool(
   const clampedLpBalance = lpBalanceRaw < 0n ? 0n : lpBalanceRaw;
   if (lpBalanceRaw < 0n) {
     context.log.warn(
-      `[NEG_LP_BALANCE_GUARD][updateUserStatsPerPool] field=lpBalance userAddress=${current.userAddress} poolAddress=${current.poolAddress} chainId=${current.chainId} priorLpBalance=${current.lpBalance} delta=${diff.incrementalLpBalance ?? 0n} clampedTo=${clampedLpBalance}`,
+      `[NEG_LP_BALANCE_GUARD][updateUserStatsPerPool] field=lpBalance userAddress=${current.userAddress} poolAddress=${current.poolAddress} chainId=${chainId} priorLpBalance=${current.lpBalance} delta=${diff.incrementalLpBalance ?? 0n} clampedTo=${clampedLpBalance}`,
     );
   }
 
@@ -225,7 +302,7 @@ export async function updateUserStatsPerPool(
   const clampedAlmLpAmount = almLpAmountRaw < 0n ? 0n : almLpAmountRaw;
   if (almLpAmountRaw < 0n) {
     context.log.warn(
-      `[NEG_ALM_LP_AMOUNT_GUARD][updateUserStatsPerPool] field=almLpAmount userAddress=${current.userAddress} poolAddress=${current.poolAddress} chainId=${current.chainId} priorAlmLpAmount=${current.almLpAmount} delta=${diff.incrementalAlmLpAmount ?? 0n} clampedTo=${clampedAlmLpAmount}`,
+      `[NEG_ALM_LP_AMOUNT_GUARD][updateUserStatsPerPool] field=almLpAmount userAddress=${current.userAddress} poolAddress=${current.poolAddress} chainId=${chainId} priorAlmLpAmount=${current.almLpAmount} delta=${diff.incrementalAlmLpAmount ?? 0n} clampedTo=${clampedAlmLpAmount}`,
     );
   }
 
@@ -331,6 +408,16 @@ export async function updateUserStatsPerPool(
         ? current.totalGaugeRewardsClaimed +
           diff.incrementalTotalGaugeRewardsClaimed
         : current.totalGaugeRewardsClaimed,
+    totalGaugeEarlyWithdrawPenalties:
+      diff.incrementalTotalGaugeEarlyWithdrawPenalties !== undefined
+        ? current.totalGaugeEarlyWithdrawPenalties +
+          diff.incrementalTotalGaugeEarlyWithdrawPenalties
+        : current.totalGaugeEarlyWithdrawPenalties,
+    totalGaugeEarlyWithdrawPenaltiesUSD:
+      diff.incrementalTotalGaugeEarlyWithdrawPenaltiesUSD !== undefined
+        ? current.totalGaugeEarlyWithdrawPenaltiesUSD +
+          diff.incrementalTotalGaugeEarlyWithdrawPenaltiesUSD
+        : current.totalGaugeEarlyWithdrawPenaltiesUSD,
     totalStakedFeesCollected0:
       diff.incrementalTotalStakedFeesCollected0 !== undefined
         ? current.totalStakedFeesCollected0 +
@@ -424,7 +511,7 @@ export async function updateUserStatsPerPool(
       let token0Instance = preloadedPoolData?.token0Instance;
       let token1Instance = preloadedPoolData?.token1Instance;
       if (!poolEntity) {
-        const poolId = PoolId(updated.chainId, updated.poolAddress);
+        const poolId = PoolId(chainId, updated.poolAddress);
         poolEntity =
           (await getRehydrated(context.Pool, "Pool", poolId)) ?? undefined;
         if (poolEntity) {
@@ -450,7 +537,7 @@ export async function updateUserStatsPerPool(
               getRehydrated(
                 context.NonFungiblePosition,
                 "NonFungiblePosition",
-                NonFungiblePositionId(updated.chainId, nfpmAddress, tokenId),
+                NonFungiblePositionId(chainId, nfpmAddress, tokenId),
               ),
             ),
           );
@@ -462,6 +549,7 @@ export async function updateUserStatsPerPool(
                 poolEntity.sqrtPriceX96,
                 position.tickLower,
                 position.tickUpper,
+                chainId,
                 token0Instance ?? undefined,
                 token1Instance ?? undefined,
               );
@@ -490,7 +578,7 @@ export async function updateUserStatsPerPool(
       }
     }
 
-    setUserStatsPerPoolSnapshot(updated, timestamp, context);
+    setUserStatsPerPoolSnapshot(updated, timestamp, context, chainId);
     updated = {
       ...updated,
       lastSnapshotTimestamp: getSnapshotEpoch(timestamp),

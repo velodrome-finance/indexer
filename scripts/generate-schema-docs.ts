@@ -61,16 +61,32 @@ function parseSchema(src: string): Entity[] {
   const entities: Entity[] = [];
   let current: Entity | null = null;
   let pending: string[] = []; // contiguous comment lines awaiting a field/type
+  // Inside a multi-line type header: `type X` followed by directives spread
+  // over several lines (a `@storage(clickhouse: {...})` layout has nested
+  // braces and `key: value` lines that must not be read as fields). The header
+  // ends at the `{` that opens the body, outside any parenthesis.
+  let inHeader = false;
+  let headerParens = 0;
+  const parenDelta = (text: string) =>
+    (text.match(/\(/g)?.length ?? 0) - (text.match(/\)/g)?.length ?? 0);
 
   for (const raw of lines) {
     const line = raw.trim();
+
+    if (inHeader) {
+      headerParens += parenDelta(line);
+      if (headerParens <= 0 && line.endsWith("{")) inHeader = false;
+      continue;
+    }
 
     if (line === "") {
       pending = [];
       continue;
     }
 
-    const typeMatch = line.match(/^type\s+(\w+)\s*\{/);
+    // `type X {`, `type X @storage(...) @internal {`, or `type X` with its
+    // directives and `{` on the following lines.
+    const typeMatch = line.match(/^type\s+(\w+)\b/);
     if (typeMatch) {
       current = {
         name: typeMatch[1],
@@ -79,6 +95,8 @@ function parseSchema(src: string): Entity[] {
       };
       entities.push(current);
       pending = [];
+      headerParens = parenDelta(line);
+      inHeader = !(headerParens <= 0 && line.endsWith("{"));
       continue;
     }
 
@@ -164,10 +182,17 @@ const CATEGORIES: { title: string; blurb: string; names: string[] }[] = [
       "DynamicFeeGlobalConfig",
       "CLGaugeConfig",
       "FeeToTickSpacingMapping",
+      "PoolFactoryDefaultFee",
       "RedistributorConfig",
       "RootPool_LeafPool",
       "RootGauge_RootPool",
     ],
+  },
+  {
+    title: "Superchain root pools",
+    blurb:
+      "Optimism's record of the superchain root pools (ADR 0009): the vote weight and emissions of a leaf pool on another chain live here; the ClickHouse layer joins them to the leaf Pool (root_leaf_pools, leaf_pool_root_totals).",
+    names: ["RootPool", "RootPoolVote"],
   },
   {
     title: "Pool launcher",
@@ -177,13 +202,55 @@ const CATEGORIES: { title: string; blurb: string; names: string[] }[] = [
   {
     title: "Cross-chain superswaps (Hyperlane)",
     blurb:
-      "oUSDT-bridged swaps and the Hyperlane dispatch/process events that correlate them.",
+      "oUSDT-bridged swaps and the per-chain SuperSwap legs (joined in ClickHouse by super_swap_legs; ADR 0009).",
     names: [
-      "SuperSwap",
+      "SuperSwapOriginLeg",
+      "SuperSwapDestinationLeg",
       "OUSDTBridgedTransaction",
       "OUSDTSwaps",
-      "DispatchId_event",
-      "ProcessId_event",
+      "TxDispatchIdRegistry",
+      "TxProcessIdRegistry",
+      "TxOUSDTSwapRegistry",
+    ],
+  },
+  {
+    title: "Aero gauges, staking & emissions",
+    blurb:
+      "Aero (MetaDEX) gauges on every Aero chain: gauge state, the LeafVoter's emission ledger, rewards managers, and append-only stake / emissions / redemption / rewards rows (ADR 0006). Staked liquidity itself is on Pool / UserStatsPerPool / NonFungiblePosition.",
+    names: [
+      "AeroGauge",
+      "AeroGaugeFactory",
+      "AeroLeafVoterState",
+      "AeroVotingRewardsManager",
+      "AeroIncentiveProgram",
+      "AeroGaugeSnapshot",
+      "AeroLeafVoterStateSnapshot",
+      "AeroGaugeStakeEvent",
+      "AeroEmissionsEvent",
+      "AeroRedemptionEvent",
+      "AeroVotingRewardsEvent",
+    ],
+  },
+  {
+    title: "Aero governance",
+    blurb:
+      "sAERO positions (VotingEscrow, Base), the root Voter's per-chain allocation ledger (Base) and each LeafVoter's booked gauge allocations, the Minter and the legacy-to-Aero migration (ADR 0006).",
+    names: [
+      "SAeroPosition",
+      "SAeroEscrowState",
+      "SAeroEscrowStateSnapshot",
+      "SAeroPositionEvent",
+      "AeroRootAllocation",
+      "AeroRootGaugeVote",
+      "AeroRootChainState",
+      "AeroLeafTokenState",
+      "AeroLeafAllocation",
+      "AeroAllocationEvent",
+      "AeroMinterState",
+      "AeroMinterSnapshot",
+      "AeroMinterEvent",
+      "AeroMigrationTotals",
+      "AeroMigrationEvent",
     ],
   },
   {
@@ -191,13 +258,17 @@ const CATEGORIES: { title: string; blurb: string; names: string[] }[] = [
     blurb:
       "Short-lived bookkeeping entities used to correlate events across log indices/blocks. Most are deleted once consumed; not intended for end-user queries.",
     names: [
-      "PendingVote",
       "CLPoolPendingInitialize",
-      "PendingRootPoolMapping",
-      "PendingDistribution",
+      "PoolTickMap",
       "CLPoolMintEvent",
       "CLPositionPendingPrincipal",
       "TxCLPoolMintRegistry",
+      "AeroNFPMMintPool",
+      "AeroNFPMPendingMint",
+      "AeroGaugePendingReferral",
+      "NFPMCollectFeesInTx",
+      "V2SwapFeesInTx",
+      "TokenPricingPools",
       "TxPoolTransferRegistry",
       "PoolTransferInTx",
       "ALMLPWrapperTransferInTx",

@@ -978,7 +978,6 @@ describe("LPWrapperLogic", () => {
           transferLogIndex,
         ),
       );
-      expect(storedTransfer.chainId).toBe(chainId);
       expect(storedTransfer.txHash).toBe(txHash);
       expect(storedTransfer.wrapperAddress).toBe(srcAddress);
       expect(storedTransfer.logIndex).toBe(transferLogIndex);
@@ -1038,7 +1037,6 @@ describe("LPWrapperLogic", () => {
     it("should find matching burn Transfer event", async () => {
       const matchingBurn = {
         id: ALMLPWrapperTransferInTxId(chainId, txHash, srcAddress, 50),
-        chainId: chainId,
         wrapperAddress: srcAddress,
         from: sender,
         isBurn: true,
@@ -1048,7 +1046,6 @@ describe("LPWrapperLogic", () => {
 
       const otherBurn = {
         id: ALMLPWrapperTransferInTxId(chainId, txHash, srcAddress, 60),
-        chainId: chainId,
         wrapperAddress: srcAddress,
         from: sender,
         isBurn: true,
@@ -1058,7 +1055,6 @@ describe("LPWrapperLogic", () => {
 
       const nonMatchingBurn = {
         id: ALMLPWrapperTransferInTxId(chainId, txHash, srcAddress, 80),
-        chainId: chainId,
         wrapperAddress: "0xdifferentwrapper",
         from: sender,
         isBurn: true,
@@ -1109,7 +1105,6 @@ describe("LPWrapperLogic", () => {
     it("should filter out transfers with logIndex >= withdrawLogIndex", async () => {
       const futureBurn = {
         id: ALMLPWrapperTransferInTxId(chainId, txHash, srcAddress, 150),
-        chainId: chainId,
         wrapperAddress: srcAddress,
         from: sender,
         isBurn: true,
@@ -1136,7 +1131,6 @@ describe("LPWrapperLogic", () => {
     it("should select closest preceding burn when multiple matches exist", async () => {
       const burn1 = {
         id: ALMLPWrapperTransferInTxId(chainId, txHash, srcAddress, 30),
-        chainId: chainId,
         wrapperAddress: srcAddress,
         from: sender,
         isBurn: true,
@@ -1146,7 +1140,6 @@ describe("LPWrapperLogic", () => {
 
       const burn2 = {
         id: ALMLPWrapperTransferInTxId(chainId, txHash, srcAddress, 70),
-        chainId: chainId,
         wrapperAddress: srcAddress,
         from: sender,
         isBurn: true,
@@ -1156,7 +1149,6 @@ describe("LPWrapperLogic", () => {
 
       const burn3 = {
         id: ALMLPWrapperTransferInTxId(chainId, txHash, srcAddress, 90),
-        chainId: chainId,
         wrapperAddress: srcAddress,
         from: sender,
         isBurn: true,
@@ -1189,7 +1181,6 @@ describe("LPWrapperLogic", () => {
       );
       const burnFromDifferentSender = {
         id: ALMLPWrapperTransferInTxId(chainId, txHash, srcAddress, 50),
-        chainId: chainId,
         wrapperAddress: srcAddress,
         from: differentSender, // Different sender
         isBurn: true,
@@ -1282,7 +1273,6 @@ describe("LPWrapperLogic", () => {
           srcAddress,
           transferLogIndex,
         ),
-        chainId: chainId,
         wrapperAddress: srcAddress,
         from: sender,
         isBurn: true,

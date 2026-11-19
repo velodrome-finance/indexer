@@ -48,7 +48,6 @@ describe("NFPMDecreaseLiquidityLogic", () => {
           tokenId,
           epoch.getTime(),
         ),
-        chainId,
         tokenId,
         nfpmAddress: mockPosition.nfpmAddress,
         owner: mockPosition.owner,
@@ -62,7 +61,6 @@ describe("NFPMDecreaseLiquidityLogic", () => {
 
   const mockPosition: NonFungiblePosition = {
     id: NonFungiblePositionId(chainId, nfpmAddress, tokenId),
-    chainId: chainId,
     tokenId: tokenId,
     nfpmAddress: nfpmAddress,
     owner: toChecksumAddress("0x1DFAb7699121fEF702d07932a447868dCcCFb029"),
@@ -331,9 +329,7 @@ describe("NFPMDecreaseLiquidityLogic", () => {
       const mockPoolData: PoolData = {
         token0Instance: {} as PoolData["token0Instance"],
         token1Instance: {} as PoolData["token1Instance"],
-        liquidityPoolAggregator: {
-          chainId,
-        } as PoolData["liquidityPoolAggregator"],
+        liquidityPoolAggregator: {} as PoolData["liquidityPoolAggregator"],
       };
       const mockEvent: EvmEvent<"NFPM", "DecreaseLiquidity"> = {
         params: {
@@ -358,9 +354,8 @@ describe("NFPMDecreaseLiquidityLogic", () => {
       expect(attributeLiquidityChangeToUserStatsPerPool).toHaveBeenCalledTimes(
         1,
       );
-      const [owner, poolAddr, data, , amount0, amount1, ts, type] = vi.mocked(
-        attributeLiquidityChangeToUserStatsPerPool,
-      ).mock.calls[0];
+      const [owner, poolAddr, data, , amount0, amount1, ts, type, callChainId] =
+        vi.mocked(attributeLiquidityChangeToUserStatsPerPool).mock.calls[0];
       expect(owner).toBe(mockPosition.owner);
       expect(poolAddr).toBe(poolAddress);
       expect(data).toBe(mockPoolData);
@@ -368,6 +363,7 @@ describe("NFPMDecreaseLiquidityLogic", () => {
       expect(amount1).toBe(74592880586n);
       expect(ts).toBe(1712065791);
       expect(type).toBe(LiquidityChangeType.REMOVE);
+      expect(callChainId).toBe(chainId);
 
       expectSnapshotSet(mockContext, 0n);
     });

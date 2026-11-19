@@ -1,7 +1,6 @@
 import { indexer } from "envio";
-import type { NonFungiblePosition } from "envio";
 import { ALMLPWrapperId } from "../../Constants";
-import { getWhereRehydrated } from "../../EntityTimestamps";
+import { findStrategyPosition } from "./DeployFactorySharedLogic";
 
 indexer.contractRegister(
   { contract: "ALMDeployFactoryV1", event: "StrategyCreated" },
@@ -27,41 +26,21 @@ indexer.onEvent(
 
     const timestamp = new Date(event.block.timestamp * 1000);
 
-    const nonFungiblePositions = await getWhereRehydrated(
-      context.NonFungiblePosition,
-      "NonFungiblePosition",
-      {
-        mintTransactionHash: { _eq: event.transaction.hash },
-      },
+    const position = await findStrategyPosition(
+      event.chainId,
+      event.transaction.hash,
+      { pool, token0, token1, tickLower, tickUpper, liquidity },
+      "[ALMDeployFactoryV1]",
+      context,
     );
 
-    const matchingPositions =
-      nonFungiblePositions?.filter(
-        (pos: NonFungiblePosition) =>
-          pos.chainId === event.chainId &&
-          pos.tickLower === tickLower &&
-          pos.tickUpper === tickUpper &&
-          pos.liquidity === liquidity &&
-          pos.token0 === token0 &&
-          pos.token1 === token1,
-      ) ?? [];
-
-    if (matchingPositions.length === 0) {
+    if (!position) {
       context.log.error(
         `[ALMDeployFactoryV1] NonFungiblePosition not found for transaction hash ${event.transaction.hash} matching tickLower ${tickLower}, tickUpper ${tickUpper}, liquidity ${liquidity}. It should have been created by CLPool event handlers.`,
       );
       return;
     }
 
-    if (matchingPositions.length > 1) {
-      context.log.warn(
-        `[ALMDeployFactoryV1] Multiple NonFungiblePositions found for transaction hash ${event.transaction.hash} with the same tick lower ${tickLower}, tick upper ${tickUpper}, liquidity ${liquidity}, token0 ${token0} and token1 ${token1}. Using the first match.`,
-      );
-    }
-
-    // there should, in principle, one unique non fungible position that has
-    // simultaneously the same transaction hash,tickLower, tickUpper, liquidity and token0 and token1
-    const position = matchingPositions[0];
     const tokenId = position.tokenId;
 
     // In DeployFactoryV1, lpWrapper.initialize() receives position.liquidity as initialTotalSupply
@@ -73,7 +52,6 @@ indexer.onEvent(
     // amount0/amount1 are derived at snapshot time from liquidity + sqrtPriceX96 + ticks
     context.ALM_LP_Wrapper.set({
       id: ALMLPWrapperId(event.chainId, lpWrapper),
-      chainId: event.chainId,
       pool: pool,
       token0: token0,
       token1: token1,

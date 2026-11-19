@@ -1,22 +1,8 @@
 import dotenv from "dotenv";
-import { http, createPublicClient } from "viem";
-import type { Chain, PublicClient } from "viem";
-import {
-  base,
-  celo,
-  fraxtal,
-  ink,
-  lisk,
-  metalL2,
-  mode,
-  optimism,
-  soneium,
-  superseed,
-  swellchain,
-  unichain,
-} from "viem/chains";
+import type { PublicClient } from "viem";
 import { Web3 } from "web3";
 
+import { createPrimaryRpcClient } from "./Effects/RpcClient";
 import PriceConnectors from "./constants/price_connectors.json";
 import StablecoinsJson from "./constants/stablecoins.json";
 
@@ -68,8 +54,29 @@ export const SECONDS_IN_FOUR_YEARS = BigInt(126144000);
 /** Snapshot interval: 1 hour in milliseconds (for epoch-aligned snapshots) */
 export const SNAPSHOT_INTERVAL_IN_MS = 60 * 60 * 1000;
 
-export const toChecksumAddress = (address: string): `0x${string}` =>
-  Web3.utils.toChecksumAddress(address) as `0x${string}`;
+/**
+ * Memo for {@link toChecksumAddress}: EIP-55 casing costs a keccak256 per call,
+ * and the hot callers (e.g. the swap initiator on every swap) see the same few
+ * thousand addresses over and over. Cleared wholesale when it reaches
+ * {@link CHECKSUM_MEMO_LIMIT} entries so memory stays bounded.
+ */
+const checksumMemo = new Map<string, `0x${string}`>();
+const CHECKSUM_MEMO_LIMIT = 100_000;
+
+/**
+ * EIP-55 checksum-cases an address (memoised; see {@link checksumMemo}).
+ * @param address - Address in any case
+ * @returns The checksummed address
+ * @throws When `address` is not a valid address (as Web3 does; not memoised)
+ */
+export const toChecksumAddress = (address: string): `0x${string}` => {
+  const memoised = checksumMemo.get(address);
+  if (memoised !== undefined) return memoised;
+  const checksummed = Web3.utils.toChecksumAddress(address) as `0x${string}`;
+  if (checksumMemo.size >= CHECKSUM_MEMO_LIMIT) checksumMemo.clear();
+  checksumMemo.set(address, checksummed);
+  return checksummed;
+};
 
 // Note:
 // These pools factories addresses are hardcoded since we can't check the pool type from the Voter contract.
@@ -124,7 +131,8 @@ export const ROOT_POOL_FACTORY_ADDRESS_OPTIMISM = toChecksumAddress(
  * Keys are `${chainId}-${checksumFactoryAddress}`. Values are checksummed NFPM addresses.
  *
  * Extracted from config.yaml — any new chain or factory must be added here for nfpmAddress
- * to populate on newly created CL pools.
+ * to populate on newly created CL pools (test/Constants.test.ts checks every
+ * AeroCLFactory in config.yaml has an entry).
  */
 const CL_FACTORY_TO_NFPM: Record<string, string> = {
   // Optimism — three NFPMs, three CLFactories. Each pairing verified on-chain
@@ -148,7 +156,66 @@ const CL_FACTORY_TO_NFPM: Record<string, string> = {
   // Newest CLFactory (paired with CLGaugeFactoryV3) ↔ fourth Base NFPM. Verified.
   [`8453-${toChecksumAddress("0xf8f2eB4940CFE7d13603DDDD87f123820Fc061Ef")}`]:
     toChecksumAddress("0xe1f8cd9AC4e4A65F54f38a5CdAfCA44f6dD68b53"),
+
+  // Aero (MetaDEX) CLFactories: one per chain, all paired with the Aero NFPM
+  // (CLFactory constructor argument `nftPositionManager`, cl-<chain>.json).
+  // Arc also has the earlier "lite launch" CLFactory with its own NFPM
+  // (cllitelaunch-arc.json).
+  ...Object.fromEntries(
+    Object.entries({
+      8453: "0x9CB220581b91b0C83223012FE69688b92aD07a76",
+      10: "0xfeaB42D90055db3a0616249f76B6002D72266778",
+      42161: "0x88a60ee77392577c355C0acb2A8d476D5a4EC03a",
+      1: "0xF4Fd2E6c5B60c5b365cd1B96DD6245E6D60414c2",
+      57073: "0x7660BF2aDefC687C22906112ca323d60A00358cF",
+      4663: "0xc63d7338c178e805c544B8f897066bD3BBcBE136",
+      5042: "0x7F83235643181E440433400a027618Cd50879751",
+    }).map(([chainId, factory]) => [
+      `${chainId}-${toChecksumAddress(factory)}`,
+      toChecksumAddress("0x4857DB576eE0e45F10525eC59527BfD10beeC60b"),
+    ]),
+  ),
+  [`5042-${toChecksumAddress("0xb89Df768aF2CFE637ceB352c587Fe8edAf491d03")}`]:
+    toChecksumAddress("0xc84bB45D43CD25D02b83B4C085eaA4e08da8f473"),
 };
+
+/**
+ * Which deployment a pool belongs to, stored on `Pool.deployment` and
+ * `PoolSnapshot.deployment` (docs/adr/0005-one-data-model-for-legacy-and-aero-pools.md):
+ *
+ * - `VELODROME`: Velodrome V2 / Slipstream on Optimism and the superchain
+ *   leaves (every legacy pool not on Base).
+ * - `AERODROME`: Aerodrome V2 / Slipstream on Base.
+ * - `AERO`: the Aero (MetaDEX) deployment launched 2026-10-21 on Base,
+ *   Optimism, Ethereum, Arbitrum, Ink, Robinhood Chain and Arc (Arc's earlier
+ *   "lite launch" included).
+ *
+ * Stored as a String, not an enum, like the other value sets in schema.graphql.
+ */
+export const POOL_DEPLOYMENT = {
+  VELODROME: "VELODROME",
+  AERODROME: "AERODROME",
+  AERO: "AERO",
+} as const;
+export type PoolDeployment =
+  (typeof POOL_DEPLOYMENT)[keyof typeof POOL_DEPLOYMENT];
+
+/**
+ * The legacy deployment a pool created by a legacy factory on `chainId` belongs to.
+ *
+ * @param chainId - Chain the pool lives on
+ * @returns `AERODROME` on Base, `VELODROME` everywhere else
+ */
+export function legacyPoolDeployment(chainId: number): PoolDeployment {
+  return chainId === 8453
+    ? POOL_DEPLOYMENT.AERODROME
+    : POOL_DEPLOYMENT.VELODROME;
+}
+
+/** Aero NonfungiblePositionManager: the same address on every Aero chain. */
+export const AERO_NFPM_ADDRESS = toChecksumAddress(
+  "0x4857DB576eE0e45F10525eC59527BfD10beeC60b",
+);
 
 /**
  * Every superchain leaf chain shares the same set of CLFactory↔NFPM pairs, so
@@ -170,7 +237,9 @@ const SUPERCHAIN_CL_FACTORY_TO_NFPM: Record<string, string> = {
  * On chains with a single NFPM/CLFactory this is trivially deterministic; on Optimism
  * (three NFPMs) and Base (four NFPMs) we rely on the factory that emitted PoolCreated
  * to pick the right one. Superchain leaves share two CLFactory↔NFPM pairs matched on
- * factory alone.
+ * factory alone. Aero CLFactories map to the Aero NFPM (Arc's lite-launch
+ * CLFactory to its own NFPM); they are keyed by (chainId, factory) because the
+ * Aero CLFactory address differs per chain.
  *
  * @param chainId - Chain ID where the CL pool lives
  * @param factoryAddress - Address of the CLFactory that created the pool (event.srcAddress)
@@ -196,9 +265,19 @@ export const OUSDT_DECIMALS = 6;
 export const DEFAULT_VAMM_FEE_BPS = 30n;
 export const DEFAULT_SAMM_FEE_BPS = 5n;
 
+/**
+ * A chain's price connector (src/constants/price_connectors.json): a base
+ * asset other tokens are priced through (tiers 0–2, ADR 0003) and a positive
+ * trust signal (ADR 0002).
+ *
+ * `createdBlock` is read only by the legacy on-chain oracle effect
+ * (`getTokenPrice`, scripts only), which must not route through a connector
+ * before it existed. Chains with no legacy oracle (the Aero-only chains) omit
+ * it.
+ */
 type PriceConnector = {
   address: string;
-  createdBlock: number;
+  createdBlock?: number;
 };
 
 export const OPTIMISM_PRICE_CONNECTORS: PriceConnector[] =
@@ -237,6 +316,18 @@ export const SUPERSEED_PRICE_CONNECTORS: PriceConnector[] =
 export const SWELL_PRICE_CONNECTORS: PriceConnector[] =
   PriceConnectors.swellchain as PriceConnector[];
 
+export const ETHEREUM_PRICE_CONNECTORS: PriceConnector[] =
+  PriceConnectors.ethereum as PriceConnector[];
+
+export const ARBITRUM_PRICE_CONNECTORS: PriceConnector[] =
+  PriceConnectors.arbitrum as PriceConnector[];
+
+export const ROBINHOOD_PRICE_CONNECTORS: PriceConnector[] =
+  PriceConnectors.robinhood as PriceConnector[];
+
+export const ARC_PRICE_CONNECTORS: PriceConnector[] =
+  PriceConnectors.arc as PriceConnector[];
+
 /**
  * Build a set of stablecoin addresses from a list of addresses and a destination token
  * @param addresses
@@ -266,12 +357,8 @@ export enum PriceOracleType {
 
 export { zeroAddress as ZERO_ADDRESS } from "viem";
 
-// Global rate limit for all RPC requests; used in rpcGateway effect
-export const GLOBAL_REQUESTS_PER_SECOND = 20000;
-
-export const RPC_GATEWAY_PREFIX = "rpcGateway";
-
-// RPC fallback for getTokenDetails effect
+// Stand-in returned by getTokenDetails for an address that is not an address.
+// Real tokens go through getTokenMetadata (src/Effects/TokenMetadata.ts).
 export const TOKEN_DETAILS_FALLBACK = { name: "", decimals: 18, symbol: "" };
 
 export const USDC_DETAILS_FALLBACK = {
@@ -281,142 +368,107 @@ export const USDC_DETAILS_FALLBACK = {
 };
 
 /**
- * Default/fallback public RPC URLs for each chain
- * Used as fallback when private RPC fails or doesn't have historical state
- */
-export const DefaultRPC = {
-  optimism: "https://mainnet.optimism.io",
-  base: "https://base-rpc.publicnode.com",
-  lisk: "https://lisk.drpc.org",
-  mode: "https://1rpc.io/mode",
-  celo: "https://celo.drpc.org",
-  soneium: "https://rpc.soneium.org",
-  unichain: "https://0xrpc.io/uni",
-  fraxtal: "https://fraxtal.drpc.org",
-  ink: "https://ink.drpc.org",
-  metal: "https://metall2.drpc.org",
-  swell: "https://rpc.ankr.com/swell",
-  superseed: "https://mainnet.superseed.xyz",
-} as const;
-
-/**
- * Shared HTTP transport options for all chain RPC clients (DRPC best practices).
- * Centralised so batch size and timeout are tuned in one place.
- * - batchSize 150: dRPC (our RPC provider) strongly recommends 100-200 per batch. There is no hard limit,
- *   but batch requests wait for the slowest call before returning — one slow call in a large batch can
- *   timeout the entire batch. Smaller batches improve reliability for token metadata and price fetches.
- * - timeout 120s: applied per HTTP request (per batch when batching is enabled), not per individual JSON-RPC call.
- * - retryCount 0: transport-level retries are disabled. All RPC retries are handled in one place
- *   by RpcGateway (runWithRpcRetry + RPC_APP_RETRY), with logging and error-type-aware backoff.
+ * HTTP transport options for ad-hoc viem clients in `scripts/`. The indexer's
+ * own clients are built in src/Effects/RpcClient.ts (lazy URL resolution,
+ * per-chain rate limits); endpoint selection lives in src/Effects/RpcConfig.ts.
+ * - batchSize 50: dRPC recommends batches well under 200; a slow call holds
+ *   the whole batch.
+ * - timeout 25s per HTTP request (per batch).
+ * - retryCount 0: retries are handled by runWithRpcRetry (src/Effects/RpcGateway.ts).
  */
 export const RPC_HTTP_OPTIONS = {
-  batch: { batchSize: 150 },
-  timeout: 120000, // Per HTTP request (per batch when batching). Prevents indefinite hangs on slow or unresponsive RPC providers.
+  batch: { batchSize: 50 },
+  timeout: 25_000,
   retryCount: 0,
 } as const;
 
 /**
- * Single retry config for all RPC operations. Used by RpcGateway (runWithRpcRetry).
- * Error-type-aware backoff: rate limit (429) vs network get different caps.
- * Delay is min(baseMs * 2^attempt, capMs) with baseMs 1000 for rate limit, 500 for network.
- *
- * `methodNotSupportedMaxRetries` caps retries for provider-side method outages
- * (e.g. `eth_call does not exist / is not available`). These errors are usually
- * deterministic (upstream node has the method disabled) so retrying the primary
- * more than a couple of times is wasted work and log noise; after this cap the
- * caller falls back to the default public RPC for the chain.
+ * Retry budget per endpoint for every RPC operation (runWithRpcRetry). Which
+ * error classes are retried at all is decided by RPC_ERROR_POLICY in
+ * src/Effects/Helpers.ts: transient classes (5xx, timeout, rate limit,
+ * network, pruned-node state errors, unknown) are retried; deterministic
+ * reverts and auth/quota/method errors are not. Delay before retry n is
+ * jittered in [c/2, c] with c = min(base * 2^n, maxDelayMs).
+ * Worst case per endpoint: 4 attempts x 25 s timeout + ~3.5 s backoff.
  */
 export const RPC_APP_RETRY = {
-  maxRetries: 7,
-  methodNotSupportedMaxRetries: 2,
-  rateLimit: { capMs: 10000 },
-  network: { capMs: 8000 },
+  maxAttempts: 4,
+  baseDelayMs: 500,
+  rateLimitBaseDelayMs: 1000,
+  maxDelayMs: 8000,
 } as const;
 
-const CHAIN_BY_ID: Record<number, Chain> = {
-  10: optimism,
-  8453: base,
-  1135: lisk,
-  34443: mode,
-  42220: celo,
-  1868: soneium,
-  130: unichain,
-  252: fraxtal,
-  57073: ink,
-  1750: metalL2,
-  1923: swellchain,
-  5330: superseed,
-};
+/** @see createFallbackRpcClient in src/Effects/RpcClient.ts */
+export { createFallbackRpcClient } from "./Effects/RpcClient";
 
-const DEFAULT_RPC_BY_ID: Record<number, string> = {
-  10: DefaultRPC.optimism,
-  8453: DefaultRPC.base,
-  1135: DefaultRPC.lisk,
-  34443: DefaultRPC.mode,
-  42220: DefaultRPC.celo,
-  1868: DefaultRPC.soneium,
-  130: DefaultRPC.unichain,
-  252: DefaultRPC.fraxtal,
-  57073: DefaultRPC.ink,
-  1750: DefaultRPC.metal,
-  1923: DefaultRPC.swell,
-  5330: DefaultRPC.superseed,
+/**
+ * The legacy (pre-Aero) on-chain spot-price oracle of a Velodrome/Aerodrome
+ * deployment. Read only by the `getTokenPrice` effect, which is kept for
+ * scripts; handlers price tokens from pool state (ADR 0003).
+ */
+export type LegacyPriceOracle = {
+  getType: (blockNumber: number) => PriceOracleType;
+  getAddress: (priceOracleType: PriceOracleType) => string;
+  startBlock: number;
+  updateDelta: number;
+  // Issue #688: V1/V2 oracles' getManyRatesWithConnectors reverts when the
+  // connector array contains tokens with no AMM pool at the queried block.
+  // Lowercased addresses listed here are stripped from connectors only when
+  // querying V1/V2 oracles. V3+ tolerates these silently.
+  v1v2ConnectorBlacklist: Set<string>;
 };
 
 /**
- * Builds a viem PublicClient pinned to the public DefaultRPC for a chain.
- * Used by executeRpcWithFallback as a secondary client when the primary
- * provider exhausts retries on recoverable errors (historical state or
- * method-not-supported). Returns null if the chain has no default RPC.
- *
- * Clients are cached per chainId so the HTTP agent is reused across calls.
- *
- * @param chainId - Chain ID to build the fallback client for.
- * @returns A viem PublicClient configured for the default RPC, or null if unsupported.
+ * Constants of the legacy deployment on a chain: Velodrome V2 + Slipstream on
+ * Optimism and the superchain leaves, Aerodrome on Base. Absent on chains that
+ * only have the Aero (MetaDEX) deployment.
  */
-const fallbackClientCache: Map<number, PublicClient> = new Map();
-export function createFallbackRpcClient(chainId: number): PublicClient | null {
-  const cached = fallbackClientCache.get(chainId);
-  if (cached) return cached;
+export type LegacyDeploymentConstants = {
+  /**
+   * Token the legacy Voter's gauges emit (VELO on Optimism, AERO v1 on Base,
+   * XVELO on the leaves). Block-dependent only on Optimism (VELO v1 before the
+   * v2 migration). It stays the legacy token after the Aero launch: residual
+   * legacy gauge claims still pay it. Aero gauges use
+   * {@link AeroDeploymentConstants.rewardToken}.
+   */
+  rewardToken: (blockNumber: number) => string;
+  /** LpHelper that maps a leaf V2 pool to its Optimism root pool. */
+  lpHelperAddress: string;
+  oracle: LegacyPriceOracle;
+};
 
-  const chain = CHAIN_BY_ID[chainId];
-  const url = DEFAULT_RPC_BY_ID[chainId];
-  if (!chain || !url) return null;
+/** Constants of the Aero (MetaDEX) deployment on a chain. */
+export type AeroDeploymentConstants = {
+  /**
+   * Token the chain's Aero gauges emit: AERO on Base, the chain's xAERO
+   * receipt token (redeemable 1:1 for AERO on Base) everywhere else
+   * (`receiptToken` in deployment-addresses/leaf-<chain>.json).
+   */
+  rewardToken: string;
+  /**
+   * First block in which any Aero contract the indexer tracks on this chain
+   * existed (eth_getCode-verified); the `start_block` of Aero-only chains.
+   */
+  startBlock: number;
+};
 
-  const client = createPublicClient({
-    chain: chain satisfies Chain as Chain,
-    transport: http(url, RPC_HTTP_OPTIONS),
-  });
-  fallbackClientCache.set(chainId, client);
-  return client;
-}
-
-export enum CrossChainPendingResolutionLogPrefix {
-  Votes = "[processAllPendingVotesForRootPool]",
-  Distributions = "[processAllPendingDistributionsForRootPool]",
-}
-
-// Object containing all the constants for a chain
+/** Every per-chain constant the indexer needs, keyed by chain id in {@link CHAIN_CONSTANTS}. */
 type chainConstants = {
+  /**
+   * The chain's ETH asset, pricing tier 1. The wrapped native token where the
+   * native token is ETH; on Arc (native token USDC) the bridged WETH.
+   */
   weth: string;
+  /** The chain's main USD stablecoin: pinned at $1 and the oracle quote token. */
   destinationToken: string;
   destinationTokenDecimals: number;
-  oracle: {
-    getType: (blockNumber: number) => PriceOracleType;
-    getAddress: (priceOracleType: PriceOracleType) => string;
-    startBlock: number;
-    updateDelta: number;
-    priceConnectors: PriceConnector[];
-    // Issue #688: V1/V2 oracles' getManyRatesWithConnectors reverts when the
-    // connector array contains tokens with no AMM pool at the queried block.
-    // Lowercased addresses listed here are stripped from connectors only when
-    // querying V1/V2 oracles. V3+ tolerates these silently.
-    v1v2ConnectorBlacklist: Set<string>;
-  };
-  rewardToken: (blockNumber: number) => string;
-  eth_client: PublicClient;
-  lpHelperAddress: string;
+  /** Price connectors (src/constants/price_connectors.json): tiers 0–2 and trusted. */
+  priceConnectors: PriceConnector[];
+  /** Other USD stablecoins pinned at $1 (src/constants/stablecoins.json), lowercased. */
   stablecoins: Set<string>;
+  eth_client: PublicClient;
+  legacy?: LegacyDeploymentConstants;
+  aero?: AeroDeploymentConstants;
 };
 
 // Constants for Optimism
@@ -424,56 +476,56 @@ const OPTIMISM_CONSTANTS: chainConstants = {
   weth: "0x4200000000000000000000000000000000000006",
   destinationToken: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
   destinationTokenDecimals: 6,
-  oracle: {
-    getType: (blockNumber: number) => {
-      if (blockNumber > 125484892) {
-        return PriceOracleType.V3;
-      }
-      if (blockNumber > 124076662) {
-        return PriceOracleType.V2;
-      }
-      return PriceOracleType.V1;
-    },
-    getAddress: (priceOracleType: PriceOracleType) => {
-      switch (priceOracleType) {
-        case PriceOracleType.V3:
-          return "0x59114D308C6DE4A84F5F8cD80485a5481047b99f";
-        case PriceOracleType.V2:
-          return "0x6a3af44e23395d2470f7c81331add6ede8597306";
-        case PriceOracleType.V1:
-          return "0x395942C2049604a314d39F370Dfb8D87AAC89e16";
-        case PriceOracleType.V4:
-          throw new Error("V4 oracle not supported on Optimism");
-        default:
-          throw new Error(`Unsupported oracle type: ${priceOracleType}`);
-      }
-    },
-    startBlock: 107676013,
-    updateDelta: 60 * 60, // 1 hour
-    priceConnectors: OPTIMISM_PRICE_CONNECTORS,
-    v1v2ConnectorBlacklist: new Set([
-      "0x01bFF41798a0BcF287b996046Ca68b395DbC1071",
-      "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
-    ]),
-  },
-  rewardToken: (blockNumber: number) => {
-    if (blockNumber < 105896880) {
-      return "0x3c8B650257cFb5f272f799F5e2b4e65093a11a05";
-    }
-    return "0x9560e827aF36c94D2Ac33a39bCE1Fe78631088Db";
-  },
-  eth_client: createPublicClient({
-    chain: optimism satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_OPTIMISM_RPC_URL || DefaultRPC.optimism,
-      RPC_HTTP_OPTIONS,
-    ),
-  }),
-  lpHelperAddress: "0xF313D54f514A810387D77b7Cc20a98ADd5f891f7",
+  priceConnectors: OPTIMISM_PRICE_CONNECTORS,
   stablecoins: buildStablecoinSet(
     StablecoinsJson.optimism,
     "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
   ),
+  eth_client: createPrimaryRpcClient(10),
+  aero: {
+    rewardToken: "0xbdEaeA5205d16f34Cb40038052d91235D87B4C54", // xAERO (leaf-optimism.json receiptToken)
+    startBlock: 158475795, // VolatilePoolFactory deploy, eth_getCode-verified
+  },
+  legacy: {
+    rewardToken: (blockNumber: number) => {
+      if (blockNumber < 105896880) {
+        return "0x3c8B650257cFb5f272f799F5e2b4e65093a11a05";
+      }
+      return "0x9560e827aF36c94D2Ac33a39bCE1Fe78631088Db";
+    },
+    lpHelperAddress: "0xF313D54f514A810387D77b7Cc20a98ADd5f891f7",
+    oracle: {
+      getType: (blockNumber: number) => {
+        if (blockNumber > 125484892) {
+          return PriceOracleType.V3;
+        }
+        if (blockNumber > 124076662) {
+          return PriceOracleType.V2;
+        }
+        return PriceOracleType.V1;
+      },
+      getAddress: (priceOracleType: PriceOracleType) => {
+        switch (priceOracleType) {
+          case PriceOracleType.V3:
+            return "0x59114D308C6DE4A84F5F8cD80485a5481047b99f";
+          case PriceOracleType.V2:
+            return "0x6a3af44e23395d2470f7c81331add6ede8597306";
+          case PriceOracleType.V1:
+            return "0x395942C2049604a314d39F370Dfb8D87AAC89e16";
+          case PriceOracleType.V4:
+            throw new Error("V4 oracle not supported on Optimism");
+          default:
+            throw new Error(`Unsupported oracle type: ${priceOracleType}`);
+        }
+      },
+      startBlock: 107676013,
+      updateDelta: 60 * 60, // 1 hour
+      v1v2ConnectorBlacklist: new Set([
+        "0x01bFF41798a0BcF287b996046Ca68b395DbC1071",
+        "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
+      ]),
+    },
+  },
 };
 
 // Constants for Base
@@ -481,52 +533,52 @@ const BASE_CONSTANTS: chainConstants = {
   weth: "0x4200000000000000000000000000000000000006",
   destinationToken: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
   destinationTokenDecimals: 6,
-  oracle: {
-    getType: (blockNumber: number) => {
-      if (blockNumber > 37381618) {
-        return PriceOracleType.V4;
-      }
-      if (blockNumber > 19862773) {
-        return PriceOracleType.V3;
-      }
-      if (blockNumber > 18480097) {
-        return PriceOracleType.V2;
-      }
-      return PriceOracleType.V1;
-    },
-    getAddress: (priceOracleType: PriceOracleType) => {
-      switch (priceOracleType) {
-        case PriceOracleType.V4:
-          return "0x8456038bdae8672f552182B0FC39b1917dE9a41A";
-        case PriceOracleType.V3:
-          return "0x3B06c787711ecb5624cE65AC8F26cde10831eb0C";
-        case PriceOracleType.V2:
-          return "0xcbf5b6abf55fb87271338097fdd03e9d82a9d63f";
-        case PriceOracleType.V1:
-          return "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE";
-      }
-    },
-    startBlock: 3219857,
-    updateDelta: 60 * 60, // 1 hour
-    priceConnectors: BASE_PRICE_CONNECTORS,
-    v1v2ConnectorBlacklist: new Set([
-      "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
-    ]),
-  },
-  rewardToken: (blockNumber: number) =>
-    "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
-  eth_client: createPublicClient({
-    chain: base satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_BASE_RPC_URL || DefaultRPC.base,
-      RPC_HTTP_OPTIONS,
-    ),
-  }),
-  lpHelperAddress: "0xd48bed8AFaF8A1d0909fe823F6b48a4A96f58224",
+  priceConnectors: BASE_PRICE_CONNECTORS,
   stablecoins: buildStablecoinSet(
     StablecoinsJson.base,
     "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
   ),
+  eth_client: createPrimaryRpcClient(8453),
+  aero: {
+    rewardToken: "0x3f5bF3EdAc59d650D8fDf9657a71F2f904A3a4Ee", // AERO (root-base.json token)
+    startBlock: 52880042, // VolatilePoolFactory deploy, eth_getCode-verified
+  },
+  legacy: {
+    rewardToken: (blockNumber: number) =>
+      "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
+    lpHelperAddress: "0xd48bed8AFaF8A1d0909fe823F6b48a4A96f58224",
+    oracle: {
+      getType: (blockNumber: number) => {
+        if (blockNumber > 37381618) {
+          return PriceOracleType.V4;
+        }
+        if (blockNumber > 19862773) {
+          return PriceOracleType.V3;
+        }
+        if (blockNumber > 18480097) {
+          return PriceOracleType.V2;
+        }
+        return PriceOracleType.V1;
+      },
+      getAddress: (priceOracleType: PriceOracleType) => {
+        switch (priceOracleType) {
+          case PriceOracleType.V4:
+            return "0x8456038bdae8672f552182B0FC39b1917dE9a41A";
+          case PriceOracleType.V3:
+            return "0x3B06c787711ecb5624cE65AC8F26cde10831eb0C";
+          case PriceOracleType.V2:
+            return "0xcbf5b6abf55fb87271338097fdd03e9d82a9d63f";
+          case PriceOracleType.V1:
+            return "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE";
+        }
+      },
+      startBlock: 3219857,
+      updateDelta: 60 * 60, // 1 hour
+      v1v2ConnectorBlacklist: new Set([
+        "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
+      ]),
+    },
+  },
 };
 
 // Constants for Lisk
@@ -534,46 +586,42 @@ const LISK_CONSTANTS: chainConstants = {
   weth: "0x4200000000000000000000000000000000000006",
   destinationToken: "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189", // oUSDT
   destinationTokenDecimals: 6,
-  oracle: {
-    getType: (blockNumber: number) => {
-      if (blockNumber > 8457278) {
-        return PriceOracleType.V3;
-      }
-      return PriceOracleType.V2;
-    },
-    getAddress: (priceOracleType: PriceOracleType) => {
-      switch (priceOracleType) {
-        case PriceOracleType.V3:
-          return "0x024503003fFE9AF285f47c1DaAaA497D9f1166D0";
-        case PriceOracleType.V2:
-          return "0xE50621a0527A43534D565B67D64be7C79807F269";
-        case PriceOracleType.V1:
-          return "0xE50621a0527A43534D565B67D64be7C79807F269";
-        case PriceOracleType.V4:
-          throw new Error("V4 oracle not supported on Lisk");
-        default:
-          throw new Error(`Unsupported oracle type: ${priceOracleType}`);
-      }
-    },
-    startBlock: 8380726,
-    updateDelta: 60 * 60, // 1 hour
-    priceConnectors: LISK_PRICE_CONNECTORS,
-    v1v2ConnectorBlacklist: new Set(),
-  },
-  rewardToken: (blockNumber: number) =>
-    "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: lisk satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_LISK_RPC_URL || DefaultRPC.lisk,
-      RPC_HTTP_OPTIONS,
-    ),
-  }),
-  lpHelperAddress: "0xa2e319aBE4bBEadeD6FcE67F7D0CDDc5d23F8a8A",
+  priceConnectors: LISK_PRICE_CONNECTORS,
   stablecoins: buildStablecoinSet(
     StablecoinsJson.lisk,
     "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
   ),
+  eth_client: createPrimaryRpcClient(1135),
+  legacy: {
+    rewardToken: (blockNumber: number) =>
+      "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+    lpHelperAddress: "0xa2e319aBE4bBEadeD6FcE67F7D0CDDc5d23F8a8A",
+    oracle: {
+      getType: (blockNumber: number) => {
+        if (blockNumber > 8457278) {
+          return PriceOracleType.V3;
+        }
+        return PriceOracleType.V2;
+      },
+      getAddress: (priceOracleType: PriceOracleType) => {
+        switch (priceOracleType) {
+          case PriceOracleType.V3:
+            return "0x024503003fFE9AF285f47c1DaAaA497D9f1166D0";
+          case PriceOracleType.V2:
+            return "0xE50621a0527A43534D565B67D64be7C79807F269";
+          case PriceOracleType.V1:
+            return "0xE50621a0527A43534D565B67D64be7C79807F269";
+          case PriceOracleType.V4:
+            throw new Error("V4 oracle not supported on Lisk");
+          default:
+            throw new Error(`Unsupported oracle type: ${priceOracleType}`);
+        }
+      },
+      startBlock: 8380726,
+      updateDelta: 60 * 60, // 1 hour
+      v1v2ConnectorBlacklist: new Set(),
+    },
+  },
 };
 
 // Constants for Mode
@@ -581,48 +629,44 @@ const MODE_CONSTANTS: chainConstants = {
   weth: "0x4200000000000000000000000000000000000006",
   destinationToken: "0xd988097fb8612cc24eeC14542bC03424c656005f",
   destinationTokenDecimals: 6,
-  oracle: {
-    getType: (blockNumber: number) => {
-      if (blockNumber > 15738649) {
-        return PriceOracleType.V3;
-      }
-      return PriceOracleType.V2;
-    },
-    getAddress: (priceOracleType: PriceOracleType) => {
-      switch (priceOracleType) {
-        case PriceOracleType.V3:
-          return "0xbAEe949B52cb503e39f1Df54Dcee778da59E11bc";
-        case PriceOracleType.V2:
-          return "0xE50621a0527A43534D565B67D64be7C79807F269";
-        case PriceOracleType.V1:
-          return "0xE50621a0527A43534D565B67D64be7C79807F269";
-        case PriceOracleType.V4:
-          throw new Error("V4 oracle not supported on Mode");
-        default:
-          throw new Error(`Unsupported oracle type: ${priceOracleType}`);
-      }
-    },
-    startBlock: 15591759,
-    updateDelta: 60 * 60, // 1 hour
-    priceConnectors: MODE_PRICE_CONNECTORS,
-    v1v2ConnectorBlacklist: new Set([
-      "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
-    ]),
-  },
-  rewardToken: (blockNumber: number) =>
-    "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: mode satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_MODE_RPC_URL || DefaultRPC.mode,
-      RPC_HTTP_OPTIONS,
-    ),
-  }),
-  lpHelperAddress: "0xD4738416444ce276289A884fDA4FDAc31f8eC694",
+  priceConnectors: MODE_PRICE_CONNECTORS,
   stablecoins: buildStablecoinSet(
     StablecoinsJson.mode,
     "0xd988097fb8612cc24eeC14542bC03424c656005f",
   ),
+  eth_client: createPrimaryRpcClient(34443),
+  legacy: {
+    rewardToken: (blockNumber: number) =>
+      "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+    lpHelperAddress: "0xD4738416444ce276289A884fDA4FDAc31f8eC694",
+    oracle: {
+      getType: (blockNumber: number) => {
+        if (blockNumber > 15738649) {
+          return PriceOracleType.V3;
+        }
+        return PriceOracleType.V2;
+      },
+      getAddress: (priceOracleType: PriceOracleType) => {
+        switch (priceOracleType) {
+          case PriceOracleType.V3:
+            return "0xbAEe949B52cb503e39f1Df54Dcee778da59E11bc";
+          case PriceOracleType.V2:
+            return "0xE50621a0527A43534D565B67D64be7C79807F269";
+          case PriceOracleType.V1:
+            return "0xE50621a0527A43534D565B67D64be7C79807F269";
+          case PriceOracleType.V4:
+            throw new Error("V4 oracle not supported on Mode");
+          default:
+            throw new Error(`Unsupported oracle type: ${priceOracleType}`);
+        }
+      },
+      startBlock: 15591759,
+      updateDelta: 60 * 60, // 1 hour
+      v1v2ConnectorBlacklist: new Set([
+        "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
+      ]),
+    },
+  },
 };
 
 // Constants for Celo
@@ -630,32 +674,28 @@ const CELO_CONSTANTS: chainConstants = {
   weth: "0xD221812de1BD094f35587EE8E174B07B6167D9Af",
   destinationToken: "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e", // USDT (native)
   destinationTokenDecimals: 6,
-  oracle: {
-    getType: (blockNumber: number) => {
-      return PriceOracleType.V3;
-    },
-    getAddress: (priceOracleType: PriceOracleType) => {
-      return "0xbf6d753FC4a10Ec5191c56BB3DC1e414b7572327";
-    },
-    startBlock: 31690441,
-    updateDelta: 60 * 60, // 1 hour
-    priceConnectors: CELO_PRICE_CONNECTORS,
-    v1v2ConnectorBlacklist: new Set(),
-  },
-  rewardToken: (blockNumber: number) =>
-    "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: celo satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_CELO_RPC_URL || DefaultRPC.celo,
-      RPC_HTTP_OPTIONS,
-    ),
-  }),
-  lpHelperAddress: "0xa916A76b052AcD3b0FF6Cc76b55602fba456a85C",
+  priceConnectors: CELO_PRICE_CONNECTORS,
   stablecoins: buildStablecoinSet(
     StablecoinsJson.celo,
     "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",
   ),
+  eth_client: createPrimaryRpcClient(42220),
+  legacy: {
+    rewardToken: (blockNumber: number) =>
+      "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+    lpHelperAddress: "0xa916A76b052AcD3b0FF6Cc76b55602fba456a85C",
+    oracle: {
+      getType: (blockNumber: number) => {
+        return PriceOracleType.V3;
+      },
+      getAddress: (priceOracleType: PriceOracleType) => {
+        return "0xbf6d753FC4a10Ec5191c56BB3DC1e414b7572327";
+      },
+      startBlock: 31690441,
+      updateDelta: 60 * 60, // 1 hour
+      v1v2ConnectorBlacklist: new Set(),
+    },
+  },
 };
 
 // Constants for Soneium
@@ -663,32 +703,28 @@ const SONEIUM_CONSTANTS: chainConstants = {
   weth: "0x4200000000000000000000000000000000000006",
   destinationToken: "0xbA9986D2381edf1DA03B0B9c1f8b00dc4AacC369",
   destinationTokenDecimals: 6,
-  oracle: {
-    getType: (blockNumber: number) => {
-      return PriceOracleType.V3;
-    },
-    getAddress: (priceOracleType: PriceOracleType) => {
-      return "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE";
-    },
-    startBlock: 1863998, // #821: V3 oracle deploy block, RPC-verified (eth_getCode binary-search)
-    updateDelta: 60 * 60, // 1 hour
-    priceConnectors: SONEIUM_PRICE_CONNECTORS,
-    v1v2ConnectorBlacklist: new Set(),
-  },
-  rewardToken: (blockNumber: number) =>
-    "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: soneium satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_SONEIUM_RPC_URL || DefaultRPC.soneium,
-      RPC_HTTP_OPTIONS,
-    ),
-  }),
-  lpHelperAddress: "0x600089ab611E4Cc9942163e68870806Db66e2B08",
+  priceConnectors: SONEIUM_PRICE_CONNECTORS,
   stablecoins: buildStablecoinSet(
     StablecoinsJson.soneium,
     "0xbA9986D2381edf1DA03B0B9c1f8b00dc4AacC369",
   ),
+  eth_client: createPrimaryRpcClient(1868),
+  legacy: {
+    rewardToken: (blockNumber: number) =>
+      "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+    lpHelperAddress: "0x600089ab611E4Cc9942163e68870806Db66e2B08",
+    oracle: {
+      getType: (blockNumber: number) => {
+        return PriceOracleType.V3;
+      },
+      getAddress: (priceOracleType: PriceOracleType) => {
+        return "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE";
+      },
+      startBlock: 1863998, // #821: V3 oracle deploy block, RPC-verified (eth_getCode binary-search)
+      updateDelta: 60 * 60, // 1 hour
+      v1v2ConnectorBlacklist: new Set(),
+    },
+  },
 };
 
 // Constants for Unichain
@@ -696,32 +732,28 @@ const UNICHAIN_CONSTANTS: chainConstants = {
   weth: "0x4200000000000000000000000000000000000006",
   destinationToken: "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
   destinationTokenDecimals: 6,
-  oracle: {
-    getType: (blockNumber: number) => {
-      return PriceOracleType.V3;
-    },
-    getAddress: (priceOracleType: PriceOracleType) => {
-      return "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE";
-    },
-    startBlock: 9415475,
-    updateDelta: 60 * 60, // 1 hour
-    priceConnectors: UNICHAIN_PRICE_CONNECTORS,
-    v1v2ConnectorBlacklist: new Set(),
-  },
-  rewardToken: (blockNumber: number) =>
-    "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: unichain satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_UNICHAIN_RPC_URL || DefaultRPC.unichain,
-      RPC_HTTP_OPTIONS,
-    ),
-  }),
-  lpHelperAddress: "0x2DCD9B33F0721000Dc1F8f84B804d4CFA23d7713",
+  priceConnectors: UNICHAIN_PRICE_CONNECTORS,
   stablecoins: buildStablecoinSet(
     StablecoinsJson.unichain,
     "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
   ),
+  eth_client: createPrimaryRpcClient(130),
+  legacy: {
+    rewardToken: (blockNumber: number) =>
+      "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+    lpHelperAddress: "0x2DCD9B33F0721000Dc1F8f84B804d4CFA23d7713",
+    oracle: {
+      getType: (blockNumber: number) => {
+        return PriceOracleType.V3;
+      },
+      getAddress: (priceOracleType: PriceOracleType) => {
+        return "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE";
+      },
+      startBlock: 9415475,
+      updateDelta: 60 * 60, // 1 hour
+      v1v2ConnectorBlacklist: new Set(),
+    },
+  },
 };
 
 // Constants for Fraxtal
@@ -729,50 +761,46 @@ const FRAXTAL_CONSTANTS: chainConstants = {
   weth: "0xFC00000000000000000000000000000000000006",
   destinationToken: "0xFc00000000000000000000000000000000000001", // frxUSD
   destinationTokenDecimals: 18,
-  oracle: {
-    getType: (blockNumber: number) => {
-      if (blockNumber > 12710720) {
-        return PriceOracleType.V3;
-      }
-      return PriceOracleType.V2;
-    },
-    getAddress: (priceOracleType: PriceOracleType) => {
-      switch (priceOracleType) {
-        case PriceOracleType.V3:
-          return "0x4817f8D70aE32Ee96e5E6BFA24eb7Fcfa83bbf29";
-        case PriceOracleType.V2:
-          return "0xE50621a0527A43534D565B67D64be7C79807F269";
-        case PriceOracleType.V1:
-          return "0xE50621a0527A43534D565B67D64be7C79807F269";
-        case PriceOracleType.V4:
-          throw new Error("V4 oracle not supported on Fraxtal");
-        default:
-          throw new Error(`Unsupported oracle type: ${priceOracleType}`);
-      }
-    },
-    startBlock: 12640176,
-    updateDelta: 60 * 60, // 1 hour
-    priceConnectors: FRAXTAL_PRICE_CONNECTORS,
-    // oUSDT (0x1217…) is dropped from Fraxtal price connectors entirely
-    // (#764 follow-up): the contract at that address on Fraxtal is not the
-    // canonical Velodrome-bridged oUSDT, so it must not be a price connector
-    // here. With the connector gone, no V1/V2 blacklist entry is needed.
-    v1v2ConnectorBlacklist: new Set(),
-  },
-  rewardToken: (blockNumber: number) =>
-    "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: fraxtal satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_FRAXTAL_RPC_URL || DefaultRPC.fraxtal,
-      RPC_HTTP_OPTIONS,
-    ),
-  }),
-  lpHelperAddress: "0x2F44BD0Aff1826aec123cE3eA9Ce44445b64BB34",
+  priceConnectors: FRAXTAL_PRICE_CONNECTORS,
   stablecoins: buildStablecoinSet(
     StablecoinsJson.fraxtal,
     "0xFc00000000000000000000000000000000000001",
   ),
+  eth_client: createPrimaryRpcClient(252),
+  legacy: {
+    rewardToken: (blockNumber: number) =>
+      "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+    lpHelperAddress: "0x2F44BD0Aff1826aec123cE3eA9Ce44445b64BB34",
+    oracle: {
+      getType: (blockNumber: number) => {
+        if (blockNumber > 12710720) {
+          return PriceOracleType.V3;
+        }
+        return PriceOracleType.V2;
+      },
+      getAddress: (priceOracleType: PriceOracleType) => {
+        switch (priceOracleType) {
+          case PriceOracleType.V3:
+            return "0x4817f8D70aE32Ee96e5E6BFA24eb7Fcfa83bbf29";
+          case PriceOracleType.V2:
+            return "0xE50621a0527A43534D565B67D64be7C79807F269";
+          case PriceOracleType.V1:
+            return "0xE50621a0527A43534D565B67D64be7C79807F269";
+          case PriceOracleType.V4:
+            throw new Error("V4 oracle not supported on Fraxtal");
+          default:
+            throw new Error(`Unsupported oracle type: ${priceOracleType}`);
+        }
+      },
+      startBlock: 12640176,
+      updateDelta: 60 * 60, // 1 hour
+      // oUSDT (0x1217…) is dropped from Fraxtal price connectors entirely
+      // (#764 follow-up): the contract at that address on Fraxtal is not the
+      // canonical Velodrome-bridged oUSDT, so it must not be a price connector
+      // here. With the connector gone, no V1/V2 blacklist entry is needed.
+      v1v2ConnectorBlacklist: new Set(),
+    },
+  },
 };
 
 // Constants for Ink
@@ -780,32 +808,32 @@ const INK_CONSTANTS: chainConstants = {
   weth: "0x4200000000000000000000000000000000000006",
   destinationToken: "0xF1815bd50389c46847f0Bda824eC8da914045D14",
   destinationTokenDecimals: 6,
-  oracle: {
-    getType: (blockNumber: number) => {
-      return PriceOracleType.V3;
-    },
-    getAddress: (priceOracleType: PriceOracleType) => {
-      return "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE";
-    },
-    startBlock: 3361885,
-    updateDelta: 60 * 60, // 1 hour
-    priceConnectors: INK_PRICE_CONNECTORS,
-    v1v2ConnectorBlacklist: new Set(),
-  },
-  rewardToken: (blockNumber: number) =>
-    "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: ink satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_INK_RPC_URL || DefaultRPC.ink,
-      RPC_HTTP_OPTIONS,
-    ),
-  }),
-  lpHelperAddress: "0x2DCD9B33F0721000Dc1F8f84B804d4CFA23d7713",
+  priceConnectors: INK_PRICE_CONNECTORS,
   stablecoins: buildStablecoinSet(
     StablecoinsJson.ink,
     "0xF1815bd50389c46847f0Bda824eC8da914045D14",
   ),
+  eth_client: createPrimaryRpcClient(57073),
+  aero: {
+    rewardToken: "0x9e148C5716b5aAdCFD3B71cEAE9EE7a9e22C29E2", // xAERO (leaf-ink.json receiptToken)
+    startBlock: 59052441, // VolatilePoolFactory deploy, eth_getCode-verified
+  },
+  legacy: {
+    rewardToken: (blockNumber: number) =>
+      "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+    lpHelperAddress: "0x2DCD9B33F0721000Dc1F8f84B804d4CFA23d7713",
+    oracle: {
+      getType: (blockNumber: number) => {
+        return PriceOracleType.V3;
+      },
+      getAddress: (priceOracleType: PriceOracleType) => {
+        return "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE";
+      },
+      startBlock: 3361885,
+      updateDelta: 60 * 60, // 1 hour
+      v1v2ConnectorBlacklist: new Set(),
+    },
+  },
 };
 
 // Constants for Metal
@@ -813,32 +841,28 @@ const METAL_CONSTANTS: chainConstants = {
   weth: "0x4200000000000000000000000000000000000006",
   destinationToken: "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189", // oUSDT
   destinationTokenDecimals: 6,
-  oracle: {
-    getType: (blockNumber: number) => {
-      return PriceOracleType.V3;
-    },
-    getAddress: (priceOracleType: PriceOracleType) => {
-      return "0x3e71CCdf495d9628D3655A600Bcad3afF2ddea98";
-    },
-    startBlock: 11438647,
-    updateDelta: 60 * 60, // 1 hour
-    priceConnectors: METAL_PRICE_CONNECTORS,
-    v1v2ConnectorBlacklist: new Set(),
-  },
-  rewardToken: (blockNumber: number) =>
-    "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: metalL2 satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_METAL_RPC_URL || DefaultRPC.metal,
-      RPC_HTTP_OPTIONS,
-    ),
-  }),
-  lpHelperAddress: "0xcaa7d54453964773FE04B5aD32D06322Fc9d9fE4",
+  priceConnectors: METAL_PRICE_CONNECTORS,
   stablecoins: buildStablecoinSet(
     StablecoinsJson.metal,
     "0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",
   ),
+  eth_client: createPrimaryRpcClient(1750),
+  legacy: {
+    rewardToken: (blockNumber: number) =>
+      "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+    lpHelperAddress: "0xcaa7d54453964773FE04B5aD32D06322Fc9d9fE4",
+    oracle: {
+      getType: (blockNumber: number) => {
+        return PriceOracleType.V3;
+      },
+      getAddress: (priceOracleType: PriceOracleType) => {
+        return "0x3e71CCdf495d9628D3655A600Bcad3afF2ddea98";
+      },
+      startBlock: 11438647,
+      updateDelta: 60 * 60, // 1 hour
+      v1v2ConnectorBlacklist: new Set(),
+    },
+  },
 };
 
 // Constants for Swell
@@ -846,32 +870,28 @@ const SWELL_CONSTANTS: chainConstants = {
   weth: "0x4200000000000000000000000000000000000006",
   destinationToken: "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34", // USDe
   destinationTokenDecimals: 18,
-  oracle: {
-    getType: (blockNumber: number) => {
-      return PriceOracleType.V3;
-    },
-    getAddress: (priceOracleType: PriceOracleType) => {
-      return "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE";
-    },
-    startBlock: 3733759,
-    updateDelta: 60 * 60, // 1 hour
-    priceConnectors: SWELL_PRICE_CONNECTORS,
-    v1v2ConnectorBlacklist: new Set(),
-  },
-  rewardToken: (blockNumber: number) =>
-    "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: swellchain,
-    transport: http(
-      process.env.ENVIO_SWELL_RPC_URL || DefaultRPC.swell,
-      RPC_HTTP_OPTIONS,
-    ),
-  }) as PublicClient,
-  lpHelperAddress: "0x2002618dd63228670698200069E42f4422e82497",
+  priceConnectors: SWELL_PRICE_CONNECTORS,
   stablecoins: buildStablecoinSet(
     StablecoinsJson.swellchain,
     "0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",
   ),
+  eth_client: createPrimaryRpcClient(1923),
+  legacy: {
+    rewardToken: (blockNumber: number) =>
+      "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+    lpHelperAddress: "0x2002618dd63228670698200069E42f4422e82497",
+    oracle: {
+      getType: (blockNumber: number) => {
+        return PriceOracleType.V3;
+      },
+      getAddress: (priceOracleType: PriceOracleType) => {
+        return "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE";
+      },
+      startBlock: 3733759,
+      updateDelta: 60 * 60, // 1 hour
+      v1v2ConnectorBlacklist: new Set(),
+    },
+  },
 };
 
 // Constants for Superseed
@@ -879,33 +899,132 @@ const SUPERSEED_CONSTANTS: chainConstants = {
   weth: "0x4200000000000000000000000000000000000006",
   destinationToken: "0xC316C8252B5F2176d0135Ebb0999E99296998F2e", // USDC
   destinationTokenDecimals: 6,
-  oracle: {
-    getType: (blockNumber: number) => {
-      return PriceOracleType.V3;
-    },
-    getAddress: (priceOracleType: PriceOracleType) => {
-      return "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE";
-    },
-    startBlock: 5642528,
-    updateDelta: 60 * 60, // 1 hour
-    priceConnectors: SUPERSEED_PRICE_CONNECTORS,
-    v1v2ConnectorBlacklist: new Set(),
-  },
-  rewardToken: (blockNumber: number) =>
-    "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
-  eth_client: createPublicClient({
-    chain: superseed satisfies Chain as Chain,
-    transport: http(
-      process.env.ENVIO_SUPERSEED_RPC_URL || DefaultRPC.superseed,
-      RPC_HTTP_OPTIONS,
-    ),
-  }),
-  lpHelperAddress: "0xee717411f6E44F9feE011835C8E6FAaC5dEfF166",
+  priceConnectors: SUPERSEED_PRICE_CONNECTORS,
   stablecoins: buildStablecoinSet(
     StablecoinsJson.superseed,
     "0xC316C8252B5F2176d0135Ebb0999E99296998F2e",
   ),
+  eth_client: createPrimaryRpcClient(5330),
+  legacy: {
+    rewardToken: (blockNumber: number) =>
+      "0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",
+    lpHelperAddress: "0xee717411f6E44F9feE011835C8E6FAaC5dEfF166",
+    oracle: {
+      getType: (blockNumber: number) => {
+        return PriceOracleType.V3;
+      },
+      getAddress: (priceOracleType: PriceOracleType) => {
+        return "0xe58920a8c684CD3d6dCaC2a41b12998e4CB17EfE";
+      },
+      startBlock: 5642528,
+      updateDelta: 60 * 60, // 1 hour
+      v1v2ConnectorBlacklist: new Set(),
+    },
+  },
 };
+
+// Aero-only chains (no legacy Velodrome/Aerodrome deployment, so no legacy
+// oracle, LpHelper or legacy reward token). Every value below was read off the
+// chain on 2026-11-13: the tokens the chain's Aero pools pair against
+// (HyperSync PoolCreated + Swap counts, symbol()/decimals() over RPC) and the
+// first Aero contract's deploy block (eth_getCode just before and at it).
+
+// Constants for Ethereum. Aero pools pair mostly against WETH (41 pools), USDC
+// (30), USDT (11) and WBTC (9).
+const ETHEREUM_CONSTANTS: chainConstants = {
+  weth: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+  destinationToken: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", // USDC
+  destinationTokenDecimals: 6,
+  priceConnectors: ETHEREUM_PRICE_CONNECTORS,
+  stablecoins: buildStablecoinSet(
+    StablecoinsJson.ethereum,
+    "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  ),
+  eth_client: createPrimaryRpcClient(1),
+  aero: {
+    rewardToken: "0x9e148C5716b5aAdCFD3B71cEAE9EE7a9e22C29E2", // xAERO (leaf-ethereum.json receiptToken)
+    startBlock: 26237985, // VolatilePoolFactory deploy, eth_getCode-verified
+  },
+};
+
+// Constants for Arbitrum. Aero pools pair mostly against USDG (24 pools), WETH
+// (21), USDC (13), WBTC and USD₮0 (5 each) and ARB (4).
+const ARBITRUM_CONSTANTS: chainConstants = {
+  weth: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+  destinationToken: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", // USDC
+  destinationTokenDecimals: 6,
+  priceConnectors: ARBITRUM_PRICE_CONNECTORS,
+  stablecoins: buildStablecoinSet(
+    StablecoinsJson.arbitrum,
+    "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+  ),
+  eth_client: createPrimaryRpcClient(42161),
+  aero: {
+    rewardToken: "0x436a085B2751cB87db270FFa66f8d698F87bEC82", // xAERO (leaf-arbitrum.json receiptToken)
+    startBlock: 516786506, // VolatilePoolFactory deploy, eth_getCode-verified
+  },
+};
+
+// Constants for Robinhood Chain (Arbitrum Orbit, native ETH). Aero pools pair
+// against USDG (58 of 100 pools, 52 distinct counterparties) and WETH (32);
+// there is no USDC market, so USDG is the destination token.
+const ROBINHOOD_CONSTANTS: chainConstants = {
+  weth: "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+  destinationToken: "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168", // USDG
+  destinationTokenDecimals: 6,
+  priceConnectors: ROBINHOOD_PRICE_CONNECTORS,
+  stablecoins: buildStablecoinSet(
+    StablecoinsJson.robinhood,
+    "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+  ),
+  eth_client: createPrimaryRpcClient(4663),
+  aero: {
+    rewardToken: "0x9e148C5716b5aAdCFD3B71cEAE9EE7a9e22C29E2", // xAERO (leaf-robinhood.json receiptToken)
+    startBlock: 93947396, // VolatilePoolFactory deploy, eth_getCode-verified
+  },
+};
+
+// Constants for Arc (Circle). The native gas token is USDC; 0x3600…0000 is its
+// ERC-20 interface (6 decimals) and the counterparty of 45 of the 50 Aero
+// pools, so it is the destination token and there is no wrapped-native ETH.
+// The tier-1 slot holds the bridged WETH (4 pools). EURC, GBPA and MXNB are
+// non-USD stablecoins and are priced through their USDC pools, not pinned.
+// startBlock is the "lite launch" deployment (metadex 1.0.0 / slipstream
+// 1.0.1, deployment-addresses/*litelaunch-arc.json), which went live before the
+// full launch on 2026-10-21 and holds 35 of Arc's 43 CL pools.
+const ARC_CONSTANTS: chainConstants = {
+  weth: "0x128cC466B61f542da60c70e3aA11c10e19B84EDB",
+  destinationToken: "0x3600000000000000000000000000000000000000", // USDC
+  destinationTokenDecimals: 6,
+  priceConnectors: ARC_PRICE_CONNECTORS,
+  stablecoins: buildStablecoinSet(
+    StablecoinsJson.arc,
+    "0x3600000000000000000000000000000000000000",
+  ),
+  eth_client: createPrimaryRpcClient(5042),
+  aero: {
+    rewardToken: "0x20077cC0d5E385A0Fe9C91bbC7DC744f51559307", // xAERO (leaf-arc.json receiptToken)
+    startBlock: 20964951, // lite-launch VolatilePoolFactory deploy, eth_getCode-verified
+  },
+};
+
+/**
+ * The legacy deployment's constants on `chainId`.
+ *
+ * @param chainId - Chain to look up
+ * @returns The chain's legacy constants
+ * @throws When the chain has no legacy Velodrome/Aerodrome deployment (an
+ *   Aero-only chain); legacy handlers are only configured on legacy chains
+ */
+export function getLegacyConstants(chainId: number): LegacyDeploymentConstants {
+  const legacy = CHAIN_CONSTANTS[chainId]?.legacy;
+  if (!legacy) {
+    throw new Error(
+      `Chain ${chainId} has no legacy Velodrome/Aerodrome deployment`,
+    );
+  }
+  return legacy;
+}
 
 /**
  * Create a unique ID for a token on a specific chain. Should only be used for Token entities.
@@ -926,32 +1045,6 @@ export const TokenId = (chainId: number, address: string) =>
  * @returns string Combined pool ID.
  */
 export const PoolId = (chainId: number, pool: string) => `${chainId}-${pool}`;
-
-/**
- * Known "sink" root pool addresses. These contracts were registered via
- * RootPoolCreated / GaugeCreated but their on-chain bytecode is a revert-only
- * stub (no token0/token1/factory/tickSpacing). They have no real leaf pool
- * counterpart and can never be reconciled, so handlers short-circuit on them:
- * Voted/Abstained/DistributeReward events are silently dropped instead of
- * emitting noisy "mapping not found" logs or creating orphan Pending* records
- * that would never flush. See issue #601.
- */
-export const KNOWN_SINK_ROOT_POOLS: ReadonlySet<string> = new Set([
-  PoolId(
-    10, // Optimism — gauge 0x3B59a6B600f912260048a0f3a834C1039aEcD367
-    toChecksumAddress("0x333030A736B47D20346d82A473680658ac1C2b88"),
-  ),
-  PoolId(
-    8453, // Base — gauge 0x287C94a1fE647014317E91A0E42425D6a237081D
-    toChecksumAddress("0x97Cd4EB683E29695DC93eec95d47d4E7a35E2112"),
-  ),
-]);
-
-export const isKnownSinkRootPool = (
-  chainId: number,
-  poolAddress: string,
-): boolean =>
-  KNOWN_SINK_ROOT_POOLS.has(PoolId(chainId, toChecksumAddress(poolAddress)));
 
 /** Entity ID for ALM_LP_Wrapper. Format: {chainId}-{wrapperAddress}
  * @param chainId - Chain ID of the wrapper
@@ -1007,43 +1100,6 @@ export const RootPoolLeafPoolId = (
   leafPoolAddress: string,
 ) => `${rootChainId}-${leafChainId}-${rootPoolAddress}-${leafPoolAddress}`;
 
-/** Entity ID for PendingVote. Format: {chainId}-{rootPoolAddress}-{tokenId}-{txHash}-{logIndex}
- * @param chainId - Chain ID where the vote occurred
- * @param rootPoolAddress - Root pool address (must be EIP-55 checksum-cased; do not pre-lowercase)
- * @param tokenId - veNFT token ID
- * @param transactionHash - Transaction hash of the vote event (for uniqueness)
- * @param logIndex - Log index of the event (for uniqueness within same tx)
- */
-export const PendingVoteId = (
-  chainId: number,
-  rootPoolAddress: string,
-  tokenId: bigint,
-  transactionHash: string,
-  logIndex: number,
-) => `${chainId}-${rootPoolAddress}-${tokenId}-${transactionHash}-${logIndex}`;
-
-/** Entity ID for PendingRootPoolMapping. Format: {rootChainId}-{rootPoolAddress}
- * @param rootChainId - Root chain ID
- * @param rootPoolAddress - Root pool address (must be EIP-55 checksum-cased; do not pre-lowercase)
- */
-export const PendingRootPoolMappingId = (
-  rootChainId: number,
-  rootPoolAddress: string,
-) => `${rootChainId}-${rootPoolAddress}`;
-
-/** Entity ID for PendingDistribution. Format: {rootChainId}-{rootPoolAddress}-{blockNumber}-{logIndex}
- * @param rootChainId - Root chain ID
- * @param rootPoolAddress - Root pool address (must be EIP-55 checksum-cased; do not pre-lowercase)
- * @param blockNumber - Block number of the DistributeReward event
- * @param logIndex - Log index of the event (for uniqueness within block)
- */
-export const PendingDistributionId = (
-  rootChainId: number,
-  rootPoolAddress: string,
-  blockNumber: number,
-  logIndex: number,
-) => `${rootChainId}-${rootPoolAddress}-${blockNumber}-${logIndex}`;
-
 /** Entity ID for RootGauge_RootPool. Format: {rootChainId}-{rootGaugeAddress}
  * @param rootChainId - Root chain ID (e.g. Optimism)
  * @param rootGaugeAddress - Root gauge address (RootGauge/RootCLGauge on root chain) (must be EIP-55 checksum-cased; do not pre-lowercase)
@@ -1066,15 +1122,23 @@ export const rootPoolMatchingHash = (
   tickSpacing: bigint | number,
 ) => `${leafChainId}_${token0}_${token1}_${tickSpacing}`;
 
-/** Entity ID for FeeToTickSpacingMapping. Format: {chainId}-{tickSpacing}
+/** Entity ID for FeeToTickSpacingMapping. Format: {chainId}-{factoryAddress}-{tickSpacing}.
+ *
+ * The factory is part of the key because `tickSpacingToFee` is per CLFactory
+ * and a chain can have several: Base has four legacy CLFactories plus the Aero
+ * one, and on Arc tick spacing 50 is 0.05% on the lite-launch CLFactory but
+ * 0.30% on the Aero CLFactory.
+ *
  * @param chainId - Chain ID of the fee to tick spacing mapping
+ * @param factoryAddress - CLFactory that emitted TickSpacingEnabled (EIP-55 checksummed)
  * @param tickSpacing - Tick spacing value
  * @returns string Combined fee to tick spacing mapping ID.
  */
 export const FeeToTickSpacingMappingId = (
   chainId: number,
+  factoryAddress: string,
   tickSpacing: bigint | number,
-) => `${chainId}-${tickSpacing}`;
+) => `${chainId}-${factoryAddress}-${tickSpacing}`;
 
 /** Entity ID for NonFungiblePosition. Format: {chainId}-{nfpmAddress}-{tokenId} (stable id).
  *
@@ -1162,6 +1226,71 @@ export const CLPoolMintEventId = (
   logIndex: number,
 ) => `${chainId}-${poolAddress}-${txHash}-${logIndex}`;
 
+/** Entity ID for AeroNFPMMintPool: every value an Aero NFPM IncreaseLiquidity
+ * repeats from the CLPool.Mint it caused, so the IncreaseLiquidity handler finds
+ * the pool by primary key.
+ * Format: {chainId}-{txHash}-{nfpmAddress}-{tickLower}-{tickUpper}-{liquidity}-{amount0}-{amount1}
+ * @param chainId - Chain ID of the tx
+ * @param txHash - Transaction hash
+ * @param nfpmAddress - The NFPM (the Mint's `owner`, the IncreaseLiquidity's emitter; EIP-55 checksummed)
+ * @param tickLower - Lower tick of the range
+ * @param tickUpper - Upper tick of the range
+ * @param liquidity - Liquidity minted
+ * @param amount0 - Raw token0 amount paid
+ * @param amount1 - Raw token1 amount paid
+ * @returns string Combined ID.
+ */
+export const AeroNFPMMintPoolId = (
+  chainId: number,
+  txHash: string,
+  nfpmAddress: string,
+  tickLower: bigint,
+  tickUpper: bigint,
+  liquidity: bigint,
+  amount0: bigint,
+  amount1: bigint,
+) =>
+  `${chainId}-${txHash}-${nfpmAddress}-${tickLower}-${tickUpper}-${liquidity}-${amount0}-${amount1}`;
+
+/** Entity ID for V2SwapFeesInTx: the pending fee of a V2 swap, handed from
+ * its Fees events to its Swap. Format: {chainId}-{txHash}-{poolAddress}
+ * @param chainId - Chain ID of the tx
+ * @param txHash - Transaction hash
+ * @param poolAddress - V2 pool (EIP-55 checksummed)
+ * @returns string Combined ID.
+ */
+export const V2SwapFeesInTxId = (
+  chainId: number,
+  txHash: string,
+  poolAddress: string,
+) => `${chainId}-${txHash}-${poolAddress}`;
+
+/** Entity ID for NFPMCollectFeesInTx: the fees of a legacy-NFPM position,
+ * handed from CLPool.Collect to the NFPM.Collect that follows it in the same
+ * tx. Format: {chainId}-{txHash}-{nfpmAddress}
+ * @param chainId - Chain ID of the tx
+ * @param txHash - Transaction hash
+ * @param nfpmAddress - The NFPM (CLPool.Collect's `owner`, NFPM.Collect's emitter; EIP-55 checksummed)
+ * @returns string Combined ID.
+ */
+export const NFPMCollectFeesInTxId = (
+  chainId: number,
+  txHash: string,
+  nfpmAddress: string,
+) => `${chainId}-${txHash}-${nfpmAddress}`;
+
+/** Entity ID for PoolFactoryDefaultFee. Format: {chainId}-{factoryAddress}-{stable|volatile}
+ * @param chainId - Chain ID of the factory
+ * @param factoryAddress - V2 pool factory (EIP-55 checksummed)
+ * @param isStable - Pool type the default fee applies to
+ * @returns string Combined ID.
+ */
+export const PoolFactoryDefaultFeeId = (
+  chainId: number,
+  factoryAddress: string,
+  isStable: boolean,
+) => `${chainId}-${factoryAddress}-${isStable ? "stable" : "volatile"}`;
+
 /** Entity ID for TxCLPoolMintRegistry. Format: {chainId}-{txHash}.
  * Keyed by transaction (not pool) because the NFPM.Transfer(mint) consumer only
  * knows chainId + txHash at lookup time; filtering by pool/logIndex happens on
@@ -1203,17 +1332,6 @@ export const PoolSnapshotId = (
   epochMs: number,
 ) => `${PoolId(chainId, poolAddress)}-${epochMs}`;
 
-/** Entity ID for DispatchId_event and ProcessId_event (Mailbox events).
- * @param transactionHash
- * @param chainId
- * @param messageId
- */
-export const MailboxMessageId = (
-  transactionHash: string,
-  chainId: number,
-  messageId: string,
-) => `${transactionHash}-${chainId}-${messageId}`;
-
 /** Entity ID for OUSDTSwaps.
  * @param transactionHash
  * @param chainId
@@ -1231,9 +1349,6 @@ export const OUSDTSwapsId = (
   amountOut: bigint,
 ) =>
   `${transactionHash}-${chainId}-${tokenInPool}-${amountIn}-${tokenOutPool}-${amountOut}`;
-
-/** Entity ID for SuperSwap. Uses Hyperlane messageId which is globally unique (keccak256 of packed message including origin domain + nonce). */
-export const SuperSwapId = (messageId: string) => messageId;
 
 /** Snapshot ID for UserStatsPerPoolSnapshot. epochMs = getSnapshotEpoch(timestamp).getTime()
  * @param chainId - Chain ID of the pool
@@ -1322,4 +1437,8 @@ export const CHAIN_CONSTANTS: Record<number, chainConstants> = {
   42220: CELO_CONSTANTS,
   1923: SWELL_CONSTANTS,
   5330: SUPERSEED_CONSTANTS,
+  1: ETHEREUM_CONSTANTS,
+  42161: ARBITRUM_CONSTANTS,
+  4663: ROBINHOOD_CONSTANTS,
+  5042: ARC_CONSTANTS,
 };

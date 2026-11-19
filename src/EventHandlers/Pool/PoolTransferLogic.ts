@@ -109,7 +109,13 @@ export async function updateUserLpBalances(
       lastActivityTimestamp: timestamp,
     };
 
-    await updateUserStatsPerPool(userDiff, recipientData, context, timestamp);
+    await updateUserStatsPerPool(
+      userDiff,
+      recipientData,
+      context,
+      timestamp,
+      chainId,
+    );
   } else if (isBurn) {
     // Burn: subtract from sender (skip if sender is the gauge; #850)
     if (isGauge(from)) return;
@@ -126,7 +132,13 @@ export async function updateUserLpBalances(
       lastActivityTimestamp: timestamp,
     };
 
-    await updateUserStatsPerPool(userDiff, senderData, context, timestamp);
+    await updateUserStatsPerPool(
+      userDiff,
+      senderData,
+      context,
+      timestamp,
+      chainId,
+    );
   } else {
     // Regular transfer: update both (each side independently skipped if gauge; #850)
     // Handle self-transfer case (from === to) to avoid conflicting updates
@@ -146,7 +158,13 @@ export async function updateUserLpBalances(
         lastActivityTimestamp: timestamp,
       };
 
-      await updateUserStatsPerPool(userDiff, userData, context, timestamp);
+      await updateUserStatsPerPool(
+        userDiff,
+        userData,
+        context,
+        timestamp,
+        chainId,
+      );
     } else {
       // Regular transfer between different addresses
       const fromIsGauge = isGauge(from);
@@ -171,6 +189,7 @@ export async function updateUserLpBalances(
               senderData,
               context,
               timestamp,
+              chainId,
             );
           })(),
         );
@@ -193,6 +212,7 @@ export async function updateUserLpBalances(
               recipientData,
               context,
               timestamp,
+              chainId,
             );
           })(),
         );
@@ -204,8 +224,11 @@ export async function updateUserLpBalances(
 
 /**
  * Store mint/burn transfer in PoolTransferInTx entity for later Mint/Burn event matching.
- * Only stores mint/burn transfers (not regular transfers) to reduce storage; regular
- * transfers are a no-op.
+ * Stores mint and burn transfers, and LP returns (a plain transfer whose `to` is
+ * the pool itself, stored with isMint = isBurn = false): the pool burns its own
+ * balance, so the Burn handler credits the LP return's `from` (#911). Other
+ * transfers are a no-op. An LP return with no Burn later in its tx is never
+ * consumed (LP donated to the pool); that is rare and bounded by such transfers.
  *
  * Side effects (in order):
  *   1. Upserts PoolTransferInTx keyed by {chainId}-{txHash}-{poolAddress}-{logIndex}.
@@ -243,8 +266,10 @@ export async function storeTransferForMatching(
   timestamp: Date,
   context: handlerContext,
 ): Promise<void> {
-  // Only store mint/burn transfers (not regular transfers) to reduce storage
-  if (isMint || isBurn) {
+  // Only store mint/burn transfers and LP returns (LP sent into the pool, which
+  // the next burn consumes; #911), not other transfers, to reduce storage
+  const isLpReturn = !isMint && to.toLowerCase() === poolAddress.toLowerCase();
+  if (isMint || isBurn || isLpReturn) {
     const transferId = PoolTransferInTxId(
       chainId,
       txHash,
@@ -253,7 +278,6 @@ export async function storeTransferForMatching(
     );
     context.PoolTransferInTx.set({
       id: transferId,
-      chainId: chainId,
       txHash: txHash,
       pool: poolAddress,
       logIndex: logIndex,

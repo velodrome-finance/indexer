@@ -15,12 +15,14 @@ import {
   isRootGauge,
   processGaugeClaimRewards,
   processGaugeDeposit,
+  processGaugeEarlyWithdrawPenalty,
   processGaugeWithdraw,
 } from "../../../src/EventHandlers/Gauges/GaugeSharedLogic";
 import {
   PRICE_TRUST_OUTCOME,
   PRICE_TRUST_REASON,
 } from "../../../src/PriceTrust";
+import type { WithChain } from "../../testHelpers";
 import { type MockPool, setupCommon } from "../Pool/common";
 
 describe("GaugeSharedLogic", () => {
@@ -37,7 +39,7 @@ describe("GaugeSharedLogic", () => {
   );
   const mockTimestamp = new Date(1000000 * 1000);
 
-  const mockToken0: Token = {
+  const mockToken0: WithChain<Token> = {
     ...mockToken0Data,
     id: "0x3333333333333333333333333333333333333333-8453",
     address: toChecksumAddress("0x3333333333333333333333333333333333333333"),
@@ -50,7 +52,7 @@ describe("GaugeSharedLogic", () => {
     isWhitelisted: true,
   };
 
-  const mockToken1: Token = {
+  const mockToken1: WithChain<Token> = {
     ...mockToken1Data,
     id: "0x4444444444444444444444444444444444444444-8453",
     address: toChecksumAddress("0x4444444444444444444444444444444444444444"),
@@ -67,7 +69,7 @@ describe("GaugeSharedLogic", () => {
   let mockUserStatsPerPool: ReturnType<
     ReturnType<typeof setupCommon>["createMockUserStatsPerPool"]
   >;
-  let mockRewardToken: Token;
+  let mockRewardToken: WithChain<Token>;
   // biome-ignore lint/suspicious/noExplicitAny: Mock context for testing - complex type intersection would be overly verbose
   let store: Map<string, any>;
   // biome-ignore lint/suspicious/noExplicitAny: Mock context for testing - complex type intersection would be overly verbose
@@ -83,22 +85,26 @@ describe("GaugeSharedLogic", () => {
         number,
         {
           eth_client?: PublicClient;
-          rewardToken?: (blockNumber: number) => string;
-          oracle?: {
-            getType: (blockNumber: number) => string;
-            getAddress: (priceOracleType: string) => string;
-            startBlock: number;
-            priceConnectors: unknown[];
+          priceConnectors: unknown[];
+          legacy: {
+            rewardToken?: (blockNumber: number) => string;
+            oracle?: {
+              getType: (blockNumber: number) => string;
+              getAddress: (priceOracleType: string) => string;
+              startBlock: number;
+            };
           };
         }
       >
     )[mockChainId] = {
-      rewardToken: () => "0x940181a94A35A4569E4529A3CDfB74e38FD98631", // AERO on Base
-      oracle: {
-        getType: () => "v3", // Mock oracle type
-        getAddress: () => "0x1234567890123456789012345678901234567890", // Mock oracle address
-        startBlock: 0, // Mock start block
-        priceConnectors: [], // Mock connectors
+      priceConnectors: [], // Mock connectors
+      legacy: {
+        rewardToken: () => "0x940181a94A35A4569E4529A3CDfB74e38FD98631", // AERO on Base
+        oracle: {
+          getType: () => "v3", // Mock oracle type
+          getAddress: () => "0x1234567890123456789012345678901234567890", // Mock oracle address
+          startBlock: 0, // Mock start block
+        },
       },
     };
 
@@ -153,7 +159,9 @@ describe("GaugeSharedLogic", () => {
       pricePerUSDNew: 1000000000000000000n, // 1 USD in 18 decimals
       lastUpdatedTimestamp: mockTimestamp,
       lastSuccessfulPriceTimestamp: mockTimestamp,
+      pricingDepthUSD: undefined,
       isWhitelisted: true,
+      isListedOnAero: undefined,
       priceTrustOutcome: PRICE_TRUST_OUTCOME.TRUSTED,
       priceTrustReason: PRICE_TRUST_REASON.WL,
     };
@@ -730,6 +738,63 @@ describe("GaugeSharedLogic", () => {
       const updatedPool = store.get(`Pool:${mockPool.id}`);
       expect(updatedPool?.numberOfGaugeRewardClaims).toBe(0n);
     });
+
+    it("should skip an early-withdraw penalty without error when gauge is root gauge", async () => {
+      const logErrorSpy = vi.fn();
+      const baseCtx = createContextWithRootGauge();
+      const ctx = {
+        ...baseCtx,
+        log: { ...baseCtx.log, error: logErrorSpy },
+      };
+
+      await processGaugeEarlyWithdrawPenalty(
+        {
+          gaugeAddress: rootGaugeAddress,
+          userAddress: mockUserAddress,
+          chainId: mockChainId,
+          blockNumber: 100,
+          timestamp: 1000000,
+          amount: 1000000000000000000000n,
+          tokenId: 1n,
+        },
+        ctx,
+        "TestGaugeEarlyWithdrawPenalty",
+      );
+
+      expect(logErrorSpy).not.toHaveBeenCalled();
+      const updatedPool = store.get(`Pool:${mockPool.id}`);
+      expect(updatedPool?.totalGaugeEarlyWithdrawPenalties).toBe(0n);
+      expect(updatedPool?.totalGaugeEarlyWithdrawPenaltiesUSD).toBe(0n);
+    });
+  });
+
+  describe("processGaugeEarlyWithdrawPenalty", () => {
+    it("logs and skips a penalty for a gauge with no pool that is not a root gauge", async () => {
+      const logErrorSpy = vi.fn();
+      const unknownGauge = toChecksumAddress(
+        "0x9999999999999999999999999999999999999999",
+      );
+
+      await processGaugeEarlyWithdrawPenalty(
+        {
+          gaugeAddress: unknownGauge,
+          userAddress: mockUserAddress,
+          chainId: mockChainId,
+          blockNumber: 100,
+          timestamp: 1000000,
+          amount: 1000000000000000000000n,
+          tokenId: 1n,
+        },
+        { ...mockContext, log: { ...mockContext.log, error: logErrorSpy } },
+        "TestGaugeEarlyWithdrawPenalty",
+      );
+
+      expect(logErrorSpy).toHaveBeenCalledWith(
+        `TestGaugeEarlyWithdrawPenalty: Pool not found for gauge address ${unknownGauge} on chain ${mockChainId}`,
+      );
+      const updatedPool = store.get(`Pool:${mockPool.id}`);
+      expect(updatedPool?.totalGaugeEarlyWithdrawPenalties).toBe(0n);
+    });
   });
 
   describe("Error Handling", () => {
@@ -971,6 +1036,14 @@ describe("GaugeSharedLogic", () => {
 
       clMockContext = {
         ...mockContext,
+        // Staked tick maps live on PoolTickMap (in-memory store here).
+        PoolTickMap: {
+          get: async (id: string) => store.get(`PoolTickMap:${id}`),
+          // biome-ignore lint/suspicious/noExplicitAny: Mock entity for testing
+          set: (entity: any) => {
+            store.set(`PoolTickMap:${entity.id}`, entity);
+          },
+        },
         Pool: {
           ...mockContext.Pool,
           // biome-ignore lint/suspicious/noExplicitAny: Mock entity for testing

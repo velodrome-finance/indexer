@@ -1,0 +1,69 @@
+id	output
+["0x020bfC650A365f8BB26819deAAbF3E21291018b4",4663]	{"name": "Cash Cat", "symbol": "CASHCAT", "decimals": 18}
+["0x05a3d1Cd21d0C88145E82600E62e7E496e0F222B",4663]	{"name": "AMC Entertainment • Robinhood Token", "symbol": "AMC", "decimals": 18}
+["0x05b37Fb53A299a1b874A619e1c4C404D52C36F4C",4663]	{"name": "Reddit • Robinhood Token", "symbol": "RDDT", "decimals": 18}
+["0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",4663]	{"name": "WETH", "symbol": "WETH", "decimals": 18}
+["0x0f17206447090e464C277571124dD2688E48AEA9",4663]	{"name": "Qualcomm • Robinhood Token", "symbol": "QCOM", "decimals": 18}
+["0x116F00968269B7bfbaD4109cE591d6E74c0601d4",4663]	{"name": "Cloudflare, Inc. Class A common stock • Robinhood Token", "symbol": "NET", "decimals": 18}
+["0x117cc2133c37B721F49dE2A7a74833232B3B4C0C",4663]	{"name": "SPDR S&P 500 ETF Trust • Robinhood Token", "symbol": "SPY", "decimals": 18}
+["0x12f190a9F9d7D37a250758b26824B97CE941bF54",4663]	{"name": "Amazon • Robinhood Token", "symbol": "AMZN", "decimals": 18}
+["0x1b0E319c6A659F002271B69dB8A7df2F911c153E",4663]	{"name": "GameStop • Robinhood Token", "symbol": "GME", "decimals": 18}
+["0x1D11f0496982706C5e14A514D4E79F2e6BdE4516",4663]	{"name": "Trump Media & Technology Group • Robinhood Token", "symbol": "DJT", "decimals": 18}
+["0x2D427692E928fa156ec22acfaBaFA0447C5805B7",4663]	{"name": "Galaxy Digital Inc. • Robinhood Token", "symbol": "GLXY", "decimals": 18}
+["0x2e0847E8910a9732eB3fb1bb4b70a580ADAD4FE3",4663]	{"name": "Alphabet Class A • Robinhood Token", "symbol": "GOOGL", "decimals": 18}
+["0x2E8c31162b855A2ffa90F6F8634643Ad6F111e18",4663]	{"name": "Artificial Inu", "symbol": "AI", "decimals": 18}
+["0x322F0929c4625eD5bAd873c95208D54E1c003b2d",4663]	{"name": "Tesla • Robinhood Token", "symbol": "TSLA", "decimals": 18}
+["0x39dBED3a2bd333467115dE45665cC57F813C4571",4663]	{"name": "Pons", "symbol": "PONS", "decimals": 18}
+["0x408c14038a04f7bD235329E26d2bf569ee20e250",4663]	{"name": "Nu • Robinhood Token", "symbol": "NU", "decimals": 18}
+["0x48E39E56aCdbA37b09020C0b734A613C9a2f100A",4663]	{"name": "Blackberry • Robinhood Token", "symbol": "BB", "decimals": 18}
+["0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa",4663]	{"name": "Space Exploration Technologies Corp. Class A Common Stock • Robinhood Token", "symbol": "SPCX", "decimals": 18}
+["0x4D21483a44Bf67a86b77E3dA301411880797D452",4663]	{"name": "Boeing • Robinhood Token", "symbol": "BA", "decimals": 18}
+["0x4e62068525Ab11FE768e29dfD00ef909B9803016",4663]	{"name": "Lululemon • Robinhood Token", "symbol": "LULU", "decimals": 18}
+["0x5173D45A1191eE33cBB7D8c7e65f21B04eD54802",4663]	{"name": "Ramses", "symbol": "RAM", "decimals": 18}
+["0x56910D4409F3a0C78C64DD8D0545FF0705389870",4663]	{"name": "The Index", "symbol": "Index", "decimals": 18}
+["0x58FfE4a942d3885bAa22D7520691F611EF09e7AA",4663]	{"name": "Taiwan Semiconductor Manufacturing • Robinhood Token", "symbol": "TSM", "decimals": 18}
+["0x59818904ab4cE163b3cE4FfB64f2D6Ca02c434B4",4663]	{"name": "Quantum Computing • Robinhood Token", "symbol": "QUBT", "decimals": 18}
+["0x5e81213613b6B86EaB4c6c50d718d34359459786",4663]	{"name": "Take-Two Interactive Software • Robinhood Token", "symbol": "TTWO", "decimals": 18}
+["0x5fa7a11aE55EBFD1EE3115F7DF3c56a761F051fe",4663]	{"name": "test1", "symbol": "TEST1", "decimals": 18}
+["0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",4663]	{"name": "Global Dollar", "symbol": "USDG", "decimals": 6}
+["0x6330D8C3178a418788dF01a47479c0ce7CCF450b",4663]	{"name": "Coinbase • Robinhood Token", "symbol": "COIN", "decimals": 18}
+["0x7066A64c24e4206CD62E83bf198c1E7EB361F51e",4663]	{"name": "Pfizer • Robinhood Token", "symbol": "PFE", "decimals": 18}
+["0x7dbf38976f6D3b9c529e7D9484A71898B409eE6a",4663]	{"name": "ZZZ", "symbol": "ZZZ", "decimals": 18}
+["0x7eCeB66EF6e7DCF8629DE8EeD723fbd60D4F1E18",4663]	{"name": "DrillBaby", "symbol": "DB", "decimals": 18}
+["0x8005d266423c7ea827372c9c864491e5786600ea",4663]	{"name": "Eli Lilly • Robinhood Token", "symbol": "LLY", "decimals": 18}
+["0x86923f96303D656E4aa86D9d42D1e57ad2023fdC",4663]	{"name": "AMD • Robinhood Token", "symbol": "AMD", "decimals": 18}
+["0x894E1EC2D74FFE5AEF8Dc8A9e84686acCB964F2A",4663]	{"name": "Palantir Technologies • Robinhood Token", "symbol": "PLTR", "decimals": 18}
+["0x8CcD7AF204402d072D626A2aDe1368C91A6cEC12",4663]	{"name": "Liftoff", "symbol": "LIFTOFF", "decimals": 18}
+["0x92FD66527192E3e61d4DDd13322Aa222DE86F9B5",4663]	{"name": "iShares 0-3 Month Treasury Bond • Robinhood Token", "symbol": "SGOV", "decimals": 18}
+["0x9433D16f5F0FD7F031310dE92BbCCBfdC1afa1fa",4663]	{"name": "VM", "symbol": "VM", "decimals": 18}
+["0x98096d17e191B3dA1d5f99a6D7b3584351b11E18",4663]	{"name": "Boner Coin", "symbol": "BONER", "decimals": 18}
+["0x9A97D2bCcca348Ad43267a3ED418Da6D0EAF7777",4663]	{"name": "Ztaysmile Wrapped BTC", "symbol": "ZBTC", "decimals": 18}
+["0x9e148C5716b5aAdCFD3B71cEAE9EE7a9e22C29E2",4663]	{"name": "Aero", "symbol": "xAERO", "decimals": 18}
+["0xa156048AA84d13b1DE40dFa8288D28B2593fc35c",4663]	{"name": "Crossbow", "symbol": "XBOW", "decimals": 18}
+["0xa30FA36Db767ad9eD3f7a60fC79526fB4d56D344",4663]	{"name": "United States Oil Fund • Robinhood Token", "symbol": "USO", "decimals": 18}
+["0xAa07A0e9209e16aC99708C3EC70159c6eF3128A3",4663]	{"name": "Orbio.so", "symbol": "ORBIO", "decimals": 18}
+["0xab093dEF657F15dF31b33922A95e047aDd645B29",4663]	{"name": "MUSHROOM", "symbol": "SHROOM", "decimals": 18}
+["0xad2cA259E379993165B6bD2d33D2E239D31eC0cB",4663]	{"name": "test", "symbol": "TEST", "decimals": 18}
+["0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9",4663]	{"name": "Apple • Robinhood Token", "symbol": "AAPL", "decimals": 18}
+["0xc0D6457C16Cc70d6790Dd43521C899C87ce02f35",4663]	{"name": "Meta Platforms • Robinhood Token", "symbol": "META", "decimals": 18}
+["0xc367486Cc27a232218fC91bc93c63ac1Ec8ABc73",4663]	{"name": "RobinFun Genesis", "symbol": "GENESIS", "decimals": 18}
+["0xc6911796042b15d7Fa4F6CDe69e245DdCd3d9c31",4663]	{"name": "Virtuals Protocol", "symbol": "VIRTUAL", "decimals": 18}
+["0xc72b96e0E48ecd4DC75E1e45396e26300BC39681",4663]	{"name": "Intel • Robinhood Token", "symbol": "INTC", "decimals": 18}
+["0xC9a981FEE1F9DEc688bb123ccDeCc63D0deBFC4e",4663]	{"name": "SPDR Gold Trust • Robinhood Token", "symbol": "GLD", "decimals": 18}
+["0xCceE82fE024c36fA15E1005edE3E9e4787e23D09",4663]	{"name": "Hims & Hers Health • Robinhood Token", "symbol": "HIMS", "decimals": 18}
+["0xcE24439F2D9C6a2289F741120FE202248B666666",4663]	{"name": "United Stables", "symbol": "U", "decimals": 18}
+["0xCEC185eB182c47d1bA1EFc84e6959e18cd620Be4",4663]	{"name": "Coinbase Wrapped BTC", "symbol": "cbBTC", "decimals": 8}
+["0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC",4663]	{"name": "NVIDIA • Robinhood Token", "symbol": "NVDA", "decimals": 18}
+["0xD5f3879160bc7c32ebb4dC785F8a4F505888de68",4663]	{"name": "Invesco QQQ • Robinhood Token", "symbol": "QQQ", "decimals": 18}
+["0xD7321801CAae694090694Ff55A9323139F043B88",4663]	{"name": "The Juggernaut", "symbol": "JUGGERNAUT", "decimals": 18}
+["0xDeb6265cEE49CC277A938452DEDAb2B8774210d1",4663]	{"name": "Wrapped Ratatoskr", "symbol": "wRATR", "decimals": 8}
+["0xdF0992E440dD0be65BD8439b609d6D4366bf1CB5",4663]	{"name": "Circle Internet Group • Robinhood Token", "symbol": "CRCL", "decimals": 18}
+["0xe598a253820BBd77f92717840A784205947Da870",4663]	{"name": "Liftoff Test", "symbol": "LTEST", "decimals": 18}
+["0xe8ffd7e24187F72afB08d75B1bb13088A989a791",4663]	{"name": "Delta", "symbol": "DELTA", "decimals": 18}
+["0xe93237C50D904957Cf27E7B1133b510C669c2e74",4663]	{"name": "Microsoft • Robinhood Token", "symbol": "MSFT", "decimals": 18}
+["0xe934e36A439C94017B64a3FecE66AF12099aBF50",4663]	{"name": "StonkBroker", "symbol": "STONKBROKER", "decimals": 18}
+["0xec262a75e413fAfD0dF80480274532C79D42da09",4663]	{"name": "Strategy Inc. • Robinhood Token", "symbol": "MSTR", "decimals": 18}
+["0xF0C4BF4C582cb3836e98394b1d4e7B7281101bE8",4663]	{"name": "Roblox • Robinhood Token", "symbol": "RBLX", "decimals": 18}
+["0xF51fb54DE60f6e16252E852A5Ed0E60B8307606A",4663]	{"name": "NVDA 3x Long", "symbol": "NVDAx3L", "decimals": 18}
+["0xF6589F11Bc40b669e584073F428B05562F568733",4663]	{"name": "Snap • Robinhood Token", "symbol": "SNAP", "decimals": 18}
+["0xfF080c8ce2E5feadaCa0Da81314Ae59D232d4afD",4663]	{"name": "Micron Technology • Robinhood Token", "symbol": "MU", "decimals": 18}

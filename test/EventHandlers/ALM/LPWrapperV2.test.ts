@@ -1060,6 +1060,7 @@ describe("ALMLPWrapperV2 Events", () => {
       const eventId = ALMLPWrapperId(chainId, lpWrapperAddress);
       indexer.ALM_TotalSupplyLimitUpdated_event.set({
         id: eventId,
+        chainId,
         lpWrapperAddress: lpWrapperAddress,
         currentTotalSupplyLPTokens: 5000n * TEN_TO_THE_18_BI,
         transactionHash: "0xoldhash",

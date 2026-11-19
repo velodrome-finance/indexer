@@ -1,746 +1,51 @@
-import { S, createEffect } from "envio";
-import {
-  CHAIN_CONSTANTS,
-  PriceOracleType,
-  RPC_GATEWAY_PREFIX,
-  TOKEN_DETAILS_FALLBACK,
-  createFallbackRpcClient,
-} from "../Constants";
-import { GLOBAL_REQUESTS_PER_SECOND, RPC_APP_RETRY } from "../Constants";
+import type { PublicClient } from "viem";
+import { CHAIN_CONSTANTS, RPC_APP_RETRY } from "../Constants";
 import {
   ErrorType,
+  RPC_ERROR_POLICY,
+  describeRpcError,
   getErrorType,
-  handleEffectErrorReturn,
   sleep,
 } from "./Helpers";
-import { fetchHasContractBytecode } from "./fetchers/Bytecode";
-import { fetchRootPoolAddress } from "./fetchers/RootPool";
-import { fetchSwapFee } from "./fetchers/SwapFee";
-import { fetchTokenDetails, fetchTokenPrice } from "./fetchers/Token";
-import { fetchTokensDeposited } from "./fetchers/Voter";
-
-export enum EffectType {
-  GET_TOKEN_DETAILS = "getTokenDetails",
-  GET_TOKEN_PRICE = "getTokenPrice",
-  GET_TOKENS_DEPOSITED = "getTokensDeposited",
-  GET_SWAP_FEE = "getSwapFee",
-  GET_ROOT_POOL_ADDRESS = "getRootPoolAddress",
-  HAS_CONTRACT_BYTECODE = "hasContractBytecode",
-}
-
-/** Log name for a gateway operation; use sub for nested operations (e.g. "tokenDetails"). */
-function rpcGatewayOpName(type: EffectType, sub?: string): string {
-  return sub
-    ? `${RPC_GATEWAY_PREFIX}.${type}.${sub}`
-    : `${RPC_GATEWAY_PREFIX}.${type}`;
-}
+import { createFallbackRpcClient } from "./RpcClient";
+import { RpcConfigError, assertRpcConfigAtStartup } from "./RpcConfig";
 
 /**
- * Single source of truth for each gateway operation: input and output schemas.
- * Each inputSchema includes a literal `type` field so that RPC_GATEWAY_INPUT_SCHEMA
- * (S.union of these schemas) is a proper discriminated union: the runtime validates
- * and preserves `type`, and the handler's switch (i.type) receives it intact.
- * When adding an operation:
- * 1) add to EffectType,
- * 2) add an entry here,
- * 3) add to RpcGatewayInputPayloadByType and RpcGatewayOutputByType below.
+ * RPC execution layer shared by every effect: retry with backoff on the
+ * primary endpoint, then the chain's fallback endpoint, then (only if both
+ * fail) the caller's default value, which is always reported via a structured
+ * log line and a counter. Nothing here caches; caching decisions live in
+ * {@link import("./RpcEffect").createRpcEffect}.
  */
-const RPC_GATEWAY_OPERATIONS = {
-  [EffectType.GET_TOKEN_DETAILS]: {
-    inputSchema: {
-      type: S.schema(EffectType.GET_TOKEN_DETAILS),
-      contractAddress: S.string,
-      chainId: S.number,
-    },
-    outputSchema: {
-      name: S.string,
-      decimals: S.number,
-      symbol: S.string,
-      usedDefault: S.boolean,
-      errorClass: S.optional(S.string),
-    },
-  },
-  [EffectType.GET_TOKEN_PRICE]: {
-    inputSchema: {
-      type: S.schema(EffectType.GET_TOKEN_PRICE),
-      tokenAddress: S.string,
-      chainId: S.number,
-      blockNumber: S.number,
-      // Source-token decimals supplied by the caller when known (issue #748).
-      // When present, skips the source-token fetchTokenDetails RPC (~3 eth_calls
-      // per cache miss). Absent on cross-chain cold-sync against an unloaded
-      // source Token; handler falls back to the fetch path.
-      tokenDecimals: S.optional(S.number),
-    },
-    outputSchema: {
-      pricePerUSDNew: S.bigint,
-      priceOracleType: S.string,
-      usedDefault: S.boolean,
-      errorClass: S.optional(S.string),
-    },
-  },
-  [EffectType.GET_TOKENS_DEPOSITED]: {
-    inputSchema: {
-      type: S.schema(EffectType.GET_TOKENS_DEPOSITED),
-      rewardTokenAddress: S.string,
-      gaugeAddress: S.string,
-      blockNumber: S.number,
-      chainId: S.number,
-    },
-    outputSchema: {
-      value: S.optional(S.bigint),
-      usedDefault: S.boolean,
-      errorClass: S.optional(S.string),
-    },
-  },
-  [EffectType.GET_SWAP_FEE]: {
-    inputSchema: {
-      type: S.schema(EffectType.GET_SWAP_FEE),
-      poolAddress: S.string,
-      factoryAddress: S.string,
-      chainId: S.number,
-      blockNumber: S.number,
-    },
-    outputSchema: {
-      value: S.optional(S.bigint),
-      usedDefault: S.boolean,
-      errorClass: S.optional(S.string),
-    },
-  },
-  [EffectType.GET_ROOT_POOL_ADDRESS]: {
-    inputSchema: {
-      type: S.schema(EffectType.GET_ROOT_POOL_ADDRESS),
-      chainId: S.number,
-      factory: S.string,
-      token0: S.string,
-      token1: S.string,
-      poolType: S.number,
-    },
-    outputSchema: {
-      value: S.string,
-      usedDefault: S.boolean,
-      errorClass: S.optional(S.string),
-    },
-  },
-  [EffectType.HAS_CONTRACT_BYTECODE]: {
-    inputSchema: {
-      type: S.schema(EffectType.HAS_CONTRACT_BYTECODE),
-      address: S.string,
-      chainId: S.number,
-    },
-    outputSchema: {
-      hasCode: S.boolean,
-      usedDefault: S.boolean,
-      errorClass: S.optional(S.string),
-    },
-  },
-} as const satisfies Record<
-  EffectType,
-  { inputSchema: object; outputSchema: object }
->;
 
-const RPC_GATEWAY_INPUT_SCHEMA = S.union([
-  RPC_GATEWAY_OPERATIONS[EffectType.GET_TOKEN_DETAILS].inputSchema,
-  RPC_GATEWAY_OPERATIONS[EffectType.GET_TOKEN_PRICE].inputSchema,
-  RPC_GATEWAY_OPERATIONS[EffectType.GET_TOKENS_DEPOSITED].inputSchema,
-  RPC_GATEWAY_OPERATIONS[EffectType.GET_SWAP_FEE].inputSchema,
-  RPC_GATEWAY_OPERATIONS[EffectType.GET_ROOT_POOL_ADDRESS].inputSchema,
-  RPC_GATEWAY_OPERATIONS[EffectType.HAS_CONTRACT_BYTECODE].inputSchema,
-]);
+// Fail at startup, naming every missing variable, rather than on the first
+// RPC call hours into a sync. Skipped under vitest (see assertRpcConfigAtStartup).
+const startupWarnings = assertRpcConfigAtStartup();
+let startupWarningsLogged = false;
 
-const RPC_GATEWAY_OUTPUT_SCHEMA = S.union([
-  RPC_GATEWAY_OPERATIONS[EffectType.GET_TOKEN_DETAILS].outputSchema,
-  RPC_GATEWAY_OPERATIONS[EffectType.GET_TOKEN_PRICE].outputSchema,
-  RPC_GATEWAY_OPERATIONS[EffectType.GET_TOKENS_DEPOSITED].outputSchema,
-  RPC_GATEWAY_OPERATIONS[EffectType.GET_SWAP_FEE].outputSchema,
-  RPC_GATEWAY_OPERATIONS[EffectType.GET_ROOT_POOL_ADDRESS].outputSchema,
-  RPC_GATEWAY_OPERATIONS[EffectType.HAS_CONTRACT_BYTECODE].outputSchema,
-]);
+/** Minimal logger shape (envio's `Logger` satisfies it). */
+export type RpcLogger = {
+  error: (msg: string, params?: Record<string, unknown> | Error) => void;
+  warn: (msg: string, params?: Record<string, unknown> | Error) => void;
+  info?: (msg: string, params?: Record<string, unknown> | Error) => void;
+};
 
-/**
- * Input payload per operation (no discriminant). Keep in sync with {@link RPC_GATEWAY_OPERATIONS} inputSchema.
- * {@link RpcGatewayInputByType} adds `type: K` from the key so the mapping key is the type.
- */
-type RpcGatewayInputPayloadByType = {
-  [EffectType.GET_TOKEN_DETAILS]: { contractAddress: string; chainId: number };
-  [EffectType.GET_TOKEN_PRICE]: {
-    tokenAddress: string;
-    chainId: number;
-    blockNumber: number;
-    tokenDecimals?: number;
-  };
-  [EffectType.GET_TOKENS_DEPOSITED]: {
-    rewardTokenAddress: string;
-    gaugeAddress: string;
-    blockNumber: number;
-    chainId: number;
-  };
-  [EffectType.GET_SWAP_FEE]: {
-    poolAddress: string;
-    factoryAddress: string;
-    chainId: number;
-    blockNumber: number;
-  };
-  [EffectType.GET_ROOT_POOL_ADDRESS]: {
-    chainId: number;
-    factory: string;
-    token0: string;
-    token1: string;
-    poolType: number;
-  };
-  [EffectType.HAS_CONTRACT_BYTECODE]: {
-    address: string;
-    chainId: number;
-  };
+/** Anything with a logger: an effect context or a handler context. */
+export type RpcCallContext = { log: RpcLogger };
+
+/** Identifies one logical RPC operation for logs and metrics. */
+export type RpcOperation = {
+  /** Operation name, e.g. `getSwapFee` or `getTokenMetadata.decimals`. */
+  name: string;
+  chainId: number;
+  /** Extra key/values for the log line (addresses, block). */
+  details?: Record<string, string | number | undefined>;
 };
 
 /**
- * Input shape per operation: for each effect type K, `{ type: K }` plus that operation's payload.
- * Forms a discriminated union so (1) callers get type-safe payloads per `type`, and (2) the gateway
- * can narrow on `input.type` and see the correct payload in each branch. Used by {@link callRpcGateway}.
- */
-export type RpcGatewayInputByType = {
-  [K in EffectType]: { type: K } & RpcGatewayInputPayloadByType[K];
-};
-
-/** Union of all gateway inputs (discriminated by `type`). */
-type RpcGatewayInput = RpcGatewayInputByType[EffectType];
-
-/**
- * Output payload per operation type. Used by {@link callRpcGateway} for typed return.
- * Keep in sync with {@link RPC_GATEWAY_OPERATIONS} outputSchema.
- */
-export type RpcGatewayOutputByType = {
-  [EffectType.GET_TOKEN_DETAILS]: {
-    name: string;
-    decimals: number;
-    symbol: string;
-    usedDefault: boolean;
-    errorClass: string | undefined;
-  };
-  [EffectType.GET_TOKEN_PRICE]: {
-    pricePerUSDNew: bigint;
-    priceOracleType: string;
-    usedDefault: boolean;
-    errorClass: string | undefined;
-  };
-  [EffectType.GET_TOKENS_DEPOSITED]: {
-    value: bigint | undefined;
-    usedDefault: boolean;
-    errorClass: string | undefined;
-  };
-  [EffectType.GET_SWAP_FEE]: {
-    value: bigint | undefined;
-    usedDefault: boolean;
-    errorClass: string | undefined;
-  };
-  [EffectType.GET_ROOT_POOL_ADDRESS]: {
-    value: string;
-    usedDefault: boolean;
-    errorClass: string | undefined;
-  };
-  [EffectType.HAS_CONTRACT_BYTECODE]: {
-    hasCode: boolean;
-    usedDefault: boolean;
-    errorClass: string | undefined;
-  };
-};
-
-/** Union of all gateway output payloads. */
-export type RpcGatewayOutput = RpcGatewayOutputByType[EffectType];
-
-/** Context passed to gateway handler functions (log + optional cache). */
-type RpcGatewayHandlerContext = {
-  cache?: boolean;
-  log: {
-    error: (msg: string, err: Error) => void;
-    warn: (msg: string) => void;
-    info?: (msg: string) => void;
-  };
-};
-
-/**
- * Shared RPC gateway effect: all RPC-backed operations go through this single effect
- * so they share one rate-limit bucket. Alchemy allows 100,000 CU over any 10-second
- * period (10,000 CU/s); 3840 calls × 26 CU ≈ 99,840 CU per 10s.
- * When only one category is active it gets the full capacity; when all are active they share.
- * Errors are handled by executeRpcWithFallback (log + fallback); no throw escapes the handler.
- *
- * @see executeRpcWithFallback
- * @see RpcGatewayInput - input shape per operation type
- * @see RpcGatewayOutput - output shape per operation type
- */
-export const rpcGateway = createEffect(
-  {
-    name: "rpcGateway",
-    input: RPC_GATEWAY_INPUT_SCHEMA,
-    output: RPC_GATEWAY_OUTPUT_SCHEMA,
-    rateLimit: {
-      calls: GLOBAL_REQUESTS_PER_SECOND,
-      per: "second",
-    },
-    cache: false,
-  },
-  async ({ input, context }) => {
-    const i = input as RpcGatewayInput;
-    const ctx: RpcGatewayHandlerContext = context;
-    switch (i.type) {
-      case EffectType.GET_TOKEN_DETAILS:
-        return await handleGetTokenDetails(i, ctx);
-      case EffectType.GET_TOKEN_PRICE:
-        return await handleGetTokenPrice(i, ctx);
-      case EffectType.GET_TOKENS_DEPOSITED:
-        return await handleGetTokensDeposited(i, ctx);
-      case EffectType.GET_SWAP_FEE:
-        return await handleGetSwapFee(i, ctx);
-      case EffectType.GET_ROOT_POOL_ADDRESS:
-        return await handleGetRootPoolAddress(i, ctx);
-      case EffectType.HAS_CONTRACT_BYTECODE:
-        return await handleHasContractBytecode(i, ctx);
-      default: {
-        const _exhaust: never = i;
-        context.log.error(
-          "rpcGateway: unexpected input type",
-          new Error(
-            `rpcGateway: unexpected input type ${JSON.stringify(_exhaust)}`,
-          ),
-        );
-        return undefined as unknown as RpcGatewayOutput;
-      }
-    }
-  },
-);
-
-/** Minimal context type for callRpcGateway: any object with effect(gateway, input). */
-type RpcGatewayContext = {
-  effect(
-    effect: typeof rpcGateway,
-    input: RpcGatewayInput,
-  ): Promise<RpcGatewayOutput>;
-};
-
-/**
- * Typed gateway call: pass the operation input and get the narrowed output type.
- * Use this instead of context.effect(rpcGateway, ...) so TypeScript infers the correct output from the input's `type`.
- * The main purpose of this function is to enforce type safety and avoid casting.
- * @param context - The context for the effect.
- * @param input - The input for the effect.
- * @returns The output for the effect.
- */
-export async function callRpcGateway<T extends EffectType>(
-  context: RpcGatewayContext,
-  input: Extract<RpcGatewayInput, { type: T }>,
-): Promise<RpcGatewayOutputByType[T]> {
-  return context.effect(rpcGateway, input) as unknown as Promise<
-    RpcGatewayOutputByType[T]
-  >;
-}
-
-/**
- * Handles the GET_TOKEN_DETAILS effect.
- * @param i - The input for the effect.
- * @param context - The context for the effect.
- * @returns The token details.
- */
-async function handleGetTokenDetails(
-  i: RpcGatewayInputByType[EffectType.GET_TOKEN_DETAILS],
-  context: RpcGatewayHandlerContext,
-): Promise<RpcGatewayOutputByType[EffectType.GET_TOKEN_DETAILS]> {
-  const operationName = rpcGatewayOpName(EffectType.GET_TOKEN_DETAILS);
-  const logDetails = { contractAddress: i.contractAddress, chainId: i.chainId };
-  const fallback = TOKEN_DETAILS_FALLBACK;
-  const fetcher = () => {
-    const chain = CHAIN_CONSTANTS[i.chainId];
-    if (!chain) {
-      throw new Error(`Unsupported chainId: ${i.chainId}`);
-    }
-    return fetchTokenDetails(i.contractAddress, chain.eth_client);
-  };
-  const fallbackClient = createFallbackRpcClient(i.chainId);
-  const fallbackFetcher = fallbackClient
-    ? () => fetchTokenDetails(i.contractAddress, fallbackClient)
-    : undefined;
-
-  const { value, usedDefault, errorClass } = await executeRpcWithFallback(
-    context,
-    operationName,
-    logDetails,
-    fallback,
-    fetcher,
-    fallbackFetcher,
-  );
-
-  return { ...value, usedDefault, errorClass };
-}
-
-/**
- * Handles the GET_TOKEN_PRICE effect.
- * @param i - The input for the effect.
- * @param context - The context for the effect.
- * @returns The token price.
- */
-async function handleGetTokenPrice(
-  i: RpcGatewayInputByType[EffectType.GET_TOKEN_PRICE],
-  context: RpcGatewayHandlerContext,
-): Promise<RpcGatewayOutputByType[EffectType.GET_TOKEN_PRICE]> {
-  const { tokenAddress, chainId, blockNumber, tokenDecimals } = i;
-  const chain = CHAIN_CONSTANTS[chainId];
-  if (!chain) {
-    context.log.error(
-      "Unsupported chainId in getTokenPrice",
-      new Error(`Unsupported chainId: ${chainId}`),
-    );
-    return {
-      pricePerUSDNew: 0n,
-      priceOracleType: "unknown",
-      usedDefault: true,
-      errorClass: ErrorType.UNKNOWN,
-    };
-  }
-  const DESTINATION_TOKEN_ADDRESS = chain.destinationToken;
-
-  if (tokenAddress === DESTINATION_TOKEN_ADDRESS) {
-    return {
-      pricePerUSDNew: 10n ** 18n,
-      priceOracleType: chain.oracle.getType(blockNumber).toString(),
-      usedDefault: false,
-      errorClass: undefined,
-    };
-  }
-
-  if (chain.stablecoins.has(tokenAddress.toLowerCase())) {
-    return {
-      pricePerUSDNew: 10n ** 18n,
-      priceOracleType: chain.oracle.getType(blockNumber).toString(),
-      usedDefault: false,
-      errorClass: undefined,
-    };
-  }
-
-  // Issue #748: short-circuit pre-deploy BEFORE any token-detail fetch so
-  // chains/blocks before oracle deploy don't pay metadata calls just to return 0n.
-  // Pre-deploy zero is a real, cacheable answer (the oracle does not exist yet),
-  // not the fallback constant — keep usedDefault: false so the result stays in the cache.
-  const ORACLE_DEPLOYED = chain.oracle.startBlock <= blockNumber;
-  if (!ORACLE_DEPLOYED) {
-    return {
-      pricePerUSDNew: 0n,
-      priceOracleType: chain.oracle.getType(blockNumber).toString(),
-      usedDefault: false,
-      errorClass: undefined,
-    };
-  }
-
-  const fallbackClient = createFallbackRpcClient(chainId);
-
-  // Issue #748: source token decimals come from the caller when known
-  // (skipping ~3 redundant eth_calls per cache miss). Destination decimals
-  // always come from chain.destinationTokenDecimals — the destination is
-  // constant per chain and name/symbol of it are never used downstream
-  // (only decimals feeds the V3/V4 normalization at the bottom of this fn).
-  const destinationTokenDecimals = chain.destinationTokenDecimals;
-  let sourceTokenDecimals: number;
-  let sourceTokenUsedDefault = false;
-  let sourceTokenErrorClass: ErrorType | undefined;
-  if (tokenDecimals !== undefined) {
-    sourceTokenDecimals = tokenDecimals;
-  } else {
-    const tokenDetails = await executeRpcWithFallback(
-      context,
-      rpcGatewayOpName(EffectType.GET_TOKEN_PRICE, "tokenDetails"),
-      { contractAddress: tokenAddress, chainId },
-      TOKEN_DETAILS_FALLBACK,
-      () => fetchTokenDetails(tokenAddress, chain.eth_client),
-      fallbackClient
-        ? () => fetchTokenDetails(tokenAddress, fallbackClient)
-        : undefined,
-    );
-    sourceTokenDecimals = tokenDetails.value.decimals;
-    sourceTokenUsedDefault = tokenDetails.usedDefault;
-    sourceTokenErrorClass = tokenDetails.errorClass;
-  }
-
-  const WETH_ADDRESS = chain.weth;
-  const SYSTEM_TOKEN_ADDRESS = chain.rewardToken(blockNumber);
-  let connectors = chain.oracle.priceConnectors
-    .filter((c) => c.createdBlock <= blockNumber)
-    .map((c) => c.address)
-    .filter((a) => a !== tokenAddress)
-    .filter((a) => a !== WETH_ADDRESS)
-    .filter((a) => a !== DESTINATION_TOKEN_ADDRESS)
-    .filter((a) => a !== SYSTEM_TOKEN_ADDRESS);
-
-  // Issue #688: V1/V2 (VeloPriceOracle.getManyRatesWithConnectors) reverts
-  // when the connector array contains tokens with no AMM pool at the queried
-  // block. Strip the per-chain blacklist for V1/V2 calls only — V3+ silently
-  // skips unreachable paths and tolerates the full list. Blacklist entries
-  // mirror the checksum casing used in price_connectors.json so this matches
-  // the same case-sensitive convention as the dedup filter above.
-  const oracleType = chain.oracle.getType(blockNumber);
-  if (oracleType === PriceOracleType.V1 || oracleType === PriceOracleType.V2) {
-    const blacklist = chain.oracle.v1v2ConnectorBlacklist;
-    if (blacklist.size > 0) {
-      connectors = connectors.filter((a) => !blacklist.has(a));
-    }
-  }
-
-  const operationName = rpcGatewayOpName(EffectType.GET_TOKEN_PRICE);
-  const logDetails = { tokenAddress, chainId, blockNumber };
-  const fallback = {
-    pricePerUSDNew: 0n,
-    priceOracleType: oracleType.toString(),
-  };
-  const buildPriceFetcher = (client: typeof chain.eth_client) => () =>
-    fetchTokenPrice(
-      tokenAddress,
-      DESTINATION_TOKEN_ADDRESS,
-      SYSTEM_TOKEN_ADDRESS,
-      WETH_ADDRESS,
-      connectors,
-      chainId,
-      blockNumber,
-      client,
-    );
-
-  const priceResult = await executeRpcWithFallback(
-    context,
-    operationName,
-    logDetails,
-    fallback,
-    buildPriceFetcher(chain.eth_client),
-    fallbackClient ? buildPriceFetcher(fallbackClient) : undefined,
-  );
-
-  const priceData = priceResult.value;
-  let currentPrice: bigint;
-  if (
-    priceData.priceOracleType === PriceOracleType.V3 ||
-    priceData.priceOracleType === PriceOracleType.V4
-  ) {
-    currentPrice =
-      (priceData.pricePerUSDNew * 10n ** BigInt(sourceTokenDecimals)) /
-      10n ** BigInt(destinationTokenDecimals);
-  } else {
-    currentPrice = priceData.pricePerUSDNew;
-  }
-
-  // Any leg that returned the fallback constant means the composed price is
-  // synthetic — the price RPC itself, or the source token-details RPC (when
-  // tokenDecimals wasn't supplied by the caller, #748). The destination side
-  // is no longer fetched — its decimals are read directly from chain
-  // constants — so it cannot contribute a fallback.
-  const usedDefault = priceResult.usedDefault || sourceTokenUsedDefault;
-
-  // Compose errorClass across the legs that actually fetched: a single
-  // transient/network leg forces the whole result to look transient (less
-  // cacheable) even if other legs reverted deterministically. Only when every
-  // defaulted leg is CONTRACT_REVERT does the composed result inherit the
-  // cacheable revert class. Stays null when no leg defaulted.
-  const errorClass = mostCacheBlockingErrorClass(
-    priceResult.errorClass,
-    sourceTokenErrorClass,
-  );
-
-  return {
-    pricePerUSDNew: currentPrice,
-    priceOracleType: chain.oracle.getType(blockNumber).toString(),
-    usedDefault,
-    errorClass,
-  };
-}
-
-/**
- * Picks the errorClass that should drive the cache decision when multiple
- * fallback legs are composed. A transient class (anything that isn't
- * {@link ErrorType.CONTRACT_REVERT}) outranks a revert, so the caller sees the
- * worst-cacheability signal across legs. Returns null when no leg defaulted.
- *
- * @param classes - Per-leg error classes (null for legs that didn't default).
- * @returns A non-revert class if any leg has one; otherwise the first revert; otherwise null.
- */
-function mostCacheBlockingErrorClass(
-  ...classes: (ErrorType | undefined)[]
-): ErrorType | undefined {
-  const present = classes.filter((c): c is ErrorType => c !== undefined);
-  if (present.length === 0) return undefined;
-  const nonRevert = present.find((c) => c !== ErrorType.CONTRACT_REVERT);
-  return nonRevert ?? present[0];
-}
-
-/**
- * Handles the GET_TOKENS_DEPOSITED effect.
- * @param i - The input for the effect.
- * @param context - The context for the effect.
- * @returns The tokens deposited.
- */
-async function handleGetTokensDeposited(
-  i: RpcGatewayInputByType[EffectType.GET_TOKENS_DEPOSITED],
-  context: RpcGatewayHandlerContext,
-): Promise<RpcGatewayOutputByType[EffectType.GET_TOKENS_DEPOSITED]> {
-  const operationName = rpcGatewayOpName(EffectType.GET_TOKENS_DEPOSITED);
-  const logDetails = {
-    gaugeAddress: i.gaugeAddress,
-    blockNumber: i.blockNumber,
-  };
-  const fallback = undefined;
-  const fetcher = () => {
-    const chain = CHAIN_CONSTANTS[i.chainId];
-    if (!chain) {
-      throw new Error(`Unsupported chainId: ${i.chainId}`);
-    }
-    return fetchTokensDeposited(
-      i.rewardTokenAddress,
-      i.gaugeAddress,
-      i.blockNumber,
-      chain.eth_client,
-    );
-  };
-
-  const { value, usedDefault, errorClass } = await executeRpcWithFallback(
-    context,
-    operationName,
-    logDetails,
-    fallback,
-    fetcher,
-  );
-
-  return { value, usedDefault, errorClass };
-}
-
-/**
- * Handles the GET_SWAP_FEE effect.
- * @param i - The input for the effect.
- * @param context - The context for the effect.
- * @returns The current swap fee.
- */
-async function handleGetSwapFee(
-  i: RpcGatewayInputByType[EffectType.GET_SWAP_FEE],
-  context: RpcGatewayHandlerContext,
-): Promise<RpcGatewayOutputByType[EffectType.GET_SWAP_FEE]> {
-  const operationName = rpcGatewayOpName(EffectType.GET_SWAP_FEE);
-  const logDetails = {
-    poolAddress: i.poolAddress,
-    factoryAddress: i.factoryAddress,
-    blockNumber: i.blockNumber,
-  };
-  const fallback = undefined;
-  const fetcher = () => {
-    const chain = CHAIN_CONSTANTS[i.chainId];
-    if (!chain) {
-      throw new Error(`Unsupported chainId: ${i.chainId}`);
-    }
-    return fetchSwapFee(
-      i.poolAddress,
-      i.factoryAddress,
-      i.blockNumber,
-      chain.eth_client,
-    );
-  };
-
-  const { value, usedDefault, errorClass } = await executeRpcWithFallback(
-    context,
-    operationName,
-    logDetails,
-    fallback,
-    fetcher,
-  );
-
-  return { value, usedDefault, errorClass };
-}
-
-/**
- * Handles the GET_ROOT_POOL_ADDRESS effect.
- * @param i - The input for the effect.
- * @param context - The context for the effect.
- * @returns The root pool address.
- */
-async function handleGetRootPoolAddress(
-  i: RpcGatewayInputByType[EffectType.GET_ROOT_POOL_ADDRESS],
-  context: RpcGatewayHandlerContext,
-): Promise<RpcGatewayOutputByType[EffectType.GET_ROOT_POOL_ADDRESS]> {
-  const operationName = rpcGatewayOpName(EffectType.GET_ROOT_POOL_ADDRESS);
-  const logDetails = { chainId: i.chainId, factory: i.factory };
-  const fallback = "";
-  const fetcher = () => {
-    const chain = CHAIN_CONSTANTS[i.chainId];
-    if (!chain) {
-      throw new Error(`Unsupported chainId: ${i.chainId}`);
-    }
-    return fetchRootPoolAddress(
-      chain.eth_client,
-      chain.lpHelperAddress,
-      i.factory,
-      i.token0,
-      i.token1,
-      i.poolType,
-    );
-  };
-
-  const { value, usedDefault, errorClass } = await executeRpcWithFallback(
-    context,
-    operationName,
-    logDetails,
-    fallback,
-    fetcher,
-  );
-
-  return { value, usedDefault, errorClass };
-}
-
-/**
- * Handles the HAS_CONTRACT_BYTECODE effect via `eth_getCode` + a `decimals()`
- * probe for ERC20-shape compliance (issues #677 / #736). Fail-open on RPC
- * errors (returns `hasCode: true`) so transient outages don't regress current
- * behavior at Token-row creation sites; the caller controls caching of
- * negative results. Deterministic reverts of `decimals()` are caught inside
- * the fetcher and surface as `hasCode: false, usedDefault: false`.
- *
- * @param i - The input for the effect.
- * @param context - The context for the effect.
- * @returns Object with `hasCode: true` when bytecode is non-empty AND
- *   `decimals()` returns a valid uint8, `false` otherwise.
- */
-async function handleHasContractBytecode(
-  i: RpcGatewayInputByType[EffectType.HAS_CONTRACT_BYTECODE],
-  context: RpcGatewayHandlerContext,
-): Promise<RpcGatewayOutputByType[EffectType.HAS_CONTRACT_BYTECODE]> {
-  const operationName = rpcGatewayOpName(EffectType.HAS_CONTRACT_BYTECODE);
-  const logDetails = { address: i.address, chainId: i.chainId };
-  const fetcher = () => {
-    const chain = CHAIN_CONSTANTS[i.chainId];
-    if (!chain) {
-      throw new Error(`Unsupported chainId: ${i.chainId}`);
-    }
-    return fetchHasContractBytecode(i.address, chain.eth_client);
-  };
-  const fallbackClient = createFallbackRpcClient(i.chainId);
-  const fallbackFetcher = fallbackClient
-    ? () => fetchHasContractBytecode(i.address, fallbackClient)
-    : undefined;
-
-  const { value, usedDefault, errorClass } = await executeRpcWithFallback(
-    context,
-    operationName,
-    logDetails,
-    true,
-    fetcher,
-    fallbackFetcher,
-  );
-
-  return { hasCode: value, usedDefault, errorClass };
-}
-
-/**
- * Result wrapper for {@link executeRpcWithFallback}: `usedDefault` is `true` only
- * when both the primary and the optional fallback RPC have been exhausted and the
- * caller-supplied `fallback` constant was returned. A real answer from either RPC
- * yields `usedDefault: false`. Outer effects use this to drive cache decisions
- * without resorting to value-shape heuristics (issue #691).
- *
- * `errorClass` carries the {@link ErrorType} of the underlying failure on the
- * fail-open path (`usedDefault: true`) and is `undefined` on success. Outer
- * effects use it to keep deterministic-revert fallbacks cached while still
- * skipping transient-RPC failures (issue #692) and to differentiate log levels.
+ * Result of {@link executeRpc}. `usedDefault` is true iff `value` is the
+ * caller's default because no endpoint produced an answer. `errorClass` is the
+ * class of the failure that produced the default (undefined on success).
  */
 export type RpcResult<T> = {
   value: T;
@@ -749,201 +54,295 @@ export type RpcResult<T> = {
 };
 
 /**
- * Runs an RPC operation with retry; on any throw, logs via {@link handleEffectErrorReturn}
- * and returns the fallback. Centralises "retry then log + default" so the caller never throws.
- * Use this for all RPC gateway operations so errors are consistent and the indexer never crashes.
+ * True when a result may be persisted in the effect cache: a real answer, or
+ * a default produced by a deterministic contract revert.
  *
- * When `fallbackFn` is provided and the primary exhausts retries on a
- * fallback-worthy error (METHOD_NOT_SUPPORTED or HISTORICAL_STATE_NOT_AVAILABLE),
- * one warn is emitted and the fallback is retried on its own budget. Any other
- * error class bypasses the fallback and surfaces a single uerror via
- * {@link handleEffectErrorReturn}.
- *
- * Returns `{ value, usedDefault }`: `usedDefault: true` signals that the
- * caller-supplied `fallback` constant was returned because both primary and
- * fallback RPCs were exhausted (or the primary failed with a non-fallback-worthy
- * error and no fallback was tried). Callers use this to skip caching the
- * stand-in constant — see issue #691.
- *
- * @param context - Effect context with optional cache flag and log (error + warn). On error, cache is set to false by {@link handleEffectErrorReturn}.
- * @param operationName - Identifier for logging (use {@link rpcGatewayOpName} for gateway operations).
- * @param logDetails - Key-value pairs included in error messages.
- * @param fallback - Value returned when the operation throws (after retries are exhausted).
- * @param fn - Async function that performs the primary RPC call. No arguments; close over args in the caller.
- * @param fallbackFn - Optional async function to try on a different RPC when the primary exhausts on a fallback-worthy error.
- * @returns `{ value, usedDefault }` — `value` is the RPC result or `fallback`; `usedDefault` is `true` iff `fallback` was returned.
+ * @param result - Result to check.
+ * @returns Whether caching it is safe.
  */
-export async function executeRpcWithFallback<T>(
-  context: {
-    cache?: boolean;
-    log: {
-      error: (msg: string, err: Error) => void;
-      warn: (msg: string) => void;
-    };
-  },
-  operationName: string,
-  logDetails: Record<string, string | number>,
-  fallback: T,
-  fn: () => Promise<T>,
-  fallbackFn?: () => Promise<T>,
-): Promise<RpcResult<T>> {
-  try {
-    const value = await runWithRpcRetry(fn);
-    return { value, usedDefault: false, errorClass: undefined };
-  } catch (primaryError) {
-    if (fallbackFn && shouldAttemptFallback(primaryError)) {
-      const primaryType = getErrorType(primaryError);
-      context.log.warn(
-        `[${operationName}] primary RPC exhausted (${primaryType})${formatDetailsSuffix(logDetails)}; trying fallback public RPC.`,
-      );
-      try {
-        const value = await runWithRpcRetry(fallbackFn);
-        return { value, usedDefault: false, errorClass: undefined };
-      } catch (fallbackError) {
-        const value = handleEffectErrorReturn(
-          fallbackError,
-          context,
-          `${operationName}.fallback`,
-          logDetails,
-          fallback,
-        );
-        return {
-          value,
-          usedDefault: true,
-          errorClass: getErrorType(fallbackError),
-        };
-      }
-    }
-    const value = handleEffectErrorReturn(
-      primaryError,
-      context,
-      operationName,
-      logDetails,
-      fallback,
-    );
-    return {
-      value,
-      usedDefault: true,
-      errorClass: getErrorType(primaryError),
-    };
-  }
-}
-
-/** True if the primary-RPC error is worth retrying on the default/public RPC.
- * Provider-side method outages and historical-state-unavailable errors are the
- * cases where a different provider has a real chance of succeeding. Rate
- * limits, network blips, and contract reverts do not benefit from a fallback
- * provider (or are not the fallback's job).
- */
-function shouldAttemptFallback(error: unknown): boolean {
-  const t = getErrorType(error);
+export function isCacheableResult(
+  result: Pick<RpcResult<unknown>, "usedDefault" | "errorClass">,
+): boolean {
+  if (!result.usedDefault) return true;
   return (
-    t === ErrorType.METHOD_NOT_SUPPORTED ||
-    t === ErrorType.HISTORICAL_STATE_NOT_AVAILABLE
+    result.errorClass !== undefined &&
+    RPC_ERROR_POLICY[result.errorClass].cacheableDefault
   );
 }
 
-/** Builds the " key1=val1, key2=val2" suffix for the single fallback-engage warn, or "". */
-function formatDetailsSuffix(
-  logDetails: Record<string, string | number>,
-): string {
-  const entries = Object.entries(logDetails);
-  if (!entries.length) return "";
-  return ` ${entries.map(([k, v]) => `${k}=${v}`).join(", ")}`;
+/**
+ * Of several error classes from composed legs, returns the one that should
+ * drive caching: any non-cacheable class outranks a cacheable revert.
+ *
+ * @param classes - Per-leg classes (undefined for legs that succeeded).
+ * @returns The worst class, or undefined when every leg succeeded.
+ */
+export function mostCacheBlockingErrorClass(
+  ...classes: (ErrorType | undefined)[]
+): ErrorType | undefined {
+  const present = classes.filter((c): c is ErrorType => c !== undefined);
+  if (present.length === 0) return undefined;
+  return (
+    present.find((c) => !RPC_ERROR_POLICY[c].cacheableDefault) ?? present[0]
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Metrics
+// ---------------------------------------------------------------------------
+
+/** Outcome of one {@link executeRpc} call. */
+export type RpcOutcome =
+  | "primary_ok"
+  | "fallback_ok"
+  | "default_revert"
+  | "default_transient";
+
+type ChainStats = Record<RpcOutcome, number> & {
+  primaryFailures: number;
+  retries: number;
+};
+
+const stats = new Map<number, ChainStats>();
+const STATS_LOG_INTERVAL_MS = 60_000;
+let lastStatsLog = Date.now();
+
+const emptyStats = (): ChainStats => ({
+  primary_ok: 0,
+  fallback_ok: 0,
+  default_revert: 0,
+  default_transient: 0,
+  primaryFailures: 0,
+  retries: 0,
+});
+
+const chainStats = (chainId: number): ChainStats => {
+  let s = stats.get(chainId);
+  if (!s) {
+    s = emptyStats();
+    stats.set(chainId, s);
+  }
+  return s;
+};
+
+/**
+ * Snapshot of the process-wide RPC counters, per chain. `default_transient`
+ * is the number an operator should alert on: each one is a value the indexer
+ * computed from a stand-in because no RPC answered.
+ *
+ * @returns A copy of the counters keyed by chain id.
+ */
+export function getRpcStats(): Record<number, ChainStats> {
+  return Object.fromEntries(
+    [...stats.entries()].map(([k, v]) => [k, { ...v }]),
+  );
+}
+
+/** Resets counters (tests only). @returns Nothing. */
+export function resetRpcStatsForTests(): void {
+  stats.clear();
+  lastStatsLog = Date.now();
+}
+
+function maybeLogStats(context: RpcCallContext): void {
+  if (!startupWarningsLogged) {
+    startupWarningsLogged = true;
+    for (const w of startupWarnings) context.log.warn(`[rpc.config] ${w}`);
+  }
+  const now = Date.now();
+  if (now - lastStatsLog < STATS_LOG_INTERVAL_MS) return;
+  lastStatsLog = now;
+  // Call through the logger object (envio's methods may rely on `this`).
+  const log = (msg: string, params: Record<string, unknown>) =>
+    context.log.info
+      ? context.log.info(msg, params)
+      : context.log.warn(msg, params);
+  for (const [chainId, s] of stats) {
+    const total =
+      s.primary_ok + s.fallback_ok + s.default_revert + s.default_transient;
+    log(`[rpc.stats] chain=${chainId}`, {
+      event: "rpc.stats",
+      chainId,
+      total,
+      ...s,
+      fallbackRate: total ? (s.fallback_ok + s.default_transient) / total : 0,
+      transientDefaultRate: total ? s.default_transient / total : 0,
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Retry
+// ---------------------------------------------------------------------------
+
+let sleepImpl: (ms: number) => Promise<void> = sleep;
+
+/**
+ * Replaces the backoff sleep (tests only, to avoid real delays).
+ *
+ * @param fn - Replacement sleep, or undefined to restore the real one.
+ * @returns Nothing.
+ */
+export function setRpcSleepForTests(
+  fn: ((ms: number) => Promise<void>) | undefined,
+): void {
+  sleepImpl = fn ?? sleep;
 }
 
 /**
- * Runs an async RPC operation with retries on retryable errors. Retries on
- * {@link ErrorType.RATE_LIMIT}, {@link ErrorType.NETWORK_ERROR}, and
- * {@link ErrorType.METHOD_NOT_SUPPORTED} with error-type-aware exponential
- * backoff (caps from {@link RPC_APP_RETRY}). METHOD_NOT_SUPPORTED uses its own
- * low cap so the caller can fall back to the default RPC quickly instead of
- * hammering a deterministically broken upstream.
+ * Backoff delay before retry number `attempt` (0-based): exponential with
+ * full jitter, capped. Rate limits start from a longer base.
  *
- * Non-retryable errors or exhausted retries are rethrown for the caller to
- * convert into a single `uerror` (see {@link handleEffectErrorReturn}).
- *
- * Intentionally silent: intermediate retries and per-attempt latency emit no
- * logs. Aggregate latency is visible via the Envio `/metrics` endpoint; only
- * the final exhausted-retries error surfaces, via the caller.
- *
- * @param fn - Async function that performs the RPC call. Invoked on each attempt.
- * @returns The result of `fn()` when it resolves successfully.
- * @throws Rethrows the last error when retries are exhausted or the error is not retryable.
+ * @param attempt - Retry index (0 for the first retry).
+ * @param errorType - Class of the failure being retried.
+ * @param random - Jitter source in [0, 1).
+ * @returns Delay in milliseconds.
  */
-export async function runWithRpcRetry<T>(fn: () => Promise<T>): Promise<T> {
-  const { maxRetries, methodNotSupportedMaxRetries, rateLimit, network } =
-    RPC_APP_RETRY;
+export function computeRetryDelayMs(
+  attempt: number,
+  errorType: ErrorType,
+  random: () => number = Math.random,
+): number {
+  const base =
+    errorType === ErrorType.RATE_LIMIT
+      ? RPC_APP_RETRY.rateLimitBaseDelayMs
+      : RPC_APP_RETRY.baseDelayMs;
+  const ceiling = Math.min(base * 2 ** attempt, RPC_APP_RETRY.maxDelayMs);
+  return Math.round(ceiling / 2 + (random() * ceiling) / 2);
+}
 
-  let attempt = 0;
-  while (true) {
+/**
+ * Runs `fn` against one endpoint, retrying classes whose policy allows it, up
+ * to {@link RPC_APP_RETRY}.maxAttempts attempts in total.
+ *
+ * @param fn - The RPC call. Invoked once per attempt.
+ * @param onRetry - Called before each retry (for metrics).
+ * @returns The first successful result.
+ * @throws The last error when it is not retryable or attempts are exhausted.
+ */
+export async function runWithRpcRetry<T>(
+  fn: () => Promise<T>,
+  onRetry?: (errorType: ErrorType) => void,
+): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
     try {
       return await fn();
     } catch (error) {
       const errorType = getErrorType(error);
-      const attemptCap = maxAttemptsForErrorType(
-        errorType,
-        maxRetries,
-        methodNotSupportedMaxRetries,
-      );
-      const isRetryable = attemptCap !== null && attempt < attemptCap;
-
-      if (!isRetryable) {
+      const policy = RPC_ERROR_POLICY[errorType];
+      if (
+        !policy.retrySameEndpoint ||
+        attempt + 1 >= RPC_APP_RETRY.maxAttempts
+      ) {
         throw error;
       }
-
-      const delayMs = computeRetryDelayMs(
-        attempt,
-        errorType,
-        rateLimit,
-        network,
-      );
-
-      attempt++;
-
-      await sleep(delayMs);
+      onRetry?.(errorType);
+      await sleepImpl(computeRetryDelayMs(attempt, errorType));
     }
   }
 }
 
-/** Returns the per-error-type retry cap for runWithRpcRetry, or null if the
- * error class is non-retryable. Keeps provider-side method outages
- * (METHOD_NOT_SUPPORTED) on a tight budget so the caller can fall back to the
- * default RPC quickly instead of hammering a deterministically broken upstream.
- */
-function maxAttemptsForErrorType(
-  errorType: ErrorType,
-  defaultMax: number,
-  methodNotSupportedMax: number,
-): number | null {
-  if (
-    errorType === ErrorType.RATE_LIMIT ||
-    errorType === ErrorType.NETWORK_ERROR
-  ) {
-    return defaultMax;
-  }
-  if (errorType === ErrorType.METHOD_NOT_SUPPORTED) {
-    return methodNotSupportedMax;
-  }
-  return null;
-}
+// ---------------------------------------------------------------------------
+// Execute
+// ---------------------------------------------------------------------------
 
-/** Computes delay in ms for the next retry attempt (exponential backoff with cap).
+const detailsSuffix = (details: RpcOperation["details"]): string =>
+  Object.entries(details ?? {})
+    .filter(([, v]) => v !== undefined)
+    .map(([k, v]) => ` ${k}=${v}`)
+    .join("");
+
+/**
+ * Executes one RPC operation on a chain: primary endpoint with retries, then
+ * the fallback endpoint with retries for any primary failure that is not a
+ * deterministic revert, then `defaultValue`.
  *
- * @param attempt - The attempt number.
- * @param errorType - The error type.
- * @param rateLimit - The rate limit configuration.
- * @param network - The network configuration.
- * @returns The delay in milliseconds.
+ * Every default is logged once with a structured payload
+ * (`event: "rpc.default_used"`, chain, operation, error class, cacheable) and
+ * counted in {@link getRpcStats}; deterministic reverts log at warn, all other
+ * defaults at error. Configuration errors are thrown, never defaulted.
+ *
+ * @param context - Effect or handler context (for logging).
+ * @param op - Operation identity for logs/metrics.
+ * @param defaultValue - Value returned when no endpoint answers.
+ * @param call - Performs the RPC with the given client.
+ * @returns `{ value, usedDefault, errorClass }`.
+ * @throws {RpcConfigError} When the chain's RPC is not configured.
  */
-function computeRetryDelayMs(
-  attempt: number,
-  errorType: ErrorType,
-  rateLimit: { capMs: number },
-  network: { capMs: number },
-): number {
-  const baseMs = errorType === ErrorType.RATE_LIMIT ? 1000 : 500;
-  const capMs =
-    errorType === ErrorType.RATE_LIMIT ? rateLimit.capMs : network.capMs;
-  return Math.min(baseMs * 2 ** attempt, capMs);
+export async function executeRpc<T>(
+  context: RpcCallContext,
+  op: RpcOperation,
+  defaultValue: T,
+  call: (client: PublicClient) => Promise<T>,
+): Promise<RpcResult<T>> {
+  maybeLogStats(context);
+  const s = chainStats(op.chainId);
+  const onRetry = () => {
+    s.retries++;
+  };
+  const primary = CHAIN_CONSTANTS[op.chainId]?.eth_client;
+  if (!primary) {
+    throw new RpcConfigError(`Unsupported chainId: ${op.chainId}`);
+  }
+
+  let finalError: unknown;
+  let endpoint: "primary" | "fallback" = "primary";
+  try {
+    const value = await runWithRpcRetry(() => call(primary), onRetry);
+    s.primary_ok++;
+    return { value, usedDefault: false, errorClass: undefined };
+  } catch (primaryError) {
+    finalError = primaryError;
+    const primaryType = getErrorType(primaryError);
+    const policy = RPC_ERROR_POLICY[primaryType];
+    if (policy.fatal) throw primaryError;
+    if (primaryType !== ErrorType.CONTRACT_REVERT) s.primaryFailures++;
+
+    const fallbackClient = policy.tryFallback
+      ? createFallbackRpcClient(op.chainId)
+      : null;
+    if (fallbackClient) {
+      context.log.warn(
+        `[rpc] ${op.name} chain=${op.chainId} primary failed (${primaryType}); trying fallback.${detailsSuffix(op.details)}`,
+        {
+          event: "rpc.primary_failed",
+          op: op.name,
+          chainId: op.chainId,
+          errorClass: primaryType,
+          error: describeRpcError(primaryError),
+        },
+      );
+      endpoint = "fallback";
+      try {
+        const value = await runWithRpcRetry(
+          () => call(fallbackClient),
+          onRetry,
+        );
+        s.fallback_ok++;
+        return { value, usedDefault: false, errorClass: undefined };
+      } catch (fallbackError) {
+        if (getErrorType(fallbackError) === ErrorType.CONFIGURATION)
+          throw fallbackError;
+        finalError = fallbackError;
+      }
+    }
+  }
+
+  const errorClass = getErrorType(finalError);
+  const cacheable = RPC_ERROR_POLICY[errorClass].cacheableDefault;
+  if (cacheable) s.default_revert++;
+  else s.default_transient++;
+  const message = `[rpc] ${op.name} chain=${op.chainId} returned default after ${endpoint} failed (${errorClass}).${detailsSuffix(op.details)} ${describeRpcError(finalError)}`;
+  const params = {
+    event: "rpc.default_used",
+    op: op.name,
+    chainId: op.chainId,
+    errorClass,
+    endpoint,
+    cacheable,
+    ...op.details,
+  };
+  if (cacheable) context.log.warn(message, params);
+  else context.log.error(message, params);
+  return { value: defaultValue, usedDefault: true, errorClass };
 }

@@ -1,7 +1,12 @@
 # yaml-language-server: $schema=./node_modules/envio/evm.schema.json
 name: Velodrome_v2
-description: Multi-chain indexer for Velodrome V2 on Optimism and Aerodrome on Base
+description: Multi-chain indexer for Velodrome V2, Aerodrome and Aero (MetaDEX) pools
 rollback_on_reorg: true
+# Every entity and effect cache is per-chain (docs/adr/0009-per-chain-entities.md):
+# no handler reads or writes another chain's rows, so chains can run in separate
+# worker processes, reorgs and history are per chain, and a chain can be added to
+# an existing database with `envio start --chain <id>` without a resync.
+disable_default_cross_chain: true
 raw_events: false
 # Docs: https://docs.envio.dev/docs/HyperIndex/configuration-file#storage
 storage:
@@ -26,11 +31,23 @@ contracts:
     events:
       - event: PoolCreated
       - event: SetCustomFee
+      # Superchain leaf PoolFactory only (not in the Optimism/Base ABI): the
+      # stable / volatile default fee, emitted at deployment.
+      - event: "SetDefaultFee(bool indexed stable, uint256 fee)"
+        name: SetDefaultFee
   - name: RootCLPoolFactory
     abi_file_path: abis/RootCLPoolFactory.json
     handler: src/EventHandlers/RootCLPoolFactory.ts
     events:
       - event: RootPoolCreated
+  # Superchain V2 RootPoolFactory (Optimism): creates the V2 root pools whose
+  # votes and emissions RootPool carries (ADR 0009). Its event is RootPoolCreated with
+  # the fields of a V2 PoolCreated (topic 0xa9273d61…); the leaf chain is not in it
+  # (see RootPoolLogic.ts).
+  - name: RootPoolFactory
+    handler: src/EventHandlers/RootPoolFactory.ts
+    events:
+      - event: "RootPoolCreated(address indexed token0, address indexed token1, bool indexed stable, address pool, uint256 length)"
   - name: CLFactory
     abi_file_path: abis/CLFactory.json
     handler: src/EventHandlers/CLFactory.ts
@@ -57,6 +74,9 @@ contracts:
       - event: Transfer
       - event: IncreaseLiquidity
       - event: DecreaseLiquidity
+      # Carries the tokenId CLPool.Collect lacks: credits the fees CLPool.Collect
+      # isolated to the position owner instead of the NFPM contract.
+      - event: Collect
   - name: VeNFT
     abi_file_path: abis/VeNFT.json
     handler: src/EventHandlers/VeNFT/VeNFT.ts
@@ -83,9 +103,221 @@ contracts:
       - event: Burn
       - event: Fees
       - event: Claim
+      # Aero V2 pools emit Claim with the account whose fees are claimed (the
+      # legacy Claim has only sender and recipient). Distinct topic0.
+      - event: "Claim(address indexed caller, address indexed account, address indexed recipient, uint256 amount0, uint256 amount1)"
+        name: ClaimWithAccount
       - event: Swap
       - event: Sync
       - event: Transfer
+  # --- Aero (MetaDEX) deployment, launched 2026-10-21 (ADR 0005) ---
+  # Pools from these factories are registered into the shared Pool / CLPool
+  # contracts and carry Pool.deployment = AERO. Event signatures are written
+  # from the MIT/GPL interface files of the public metadex repos.
+  - name: AeroCLFactory
+    abi_file_path: abis/CLFactory.json
+    handler: src/EventHandlers/CLFactory.ts
+    events:
+      - event: PoolCreated
+      - event: TickSpacingEnabled
+  - name: AeroStablePoolFactory
+    handler: src/EventHandlers/AeroPoolFactory.ts
+    events:
+      - event: "PoolCreated(address indexed token0, address indexed token1, address pool, uint256 poolCount)"
+      - event: "SetDefaultFee(uint256 defaultFee)"
+  - name: AeroVolatilePoolFactory
+    handler: src/EventHandlers/AeroPoolFactory.ts
+    events:
+      - event: "PoolCreated(address indexed token0, address indexed token1, address pool, uint256 poolCount)"
+      - event: "SetDefaultFee(uint256 defaultFee)"
+  - name: AeroNFPM
+    handler: src/EventHandlers/NFPM/AeroNFPM.ts
+    events:
+      - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
+      - event: "IncreaseLiquidity(uint256 indexed tokenId, uint128 liquidity, uint256 amount0, uint256 amount1, int24 tickLower, int24 tickUpper)"
+      - event: "DecreaseLiquidity(uint256 indexed tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)"
+      - event: "Collect(uint256 indexed tokenId, address recipient, uint256 amount0, uint256 amount1)"
+  - name: DynamicSwapFeeHook
+    handler: src/EventHandlers/SwapFeeModule/DynamicSwapFeeHook.ts
+    events:
+      - event: "CustomFeeSet(address indexed pool, uint24 fee)"
+      - event: "FeeCapSet(address indexed pool, uint256 feeCap)"
+      - event: "ScalingFactorSet(address indexed pool, uint256 scalingFactor)"
+      - event: "DynamicFeeReset(address indexed pool)"
+  # V2 custom-fee modules: each leaf PoolFactory's feeModule() and the Aero
+  # stable / volatile CustomFeeModules.
+  - name: V2CustomFeeModule
+    handler: src/EventHandlers/SwapFeeModule/V2CustomFeeModule.ts
+    events:
+      - event: "SetCustomFee(address indexed pool, uint256 indexed fee)"
+  # Aero's curated token list (successor of the legacy whitelist): a listed
+  # token is trusted for USD aggregates (Token.isListedOnAero).
+  - name: AeroTokenRegistry
+    handler: src/EventHandlers/AeroTokenRegistry.ts
+    events:
+      - event: "ListingSet(address indexed token, bool listed)"
+  # --- Aero gauges, staking and emissions (phase 2, ADR 0006) ---
+  # Signatures from the MIT interface files (IGaugeManager, IGaugeFactory,
+  # ICLGaugeFactory, ILeafVoter, IV2Gauge, ICLGauge, IGauge,
+  # IVotingRewardsManager, ICustomFeeModule), each checked against real logs.
+  # Gauges and rewards managers are registered dynamically: the gauge
+  # factories' GaugeCreated register AeroCLGauge / AeroV2Gauge, the
+  # GaugeManager's GaugeCreated registers AeroVotingRewardsManager.
+  - name: AeroGaugeManager
+    handler: src/EventHandlers/Aero/AeroGaugeManager.ts
+    events:
+      - event: "GaugeCreated(address indexed target, address indexed gauge, address indexed module, address gaugeFactory, address votingRewardsManager, address creator, bool activated)"
+  - name: AeroCLGaugeFactory
+    handler: src/EventHandlers/Aero/AeroGaugeFactory.ts
+    events:
+      - event: "GaugeCreated(address indexed gauge, address indexed pool, bool isPool)"
+      - event: "EmissionCapSet(address indexed gauge, uint128 cap, address indexed caller)"
+      - event: "DefaultCapSet(uint128 cap)"
+      - event: "OperatorCapRangeSet(uint128 minCap, uint128 maxCap)"
+      - event: "MaxShareCapSet(uint256 cap)"
+      - event: "ReferralConfigSet(address indexed gauge, address indexed referral, uint256 share)"
+      - event: "PenaltyConfigSet(uint256 minStakeBlocks, uint256 penaltyRate)"
+      - event: "MinStakeBlocksSet(address indexed gauge, uint256 minStakeBlocks)"
+      - event: "EmergencyWithdrawEnabledSet(bool enabled)"
+  - name: AeroV2GaugeFactory
+    handler: src/EventHandlers/Aero/AeroGaugeFactory.ts
+    events:
+      - event: "GaugeCreated(address indexed gauge, address indexed pool, bool isPool)"
+      - event: "EmissionCapSet(address indexed gauge, uint128 cap, address indexed caller)"
+      - event: "DefaultCapSet(uint128 cap)"
+      - event: "OperatorCapRangeSet(uint128 minCap, uint128 maxCap)"
+      - event: "MaxShareCapSet(uint256 cap)"
+      - event: "ReferralConfigSet(address indexed gauge, address indexed referral, uint256 share)"
+      - event: "PenaltyConfigSet(uint256 minStakeBlocks, uint256 penaltyRate)"
+      - event: "MinStakeBlocksSet(address indexed gauge, uint256 minStakeBlocks)"
+      - event: "EmergencyWithdrawEnabledSet(bool enabled)"
+  - name: AeroCLGauge
+    handler: src/EventHandlers/Aero/AeroGauge.ts
+    events:
+      - event: "Deposit(address indexed caller, address indexed user, uint256 indexed tokenId, uint128 liquidityToStake)"
+      - event: "Withdraw(address indexed caller, address indexed user, uint256 indexed tokenId, uint128 liquidityToStake)"
+      - event: "EmergencyWithdraw(address indexed user, uint256 indexed tokenId, uint128 liquidityToStake)"
+      - event: "EmissionsClaimed(address indexed account, uint256 indexed tokenId, address indexed recipient, uint256 rewardAmount)"
+      - event: "EmissionsDeferred(address indexed account, uint256 indexed tokenId, uint256 rewardAmount)"
+      - event: "ReferralEmissionsDeferred(address indexed account, uint256 indexed tokenId, address indexed referral, uint256 amount)"
+      - event: "DeferredEmissionsClaimed(address indexed account, address indexed recipient, uint256 amount)"
+      - event: "ReferralEmissionsClaimed(address indexed referral, address indexed recipient, uint256 amount)"
+      - event: "EarlyWithdrawPenalty(address indexed from, uint256 indexed tokenId, uint256 penalty)"
+      - event: "ClaimFees(address indexed caller, uint256 claimed0, uint256 claimed1)"
+  - name: AeroV2Gauge
+    handler: src/EventHandlers/Aero/AeroGauge.ts
+    events:
+      - event: "Deposit(address indexed caller, address indexed account, uint256 amount)"
+      - event: "Withdraw(address indexed caller, address indexed account, uint256 amount)"
+      - event: "EmergencyWithdraw(address indexed account, uint256 amount)"
+      - event: "EmissionsClaimed(address indexed account, address indexed recipient, uint256 rewardAmount)"
+      - event: "EmissionsDeferred(address indexed account, uint256 rewardAmount)"
+      - event: "ReferralEmissionsDeferred(address indexed account, address indexed referral, uint256 amount)"
+      - event: "DeferredEmissionsClaimed(address indexed account, address indexed recipient, uint256 amount)"
+      - event: "ReferralEmissionsClaimed(address indexed referral, address indexed recipient, uint256 amount)"
+      - event: "EarlyWithdrawPenalty(address indexed account, uint256 penalty)"
+      - event: "ClaimFees(address indexed caller, uint256 claimed0, uint256 claimed1)"
+  # Same address on every chain (Base included). Its claim-forwarding events
+  # (FeeClaimSucceeded, IncentiveClaimSucceeded) are not indexed: the rewards
+  # managers' own ClaimFees / ClaimIncentives carry the amounts.
+  - name: AeroLeafVoter
+    handler: src/EventHandlers/Aero/AeroLeafVoter.ts
+    events:
+      - event: "GaugeRegistered(address indexed gauge, bool activated, uint48 registrationCursor)"
+      - event: "GaugeActivated(address indexed gauge, uint48 activationCursor)"
+      - event: "GaugeCapSettled(address indexed gauge, uint128 effectiveShare, uint128 surplusDelta, uint128 cap, uint256 gaugeWeight)"
+      - event: "EmissionsMinted(address indexed gauge, address[] recipients, uint128[] amounts)"
+      - event: "EmissionsForfeited(address indexed gauge, uint128 amount)"
+      - event: "Redeemed(address indexed redeemer, address indexed recipient, uint256 amount)"
+      - event: "ChainStatusSet(uint8 status)"
+      # Allocations (phase 3)
+      - event: "ChainAllocated(uint256 indexed tokenId, uint128 allocationDelta, uint128 chainAllocation, uint256 emissionsPerVP)"
+      - event: "GaugesAllocated(uint256 indexed tokenId, (address gauge, uint128 allocated, bytes data)[] allocations, uint256 emissionsPerVP)"
+      - event: "Deallocated(uint256 indexed tokenId, uint128 amount)"
+      - event: "EmergencyDeallocationApplied(uint256 indexed tokenId)"
+      - event: "OperatorSet(uint256 indexed tokenId, address indexed operator)"
+      - event: "CanVoteForZeroCapGaugesSet(uint256 indexed tokenId, bool allowed)"
+      - event: "AllocationCooldownSet(uint48 allocationCooldown)"
+      - event: "MaxGaugesSet(uint256 maxGauges)"
+      - event: "MinIncentiveDurationSet(uint48 minIncentiveDuration)"
+      - event: "LocalVotingEnabledSet(bool enabled)"
+  - name: AeroVotingRewardsManager
+    handler: src/EventHandlers/Aero/AeroVotingRewardsManager.ts
+    events:
+      - event: "FeesCollected(address indexed gauge, address indexed token, uint256 amount)"
+      # Allocator rewards (phase 3)
+      - event: "ClaimFees(uint256 indexed tokenId, address indexed recipient, address indexed token, uint256 amount)"
+      - event: "ClaimIncentives(uint256 indexed tokenId, address indexed recipient, uint256 indexed programId, uint256 amount)"
+      - event: "IncentiveCreated(uint256 indexed programId, address indexed token, address indexed creator, uint256 amount, uint48 start, uint48 duration)"
+      - event: "IncentiveSwept(uint256 indexed programId, address indexed creator, uint256 amount)"
+  # --- Aero governance: sAERO, allocations, Minter, redemptions, migration (phase 3, ADR 0006) ---
+  # Root contracts, Base only (root-base.json, migration-base.json); the
+  # Velodrome migration also on Optimism (migration-optimism.json).
+  # Signatures from the MIT interfaces (IVotingEscrow, IVotes, IVoter,
+  # IMinter, IRootEmissionsHandler, IMigration, IVelodromeMigrationEntrypoint),
+  # each checked against real logs.
+  - name: AeroVotingEscrow
+    handler: src/EventHandlers/Aero/AeroVotingEscrow.ts
+    events:
+      - event: "Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
+      - event: "Deposit(address indexed provider, uint256 indexed tokenId, uint8 indexed depositType, uint128 value, uint256 unstakeTime, uint256 ts)"
+      - event: "Withdraw(address indexed provider, uint256 indexed tokenId, uint128 value, uint256 ts)"
+      - event: "UpgradeToPermanentStake(address indexed owner, uint256 indexed tokenId, uint128 amount, uint256 ts)"
+      - event: "DowngradeFromPermanentStake(address indexed owner, uint256 indexed tokenId, uint128 amount, uint256 ts)"
+      - event: "Supply(uint128 supply)"
+      - event: "Rebalance((uint256 tokenId, uint128 amount)[] sources, (uint256 tokenId, uint128 amount, address recipient)[] destinations)"
+      - event: "Burn(uint128 amount)"
+  - name: AeroVoter
+    handler: src/EventHandlers/Aero/AeroVoter.ts
+    events:
+      - event: "ParkedOnChain0(uint256 indexed tokenId, uint128 amount)"
+      - event: "ChainsAllocated(uint256 indexed tokenId, (uint256 chainId, uint128 delta, uint256 gasLimit, uint256 value)[] allocations)"
+      - event: "GaugesAllocated(uint256 indexed tokenId, uint256 indexed chainId, (address gauge, uint128 allocated, bytes data)[] gauges)"
+      - event: "DeallocationProcessed(uint256 indexed chainId, uint256 indexed tokenId, uint128 amount)"
+      - event: "EmergencyDeallocated(uint256 indexed chainId, uint256 indexed tokenId, uint128 amount)"
+      - event: "TokenCleared(uint256 indexed tokenId, uint256[] clearedChains)"
+      - event: "Chain0Rebalanced((uint256 tokenId, uint128 amount)[] sources, (uint256 tokenId, uint128 amount, address recipient)[] destinations)"
+      - event: "Burned(address indexed caller, uint128 amount)"
+      - event: "RedeemProcessed(uint256 indexed chainId, address indexed recipient, uint256 amount, uint256 surplusReported)"
+      - event: "Donated(uint256 indexed chainId, address indexed donor, uint256 amount)"
+      - event: "BufferDrawn(uint256 indexed chainId, uint256 amount)"
+      - event: "SurplusSpent(uint256 indexed chainId, address indexed recipient, uint256 amount)"
+      - event: "ChainRegistered(uint256 indexed chainId)"
+      - event: "ChainStatusSet(uint256 indexed chainId, uint8 status)"
+      - event: "EmergencyDeallocationAllowedSet(uint256 indexed chainId, bool allowed)"
+  - name: AeroMinter
+    handler: src/EventHandlers/Aero/AeroMinter.ts
+    events:
+      - event: "Minted(address indexed recipient, uint256 amount, uint256 splitterShare)"
+      - event: "BaseRateSet(uint232 baseRate)"
+      - event: "DynamicRateSet(uint256 rate)"
+      - event: "TeamRateSet(uint24 teamRate)"
+      - event: "RateBandSet(uint24 floorPips, uint24 ceilingPips)"
+      - event: "MaxBaseRateChangePipsSet(uint24 maxBaseRateChangePips)"
+      - event: "BaseRateUpdateCooldownSet(uint48 baseRateUpdateCooldown)"
+      - event: "OperatorSet(address indexed operator)"
+      - event: "FEDSet(address indexed fed)"
+      - event: "DynamicRateModuleSet(address module)"
+  - name: AeroRootEmissionsHandler
+    handler: src/EventHandlers/Aero/AeroVoter.ts
+    events:
+      - event: "RedeemDeferred(address indexed recipient, uint256 amount, uint256 pendingTotal)"
+  - name: AeroMigration
+    handler: src/EventHandlers/Aero/AeroMigration.ts
+    events:
+      - event: "VeNFTMigrated(address indexed depositor, address indexed recipient, uint256 indexed v2TokenId, uint256 amount, uint256 out, bool permanent, bool liquid)"
+      - event: "LiquidMigrated(address indexed depositor, address indexed recipient, uint256 amountIn, uint256 out)"
+  - name: AeroMigrationEntrypoint
+    handler: src/EventHandlers/Aero/AeroMigration.ts
+    events:
+      - event: "Migrated(uint64 indexed nonce, address indexed recipient, uint256 tokenAmount, bool isLiquid)"
+  # Aero CustomUnstakedFeeModule (Slipstream V3): same CustomFeeSet as the
+  # legacy UnstakedFeeModule, same semantics (0 = default, 420 = 0%).
+  - name: AeroUnstakedFeeModule
+    abi_file_path: abis/UnstakedFeeModule.json
+    handler: src/EventHandlers/Aero/AeroUnstakedFeeModule.ts
+    events:
+      - event: CustomFeeSet
   - name: Voter
     abi_file_path: abis/VoterV2.json
     handler: src/EventHandlers/Voter/Voter.ts
@@ -142,6 +374,9 @@ contracts:
       - event: Deposit
       - event: Withdraw
       - event: ClaimRewards
+      # Gauges V3 (min stake time): an early unstake forfeits part of the
+      # staker's rewards to the Minter, in the same tx.
+      - event: EarlyWithdrawPenalty
   - name: Gauge
     abi_file_path: abis/Gauge.json
     handler: src/EventHandlers/Gauges/Gauge.ts
@@ -246,10 +481,67 @@ contracts:
       - event: Redistributed
       - event: SetKeeper
       - event: SetUpkeepManager
+# The order matters: envio deals chains to its worker processes in this order
+# (reversing direction each pass), so the busiest chains come first.
 chains:
   - id: 10 # Optimism
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_OPTIMISM_RPC_URL:-}
+        for: fallback
     start_block: 0
     contracts:
+      # Aero (MetaDEX): deployment-addresses/{cl,pools,leaf}-<chain>.json
+      - name: AeroCLFactory
+        address:
+          - 0xfeaB42D90055db3a0616249f76B6002D72266778
+      - name: AeroStablePoolFactory
+        address:
+          - 0x78589E876edcEbdce72ee3436ab3c9AD3a7cEF2D
+      - name: AeroVolatilePoolFactory
+        address:
+          - 0x8E6a9FCd1d638CC760Ffba397605Fe3355dE76D2
+      - name: AeroNFPM
+        address:
+          - 0x4857DB576eE0e45F10525eC59527BfD10beeC60b
+      - name: DynamicSwapFeeHook
+        address:
+          - 0xC0ed888AfE87ed1AcF01D9f19bB850159e3ce434
+      - name: AeroTokenRegistry
+        address:
+          - 0x564665E023390097f46EA9662a6061a5d700A7E1
+      # Aero gauges and emissions (phase 2): deployment-addresses/{leaf,gaugestack,cl}-<chain>.json
+      - name: AeroGaugeManager
+        address:
+          - 0xbF234b32c5e58868243A4a14831626f3EdE7b183
+      - name: AeroLeafVoter
+        address:
+          - 0x382409fad8503FbCdbB27A4211551fa03e884078
+      - name: AeroCLGaugeFactory
+        address:
+          - 0xf437f62053ACB121665b8fDBfeA8F214FB8E589d
+      - name: AeroV2GaugeFactory
+        address:
+          - 0x3924b18EDd37267dab6eDd99a3Bb339bf2b668fD # stable pools
+          - 0x1B5D13975371806D699dC616A96D15B8eD26e5Ca # volatile pools
+      - name: AeroUnstakedFeeModule
+        address:
+          - 0xcc421483cd131a8FD6b68c37E46f244dbec4F797
+      - name: AeroCLGauge
+        address:
+      - name: AeroV2Gauge
+        address:
+      - name: AeroVotingRewardsManager
+        address:
+      # Aero migration (phase 3): migration-optimism.json
+      - name: AeroMigration
+        address:
+          - 0x6daE95FE833f190640dB1176F8C8a2e50C6a66c0 # VelodromeMigration (veVELO / VELO)
+      - name: V2CustomFeeModule
+        address:
+          - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
+          - 0x7949DE8d67E4F6b8509Bdbb43FF0503aF1247a7A # volatile pools
       - name: DynamicSwapFeeModule
         address:
           - 0xd9eE4FBeE92970509ec795062cA759F8B52d6720
@@ -257,9 +549,11 @@ chains:
       - name: CustomSwapFeeModule
         address:
           - 0x7361E9079920fb75496E9764A2665d8ee5049D5f
+          - 0xA9c319945f706dd1809819321a2e31C9A169e9c1 # swap fee module of the original CLFactory 0x548118…a758
       - name: CustomUnstakedFeeModule
         address:
           - 0xC565F7ba9c56b157Da983c4Db30e13F5f06C59D9
+          - 0x5A993209065ea74b50E23a378ddB7068189345D0 # unstaked fee module of the original CLFactory 0x548118…a758
       - name: UnstakedFeeModule
         address:
           - 0x2B2A6209f813b360E0D8a006c73477D56e7a7f16
@@ -288,6 +582,9 @@ chains:
       - name: RootCLPoolFactory
         address:
           - 0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F
+      - name: RootPoolFactory
+        address:
+          - 0x31832f2a97Fd20664D76Cc421207669b55CE4BC0
       - name: Pool
         address:
       - name: Voter
@@ -333,8 +630,80 @@ chains:
         address:
           - 0xd4C1905BB1D26BC93DAC913e13CaCC278CdCC80D
   - id: 8453 # Base
+    # 0.2 s blocks: at the head, fetch about every 2 s of chain time instead of every block.
+    block_throttle: 10
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_BASE_RPC_URL:-}
+        for: fallback
     start_block: 0
     contracts:
+      # Aero (MetaDEX): deployment-addresses/{cl,pools,leaf}-<chain>.json
+      - name: AeroCLFactory
+        address:
+          - 0x9CB220581b91b0C83223012FE69688b92aD07a76
+      - name: AeroStablePoolFactory
+        address:
+          - 0x78589E876edcEbdce72ee3436ab3c9AD3a7cEF2D
+      - name: AeroVolatilePoolFactory
+        address:
+          - 0x8E6a9FCd1d638CC760Ffba397605Fe3355dE76D2
+      - name: AeroNFPM
+        address:
+          - 0x4857DB576eE0e45F10525eC59527BfD10beeC60b
+      - name: DynamicSwapFeeHook
+        address:
+          - 0xC0ed888AfE87ed1AcF01D9f19bB850159e3ce434
+      - name: AeroTokenRegistry
+        address:
+          - 0x564665E023390097f46EA9662a6061a5d700A7E1
+      # Aero gauges and emissions (phase 2): deployment-addresses/{leaf,gaugestack,cl}-<chain>.json
+      - name: AeroGaugeManager
+        address:
+          - 0xbF234b32c5e58868243A4a14831626f3EdE7b183
+      - name: AeroLeafVoter
+        address:
+          - 0x382409fad8503FbCdbB27A4211551fa03e884078
+      - name: AeroCLGaugeFactory
+        address:
+          - 0xf437f62053ACB121665b8fDBfeA8F214FB8E589d
+      - name: AeroV2GaugeFactory
+        address:
+          - 0x1e0f776E88649285f99e65Fa599aD6e0f9D97800 # stable pools
+          - 0x9FBCf2Df0DC553ce40Ef63963Bff465b76792B7E # volatile pools
+      - name: AeroUnstakedFeeModule
+        address:
+          - 0xcc421483cd131a8FD6b68c37E46f244dbec4F797
+      - name: AeroCLGauge
+        address:
+      - name: AeroV2Gauge
+        address:
+      - name: AeroVotingRewardsManager
+        address:
+      # Aero governance (phase 3), Base only: root-base.json, migration-base.json
+      - name: AeroVotingEscrow
+        address:
+          - 0xBF7977E1521e9a3032bf7243Ee4712f311f13915
+      - name: AeroVoter
+        address:
+          - 0x49d7d4f17Ec56Ef8fA04E464AF5D1A4942CC31e6
+      - name: AeroMinter
+        address:
+          - 0x59268A34ba897e82368feE39839FFC661D4f9C97
+      - name: AeroRootEmissionsHandler
+        address:
+          - 0x8C37F30F3c8fd48bEddb14086fa5148291D422C3 # leaf-base.json emissionsHandler
+      - name: AeroMigration
+        address:
+          - 0x22a2F7340a3fB4C7C389D91eE954766B12476721 # AerodromeMigration (veAERO / AERO v1)
+      - name: AeroMigrationEntrypoint
+        address:
+          - 0x6daE95FE833f190640dB1176F8C8a2e50C6a66c0 # VelodromeMigrationEntrypoint (settles Optimism migrations)
+      - name: V2CustomFeeModule
+        address:
+          - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
+          - 0x7949DE8d67E4F6b8509Bdbb43FF0503aF1247a7A # volatile pools
       - name: DynamicSwapFeeModule
         address:
           - 0xDB45818A6db280ecfeB33cbeBd445423d0216b5D # previously tracked
@@ -342,12 +711,15 @@ chains:
           - 0x090b2A6bb475c00e2256e2095A60887cD710803b # Slipstream README — Initial Deployment
           - 0xF4Ecd78EBEB6d36CF7f80B5B6B41453515fe2785 # Slipstream README — Gauge Caps Deployment
           - 0x87D8f999BBa9343E8099552426775B51C338E8CB # Slipstream README — Gauges V3 Deployment (current)
+          - 0x5264Eeeab16037A7A7AF15Ff69A470af6e2a2223 # first swap fee module of CLFactory 0xaDe65c…716a; a custom-fee module that emits CustomFeeSet, no dynamic events
       - name: CustomSwapFeeModule
         address:
           - 0xF4171B0953b52Fa55462E4d76ecA1845Db69af00
+          - 0xfDDfA16D30acaA02D5C57324C4285a914cc5aF6c # swap fee module of CLFactory 0x9592CD…d51B
       - name: CustomUnstakedFeeModule
         address:
           - 0x0AD08370c76Ff426F534bb2AFFD9b5555338ee68 # Slipstream README — Initial Deployment
+          - 0x3a0a75038aF395042F477911D50e3079b588862c # unstaked fee module of CLFactory 0x9592CD…d51B
       - name: UnstakedFeeModule
         address:
           - 0xCCC21f4750E8B3E9C095BCB5d2fF59247A2CCD35 # Slipstream README — Gauge Caps Deployment
@@ -428,10 +800,20 @@ chains:
           - 0x11a53f31Bf406de59fCf9613E1922bd3E283A4B4 # Slipstream README — Gauge Caps Deployment
           - 0xEe5b3C7b333e2870B746b3B2b168EF0958e55e15 # Slipstream README — Gauges V3 Deployment (current)
   - id: 42220 # Celo
+    # 1 s blocks: at the head, fetch about every 2 s of chain time instead of every block.
+    block_throttle: 2
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_CELO_RPC_URL:-}
+        for: fallback
     hypersync_config:
       url: https://celo.hypersync.xyz
     start_block: 31597000 # Velodrome contracts were only deployed on Celo mainnet after this block
     contracts:
+      - name: V2CustomFeeModule
+        address:
+          - 0x8d9c67488c154286B9D4ccaC6c4CBF30589107a7 # leaf PoolFactory.feeModule() (V2 pools)
       - name: CustomSwapFeeModule
         address:
           - 0xbcAE2d4b4E8E34a4100e69E9C73af8214a89572e
@@ -487,10 +869,18 @@ chains:
         address:
           - 0x50da3B3907A08a24fe4999F4Dcf337E8dC7954bb
   - id: 1868 # Soneium
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_SONEIUM_RPC_URL:-}
+        for: fallback
     hypersync_config:
       url: https://soneium.hypersync.xyz
     start_block: 0
     contracts:
+      - name: V2CustomFeeModule
+        address:
+          - 0x81c5d01AE474040A59d0092a6973F4621E06B362 # leaf PoolFactory.feeModule() (V2 pools)
       - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
@@ -546,10 +936,64 @@ chains:
         address:
           - 0x3a464f746D23Ab22155710f44dB16dcA53e0775E
   - id: 57073 # Ink
+    # 1 s blocks: at the head, fetch about every 2 s of chain time instead of every block.
+    block_throttle: 2
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_INK_RPC_URL:-}
+        for: fallback
     hypersync_config:
       url: https://ink.hypersync.xyz
     start_block: 0
     contracts:
+      # Aero (MetaDEX): deployment-addresses/{cl,pools,leaf}-<chain>.json
+      - name: AeroCLFactory
+        address:
+          - 0x7660BF2aDefC687C22906112ca323d60A00358cF
+      - name: AeroStablePoolFactory
+        address:
+          - 0x78589E876edcEbdce72ee3436ab3c9AD3a7cEF2D
+      - name: AeroVolatilePoolFactory
+        address:
+          - 0x8E6a9FCd1d638CC760Ffba397605Fe3355dE76D2
+      - name: AeroNFPM
+        address:
+          - 0x4857DB576eE0e45F10525eC59527BfD10beeC60b
+      - name: DynamicSwapFeeHook
+        address:
+          - 0xC0ed888AfE87ed1AcF01D9f19bB850159e3ce434
+      - name: AeroTokenRegistry
+        address:
+          - 0x564665E023390097f46EA9662a6061a5d700A7E1
+      # Aero gauges and emissions (phase 2): deployment-addresses/{leaf,gaugestack,cl}-<chain>.json
+      - name: AeroGaugeManager
+        address:
+          - 0xbF234b32c5e58868243A4a14831626f3EdE7b183
+      - name: AeroLeafVoter
+        address:
+          - 0x382409fad8503FbCdbB27A4211551fa03e884078
+      - name: AeroCLGaugeFactory
+        address:
+          - 0xf437f62053ACB121665b8fDBfeA8F214FB8E589d
+      - name: AeroV2GaugeFactory
+        address:
+          - 0xd9eF1acdca62010e93370f5932E3deD127E65396 # stable pools
+          - 0x1733cD126a227066963E9B636Ad49898d1224741 # volatile pools
+      - name: AeroUnstakedFeeModule
+        address:
+          - 0xcc421483cd131a8FD6b68c37E46f244dbec4F797
+      - name: AeroCLGauge
+        address:
+      - name: AeroV2Gauge
+        address:
+      - name: AeroVotingRewardsManager
+        address:
+      - name: V2CustomFeeModule
+        address:
+          - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
+          - 0x7949DE8d67E4F6b8509Bdbb43FF0503aF1247a7A # volatile pools
+          - 0x81c5d01AE474040A59d0092a6973F4621E06B362 # leaf PoolFactory.feeModule() (V2 pools)
       - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
@@ -611,6 +1055,11 @@ chains:
         address:
           - 0x7f50C5776722630a0024fAE05fDe8b47571D7B39
   - id: 34443 # Mode
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_MODE_RPC_URL:-}
+        for: fallback
     start_block: 0
     contracts:
       - name: CustomSwapFeeModule
@@ -668,8 +1117,16 @@ chains:
         address:
           - 0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7
   - id: 1135 # Lisk
+    # Wound down. HyperSync stopped serving new blocks for this chain on 2026-11-09, so the
+    # chain is indexed up to that block and then finishes. No RPC fallback: backfilling
+    # it over RPC would cost a request per block and per transaction. If HyperSync drops
+    # the chain's history as well, remove the chain.
+    end_block: 39746606
     start_block: 0
     contracts:
+      - name: V2CustomFeeModule
+        address:
+          - 0x44536f7694D2d2f843437AdeD8D95525F797a06B # leaf PoolFactory.feeModule() (V2 pools)
       - name: CustomSwapFeeModule
         address:
           - 0xCB885Aa008031cBDb72447Bed78AF4f87a197126
@@ -725,10 +1182,20 @@ chains:
         address:
           - 0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7
   - id: 130 # Unichain
+    # 1 s blocks: at the head, fetch about every 2 s of chain time instead of every block.
+    block_throttle: 2
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_UNICHAIN_RPC_URL:-}
+        for: fallback
     hypersync_config:
       url: https://unichain.hypersync.xyz
     start_block: 0
     contracts:
+      - name: V2CustomFeeModule
+        address:
+          - 0x81c5d01AE474040A59d0092a6973F4621E06B362 # leaf PoolFactory.feeModule() (V2 pools)
       - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
@@ -784,10 +1251,18 @@ chains:
         address:
           - 0x3a464f746D23Ab22155710f44dB16dcA53e0775E
   - id: 252 # Fraxtal
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_FRAXTAL_RPC_URL:-}
+        for: fallback
     hypersync_config:
       url: https://fraxtal.hypersync.xyz
     start_block: 0
     contracts:
+      - name: V2CustomFeeModule
+        address:
+          - 0xc60a684e00F2AEC11603348A615cb2B454b62E31 # leaf PoolFactory.feeModule() (V2 pools)
       - name: CustomSwapFeeModule
         address:
           - 0xB0922e747e906B963dBdA37647DE1Aa709B35B2d
@@ -835,10 +1310,18 @@ chains:
         address:
           - 0x2f9DB5616fa3fAd1aB06cB2C906830BA63d135e3
   - id: 1750 # Metal
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_METAL_RPC_URL:-}
+        for: fallback
     hypersync_config:
       url: https://1750.hypersync.xyz # Metal L2 hypersync address
     start_block: 0
     contracts:
+      - name: V2CustomFeeModule
+        address:
+          - 0x81c5d01AE474040A59d0092a6973F4621E06B362 # leaf PoolFactory.feeModule() (V2 pools)
       - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
@@ -886,10 +1369,18 @@ chains:
         address:
           - 0x730f8a4128Fa8c53C777B62Baa1abeF94cAd34a9
   - id: 5330 # Superseed
+    # Wound down. HyperSync stopped serving new blocks for this chain on 2026-10-13, so the
+    # chain is indexed up to that block and then finishes. No RPC fallback: backfilling
+    # it over RPC would cost a request per block and per transaction. If HyperSync drops
+    # the chain's history as well, remove the chain.
+    end_block: 32854188
     hypersync_config:
       url: https://superseed.hypersync.xyz
     start_block: 0
     contracts:
+      - name: V2CustomFeeModule
+        address:
+          - 0x81c5d01AE474040A59d0092a6973F4621E06B362 # leaf PoolFactory.feeModule() (V2 pools)
       - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
@@ -945,10 +1436,18 @@ chains:
         address:
           - 0x3a464f746D23Ab22155710f44dB16dcA53e0775E
   - id: 1923 # Swell
+    # Wound down. HyperSync stopped serving new blocks for this chain on 2026-09-03, so the
+    # chain is indexed up to that block and then finishes. No RPC fallback: backfilling
+    # it over RPC would cost a request per block and per transaction. If HyperSync drops
+    # the chain's history as well, remove the chain.
+    end_block: 27851500
     hypersync_config:
       url: https://swell.hypersync.xyz
     start_block: 3717939
     contracts:
+      - name: V2CustomFeeModule
+        address:
+          - 0x81c5d01AE474040A59d0092a6973F4621E06B362 # leaf PoolFactory.feeModule() (V2 pools)
       - name: CustomSwapFeeModule
         address:
           - 0x6812eefC19deB79D5191b52f4B763260d9F3C238
@@ -1003,3 +1502,250 @@ chains:
       - name: Mailbox
         address:
           - 0x3a464f746D23Ab22155710f44dB16dcA53e0775E
+  - id: 1 # Ethereum (Aero only)
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_ETHEREUM_RPC_URL:-}
+        for: fallback
+    start_block: 26237985 # first Aero contract (VolatilePoolFactory deploy, eth_getCode-verified)
+    contracts:
+      # Aero (MetaDEX): deployment-addresses/{cl,pools,leaf}-<chain>.json
+      - name: AeroCLFactory
+        address:
+          - 0xF4Fd2E6c5B60c5b365cd1B96DD6245E6D60414c2
+      - name: AeroStablePoolFactory
+        address:
+          - 0x78589E876edcEbdce72ee3436ab3c9AD3a7cEF2D
+      - name: AeroVolatilePoolFactory
+        address:
+          - 0x8E6a9FCd1d638CC760Ffba397605Fe3355dE76D2
+      - name: AeroNFPM
+        address:
+          - 0x4857DB576eE0e45F10525eC59527BfD10beeC60b
+      - name: DynamicSwapFeeHook
+        address:
+          - 0xC0ed888AfE87ed1AcF01D9f19bB850159e3ce434
+      - name: AeroTokenRegistry
+        address:
+          - 0x564665E023390097f46EA9662a6061a5d700A7E1
+      # Aero gauges and emissions (phase 2): deployment-addresses/{leaf,gaugestack,cl}-<chain>.json
+      - name: AeroGaugeManager
+        address:
+          - 0xbF234b32c5e58868243A4a14831626f3EdE7b183
+      - name: AeroLeafVoter
+        address:
+          - 0x382409fad8503FbCdbB27A4211551fa03e884078
+      - name: AeroCLGaugeFactory
+        address:
+          - 0xf437f62053ACB121665b8fDBfeA8F214FB8E589d
+      - name: AeroV2GaugeFactory
+        address:
+          - 0xCCe24256a8a6070A9E308f23E044C87C343F98Cd # stable pools
+          - 0x7F83235643181E440433400a027618Cd50879751 # volatile pools
+      - name: AeroUnstakedFeeModule
+        address:
+          - 0xcc421483cd131a8FD6b68c37E46f244dbec4F797
+      - name: AeroCLGauge
+        address:
+      - name: AeroV2Gauge
+        address:
+      - name: AeroVotingRewardsManager
+        address:
+      - name: V2CustomFeeModule
+        address:
+          - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
+          - 0x7949DE8d67E4F6b8509Bdbb43FF0503aF1247a7A # volatile pools
+      - name: Pool
+        address:
+      - name: CLPool
+        address:
+  - id: 42161 # Arbitrum (Aero only)
+    # 0.25 s blocks: at the head, fetch about every 2 s of chain time instead of every block.
+    block_throttle: 8
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_ARBITRUM_RPC_URL:-}
+        for: fallback
+    start_block: 516786506 # first Aero contract (VolatilePoolFactory deploy, eth_getCode-verified)
+    contracts:
+      # Aero (MetaDEX): deployment-addresses/{cl,pools,leaf}-<chain>.json
+      - name: AeroCLFactory
+        address:
+          - 0x88a60ee77392577c355C0acb2A8d476D5a4EC03a
+      - name: AeroStablePoolFactory
+        address:
+          - 0x78589E876edcEbdce72ee3436ab3c9AD3a7cEF2D
+      - name: AeroVolatilePoolFactory
+        address:
+          - 0x8E6a9FCd1d638CC760Ffba397605Fe3355dE76D2
+      - name: AeroNFPM
+        address:
+          - 0x4857DB576eE0e45F10525eC59527BfD10beeC60b
+      - name: DynamicSwapFeeHook
+        address:
+          - 0xC0ed888AfE87ed1AcF01D9f19bB850159e3ce434
+      - name: AeroTokenRegistry
+        address:
+          - 0x564665E023390097f46EA9662a6061a5d700A7E1
+      # Aero gauges and emissions (phase 2): deployment-addresses/{leaf,gaugestack,cl}-<chain>.json
+      - name: AeroGaugeManager
+        address:
+          - 0xbF234b32c5e58868243A4a14831626f3EdE7b183
+      - name: AeroLeafVoter
+        address:
+          - 0x382409fad8503FbCdbB27A4211551fa03e884078
+      - name: AeroCLGaugeFactory
+        address:
+          - 0xf437f62053ACB121665b8fDBfeA8F214FB8E589d
+      - name: AeroV2GaugeFactory
+        address:
+          - 0x94AF9F874e92F05F42aE55FfC793b9F4f5FFc135 # stable pools
+          - 0xBbdDdd5ac17a672B360D2dBAa996468aDBEF8692 # volatile pools
+      - name: AeroUnstakedFeeModule
+        address:
+          - 0xcc421483cd131a8FD6b68c37E46f244dbec4F797
+      - name: AeroCLGauge
+        address:
+      - name: AeroV2Gauge
+        address:
+      - name: AeroVotingRewardsManager
+        address:
+      - name: V2CustomFeeModule
+        address:
+          - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
+          - 0x7949DE8d67E4F6b8509Bdbb43FF0503aF1247a7A # volatile pools
+      - name: Pool
+        address:
+      - name: CLPool
+        address:
+  - id: 4663 # Robinhood Chain (Aero only)
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_ROBINHOOD_RPC_URL:-}
+        for: fallback
+    hypersync_config:
+      url: https://4663.hypersync.xyz
+    start_block: 93947396 # first Aero contract (VolatilePoolFactory deploy, eth_getCode-verified)
+    contracts:
+      # Aero (MetaDEX): deployment-addresses/{cl,pools,leaf}-<chain>.json
+      - name: AeroCLFactory
+        address:
+          - 0xc63d7338c178e805c544B8f897066bD3BBcBE136
+      - name: AeroStablePoolFactory
+        address:
+          - 0x78589E876edcEbdce72ee3436ab3c9AD3a7cEF2D
+      - name: AeroVolatilePoolFactory
+        address:
+          - 0x8E6a9FCd1d638CC760Ffba397605Fe3355dE76D2
+      - name: AeroNFPM
+        address:
+          - 0x4857DB576eE0e45F10525eC59527BfD10beeC60b
+      - name: DynamicSwapFeeHook
+        address:
+          - 0xC0ed888AfE87ed1AcF01D9f19bB850159e3ce434
+      - name: AeroTokenRegistry
+        address:
+          - 0x564665E023390097f46EA9662a6061a5d700A7E1
+      # Aero gauges and emissions (phase 2): deployment-addresses/{leaf,gaugestack,cl}-<chain>.json
+      - name: AeroGaugeManager
+        address:
+          - 0xbF234b32c5e58868243A4a14831626f3EdE7b183
+      - name: AeroLeafVoter
+        address:
+          - 0x382409fad8503FbCdbB27A4211551fa03e884078
+      - name: AeroCLGaugeFactory
+        address:
+          - 0xf437f62053ACB121665b8fDBfeA8F214FB8E589d
+      - name: AeroV2GaugeFactory
+        address:
+          - 0x1733cD126a227066963E9B636Ad49898d1224741 # stable pools
+          - 0xCCe24256a8a6070A9E308f23E044C87C343F98Cd # volatile pools
+      - name: AeroUnstakedFeeModule
+        address:
+          - 0xcc421483cd131a8FD6b68c37E46f244dbec4F797
+      - name: AeroCLGauge
+        address:
+      - name: AeroV2Gauge
+        address:
+      - name: AeroVotingRewardsManager
+        address:
+      - name: V2CustomFeeModule
+        address:
+          - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
+          - 0x7949DE8d67E4F6b8509Bdbb43FF0503aF1247a7A # volatile pools
+      - name: Pool
+        address:
+      - name: CLPool
+        address:
+  - id: 5042 # Arc (Aero only)
+    # RPC fallback: takes over at the head when HyperSync stalls (it did on Lisk,
+    # Swell and Superseed in 2026). Ignored when the variable is unset.
+    rpc:
+      - url: ${ENVIO_ARC_RPC_URL:-}
+        for: fallback
+    hypersync_config:
+      url: https://5042.hypersync.xyz
+    start_block: 20964951 # first Aero contract (lite-launch VolatilePoolFactory deploy, eth_getCode-verified)
+    contracts:
+      # Aero (MetaDEX): deployment-addresses/{cl,pools,leaf}-<chain>.json and the earlier lite launch (*litelaunch-arc.json)
+      - name: AeroCLFactory
+        address:
+          - 0x7F83235643181E440433400a027618Cd50879751
+          - 0xb89Df768aF2CFE637ceB352c587Fe8edAf491d03 # lite launch
+      - name: AeroStablePoolFactory
+        address:
+          - 0x78589E876edcEbdce72ee3436ab3c9AD3a7cEF2D
+          - 0xaEd253F1aD84d99f2165256D701b2b481DD4CC16 # lite launch
+      - name: AeroVolatilePoolFactory
+        address:
+          - 0x8E6a9FCd1d638CC760Ffba397605Fe3355dE76D2
+          - 0x9bc8b3F60D349d687Fb44A018967025E3741F9a5 # lite launch
+      - name: AeroNFPM
+        address:
+          - 0x4857DB576eE0e45F10525eC59527BfD10beeC60b
+          - 0xc84bB45D43CD25D02b83B4C085eaA4e08da8f473 # lite launch
+      - name: DynamicSwapFeeHook
+        address:
+          - 0xC0ed888AfE87ed1AcF01D9f19bB850159e3ce434
+          - 0xaAf164008441F112eB2858d9F7A2dB1B84b1E415 # lite launch
+      - name: AeroTokenRegistry
+        address:
+          - 0x564665E023390097f46EA9662a6061a5d700A7E1
+      # Aero gauges and emissions (phase 2): deployment-addresses/{leaf,gaugestack,cl}-<chain>.json
+      - name: AeroGaugeManager
+        address:
+          - 0xbF234b32c5e58868243A4a14831626f3EdE7b183
+      - name: AeroLeafVoter
+        address:
+          - 0x382409fad8503FbCdbB27A4211551fa03e884078
+      - name: AeroCLGaugeFactory
+        address:
+          - 0xf437f62053ACB121665b8fDBfeA8F214FB8E589d
+          - 0xa02d1F4E4243ff0d350F478c44B0Fd37c7bF848C # lite launch (clliteupgrade-arc.json)
+      - name: AeroV2GaugeFactory
+        address:
+          - 0x9520C671C767B170c9f04e523B4e68c5d537779b # stable pools
+          - 0xBDcB4929b19EBcfEE5eFE100B829c9B35C16d8F8 # volatile pools
+      - name: AeroUnstakedFeeModule
+        address:
+          - 0xcc421483cd131a8FD6b68c37E46f244dbec4F797
+          - 0xbE10EDB242bd83f42653383D906478BcA0CBB8b5 # lite launch (clliteupgrade-arc.json)
+      - name: AeroCLGauge
+        address:
+      - name: AeroV2Gauge
+        address:
+      - name: AeroVotingRewardsManager
+        address:
+      - name: V2CustomFeeModule
+        address:
+          - 0x0195fC76Da986D66B2A468133a1be41E90893Da6 # stable pools
+          - 0x7949DE8d67E4F6b8509Bdbb43FF0503aF1247a7A # volatile pools
+          - 0x39CF8E719bae01C9ab6F9eA5b97DC7D74C76e422 # lite launch, stable pools
+          - 0xEc4b9100C60B54579d44eA38165a152865840597 # lite launch, volatile pools
+      - name: Pool
+        address:
+      - name: CLPool
+        address:

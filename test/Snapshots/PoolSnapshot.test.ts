@@ -21,7 +21,7 @@ describe("PoolSnapshot", () => {
       const timestamp = new Date(baseTimestamp.getTime() + 30 * 60 * 1000);
       const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 5;
 
-      const snapshot = createPoolSnapshot(pool, timestamp);
+      const snapshot = createPoolSnapshot(pool, timestamp, pool.chainId);
 
       expect(snapshot.id).toBe(
         PoolSnapshotId(pool.chainId, pool.poolAddress, expectedEpochMs),
@@ -31,10 +31,11 @@ describe("PoolSnapshot", () => {
 
     it("should copy pool fields into snapshot without persisting", () => {
       const pool = common.createMockPool();
-      const snapshot = createPoolSnapshot(pool, baseTimestamp);
+      const snapshot = createPoolSnapshot(pool, baseTimestamp, pool.chainId);
 
       expect(snapshot.poolAddress).toBe(pool.poolAddress);
-      expect(snapshot.chainId).toBe(pool.chainId);
+      // Per-chain mode: the chain lives in envio's own column, not on the row.
+      expect(snapshot).not.toHaveProperty("chainId");
       expect(snapshot.reserve0).toBe(pool.reserve0);
       expect(snapshot.reserve1).toBe(pool.reserve1);
       expect(snapshot.totalLiquidityUSD).toBe(pool.totalLiquidityUSD);
@@ -63,7 +64,7 @@ describe("PoolSnapshot", () => {
     const timestamp = new Date(baseTimestamp.getTime() + 30 * 60 * 1000); // 30 min into epoch
     const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 5;
 
-    setPoolSnapshot(pool, timestamp, context);
+    setPoolSnapshot(pool, timestamp, context, pool.chainId);
 
     expect(context.PoolSnapshot.set).toHaveBeenCalledTimes(1);
     expect(context.PoolSnapshot.set).toHaveBeenCalledWith(
@@ -71,7 +72,6 @@ describe("PoolSnapshot", () => {
         id: PoolSnapshotId(pool.chainId, pool.poolAddress, expectedEpochMs),
         timestamp: new Date(expectedEpochMs),
         poolAddress: pool.poolAddress,
-        chainId: pool.chainId,
       }),
     );
   });
@@ -83,7 +83,7 @@ describe("PoolSnapshot", () => {
     const pool = common.createMockPool();
     const expectedEpoch = getSnapshotEpoch(baseTimestamp);
 
-    setPoolSnapshot(pool, baseTimestamp, context);
+    setPoolSnapshot(pool, baseTimestamp, context, pool.chainId);
 
     expect(context.PoolSnapshot.set).toHaveBeenCalledWith(
       expect.objectContaining({

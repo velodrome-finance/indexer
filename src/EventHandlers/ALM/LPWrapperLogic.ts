@@ -10,12 +10,44 @@ import {
 import {
   ALMLPWrapperId,
   ALMLPWrapperTransferInTxId,
+  NonFungiblePositionId,
   PoolId,
   ZERO_ADDRESS,
 } from "../../Constants";
 import { getRehydrated, getWhereRehydrated } from "../../EntityTimestamps";
 import type { handlerContext } from "../../EntityTypes";
 import { computeLiquidityDeltaFromAmounts } from "../../Helpers";
+
+/**
+ * The current liquidity of a wrapper's strategy position, read from its
+ * `NonFungiblePosition` by primary key (the pool's NFPM + the wrapper's
+ * `tokenId`). The wrapper's Deposit / Withdraw is emitted after the position's
+ * NFPM IncreaseLiquidity / DecreaseLiquidity in the same tx, so this is the
+ * post-event liquidity, exact, with no re-derivation from token amounts (a
+ * Withdraw's amounts include the position's fees). For a strategy with several
+ * positions this is the stored (first) position, the one whose range the
+ * wrapper row carries.
+ *
+ * @param wrapper - The wrapper row (its `tokenId`)
+ * @param nfpmAddress - The pool's NFPM (`Pool.nfpmAddress`), or null/undefined if unknown
+ * @param context - Handler context
+ * @param chainId - Chain of the event being handled (the wrapper's chain)
+ * @returns The position's liquidity, or undefined when the position is not indexed
+ */
+export async function loadStrategyPositionLiquidity(
+  wrapper: ALM_LP_Wrapper,
+  nfpmAddress: string | null | undefined,
+  context: handlerContext,
+  chainId: number,
+): Promise<bigint | undefined> {
+  if (!nfpmAddress) return undefined;
+  const position = await getRehydrated(
+    context.NonFungiblePosition,
+    "NonFungiblePosition",
+    NonFungiblePositionId(chainId, nfpmAddress, wrapper.tokenId),
+  );
+  return position?.liquidity;
+}
 
 interface MatchingBurnTransfer {
   id: string;
@@ -175,7 +207,8 @@ export async function loadALMLPWrapper(
  * The burn Transfer event always comes before the Withdraw event in the transaction
  * @param txHash - The transaction hash
  * @param sender - The sender address
- * @param chainId - The chain ID
+ * @param _chainId - The chain ID. Unused since entities are per-chain (the
+ *   query only returns the event's chain's rows); kept so callers are unchanged.
  * @param wrapperAddress - The wrapper contract address
  * @param withdrawLogIndex - The log index of the Withdraw event
  * @param context - The handler context
@@ -184,7 +217,7 @@ export async function loadALMLPWrapper(
 export async function getMatchingBurnTransferInTx(
   txHash: string,
   sender: string,
-  chainId: number,
+  _chainId: number,
   wrapperAddress: string,
   withdrawLogIndex: number,
   context: handlerContext,
@@ -199,7 +232,6 @@ export async function getMatchingBurnTransferInTx(
 
   const matchingBurns = (transfersInTxHash ?? []).filter(
     (t: ALMLPWrapperTransferInTx) =>
-      t.chainId === chainId &&
       t.wrapperAddress === wrapperAddress &&
       t.from === sender &&
       t.isBurn === true &&
@@ -309,7 +341,9 @@ export async function processDepositEvent(
     return;
   }
 
-  // Compute ΔL from event amounts (getLiquidityForAmounts) then wrapper.liquidity += ΔL
+  // The strategy position's own liquidity (its IncreaseLiquidity precedes this
+  // Deposit). Fallback when the position is not indexed: ΔL re-derived from the
+  // deposit amounts (getLiquidityForAmounts), wrapper.liquidity += ΔL.
   const poolId = PoolId(chainId, pool);
   const liquidityPoolAggregator = await getRehydrated(
     context.Pool,
@@ -317,9 +351,17 @@ export async function processDepositEvent(
     poolId,
   );
   const sqrtPriceX96 = liquidityPoolAggregator?.sqrtPriceX96;
+  const positionLiquidity = await loadStrategyPositionLiquidity(
+    ALMLPWrapperEntity,
+    liquidityPoolAggregator?.nfpmAddress,
+    context,
+    chainId,
+  );
 
   let updatedLiquidity = ALMLPWrapperEntity.liquidity;
-  if (sqrtPriceX96 !== undefined && sqrtPriceX96 !== 0n) {
+  if (positionLiquidity !== undefined) {
+    updatedLiquidity = positionLiquidity;
+  } else if (sqrtPriceX96 !== undefined && sqrtPriceX96 !== 0n) {
     const deltaL = computeLiquidityDeltaFromAmounts(
       amount0,
       amount1,
@@ -353,8 +395,15 @@ export async function processDepositEvent(
       ALMLPWrapperEntity,
       timestamp,
       context,
+      chainId,
     ),
-    updateUserStatsPerPool(userStatsDiff, userStats, context, timestamp),
+    updateUserStatsPerPool(
+      userStatsDiff,
+      userStats,
+      context,
+      timestamp,
+      chainId,
+    ),
   ]);
 }
 
@@ -415,7 +464,9 @@ export async function processWithdrawEvent(
       )
     : lpAmount;
 
-  // Compute ΔL from event amounts (getLiquidityForAmounts) then wrapper.liquidity -= ΔL
+  // The strategy position's own liquidity (its DecreaseLiquidity precedes this
+  // Withdraw; the Withdraw amounts include fees). Fallback when the position is
+  // not indexed: ΔL re-derived from the amounts, wrapper.liquidity -= ΔL.
   const poolId = PoolId(chainId, pool);
   const liquidityPoolAggregator = await getRehydrated(
     context.Pool,
@@ -423,9 +474,17 @@ export async function processWithdrawEvent(
     poolId,
   );
   const sqrtPriceX96 = liquidityPoolAggregator?.sqrtPriceX96;
+  const positionLiquidity = await loadStrategyPositionLiquidity(
+    ALMLPWrapperEntity,
+    liquidityPoolAggregator?.nfpmAddress,
+    context,
+    chainId,
+  );
 
   let updatedLiquidity = ALMLPWrapperEntity.liquidity;
-  if (sqrtPriceX96 !== undefined && sqrtPriceX96 !== 0n) {
+  if (positionLiquidity !== undefined) {
+    updatedLiquidity = positionLiquidity;
+  } else if (sqrtPriceX96 !== undefined && sqrtPriceX96 !== 0n) {
     const deltaL = computeLiquidityDeltaFromAmounts(
       amount0,
       amount1,
@@ -461,8 +520,15 @@ export async function processWithdrawEvent(
       ALMLPWrapperEntity,
       timestamp,
       context,
+      chainId,
     ),
-    updateUserStatsPerPool(userStatsDiff, userStats, context, timestamp),
+    updateUserStatsPerPool(
+      userStatsDiff,
+      userStats,
+      context,
+      timestamp,
+      chainId,
+    ),
   ]);
 }
 
@@ -499,7 +565,6 @@ function storeBurnTransferForMatching(
   );
   (context as handlerContext).ALMLPWrapperTransferInTx.set({
     id: transferId,
-    chainId: chainId,
     txHash: txHash,
     wrapperAddress: wrapperAddress,
     logIndex: logIndex,
@@ -611,7 +676,14 @@ export async function processTransferEvent(
       userStatsFrom,
       context,
       timestamp,
+      chainId,
     ),
-    updateUserStatsPerPool(UserStatsToDiff, userStatsTo, context, timestamp),
+    updateUserStatsPerPool(
+      UserStatsToDiff,
+      userStatsTo,
+      context,
+      timestamp,
+      chainId,
+    ),
   ]);
 }

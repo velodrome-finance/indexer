@@ -8,14 +8,15 @@ import {
   loadPoolData,
   updatePool,
 } from "../../Aggregators/Pool";
+import { loadPoolTickMap, setPoolTickMap } from "../../Aggregators/PoolTickMap";
 import {
   loadOrCreateUserData,
   updateUserStatsPerPool,
 } from "../../Aggregators/UserStatsPerPool";
 import {
-  CHAIN_CONSTANTS,
   NonFungiblePositionId,
   TokenId,
+  getLegacyConstants,
 } from "../../Constants";
 import { getRehydrated } from "../../EntityTimestamps";
 import type { handlerContext } from "../../EntityTypes";
@@ -39,17 +40,19 @@ export interface GaugeEventData {
 /**
  * Computes the CL staked reserve deltas and updated pool staked USD when a position
  * is deposited to or withdrawn from a gauge. Applies the position's liquidity to the
- * aggregator's in-memory (stakedTickEdges, stakedTickEdgeNets) arrays via
- * applyPositionToEdges and determines whether the position is in range.
+ * pool's staked tick map (PoolTickMap.stakedTickEdges / stakedTickEdgeNets) via
+ * applyPositionToEdges, stages the map write when it changed, and determines
+ * whether the position is in range.
  *
  * @param data - Gauge event data (must have tokenId for CL)
  * @param liquidityPoolAggregator - Current pool entity
  * @param poolData - Token instances for USD conversion
  * @param context - Handler context for entity access
  * @param direction - 1n for deposit (add to staked), -1n for withdraw (remove from staked)
- * @returns Staked liquidity diff fields, or empty object if position not found
+ * @returns Staked liquidity diff fields plus the resulting staked edge list
+ *   (for the hasStakes latch), or an empty object if the position is not found
  */
-async function computeCLStakedReservesOnGaugeEvent(
+export async function computeCLStakedReservesOnGaugeEvent(
   data: GaugeEventData,
   liquidityPoolAggregator: Pool,
   poolData: PoolData,
@@ -60,8 +63,7 @@ async function computeCLStakedReservesOnGaugeEvent(
   stakedLiquidityInRange?: bigint;
   incrementalStakedReserve0?: bigint;
   incrementalStakedReserve1?: bigint;
-  stakedTickEdges?: bigint[];
-  stakedTickEdgeNets?: bigint[];
+  stakedTickEdges?: readonly bigint[];
 }> {
   if (data.tokenId === undefined) return {};
 
@@ -81,13 +83,15 @@ async function computeCLStakedReservesOnGaugeEvent(
   const sqrtPriceX96 = liquidityPoolAggregator.sqrtPriceX96 ?? 0n;
 
   const liquidityDelta = direction * position.liquidity;
+  const tickMap = await loadPoolTickMap(liquidityPoolAggregator.id, context);
   const {
     edges: stakedTickEdges,
     nets: stakedTickEdgeNets,
     rejected: edgesRejected,
+    changed: edgesChanged,
   } = applyPositionToEdges(
-    liquidityPoolAggregator.stakedTickEdges,
-    liquidityPoolAggregator.stakedTickEdgeNets,
+    tickMap.stakedTickEdges,
+    tickMap.stakedTickEdgeNets,
     position.tickLower,
     position.tickUpper,
     liquidityDelta,
@@ -96,6 +100,9 @@ async function computeCLStakedReservesOnGaugeEvent(
     context.log.error(
       `[computeCLStakedReservesOnGaugeEvent] applyPositionToEdges rejected position ${data.tokenId} on pool ${liquidityPoolAggregator.poolAddress} chain ${data.chainId}: reason=${edgesRejected} tickLower=${position.tickLower} tickUpper=${position.tickUpper}. Edge list left unchanged.`,
     );
+  }
+  if (edgesChanged) {
+    setPoolTickMap(tickMap, { stakedTickEdges, stakedTickEdgeNets }, context);
   }
 
   // Derive stakedLiquidityInRange from the (possibly updated) edge state at
@@ -141,6 +148,7 @@ async function computeCLStakedReservesOnGaugeEvent(
     newStakedReserve1 > 0n ? newStakedReserve1 : 0n,
     poolData.token0Instance,
     poolData.token1Instance,
+    data.chainId,
   );
 
   return {
@@ -149,7 +157,6 @@ async function computeCLStakedReservesOnGaugeEvent(
     incrementalStakedReserve0,
     incrementalStakedReserve1,
     stakedTickEdges,
-    stakedTickEdgeNets,
   };
 }
 
@@ -160,13 +167,15 @@ async function computeCLStakedReservesOnGaugeEvent(
  * @param liquidityPoolAggregator - The liquidity pool aggregator
  * @param poolData - The pool data
  * @param context - The handler context
+ * @param chainId - Chain of the event being handled (the pool's chain)
  * @returns The staked USD, or undefined if valuation is unavailable
  */
-function computeNonCLStakedUSDIfAvailable(
+export function computeNonCLStakedUSDIfAvailable(
   stakeAmount: bigint,
   liquidityPoolAggregator: Pool,
   poolData: PoolData,
   context: handlerContext,
+  chainId: number,
 ): bigint | undefined {
   if (stakeAmount <= 0n) {
     return 0n;
@@ -184,6 +193,7 @@ function computeNonCLStakedUSDIfAvailable(
     liquidityPoolAggregator,
     poolData,
     context,
+    chainId,
   );
 }
 
@@ -198,6 +208,11 @@ export async function isRootGauge(
   gaugeAddress: string,
   context: handlerContext,
 ): Promise<boolean> {
+  // Deliberately not scoped to the event's chain (#548): a superchain leaf
+  // gauge has the same address as its root gauge on Optimism, and the events
+  // to silence arrive on the leaf chain while the RootGauge_RootPool row is
+  // keyed by the root chain. This is an existence check only; no row is
+  // selected or updated from the result.
   const mappings = await context.RootGauge_RootPool.getWhere({
     rootGaugeAddress: { _eq: gaugeAddress },
   });
@@ -240,12 +255,14 @@ function computeNonCLPoolStakedUSD(
   liquidityPoolAggregator: Pool,
   poolData: PoolData,
   context: handlerContext,
+  chainId: number,
 ): bigint | undefined {
   return computeNonCLStakedUSDIfAvailable(
     newPoolStake,
     liquidityPoolAggregator,
     poolData,
     context,
+    chainId,
   );
 }
 
@@ -296,8 +313,7 @@ export async function processGaugeDeposit(
   let stakedLiquidityInRange: bigint | undefined;
   let incrementalStakedReserve0: bigint | undefined;
   let incrementalStakedReserve1: bigint | undefined;
-  let stakedTickEdges: bigint[] | undefined;
-  let stakedTickEdgeNets: bigint[] | undefined;
+  let stakedTickEdges: readonly bigint[] | undefined;
 
   if (liquidityPoolAggregator.isCL) {
     const clResult = await computeCLStakedReservesOnGaugeEvent(
@@ -312,13 +328,13 @@ export async function processGaugeDeposit(
     incrementalStakedReserve0 = clResult.incrementalStakedReserve0;
     incrementalStakedReserve1 = clResult.incrementalStakedReserve1;
     stakedTickEdges = clResult.stakedTickEdges;
-    stakedTickEdgeNets = clResult.stakedTickEdgeNets;
   } else {
     poolStakedUSD = computeNonCLPoolStakedUSD(
       newPoolStake,
       liquidityPoolAggregator,
       poolData,
       context,
+      data.chainId,
     );
   }
 
@@ -329,8 +345,6 @@ export async function processGaugeDeposit(
     stakedLiquidityInRange,
     incrementalStakedReserve0,
     incrementalStakedReserve1,
-    stakedTickEdges,
-    stakedTickEdgeNets,
     // Flip the CL pool's hasStakes latch on the first deposit. The latch gates the
     // per-swap staked-tick sweep in processTickCrossings. Non-CL pools
     // and already-latched CL pools leave this field alone. Also gate on an actual
@@ -371,7 +385,14 @@ export async function processGaugeDeposit(
       data.chainId,
       data.blockNumber,
     ),
-    updateUserStatsPerPool(userDiff, userData, context, timestamp, poolData),
+    updateUserStatsPerPool(
+      userDiff,
+      userData,
+      context,
+      timestamp,
+      data.chainId,
+      poolData,
+    ),
   ]);
 }
 
@@ -430,8 +451,6 @@ export async function processGaugeWithdraw(
   let stakedLiquidityInRange: bigint | undefined;
   let incrementalStakedReserve0: bigint | undefined;
   let incrementalStakedReserve1: bigint | undefined;
-  let stakedTickEdges: bigint[] | undefined;
-  let stakedTickEdgeNets: bigint[] | undefined;
 
   if (liquidityPoolAggregator.isCL) {
     const clResult = await computeCLStakedReservesOnGaugeEvent(
@@ -445,14 +464,13 @@ export async function processGaugeWithdraw(
     stakedLiquidityInRange = clResult.stakedLiquidityInRange;
     incrementalStakedReserve0 = clResult.incrementalStakedReserve0;
     incrementalStakedReserve1 = clResult.incrementalStakedReserve1;
-    stakedTickEdges = clResult.stakedTickEdges;
-    stakedTickEdgeNets = clResult.stakedTickEdgeNets;
   } else {
     poolStakedUSD = computeNonCLPoolStakedUSD(
       newPoolStake,
       liquidityPoolAggregator,
       poolData,
       context,
+      data.chainId,
     );
   }
 
@@ -463,8 +481,6 @@ export async function processGaugeWithdraw(
     stakedLiquidityInRange,
     incrementalStakedReserve0,
     incrementalStakedReserve1,
-    stakedTickEdges,
-    stakedTickEdgeNets,
     lastUpdatedTimestamp: timestamp,
   };
 
@@ -491,7 +507,14 @@ export async function processGaugeWithdraw(
       data.chainId,
       data.blockNumber,
     ),
-    updateUserStatsPerPool(userDiff, userData, context, timestamp, poolData),
+    updateUserStatsPerPool(
+      userDiff,
+      userData,
+      context,
+      timestamp,
+      data.chainId,
+      poolData,
+    ),
   ]);
 }
 
@@ -515,7 +538,7 @@ export async function processGaugeClaimRewards(
   const timestamp = new Date(data.timestamp * 1000);
 
   // Get reward token address
-  const rewardTokenAddress = CHAIN_CONSTANTS[data.chainId].rewardToken(
+  const rewardTokenAddress = getLegacyConstants(data.chainId).rewardToken(
     data.blockNumber,
   );
 
@@ -563,6 +586,7 @@ export async function processGaugeClaimRewards(
     0n,
     rewardToken,
     undefined,
+    data.chainId,
   );
 
   // Update pool aggregator with gauge reward claim
@@ -591,6 +615,120 @@ export async function processGaugeClaimRewards(
       data.chainId,
       data.blockNumber,
     ),
-    updateUserStatsPerPool(userDiff, userData, context, timestamp, poolData),
+    updateUserStatsPerPool(
+      userDiff,
+      userData,
+      context,
+      timestamp,
+      data.chainId,
+      poolData,
+    ),
+  ]);
+}
+
+/**
+ * Records a legacy CL gauge's EarlyWithdrawPenalty on the pool and the user.
+ *
+ * Gauges V3 (min stake time) charge a staker who unstakes early a share of
+ * their rewards; the gauge sends it to the chain's Minter in the same tx. It
+ * leaves the gauge like a claim but is not one, so it has its own totals
+ * (`totalGaugeEarlyWithdrawPenalties*`) and `totalGaugeRewardsClaimed` is left
+ * alone. The pool is found as {@link processGaugeClaimRewards} finds it: a
+ * root gauge with no pool is skipped silently, any other gauge without a pool
+ * is logged and skipped.
+ *
+ * @param data - Gauge event data; `amount` is the penalty in reward-token units
+ * @param context - Handler context for entity access
+ * @param handlerName - Handler name for error logging
+ * @returns Promise that resolves once the pool and user updates are staged
+ */
+export async function processGaugeEarlyWithdrawPenalty(
+  data: GaugeEventData,
+  context: handlerContext,
+  handlerName: string,
+): Promise<void> {
+  const result = await findPoolOrSkipRootGauge(
+    data.gaugeAddress,
+    data.chainId,
+    context,
+    handlerName,
+  );
+  if (!result) return;
+  const { pool } = result;
+
+  const timestamp = new Date(data.timestamp * 1000);
+  const rewardTokenAddress = getLegacyConstants(data.chainId).rewardToken(
+    data.blockNumber,
+  );
+
+  const [poolData, userData, rewardToken] = await Promise.all([
+    loadPoolData(
+      pool.poolAddress,
+      data.chainId,
+      context,
+      data.blockNumber,
+      data.timestamp,
+    ),
+    loadOrCreateUserData(
+      data.userAddress,
+      pool.poolAddress,
+      data.chainId,
+      context,
+      timestamp,
+    ),
+    getRehydrated(
+      context.Token,
+      "Token",
+      TokenId(data.chainId, rewardTokenAddress),
+    ),
+  ]);
+
+  if (!poolData) {
+    context.log.error(
+      `${handlerName}: Pool data not found for pool ${pool.poolAddress} on chain ${data.chainId}`,
+    );
+    return;
+  }
+
+  if (!rewardToken) {
+    context.log.error(
+      `${handlerName}: Reward token not found for ${rewardTokenAddress} on chain ${data.chainId}`,
+    );
+    return;
+  }
+
+  const penaltyUSD = calculateTotalUSD(
+    data.amount,
+    0n,
+    rewardToken,
+    undefined,
+    data.chainId,
+  );
+
+  await Promise.all([
+    updatePool(
+      {
+        incrementalTotalGaugeEarlyWithdrawPenalties: data.amount,
+        incrementalTotalGaugeEarlyWithdrawPenaltiesUSD: penaltyUSD,
+        lastUpdatedTimestamp: timestamp,
+      },
+      poolData.liquidityPoolAggregator,
+      timestamp,
+      context,
+      data.chainId,
+      data.blockNumber,
+    ),
+    updateUserStatsPerPool(
+      {
+        incrementalTotalGaugeEarlyWithdrawPenalties: data.amount,
+        incrementalTotalGaugeEarlyWithdrawPenaltiesUSD: penaltyUSD,
+        lastActivityTimestamp: timestamp,
+      },
+      userData,
+      context,
+      timestamp,
+      data.chainId,
+      poolData,
+    ),
   ]);
 }

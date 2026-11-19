@@ -10,6 +10,7 @@ import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
 import type { Pool as PoolEntity } from "../../../src/EntityTypes";
 import * as PriceOracle from "../../../src/PriceOracle";
 import { registerPool } from "../../registerDynamicContracts";
+import type { WithChain } from "../../testHelpers";
 import { type MockPool, setupCommon } from "./common";
 
 /**
@@ -33,8 +34,8 @@ import { type MockPool, setupCommon } from "./common";
  * deliberately omitted here pending root-cause confirmation.
  */
 describe("Pool fees collected ≤ generated invariant (#861)", () => {
-  let mockToken0Data: Token;
-  let mockToken1Data: Token;
+  let mockToken0Data: WithChain<Token>;
+  let mockToken1Data: WithChain<Token>;
   let mockLiquidityPoolData: MockPool;
   let createMockPool: ReturnType<typeof setupCommon>["createMockPool"];
   let indexer: ReturnType<typeof createTestIndexer>;
@@ -109,21 +110,32 @@ describe("Pool fees collected ≤ generated invariant (#861)", () => {
   ): Promise<PoolEntity | undefined> {
     indexer.Pool.set({
       ...mockLiquidityPoolData,
-      stakedTickEdges: [...mockLiquidityPoolData.stakedTickEdges],
-      stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
     });
-    indexer.Token.set(mockToken0Data as Token);
-    indexer.Token.set(mockToken1Data as Token);
+    indexer.Token.set(mockToken0Data);
+    indexer.Token.set(mockToken1Data);
 
     await indexer.process({
       chains: {
         [chainId]: {
           simulate: [
+            // On-chain order: the pool emits Fees, then Sync, then Swap.
+            {
+              contract: "Pool",
+              event: "Fees",
+              srcAddress,
+              logIndex: 1,
+              block: { timestamp: 1000000, number: 100, hash: blockHash },
+              params: {
+                sender: lpAddress,
+                amount0: claimedAmount0,
+                amount1: claimedAmount1,
+              },
+            },
             {
               contract: "Pool",
               event: "Swap",
               srcAddress,
-              logIndex: 1,
+              logIndex: 2,
               block: { timestamp: 1000000, number: 100, hash: blockHash },
               params: {
                 sender: lpAddress,
@@ -132,18 +144,6 @@ describe("Pool fees collected ≤ generated invariant (#861)", () => {
                 amount1In: 0n,
                 amount0Out: 0n,
                 amount1Out: swapAmount1Out,
-              },
-            },
-            {
-              contract: "Pool",
-              event: "Fees",
-              srcAddress,
-              logIndex: 2,
-              block: { timestamp: 1000000, number: 100, hash: blockHash },
-              params: {
-                sender: lpAddress,
-                amount0: claimedAmount0,
-                amount1: claimedAmount1,
               },
             },
             {
@@ -227,7 +227,7 @@ describe("Pool fees collected ≤ generated invariant (#861)", () => {
     // generated-fee USD would collapse to 0 for any pool with one untrusted
     // side, re-opening the gap with collected (which prices from the input
     // tokens that were trusted at claim time).
-    const untrustedToken1: Token = {
+    const untrustedToken1 = {
       ...mockToken1Data,
       isWhitelisted: false,
       priceTrustOutcome: "UNTRUSTED",
@@ -236,10 +236,8 @@ describe("Pool fees collected ≤ generated invariant (#861)", () => {
 
     indexer.Pool.set({
       ...mockLiquidityPoolData,
-      stakedTickEdges: [...mockLiquidityPoolData.stakedTickEdges],
-      stakedTickEdgeNets: [...mockLiquidityPoolData.stakedTickEdgeNets],
     });
-    indexer.Token.set(mockToken0Data as Token);
+    indexer.Token.set(mockToken0Data);
     indexer.Token.set(untrustedToken1);
 
     const swapAmount0In = 100n * TEN_TO_THE_18_BI;
@@ -248,6 +246,18 @@ describe("Pool fees collected ≤ generated invariant (#861)", () => {
       chains: {
         [chainId]: {
           simulate: [
+            {
+              contract: "Pool",
+              event: "Fees",
+              srcAddress,
+              logIndex: 0,
+              block: { timestamp: 1000000, number: 100, hash: blockHash },
+              params: {
+                sender: lpAddress,
+                amount0: (swapAmount0In * 3000n) / 1_000_000n,
+                amount1: 0n,
+              },
+            },
             {
               contract: "Pool",
               event: "Swap",

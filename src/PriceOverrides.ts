@@ -1,11 +1,23 @@
 import { TokenId, toChecksumAddress } from "./Constants";
 
-export interface RebindTarget {
+/** A token on a specific chain: the canonical source of an equivalent asset. */
+export interface CanonicalSource {
   readonly chainId: number;
   readonly address: string;
 }
 
 /**
+ * Operator blacklist: tokens forced to price 0 on every refresh, ahead of any
+ * pool route (docs/adr/0003-pool-derived-token-prices.md), and marked
+ * untrusted by the price-trust gate. A blacklisted token is also never a
+ * usable counterparty, since its price is 0.
+ *
+ * Every entry below was added in the oracle era, against oracle reads; the
+ * history is kept because it explains each entry. Several (e.g. the #786
+ * frozen-route tokens and #901 DEUS) were blacklisted only because the oracle
+ * froze on a wrong value while their pools priced them correctly, so they are
+ * candidates for removal now that prices come from pools. Original rationale:
+ *
  * Tokens whose on-chain price oracle is structurally unusable: every read either
  * returns a value derived from a broken DEX pool (no real off-chain market exists
  * to disagree) or is silent except for transient swap-time spikes that contaminate
@@ -551,47 +563,14 @@ const BLACKLIST: ReadonlySet<string> = new Set([
     8453,
     toChecksumAddress("0x23FA9a1a634222C03F3C02124242DFf56bD90787"),
   ), // BAIBAI
-  // Issue #786: frozen oracle-route constants on WHITELISTED tokens. Distinct
-  // from every entry above (which are wrong-HIGH in absolute per-token terms
-  // and surface via the `pricePerUSDNew > 10^28` enumeration). Here the route
-  // returns a flat wrong-high constant that is SMALL per-token — PEPE froze at
-  // ~$0.259302, wOptiDoge at ~$0.0515 — so it is invisible to both the >$10^28
-  // sweep and the absolute price ceiling, and the spike-guard/re-anchor logic
-  // (#784/#785) cannot see it either: the oracle keeps returning the stuck
-  // value, so every read AGREES with the bad anchor (no upward disagreement to
-  // re-anchor against). Because both tokens are protocol-whitelisted, the
-  // frozen value leaks straight into USD aggregates (#786 reports ~$238B
-  // phantom TVL across WETH/PEPE, PEPE/GIZA, VELO/wOptiDoge, WETH/wOptiDoge).
-  // Blacklisting forces price 0 → trust-gated out of USD → pool TVL routes
-  // through the counterparty leg. The root question — WHY the connector route
-  // freezes at a constant for these two — is tracked as a separate
-  // investigation (see #786 cross-reference); this is the immediate stopgap.
-  TokenId(
-    8453,
-    toChecksumAddress("0x52b492a33E447Cdb854c7FC19F1e57E8BfA1777D"),
-  ), // PEPE / Base (whitelisted; frozen route)
-  TokenId(10, toChecksumAddress("0xC26921B5b9ee80773774d36C84328ccb22c3a819")), // wOptiDoge / Optimism (whitelisted; frozen route)
-  // Issue #901: the Base token at 0x940A319B… (symbol DEUS, 874M supply) is a
-  // SEPARATE, REAL token from canonical DEUS Finance — it merely shares the DEUS
-  // symbol. Canonical DEUS lives at 0xDE5ed76E7c05eC5e4572CfC88d1ACEA165109E44 on
-  // Base, is priced correctly (~$2.31), and is left untouched. The 0x940A319B
-  // token is whitelisted with a price anchor FROZEN at ~$0.528 while its own
-  // VIRTUAL/USDC pools imply ~$0.0229 (a 23× overprice) — the same frozen-anchor
-  // failure mode as the #786 PEPE/wOptiDoge entries above, not a worthless spoof.
-  // The frozen anchor inflates the VIRTUAL/DEUS V2 pool TVL to ~$8.2M (true
-  // ~$683k); #892/#897's directional cap misses it because VIRTUAL isn't a
-  // hard-anchor (stablecoin/WETH) counterparty. With no price-pin mechanism and
-  // nothing priced at ~$0.0229 to rebind to, blacklisting (price → 0) is the only
-  // available lever. It is lossy: it also zeroes the token's real ~$0.0229 leg, so
-  // the pool then UNDERCOUNTS (~$341k) instead of reporting the true ~$683k — a
-  // ~2× undercount accepted in place of a ~12× overcount, pending a proper
-  // re-anchor mechanism (tracked with the #786 frozen-route root cause). Volume
-  // and fees are unaffected: the min-of-legs picker and 10× out-of-band fee guard
-  // already discard the bad price; only TVL (sum-of-legs, ungated) was wrong.
-  TokenId(
-    8453,
-    toChecksumAddress("0x940A319B75861014A220D9c6c144d108552B089B"),
-  ), // DEUS (real token, frozen anchor 23× high; distinct from canonical DEUS Finance)
+  // Removed 2026-11-16 (issues #786, #901): PEPE on Base (0x52b4…777D),
+  // wOptiDoge on Optimism (0xC269…a819) and the DEUS-symbol token on Base
+  // (0x940A…089B) were blacklisted as a stopgap because the on-chain oracle's
+  // route for them froze at a wrong constant. They are real, whitelisted tokens
+  // with deep pools (priced-side depth up to $403K, $146K and $692K; above $5K
+  // for 4,412, 13,096 and 5,469 hours). Prices now come from those pools each
+  // hour (ADR 0003), so there is no anchor to freeze, and the blacklist only
+  // zeroed their side of the pools' TVL.
 ]);
 
 /**
@@ -612,24 +591,33 @@ const SUPERCHAINS = [
 ] as const;
 
 /**
- * Tokens whose price should be copied verbatim from another (already-priced)
- * Token entity, bypassing the on-chain oracle entirely. Each entry declares a
- * canonical `source` and every `target` (chain + address) that mirrors it.
+ * Same-asset equivalences across chains: each entry declares a canonical
+ * `source` (chain + address) and every `target` that is the same asset on
+ * another chain (docs/adr/0004-canonical-cross-chain-price-candidates.md).
  *
- * Two patterns:
- *  - Bridged 1:1 superchain tokens (XVELO across all superchains -> canonical
- *    VELO on Optimism; SuperERC20 mint/burn through Hyperlane preserves parity)
- *  - LST/LRT cross-chain duals (rsETH on Swell -> wrsETH on Base; both are Kelp
- *    wrappers of the same underlying restaked-ETH position; Aerodrome's deep
- *    wrsETH/WETH pool gives a clean Base price)
+ * A target is priced by the usual "deepest qualifying candidate wins" rule
+ * over its local pools PLUS one extra candidate: the source token's stored
+ * price, valued at the source token's stored `pricingDepthUSD`. That candidate
+ * only qualifies while the source's last successful price is within
+ * ±`CANONICAL_ALIGNMENT_WINDOW_MS` of the block being processed, so a source
+ * from the future (its chain is ahead in a backfill) is rejected like a stale
+ * one. A thin local pool therefore no longer beats a deep canonical market
+ * just because it scrapes over the depth floor. The source is read, never
+ * refreshed, so the cross-chain read cannot recurse.
  *
- * If the source token has not yet been priced (price === 0), the rebind still
- * fires and writes 0 — explicitly NOT falling back to the corrupt on-chain
- * oracle for the target chain, which is the whole point of the rebind.
+ * Patterns:
+ *  - Bridged 1:1 superchain tokens (XVELO on every superchain -> VELO on
+ *    Optimism; SuperERC20 mint/burn through Hyperlane preserves parity)
+ *  - WETH on every leaf chain whose `weth` constant is ETH 1:1 -> Optimism WETH
+ *  - frxETH on Fraxtal -> Optimism WETH (about 1% off, accepted; see below)
+ *  - LST/LRT and BTC-wrapper duals (rsETH, SolvBTC, ezETH)
+ *
+ * No source is tier 0 (a pinned token needs no candidate) and no source is
+ * itself a target (both asserted in test/PriceOverrides.test.ts).
  */
-const REBINDS: ReadonlyArray<{
-  source: RebindTarget;
-  targets: ReadonlyArray<RebindTarget>;
+const CANONICAL_SOURCES: ReadonlyArray<{
+  source: CanonicalSource;
+  targets: ReadonlyArray<CanonicalSource>;
 }> = [
   {
     // rsETH on Swell -> wrsETH on Base (Aerodrome wrsETH/WETH pool prices it cleanly)
@@ -672,7 +660,7 @@ const REBINDS: ReadonlyArray<{
     // prices it cleanly (~$2.5K); Swell reports $257 (~10x deflation) and Ink
     // reports $0. Mode prices cleanly locally (~$2.4K) so no rebind needed;
     // Fraxtal/Base ezETH entries are stale (no fresh exposure today).
-    // Source chain is Optimism because CHAIN_ANCHORS only covers OP + Base.
+    // Source chain is Optimism (its ezETH market prices cleanly).
     source: {
       chainId: 10,
       address: toChecksumAddress("0x2416092f143378750bb29b79eD961ab195CcEea5"),
@@ -693,22 +681,42 @@ const REBINDS: ReadonlyArray<{
     ],
   },
   {
-    // Issue #892: WETH on Metal -> WETH on Optimism. Both are the canonical
-    // OP-stack WETH at `0x4200…0006`. Metal's local oracle prices everything
-    // against oUSDT, which reads structurally high (~+28%), inflating Metal WETH
-    // to ~$2,005 vs the ~$1,565 cross-chain consensus. Optimism prices WETH
-    // cleanly; copying it makes WETH a trustworthy hard anchor on Metal for the
-    // directional TVL cap (Piece 1). The broader Metal oUSDT unit inflation is a
-    // separate, sub-10× follow-up.
+    // WETH on every leaf chain whose `weth` constant is canonical ETH 1:1 ->
+    // Optimism WETH. All but Celo are the OP-stack predeploy at `0x4200…0006`;
+    // Celo's `weth` is the native-bridge WETH (`0xD221…`), also ETH 1:1.
+    // Left out: Base (a root deployment with its own deep WETH market, and the
+    // source of other entries) and Optimism (the source).
+    // Fraxtal's `weth` (`0xFC00…0006`) is frxETH, Frax's liquid-staking ether:
+    // a different asset, not redeemable 1:1 on demand, mapped anyway (ADR 0007,
+    // 2026-11-17 amendment). Its last qualifying market drained on 2026-10-01
+    // and most of Fraxtal is priced through it; it has traded within about 1%
+    // of ETH (quarterly median −0.02% to −1.04%). The source is only used when
+    // no local pool qualifies, so frxETH keeps its own price while it has one.
+    // History: Metal (#892) was the first entry, because its oUSDT-denominated
+    // pools priced WETH ~28% high.
     source: {
       chainId: 10,
       address: toChecksumAddress("0x4200000000000000000000000000000000000006"),
     },
     targets: [
+      ...([1135, 34443, 1868, 130, 57073, 1750, 1923, 5330] as const).map(
+        (chainId) => ({
+          chainId,
+          address: toChecksumAddress(
+            "0x4200000000000000000000000000000000000006",
+          ),
+        }),
+      ),
       {
-        chainId: 1750,
+        chainId: 42220, // Celo
         address: toChecksumAddress(
-          "0x4200000000000000000000000000000000000006",
+          "0xD221812de1BD094f35587EE8E174B07B6167D9Af",
+        ),
+      },
+      {
+        chainId: 252, // Fraxtal (frxETH)
+        address: toChecksumAddress(
+          "0xFC00000000000000000000000000000000000006",
         ),
       },
     ],
@@ -724,33 +732,253 @@ const REBINDS: ReadonlyArray<{
       address: toChecksumAddress("0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81"),
     })),
   },
+  {
+    // WETH on the Aero-only chains -> Optimism WETH. All four are ETH 1:1:
+    // the canonical WETH9 on Ethereum and Arbitrum, the WETH of Robinhood
+    // Chain (an Arbitrum Orbit chain with native ETH) and the bridged WETH on
+    // Arc. Their local Aero pools are new and mostly thin; the canonical
+    // candidate competes on depth like any other (ADR 0004).
+    source: {
+      chainId: 10,
+      address: toChecksumAddress("0x4200000000000000000000000000000000000006"),
+    },
+    targets: [
+      { chainId: 1, address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2" },
+      { chainId: 42161, address: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1" },
+      { chainId: 4663, address: "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73" },
+      { chainId: 5042, address: "0x128cC466B61f542da60c70e3aA11c10e19B84EDB" },
+    ].map((t) => ({ ...t, address: toChecksumAddress(t.address) })),
+  },
+  {
+    // xAERO (each Aero leaf chain's emission receipt token, redeemable 1:1 for
+    // AERO on Base; `receiptToken` in deployment-addresses/leaf-<chain>.json)
+    // -> AERO on Base. Ethereum, Ink and Robinhood share one address.
+    source: {
+      chainId: 8453,
+      address: toChecksumAddress("0x3f5bF3EdAc59d650D8fDf9657a71F2f904A3a4Ee"),
+    },
+    targets: [
+      { chainId: 10, address: "0xbdEaeA5205d16f34Cb40038052d91235D87B4C54" },
+      { chainId: 42161, address: "0x436a085B2751cB87db270FFa66f8d698F87bEC82" },
+      { chainId: 5042, address: "0x20077cC0d5E385A0Fe9C91bbC7DC744f51559307" },
+      ...([1, 57073, 4663] as const).map((chainId) => ({
+        chainId,
+        address: "0x9e148C5716b5aAdCFD3B71cEAE9EE7a9e22C29E2",
+      })),
+    ].map((t) => ({ ...t, address: toChecksumAddress(t.address) })),
+  },
 ];
 
-const PRICE_REBIND: ReadonlyMap<string, RebindTarget> = new Map(
-  REBINDS.flatMap(({ source, targets }) =>
-    targets.map((t): [string, RebindTarget] => [
-      TokenId(t.chainId, t.address),
-      source,
-    ]),
-  ),
-);
+const CANONICAL_SOURCE_BY_TARGET: ReadonlyMap<string, CanonicalSource> =
+  new Map(
+    CANONICAL_SOURCES.flatMap(({ source, targets }) =>
+      targets.map((t): [string, CanonicalSource] => [
+        TokenId(t.chainId, t.address),
+        source,
+      ]),
+    ),
+  );
 
 /**
- * Whether this token's price should be forced to 0, bypassing the oracle entirely.
+ * {@link BLACKLIST} split per chain, so the hot-path check is a Map + Set
+ * lookup on the address the caller already holds instead of building a
+ * `{chainId}-{address}` string per call. Same membership: a TokenId is
+ * `{chainId}-{address}` and an address never contains `-`.
+ */
+const BLACKLIST_BY_CHAIN: ReadonlyMap<number, ReadonlySet<string>> = (() => {
+  const byChain = new Map<number, Set<string>>();
+  for (const tokenId of BLACKLIST) {
+    const dash = tokenId.indexOf("-");
+    const chainId = Number(tokenId.slice(0, dash));
+    let addresses = byChain.get(chainId);
+    if (!addresses) {
+      addresses = new Set();
+      byChain.set(chainId, addresses);
+    }
+    addresses.add(tokenId.slice(dash + 1));
+  }
+  return byChain;
+})();
+
+/**
+ * Whether this token's price should be forced to 0, ahead of any pool route.
  * @param chainId - Chain the token lives on
  * @param address - Token address (must be EIP-55 checksum-cased to match config)
  * @returns true if the token is blacklisted on that chain
  */
 export const isBlacklistedToken = (chainId: number, address: string): boolean =>
-  BLACKLIST.has(TokenId(chainId, address));
+  BLACKLIST_BY_CHAIN.get(chainId)?.has(address) ?? false;
 
 /**
- * Where this token's price should be copied from, if anywhere.
+ * The canonical source of the same asset on another chain, if one is
+ * configured (see {@link CANONICAL_SOURCES}).
  * @param chainId - Chain the target token lives on
  * @param address - Target token address (EIP-55 checksum-cased)
- * @returns Source {chainId, address} to read the price from, or undefined if no rebind is configured
+ * @returns Source {chainId, address}, or undefined if the token has none
  */
-export const getRebindTarget = (
+export const getCanonicalSource = (
   chainId: number,
   address: string,
-): RebindTarget | undefined => PRICE_REBIND.get(TokenId(chainId, address));
+): CanonicalSource | undefined =>
+  CANONICAL_SOURCE_BY_TARGET.get(TokenId(chainId, address));
+
+/**
+ * Every configured (target, source) pair, for audits and tests.
+ * @returns The flattened equivalence list
+ */
+export const listCanonicalSources = (): ReadonlyArray<{
+  target: CanonicalSource;
+  source: CanonicalSource;
+}> =>
+  CANONICAL_SOURCES.flatMap(({ source, targets }) =>
+    targets.map((target) => ({ target, source })),
+  );
+
+/** One side of a {@link CanonicalSourcePool}. */
+export interface CanonicalSourcePoolToken {
+  /** Token address (EIP-55 checksum-cased). */
+  readonly address: string;
+  readonly decimals: number;
+}
+
+/**
+ * A pool on a canonical source's own chain that prices the source against a
+ * pinned stablecoin, read over RPC when neither the seed nor the source
+ * chain's snapshots cover an hour (`getCanonicalSourceRpcPrice`,
+ * docs/adr/0010-canonical-source-rpc-price.md).
+ */
+export interface CanonicalSourcePool {
+  /** Pool address (EIP-55 checksum-cased). */
+  readonly address: string;
+  /** CL pool (`slot0`) or V2 volatile pool (`getReserves`). */
+  readonly isCL: boolean;
+  readonly token0: CanonicalSourcePoolToken;
+  readonly token1: CanonicalSourcePoolToken;
+}
+
+const OPTIMISM_USDC: CanonicalSourcePoolToken = {
+  address: toChecksumAddress("0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85"),
+  decimals: 6,
+};
+const OPTIMISM_WETH: CanonicalSourcePoolToken = {
+  address: toChecksumAddress("0x4200000000000000000000000000000000000006"),
+  decimals: 18,
+};
+
+/**
+ * The pools read for each canonical source, keyed by source token id. They are
+ * the pools the source chain itself prices the token through (its deepest
+ * qualifying pools in the indexed data), so the RPC price and the source's own
+ * `TokenPriceSnapshot` agree. The deepest listed pool that passes the source
+ * chain's pricing rules at the block read wins, as on the source chain.
+ *
+ * Every pool pairs the source with a token pinned at $1 on that chain and is
+ * CL or V2 volatile (both asserted in test/PriceOverrides.test.ts; token order
+ * and decimals are checked against the chain by scripts/check-canonical-rpc-price.ts).
+ * A source without an entry (rsETH, SolvBTC, ezETH: priced through WETH or BTC
+ * pools) has no RPC price.
+ */
+const CANONICAL_SOURCE_POOLS: ReadonlyMap<
+  string,
+  ReadonlyArray<CanonicalSourcePool>
+> = new Map<string, ReadonlyArray<CanonicalSourcePool>>([
+  [
+    // Optimism WETH
+    TokenId(10, OPTIMISM_WETH.address),
+    [
+      {
+        // CL-100 USDC/WETH (Aero deployment, the deepest since 2026-10-22)
+        address: toChecksumAddress(
+          "0xcA231D91eC00385a54e541f504617d2197f9B7c3",
+        ),
+        isCL: true,
+        token0: OPTIMISM_USDC,
+        token1: OPTIMISM_WETH,
+      },
+      {
+        // CL-100 USDC/WETH (Velodrome Slipstream, the deepest before that)
+        address: toChecksumAddress(
+          "0x478946BcD4a5a22b316470F5486fAfb928C0bA25",
+        ),
+        isCL: true,
+        token0: OPTIMISM_USDC,
+        token1: OPTIMISM_WETH,
+      },
+    ],
+  ],
+  [
+    // Optimism VELO (the source of XVELO)
+    TokenId(
+      10,
+      toChecksumAddress("0x9560e827aF36c94D2Ac33a39bCE1Fe78631088Db"),
+    ),
+    [
+      {
+        // Volatile AMM USDC/VELO
+        address: toChecksumAddress(
+          "0xa0A215dE234276CAc1b844fD58901351a50fec8A",
+        ),
+        isCL: false,
+        token0: OPTIMISM_USDC,
+        token1: {
+          address: toChecksumAddress(
+            "0x9560e827aF36c94D2Ac33a39bCE1Fe78631088Db",
+          ),
+          decimals: 18,
+        },
+      },
+    ],
+  ],
+  [
+    // Base AERO (the source of xAERO)
+    TokenId(
+      8453,
+      toChecksumAddress("0x3f5bF3EdAc59d650D8fDf9657a71F2f904A3a4Ee"),
+    ),
+    [
+      {
+        // Volatile AMM AERO/USDC
+        address: toChecksumAddress(
+          "0xF634058dC94e6BF8e828E27621320C423bC8B18E",
+        ),
+        isCL: false,
+        token0: {
+          address: toChecksumAddress(
+            "0x3f5bF3EdAc59d650D8fDf9657a71F2f904A3a4Ee",
+          ),
+          decimals: 18,
+        },
+        token1: {
+          address: toChecksumAddress(
+            "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+          ),
+          decimals: 6,
+        },
+      },
+    ],
+  ],
+]);
+
+/**
+ * The pools a canonical source may be priced through over RPC (see
+ * {@link CANONICAL_SOURCE_POOLS}).
+ * @param sourceTokenId - Source token id (`{chainId}-{address}`, checksum-cased)
+ * @returns The pools, or an empty list for a source without any
+ */
+export const getCanonicalSourcePools = (
+  sourceTokenId: string,
+): ReadonlyArray<CanonicalSourcePool> =>
+  CANONICAL_SOURCE_POOLS.get(sourceTokenId) ?? [];
+
+/**
+ * Every configured (source token id, pools) pair, for audits and tests.
+ * @returns The configured sources with their pools
+ */
+export const listCanonicalSourcePools = (): ReadonlyArray<{
+  sourceTokenId: string;
+  pools: ReadonlyArray<CanonicalSourcePool>;
+}> =>
+  [...CANONICAL_SOURCE_POOLS.entries()].map(([sourceTokenId, pools]) => ({
+    sourceTokenId,
+    pools,
+  }));

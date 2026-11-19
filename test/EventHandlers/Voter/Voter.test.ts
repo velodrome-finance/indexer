@@ -3,9 +3,6 @@ import { createTestIndexer } from "envio";
 import * as PoolModule from "../../../src/Aggregators/Pool";
 import {
   CHAIN_CONSTANTS,
-  PendingDistributionId,
-  PendingRootPoolMappingId,
-  PendingVoteId,
   PoolId,
   RootGaugeRootPoolId,
   RootPoolLeafPoolId,
@@ -13,15 +10,19 @@ import {
   UserStatsPerPoolId,
   VeNFTId,
   VeNFTPoolVoteId,
-  rootPoolMatchingHash,
+  getLegacyConstants,
   toChecksumAddress,
 } from "../../../src/Constants";
-import { getTokensDeposited } from "../../../src/Effects/Voter";
 import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
+import {
+  RootPoolId,
+  RootPoolVoteId,
+} from "../../../src/EventHandlers/Voter/RootPoolLogic";
 import {
   PRICE_TRUST_OUTCOME,
   PRICE_TRUST_REASON,
 } from "../../../src/PriceTrust";
+import { type WithChain, withLegacyRewardToken } from "../../testHelpers";
 import { type MockPool, setupCommon } from "../Pool/common";
 
 type MockUserStatsPerPool = ReturnType<
@@ -29,21 +30,16 @@ type MockUserStatsPerPool = ReturnType<
 >;
 
 // --- DistributeReward test helpers ---
-interface EffectWithHandler<I, O> {
-  name: string;
-  handler: (args: { input: I; context: unknown }) => Promise<O>;
-}
-
 const DEFAULT_REWARD_TIMESTAMP_SECONDS = 1000000;
 
 function createRewardToken(
   chainId: number,
   rewardTokenAddress: string,
   overrides?: Partial<Token> & { timestampSeconds?: number },
-): Token {
+): WithChain<Token> {
   const timestampSeconds =
     overrides?.timestampSeconds ?? DEFAULT_REWARD_TIMESTAMP_SECONDS;
-  const base: Token = {
+  const base: WithChain<Token> = {
     id: TokenId(chainId, rewardTokenAddress),
     address: rewardTokenAddress as `0x${string}`,
     symbol: "VELO",
@@ -53,7 +49,7 @@ function createRewardToken(
     pricePerUSDNew: 2n * 10n ** 18n,
     isWhitelisted: true,
     lastUpdatedTimestamp: new Date(timestampSeconds * 1000),
-  } as Token;
+  } as WithChain<Token>;
   if (!overrides) return base;
   const { timestampSeconds: _ts, ...rest } = overrides;
   return { ...base, ...rest };
@@ -62,31 +58,13 @@ function createRewardToken(
 function setupDistributeRewardMocks(
   chainId: number,
   rewardTokenAddress: string,
-  options?: { getTokensDepositedValue?: bigint; timestampSeconds?: number },
-): { rewardToken: Token; cleanup: () => void } {
+  options?: { timestampSeconds?: number },
+): { rewardToken: WithChain<Token>; cleanup: () => void } {
   const original = CHAIN_CONSTANTS[chainId];
-  CHAIN_CONSTANTS[chainId] = {
-    ...original,
-    rewardToken: vi.fn().mockReturnValue(rewardTokenAddress),
-  };
-
-  let spy: ReturnType<typeof vi.spyOn> | undefined;
-  if (options?.getTokensDepositedValue !== undefined) {
-    spy = vi
-      .spyOn(
-        getTokensDeposited as unknown as EffectWithHandler<
-          {
-            rewardTokenAddress: string;
-            gaugeAddress: string;
-            blockNumber: number;
-            eventChainId: number;
-          },
-          bigint | undefined
-        >,
-        "handler",
-      )
-      .mockImplementation(async () => options.getTokensDepositedValue);
-  }
+  CHAIN_CONSTANTS[chainId] = withLegacyRewardToken(
+    original,
+    vi.fn().mockReturnValue(rewardTokenAddress),
+  );
 
   const rewardToken = createRewardToken(chainId, rewardTokenAddress, {
     timestampSeconds: options?.timestampSeconds,
@@ -94,12 +72,42 @@ function setupDistributeRewardMocks(
 
   const cleanup = () => {
     CHAIN_CONSTANTS[chainId] = original;
-    spy?.mockRestore();
   };
 
   return { rewardToken, cleanup };
 }
 // --- end DistributeReward helpers ---
+
+// Superchain RootCLPoolFactory on Optimism (creates the RootPool, ADR 0009).
+const ROOT_CL_POOL_FACTORY = toChecksumAddress(
+  "0x04625B046C69577EfC40e6c0Bb83CDBAfab5a55F",
+);
+
+/**
+ * A RootCLPoolFactory.RootPoolCreated for `pool` (pair and tick spacing are
+ * placeholders; only the RootPool row matters here).
+ */
+function rootPoolCreated(
+  pool: string,
+  leafChainId: number,
+  block: { number: number; timestamp: number },
+  logIndex = 1,
+) {
+  return {
+    contract: "RootCLPoolFactory" as const,
+    event: "RootPoolCreated" as const,
+    srcAddress: ROOT_CL_POOL_FACTORY,
+    logIndex,
+    block: { ...block, hash: "0xrootpoolcreated" },
+    params: {
+      token0: toChecksumAddress("0xFc00000000000000000000000000000000000001"),
+      token1: toChecksumAddress("0xFC00000000000000000000000000000000000006"),
+      tickSpacing: 100n,
+      chainid: BigInt(leafChainId),
+      pool,
+    },
+  };
+}
 
 describe("Voter Events", () => {
   beforeEach(() => {
@@ -131,7 +139,7 @@ describe("Voter Events", () => {
     describe("when pool data exists", () => {
       let mockLiquidityPool: MockPool;
       let mockUserStats: MockUserStatsPerPool;
-      let mockVeNFTState: VeNFTState;
+      let mockVeNFTState: WithChain<VeNFTState>;
 
       beforeEach(async () => {
         const {
@@ -326,619 +334,10 @@ describe("Voter Events", () => {
       });
     });
 
-    describe("when RootPool_LeafPool mapping is missing", () => {
-      const rootPoolAddress = toChecksumAddress(
-        "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
-      );
-      const blockTimestamp = 1000000;
-      const blockNumber = 123456;
-      const txHash =
-        "0x133260f0f7bf0a06d262f09b064a35d3c63178c6b5fd8e4798ba780f357dc7bd";
-      const rootChainId = 10;
-      const leafChainId = 252;
-      const token0 = toChecksumAddress(
-        "0xFc00000000000000000000000000000000000001",
-      );
-      const token1 = toChecksumAddress(
-        "0xFC00000000000000000000000000000000000006",
-      );
-      const tickSpacing = 100n;
-      const makePendingMapping = () => ({
-        id: PendingRootPoolMappingId(rootChainId, rootPoolAddress),
-        rootChainId,
-        rootPoolAddress,
-        leafChainId,
-        token0,
-        token1,
-        tickSpacing,
-        rootPoolMatchingHash: rootPoolMatchingHash(
-          leafChainId,
-          token0,
-          token1,
-          tickSpacing,
-        ),
-      });
-
-      it("should create PendingVote for Voted and not update pool entities", async () => {
-        const { createMockVeNFTState } = setupCommon();
-        const mockVeNFTState = createMockVeNFTState({
-          id: VeNFTId(chainId, tokenId),
-          chainId,
-          tokenId,
-          owner: ownerAddress,
-        });
-        // Cross-chain: root pool has PendingRootPoolMapping but no leaf yet -> MAPPING_NOT_FOUND -> create PendingVote
-        indexer.VeNFTState.set(mockVeNFTState);
-        indexer.PendingRootPoolMapping.set(makePendingMapping());
-
-        await indexer.process({
-          chains: {
-            [chainId]: {
-              simulate: [
-                {
-                  contract: "Voter",
-                  event: "Voted",
-                  logIndex: 1,
-                  transaction: { hash: txHash },
-                  block: {
-                    number: blockNumber,
-                    timestamp: blockTimestamp,
-                    hash: txHash,
-                  },
-                  params: {
-                    voter: voterAddress,
-                    pool: rootPoolAddress,
-                    tokenId,
-                    weight: 100n,
-                    totalWeight: 1000n,
-                  },
-                },
-              ],
-            },
-          },
-        });
-
-        const expectedPendingId = PendingVoteId(
-          chainId,
-          rootPoolAddress,
-          tokenId,
-          txHash,
-          1,
-        );
-        const pendingVote = await indexer.PendingVote.get(expectedPendingId);
-        expect(pendingVote).toBeDefined();
-        expect(pendingVote?.rootPoolAddress).toBe(rootPoolAddress);
-        expect(pendingVote?.tokenId).toBe(tokenId);
-        expect(pendingVote?.weight).toBe(100n);
-        expect(pendingVote?.eventType).toBe("Voted");
-        expect(pendingVote?.blockNumber).toBe(BigInt(blockNumber));
-        expect(pendingVote?.transactionHash).toBe(txHash);
-
-        expect(Array.from(await indexer.Pool.getAll())).toHaveLength(0);
-        expect(
-          Array.from(await indexer.UserStatsPerPool.getAll()),
-        ).toHaveLength(0);
-        expect(Array.from(await indexer.VeNFTPoolVote.getAll())).toHaveLength(
-          0,
-        );
-      });
-
-      it("should create PendingVote for Abstained and not update pool entities", async () => {
-        const { createMockVeNFTState } = setupCommon();
-        const mockVeNFTState = createMockVeNFTState({
-          id: VeNFTId(chainId, tokenId),
-          chainId,
-          tokenId,
-          owner: ownerAddress,
-        });
-        const db2 = createTestIndexer();
-        db2.VeNFTState.set(mockVeNFTState);
-        db2.PendingRootPoolMapping.set(makePendingMapping());
-
-        await db2.process({
-          chains: {
-            [chainId]: {
-              simulate: [
-                {
-                  contract: "Voter",
-                  event: "Abstained",
-                  logIndex: 1,
-                  transaction: { hash: txHash },
-                  block: {
-                    number: blockNumber,
-                    timestamp: blockTimestamp,
-                    hash: txHash,
-                  },
-                  params: {
-                    voter: voterAddress,
-                    pool: rootPoolAddress,
-                    tokenId,
-                    weight: 100n,
-                    totalWeight: 1000n,
-                  },
-                },
-              ],
-            },
-          },
-        });
-
-        const expectedPendingId = PendingVoteId(
-          chainId,
-          rootPoolAddress,
-          tokenId,
-          txHash,
-          1,
-        );
-        const pendingVote = await db2.PendingVote.get(expectedPendingId);
-        expect(pendingVote).toBeDefined();
-        expect(pendingVote?.eventType).toBe("Abstained");
-        expect(pendingVote?.weight).toBe(100n);
-
-        expect(Array.from(await db2.Pool.getAll())).toHaveLength(0);
-        expect(Array.from(await db2.UserStatsPerPool.getAll())).toHaveLength(0);
-        expect(Array.from(await db2.VeNFTPoolVote.getAll())).toHaveLength(0);
-      });
-
-      it("should not create PendingVote for Voted when RootPool_LeafPool mapping is missing and veNFTState is missing", async () => {
-        // Deferred path: missing root pool mapping. No VeNFTState in DB -> must not create PendingVote.
-        const db3 = createTestIndexer();
-        db3.PendingRootPoolMapping.set(makePendingMapping());
-
-        await db3.process({
-          chains: {
-            [chainId]: {
-              simulate: [
-                {
-                  contract: "Voter",
-                  event: "Voted",
-                  logIndex: 1,
-                  transaction: { hash: txHash },
-                  block: {
-                    number: blockNumber,
-                    timestamp: blockTimestamp,
-                    hash: txHash,
-                  },
-                  params: {
-                    voter: voterAddress,
-                    pool: rootPoolAddress,
-                    tokenId,
-                    weight: 100n,
-                    totalWeight: 1000n,
-                  },
-                },
-              ],
-            },
-          },
-        });
-
-        const expectedPendingId = PendingVoteId(
-          chainId,
-          rootPoolAddress,
-          tokenId,
-          txHash,
-          1,
-        );
-        const pendingVote = await db3.PendingVote.get(expectedPendingId);
-        expect(pendingVote).toBeUndefined();
-        expect(Array.from(await db3.PendingVote.getAll())).toHaveLength(0);
-        expect(Array.from(await db3.Pool.getAll())).toHaveLength(0);
-        expect(Array.from(await db3.UserStatsPerPool.getAll())).toHaveLength(0);
-        expect(Array.from(await db3.VeNFTPoolVote.getAll())).toHaveLength(0);
-      });
-
-      it("should not create PendingVote for Abstained when RootPool_LeafPool mapping is missing and veNFTState is missing", async () => {
-        // Deferred path: missing root pool mapping. No VeNFTState in DB -> must not create PendingVote.
-        const db4 = createTestIndexer();
-        db4.PendingRootPoolMapping.set(makePendingMapping());
-
-        await db4.process({
-          chains: {
-            [chainId]: {
-              simulate: [
-                {
-                  contract: "Voter",
-                  event: "Abstained",
-                  logIndex: 1,
-                  transaction: { hash: txHash },
-                  block: {
-                    number: blockNumber,
-                    timestamp: blockTimestamp,
-                    hash: txHash,
-                  },
-                  params: {
-                    voter: voterAddress,
-                    pool: rootPoolAddress,
-                    tokenId,
-                    weight: 100n,
-                    totalWeight: 1000n,
-                  },
-                },
-              ],
-            },
-          },
-        });
-
-        const expectedPendingId = PendingVoteId(
-          chainId,
-          rootPoolAddress,
-          tokenId,
-          txHash,
-          1,
-        );
-        const pendingVote = await db4.PendingVote.get(expectedPendingId);
-        expect(pendingVote).toBeUndefined();
-        expect(Array.from(await db4.PendingVote.getAll())).toHaveLength(0);
-        expect(Array.from(await db4.Pool.getAll())).toHaveLength(0);
-        expect(Array.from(await db4.UserStatsPerPool.getAll())).toHaveLength(0);
-        expect(Array.from(await db4.VeNFTPoolVote.getAll())).toHaveLength(0);
-      });
-    });
-
-    describe("when pool is a known sink root pool (issue #601)", () => {
-      // Known sink per src/Constants.ts KNOWN_SINK_ROOT_POOLS (OP). These
-      // addresses are placeholder contracts with no real leaf pool, so votes
-      // must be silently dropped instead of accumulating orphan PendingVote
-      // rows that would never flush.
-      const sinkRootPoolAddress = toChecksumAddress(
-        "0x333030A736B47D20346d82A473680658ac1C2b88",
-      );
-
-      it("drops Voted silently without creating PendingVote", async () => {
-        const { createMockVeNFTState } = setupCommon();
-        const mockVeNFTState = createMockVeNFTState({
-          id: VeNFTId(chainId, tokenId),
-          chainId,
-          tokenId,
-          owner: ownerAddress,
-        });
-        indexer.VeNFTState.set(mockVeNFTState);
-
-        await indexer.process({
-          chains: {
-            [chainId]: {
-              simulate: [
-                {
-                  contract: "Voter",
-                  event: "Voted",
-                  logIndex: 1,
-                  transaction: { hash: "0xsinkhash" },
-                  block: {
-                    number: 123456,
-                    timestamp: 1000000,
-                    hash: "0xsinkhash",
-                  },
-                  params: {
-                    voter: voterAddress,
-                    pool: sinkRootPoolAddress,
-                    tokenId,
-                    weight: 100n,
-                    totalWeight: 1000n,
-                  },
-                },
-              ],
-            },
-          },
-        });
-
-        expect(Array.from(await indexer.PendingVote.getAll())).toHaveLength(0);
-        expect(Array.from(await indexer.Pool.getAll())).toHaveLength(0);
-      });
-
-      it("drops Abstained silently without creating PendingVote", async () => {
-        const { createMockVeNFTState } = setupCommon();
-        const mockVeNFTState = createMockVeNFTState({
-          id: VeNFTId(chainId, tokenId),
-          chainId,
-          tokenId,
-          owner: ownerAddress,
-        });
-        const sinkIndexer = createTestIndexer();
-        sinkIndexer.VeNFTState.set(mockVeNFTState);
-
-        await sinkIndexer.process({
-          chains: {
-            [chainId]: {
-              simulate: [
-                {
-                  contract: "Voter",
-                  event: "Abstained",
-                  logIndex: 1,
-                  transaction: { hash: "0xsinkhash" },
-                  block: {
-                    number: 123456,
-                    timestamp: 1000000,
-                    hash: "0xsinkhash",
-                  },
-                  params: {
-                    voter: voterAddress,
-                    pool: sinkRootPoolAddress,
-                    tokenId,
-                    weight: 100n,
-                    totalWeight: 1000n,
-                  },
-                },
-              ],
-            },
-          },
-        });
-
-        expect(Array.from(await sinkIndexer.PendingVote.getAll())).toHaveLength(
-          0,
-        );
-        expect(Array.from(await sinkIndexer.Pool.getAll())).toHaveLength(0);
-      });
-    });
-
-    describe("cross-chain sync: RootPoolCreated then Voted/Abstained (leaf chain behind)", () => {
-      const rootChainId = 10;
-      const leafChainId = 252;
-      const rootPoolAddress = toChecksumAddress(
-        "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
-      );
-      const token0 = toChecksumAddress(
-        "0xFc00000000000000000000000000000000000001",
-      );
-      const token1 = toChecksumAddress(
-        "0xFC00000000000000000000000000000000000006",
-      );
-      const tickSpacing = BigInt(100);
-      const voteTokenId = 1n;
-      const voteWeight = 100n;
-      const totalWeight = 1000n;
-      const blockTimestamp = 1000000;
-      const blockNumber = 123456;
-      const txHash =
-        "0x133260f0f7bf0a06d262f09b064a35d3c63178c6b5fd8e4798ba780f357dc7bd";
-
-      it("should create PendingRootPoolMapping and PendingVote when RootPoolCreated then Voted (no leaf pool yet)", async () => {
-        const { createMockVeNFTState } = setupCommon();
-        const mockVeNFTState = createMockVeNFTState({
-          id: VeNFTId(rootChainId, voteTokenId),
-          chainId: rootChainId,
-          tokenId: voteTokenId,
-          owner: ownerAddress,
-        });
-        const db = createTestIndexer();
-        db.VeNFTState.set(mockVeNFTState);
-
-        await db.process({
-          chains: {
-            [rootChainId as 10]: {
-              simulate: [
-                {
-                  contract: "RootCLPoolFactory",
-                  event: "RootPoolCreated",
-                  logIndex: 1,
-                  block: {
-                    timestamp: blockTimestamp,
-                    number: blockNumber,
-                    hash: txHash,
-                  },
-                  params: {
-                    token0,
-                    token1,
-                    tickSpacing,
-                    chainid: BigInt(leafChainId),
-                    pool: rootPoolAddress,
-                  },
-                },
-                {
-                  contract: "Voter",
-                  event: "Voted",
-                  logIndex: 2,
-                  transaction: { hash: txHash },
-                  block: {
-                    number: blockNumber,
-                    timestamp: blockTimestamp,
-                    hash: txHash,
-                  },
-                  params: {
-                    voter: voterAddress,
-                    pool: rootPoolAddress,
-                    tokenId: voteTokenId,
-                    weight: voteWeight,
-                    totalWeight,
-                  },
-                },
-              ],
-            },
-          },
-        });
-
-        const pendingMapping = await db.PendingRootPoolMapping.get(
-          PendingRootPoolMappingId(rootChainId, rootPoolAddress),
-        );
-        expect(pendingMapping).toBeDefined();
-        expect(pendingMapping?.rootPoolAddress).toBe(rootPoolAddress);
-        expect(pendingMapping?.rootChainId).toBe(rootChainId);
-        expect(pendingMapping?.leafChainId).toBe(leafChainId);
-        expect(pendingMapping?.token0).toBe(token0);
-        expect(pendingMapping?.token1).toBe(token1);
-        expect(pendingMapping?.tickSpacing).toBe(tickSpacing);
-        expect(pendingMapping?.rootPoolMatchingHash).toBe(
-          rootPoolMatchingHash(leafChainId, token0, token1, tickSpacing),
-        );
-
-        const expectedPendingVoteId = PendingVoteId(
-          rootChainId,
-          rootPoolAddress,
-          voteTokenId,
-          txHash,
-          2,
-        );
-        const pendingVote = await db.PendingVote.get(expectedPendingVoteId);
-        expect(pendingVote).toBeDefined();
-        expect(pendingVote?.rootPoolAddress).toBe(rootPoolAddress);
-        expect(pendingVote?.eventType).toBe("Voted");
-        expect(pendingVote?.weight).toBe(voteWeight);
-
-        expect(Array.from(await db.RootPool_LeafPool.getAll())).toHaveLength(0);
-        expect(Array.from(await db.Pool.getAll())).toHaveLength(0);
-      });
-
-      it("should create PendingRootPoolMapping and PendingVote when RootPoolCreated then Abstained (no leaf pool yet)", async () => {
-        const { createMockVeNFTState } = setupCommon();
-        const mockVeNFTState = createMockVeNFTState({
-          id: VeNFTId(rootChainId, voteTokenId),
-          chainId: rootChainId,
-          tokenId: voteTokenId,
-          owner: ownerAddress,
-        });
-        const db = createTestIndexer();
-        db.VeNFTState.set(mockVeNFTState);
-
-        await db.process({
-          chains: {
-            [rootChainId as 10]: {
-              simulate: [
-                {
-                  contract: "RootCLPoolFactory",
-                  event: "RootPoolCreated",
-                  logIndex: 1,
-                  block: {
-                    timestamp: blockTimestamp,
-                    number: blockNumber,
-                    hash: txHash,
-                  },
-                  params: {
-                    token0,
-                    token1,
-                    tickSpacing,
-                    chainid: BigInt(leafChainId),
-                    pool: rootPoolAddress,
-                  },
-                },
-                {
-                  contract: "Voter",
-                  event: "Abstained",
-                  logIndex: 2,
-                  transaction: { hash: txHash },
-                  block: {
-                    number: blockNumber,
-                    timestamp: blockTimestamp,
-                    hash: txHash,
-                  },
-                  params: {
-                    voter: voterAddress,
-                    pool: rootPoolAddress,
-                    tokenId: voteTokenId,
-                    weight: voteWeight,
-                    totalWeight,
-                  },
-                },
-              ],
-            },
-          },
-        });
-
-        const pendingMapping = await db.PendingRootPoolMapping.get(
-          PendingRootPoolMappingId(rootChainId, rootPoolAddress),
-        );
-        expect(pendingMapping).toBeDefined();
-
-        const expectedPendingVoteId = PendingVoteId(
-          rootChainId,
-          rootPoolAddress,
-          voteTokenId,
-          txHash,
-          2,
-        );
-        const pendingVote = await db.PendingVote.get(expectedPendingVoteId);
-        expect(pendingVote).toBeDefined();
-        expect(pendingVote?.eventType).toBe("Abstained");
-
-        expect(Array.from(await db.RootPool_LeafPool.getAll())).toHaveLength(0);
-      });
-    });
-
-    describe("Voted processed before RootPoolCreated (sync order edge case)", () => {
-      const rootChainId = 10;
-      const leafChainId = 252;
-      const rootPoolAddress = toChecksumAddress(
-        "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
-      );
-      const token0 = toChecksumAddress(
-        "0xFc00000000000000000000000000000000000001",
-      );
-      const token1 = toChecksumAddress(
-        "0xFC00000000000000000000000000000000000006",
-      );
-      const tickSpacing = BigInt(100);
-      const voteTokenId = 1n;
-      const blockTimestamp = 1000000;
-      const blockNumber = 123456;
-      const txHash =
-        "0x133260f0f7bf0a06d262f09b064a35d3c63178c6b5fd8e4798ba780f357dc7bd";
-
-      it("should create PendingVote when Voted is processed before RootPoolCreated (PendingRootPoolMapping created by second event)", async () => {
-        const { createMockVeNFTState } = setupCommon();
-        const mockVeNFTState = createMockVeNFTState({
-          id: VeNFTId(rootChainId, voteTokenId),
-          chainId: rootChainId,
-          tokenId: voteTokenId,
-          owner: ownerAddress,
-        });
-        const db = createTestIndexer();
-        db.VeNFTState.set(mockVeNFTState);
-
-        await db.process({
-          chains: {
-            [rootChainId as 10]: {
-              simulate: [
-                {
-                  contract: "Voter",
-                  event: "Voted",
-                  logIndex: 1,
-                  transaction: { hash: txHash },
-                  block: {
-                    number: blockNumber,
-                    timestamp: blockTimestamp,
-                    hash: txHash,
-                  },
-                  params: {
-                    voter: voterAddress,
-                    pool: rootPoolAddress,
-                    tokenId: voteTokenId,
-                    weight: 100n,
-                    totalWeight: 1000n,
-                  },
-                },
-                {
-                  contract: "RootCLPoolFactory",
-                  event: "RootPoolCreated",
-                  logIndex: 2,
-                  block: {
-                    timestamp: blockTimestamp + 1,
-                    number: blockNumber + 1,
-                    hash: txHash,
-                  },
-                  params: {
-                    token0,
-                    token1,
-                    tickSpacing,
-                    chainid: BigInt(leafChainId),
-                    pool: rootPoolAddress,
-                  },
-                },
-              ],
-            },
-          },
-        });
-
-        // create PendingVote whenever mapping is missing; RootPoolCreated then adds PendingRootPoolMapping
-        expect(Array.from(await db.PendingVote.getAll())).toHaveLength(1);
-
-        const pendingMapping = await db.PendingRootPoolMapping.get(
-          PendingRootPoolMappingId(rootChainId, rootPoolAddress),
-        );
-        expect(pendingMapping).toBeDefined();
-        expect(pendingMapping?.rootPoolAddress).toBe(rootPoolAddress);
-
-        expect(Array.from(await db.RootPool_LeafPool.getAll())).toHaveLength(0);
-      });
-    });
-
-    describe("when pool is a RootCLPool", () => {
+    // A superchain root pool on Optimism: its vote goes to the RootPool and the
+    // veNFT's RootPoolVote only, never onto the leaf pool, a leaf user or a
+    // leaf-keyed VeNFTPoolVote (ADR 0009, flow A).
+    describe("when pool is a superchain root pool", () => {
       // Real data from actual event
       // Event available here: https://optimistic.etherscan.io/tx/0x133260f0f7bf0a06d262f09b064a35d3c63178c6b5fd8e4798ba780f357dc7bd#eventlog#94
       const rootPoolAddress = toChecksumAddress(
@@ -957,8 +356,7 @@ describe("Voter Events", () => {
       const rootChainId = 10 as const;
       const leafChainId = 252; // Fraxtal
       let mockLeafPool: MockPool;
-      let mockUserStats: MockUserStatsPerPool;
-      let mockVeNFTState: VeNFTState;
+      let mockLeafUserStats: MockUserStatsPerPool;
 
       beforeEach(async () => {
         const {
@@ -969,30 +367,17 @@ describe("Voter Events", () => {
           createMockVeNFTState,
         } = setupCommon();
 
-        // Create tokens for the leaf chain (chain 252)
-        const leafToken0Data: Token = {
-          ...mockToken0Data,
-          id: TokenId(leafChainId, mockToken0Data.address),
-          chainId: leafChainId,
-        };
-        const leafToken1Data: Token = {
-          ...mockToken1Data,
-          id: TokenId(leafChainId, mockToken1Data.address),
-          chainId: leafChainId,
-        };
-
-        // Create leaf pool using helper function
+        // The leaf side as the leaf chain writes it: the pool, its user and
+        // its own RootPool_LeafPool row.
         mockLeafPool = createMockPool({
           id: PoolId(leafChainId, leafPoolAddress),
           chainId: leafChainId,
           poolAddress: leafPoolAddress,
-          token0_id: leafToken0Data.id,
-          token1_id: leafToken1Data.id,
+          token0_id: TokenId(leafChainId, mockToken0Data.address),
+          token1_id: TokenId(leafChainId, mockToken1Data.address),
           veNFTamountStaked: 0n,
         });
-
-        // Create user stats keyed by leaf pool (real pool), not root
-        mockUserStats = createMockUserStatsPerPool({
+        mockLeafUserStats = createMockUserStatsPerPool({
           userAddress: realVoterAddress,
           poolAddress: leafPoolAddress,
           chainId: leafChainId,
@@ -1000,44 +385,42 @@ describe("Voter Events", () => {
           firstActivityTimestamp: new Date(0),
           lastActivityTimestamp: new Date(0),
         });
-
-        mockVeNFTState = createMockVeNFTState({
-          id: VeNFTId(rootChainId, realTokenId),
-          chainId: rootChainId,
-          tokenId: realTokenId,
-          owner: realVoterAddress,
-        });
-
-        // Create RootPool_LeafPool mapping
-        const rootPoolLeafPool = {
+        indexer.Pool.set(mockLeafPool);
+        indexer.UserStatsPerPool.set(mockLeafUserStats);
+        indexer.RootPool_LeafPool.set({
           id: RootPoolLeafPoolId(
             rootChainId,
             leafChainId,
             rootPoolAddress,
             leafPoolAddress,
           ),
-          rootChainId: rootChainId,
-          rootPoolAddress: rootPoolAddress,
-          leafChainId: leafChainId,
-          leafPoolAddress: leafPoolAddress,
-        };
-
-        // Setup mock database with leaf pool and RootPool_LeafPool mapping
-        indexer.Pool.set(mockLeafPool);
-        indexer.RootPool_LeafPool.set(rootPoolLeafPool);
-        indexer.UserStatsPerPool.set(mockUserStats);
-        indexer.Token.set(leafToken0Data);
-        indexer.Token.set(leafToken1Data);
-        indexer.VeNFTState.set(mockVeNFTState);
+          chainId: leafChainId,
+          rootChainId,
+          rootPoolAddress,
+          leafChainId,
+          leafPoolAddress,
+        });
+        indexer.VeNFTState.set(
+          createMockVeNFTState({
+            id: VeNFTId(rootChainId, realTokenId),
+            chainId: rootChainId,
+            tokenId: realTokenId,
+            owner: realVoterAddress,
+          }),
+        );
 
         await indexer.process({
           chains: {
             [rootChainId]: {
               simulate: [
+                rootPoolCreated(rootPoolAddress, leafChainId, {
+                  number: 123455,
+                  timestamp: realTimestamp - 100,
+                }),
                 {
                   contract: "Voter",
                   event: "Voted",
-                  logIndex: 1,
+                  logIndex: 2,
                   block: {
                     number: 123456,
                     timestamp: realTimestamp,
@@ -1057,33 +440,141 @@ describe("Voter Events", () => {
         });
       });
 
-      it("should update leaf pool aggregator with voting data", async () => {
-        const raw = await indexer.Pool.get(
-          PoolId(leafChainId, leafPoolAddress),
+      it("sets the RootPool's veNFTamountStaked to totalWeight", async () => {
+        const rootPool = await indexer.RootPool.get(
+          RootPoolId(rootChainId, rootPoolAddress),
         );
-        const updatedPool = raw ? rehydrateTimestamps("Pool", raw) : undefined;
-        expect(updatedPool).toBeDefined();
-        expect(updatedPool?.veNFTamountStaked).toBe(realTotalWeight);
-        expect(updatedPool?.lastUpdatedTimestamp).toEqual(
+        expect(rootPool?.veNFTamountStaked).toBe(realTotalWeight);
+        expect(rootPool?.lastUpdatedTimestamp).toEqual(
           new Date(realTimestamp * 1000),
         );
       });
 
-      it("should update user stats per pool with voting data", async () => {
-        const userStatsId = UserStatsPerPoolId(
-          leafChainId,
-          realVoterAddress,
-          leafPoolAddress,
+      it("records the veNFT's vote in RootPoolVote, keyed by the root pool", async () => {
+        const vote = await indexer.RootPoolVote.get(
+          RootPoolVoteId(rootChainId, realTokenId, rootPoolAddress),
         );
-        const rawStats = await indexer.UserStatsPerPool.get(userStatsId);
-        const updatedUserStats = rawStats
-          ? rehydrateTimestamps("UserStatsPerPool", rawStats)
-          : undefined;
-        expect(updatedUserStats).toBeDefined();
-        expect(updatedUserStats?.veNFTamountStaked).toBe(realWeight);
-        expect(updatedUserStats?.lastActivityTimestamp).toEqual(
-          new Date(realTimestamp * 1000),
+        expect(vote).toMatchObject({
+          id: `${rootChainId}-${realTokenId}-${rootPoolAddress}`,
+          rootPoolAddress,
+          tokenId: realTokenId,
+          veNFTStateId: VeNFTId(rootChainId, realTokenId),
+          veNFTamountStaked: realWeight,
+          lastUpdatedTimestamp: new Date(realTimestamp * 1000),
+        });
+      });
+
+      it("touches no leaf Pool, user or VeNFTPoolVote", async () => {
+        // By design (ADR 0009): the leaf pool's and leaf user's vote fields
+        // stay at 0; the numbers are on the RootPool / RootPoolVote.
+        expect(
+          await indexer.Pool.get(PoolId(leafChainId, leafPoolAddress)),
+        ).toEqual(mockLeafPool);
+        expect(await indexer.UserStatsPerPool.getAll()).toEqual([
+          mockLeafUserStats,
+        ]);
+        expect(await indexer.VeNFTPoolVote.getAll()).toEqual([]);
+      });
+    });
+
+    describe("when pool is neither a local pool nor a RootPool (a sink root pool, issue #601)", () => {
+      // Known sink on Optimism: a placeholder root pool with no real leaf pool.
+      const sinkRootPoolAddress = toChecksumAddress(
+        "0x333030A736B47D20346d82A473680658ac1C2b88",
+      );
+
+      it("ignores Voted and Abstained", async () => {
+        const { createMockVeNFTState } = setupCommon();
+        indexer.VeNFTState.set(
+          createMockVeNFTState({
+            id: VeNFTId(chainId, tokenId),
+            chainId,
+            tokenId,
+            owner: ownerAddress,
+          }),
         );
+
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: (["Voted", "Abstained"] as const).map((event, i) => ({
+                contract: "Voter" as const,
+                event,
+                logIndex: i + 1,
+                block: {
+                  number: 123456,
+                  timestamp: 1000000,
+                  hash: "0xsinkhash",
+                },
+                params: {
+                  voter: voterAddress,
+                  pool: sinkRootPoolAddress,
+                  tokenId,
+                  weight: 100n,
+                  totalWeight: 1000n,
+                },
+              })),
+            },
+          },
+        });
+
+        expect(await indexer.Pool.getAll()).toEqual([]);
+        expect(await indexer.UserStatsPerPool.getAll()).toEqual([]);
+        expect(await indexer.VeNFTPoolVote.getAll()).toEqual([]);
+        expect(await indexer.RootPool.getAll()).toEqual([]);
+        expect(await indexer.RootPoolVote.getAll()).toEqual([]);
+      });
+    });
+
+    describe("Voted processed before RootPoolCreated (sync order edge case)", () => {
+      const rootPoolAddress = toChecksumAddress(
+        "0xC4Cbb0ba3c902Fb4b49B3844230354d45C779F74",
+      );
+
+      it("does not record the vote (nothing is kept pending); the RootPool starts at 0", async () => {
+        const { createMockVeNFTState } = setupCommon();
+        indexer.VeNFTState.set(
+          createMockVeNFTState({
+            id: VeNFTId(chainId, tokenId),
+            chainId,
+            tokenId,
+            owner: ownerAddress,
+          }),
+        );
+        await indexer.process({
+          chains: {
+            [chainId]: {
+              simulate: [
+                {
+                  contract: "Voter",
+                  event: "Voted",
+                  logIndex: 1,
+                  block: { number: 123456, timestamp: 1000000, hash: "0xhash" },
+                  params: {
+                    voter: voterAddress,
+                    pool: rootPoolAddress,
+                    tokenId,
+                    weight: 100n,
+                    totalWeight: 1000n,
+                  },
+                },
+                rootPoolCreated(
+                  rootPoolAddress,
+                  252,
+                  { number: 123457, timestamp: 1000001 },
+                  2,
+                ),
+              ],
+            },
+          },
+        });
+
+        const rootPool = await indexer.RootPool.get(
+          RootPoolId(chainId, rootPoolAddress),
+        );
+        expect(rootPool?.veNFTamountStaked).toBe(0n);
+        expect(await indexer.RootPoolVote.getAll()).toEqual([]);
+        expect(await indexer.RootPool_LeafPool.getAll()).toEqual([]);
       });
     });
 
@@ -1208,8 +699,8 @@ describe("Voter Events", () => {
     describe("when pool data exists", () => {
       let mockLiquidityPool: MockPool;
       let mockUserStats: MockUserStatsPerPool;
-      let mockVeNFTState: VeNFTState;
-      let mockVeNFTPoolVote: VeNFTPoolVote;
+      let mockVeNFTState: WithChain<VeNFTState>;
+      let mockVeNFTPoolVote: WithChain<VeNFTPoolVote>;
 
       beforeEach(async () => {
         const {
@@ -1398,7 +889,9 @@ describe("Voter Events", () => {
       });
     });
 
-    describe("when pool is a RootCLPool", () => {
+    // ADR 0009, flow A: the Abstained of a superchain root pool lowers the
+    // RootPool / RootPoolVote; the leaf pool and its users are left alone.
+    describe("when pool is a superchain root pool", () => {
       // Real data from actual Abstained event
       // Event available here: https://optimistic.etherscan.io/tx/0x133260f0f7bf0a06d262f09b064a35d3c63178c6b5fd8e4798ba780f357dc7bd#eventlog#61
       const rootPoolAddress = toChecksumAddress(
@@ -1416,11 +909,9 @@ describe("Voter Events", () => {
       const realTimestamp = 1734595305;
       const rootChainId = 10 as const;
       const leafChainId = 252; // Fraxtal
-      const initialUserStaked = 50000000000000000000000n; // 50k tokens (18 decimals) - initial amount before withdrawal
+      const initialUserStaked = 50000000000000000000000n; // a leaf user's pre-flip stake
       let mockLeafPool: MockPool;
-      let mockUserStats: MockUserStatsPerPool;
-      let mockVeNFTState: VeNFTState;
-      let mockVeNFTPoolVote: VeNFTPoolVote;
+      let mockLeafUserStats: MockUserStatsPerPool;
 
       beforeEach(async () => {
         const {
@@ -1428,34 +919,17 @@ describe("Voter Events", () => {
           mockToken1Data,
           createMockUserStatsPerPool,
           createMockPool,
-          createMockVeNFTState,
-          createMockVeNFTPoolVote,
         } = setupCommon();
 
-        // Create tokens for the leaf chain (chain 252)
-        const leafToken0Data: Token = {
-          ...mockToken0Data,
-          id: TokenId(leafChainId, mockToken0Data.address),
-          chainId: leafChainId,
-        };
-        const leafToken1Data: Token = {
-          ...mockToken1Data,
-          id: TokenId(leafChainId, mockToken1Data.address),
-          chainId: leafChainId,
-        };
-
-        // Create leaf pool using helper function with initial staked amount
         mockLeafPool = createMockPool({
           id: PoolId(leafChainId, leafPoolAddress),
           chainId: leafChainId,
           poolAddress: leafPoolAddress,
-          token0_id: leafToken0Data.id,
-          token1_id: leafToken1Data.id,
-          veNFTamountStaked: 3000000000000000000000000n, // Initial staked amount (3M tokens)
+          token0_id: TokenId(leafChainId, mockToken0Data.address),
+          token1_id: TokenId(leafChainId, mockToken1Data.address),
+          veNFTamountStaked: 3000000000000000000000000n,
         });
-
-        // Create user stats keyed by leaf pool (real pool), not root
-        mockUserStats = createMockUserStatsPerPool({
+        mockLeafUserStats = createMockUserStatsPerPool({
           userAddress: realVoterAddress,
           poolAddress: leafPoolAddress,
           chainId: leafChainId,
@@ -1463,53 +937,52 @@ describe("Voter Events", () => {
           firstActivityTimestamp: new Date(0),
           lastActivityTimestamp: new Date(0),
         });
-
-        mockVeNFTState = createMockVeNFTState({
-          id: VeNFTId(rootChainId, realTokenId),
-          chainId: rootChainId,
-          tokenId: realTokenId,
-          owner: realVoterAddress,
-        });
-
-        mockVeNFTPoolVote = createMockVeNFTPoolVote({
-          id: VeNFTPoolVoteId(leafChainId, realTokenId, leafPoolAddress),
-          poolAddress: leafPoolAddress,
-          veNFTamountStaked: realWeight,
-          veNFTState_id: mockVeNFTState.id,
-          lastUpdatedTimestamp: new Date(0),
-        });
-
-        // Create RootPool_LeafPool mapping
-        const rootPoolLeafPool = {
+        indexer.Pool.set(mockLeafPool);
+        indexer.UserStatsPerPool.set(mockLeafUserStats);
+        indexer.RootPool_LeafPool.set({
           id: RootPoolLeafPoolId(
             rootChainId,
             leafChainId,
             rootPoolAddress,
             leafPoolAddress,
           ),
-          rootChainId: rootChainId,
-          rootPoolAddress: rootPoolAddress,
-          leafChainId: leafChainId,
-          leafPoolAddress: leafPoolAddress,
-        };
+          chainId: leafChainId,
+          rootChainId,
+          rootPoolAddress,
+          leafChainId,
+          leafPoolAddress,
+        });
 
-        // Setup mock database with leaf pool and RootPool_LeafPool mapping
-        indexer.Pool.set(mockLeafPool);
-        indexer.RootPool_LeafPool.set(rootPoolLeafPool);
-        indexer.UserStatsPerPool.set(mockUserStats);
-        indexer.Token.set(leafToken0Data);
-        indexer.Token.set(leafToken1Data);
-        indexer.VeNFTState.set(mockVeNFTState);
-        indexer.VeNFTPoolVote.set(mockVeNFTPoolVote);
-
+        // No VeNFTState: the root-pool path does not need one.
         await indexer.process({
           chains: {
             [rootChainId]: {
               simulate: [
+                rootPoolCreated(rootPoolAddress, leafChainId, {
+                  number: 123454,
+                  timestamp: realTimestamp - 100,
+                }),
+                {
+                  contract: "Voter",
+                  event: "Voted",
+                  logIndex: 2,
+                  block: {
+                    number: 123455,
+                    timestamp: realTimestamp - 50,
+                    hash: "0xhash0",
+                  },
+                  params: {
+                    voter: realVoterAddress,
+                    pool: rootPoolAddress,
+                    tokenId: realTokenId,
+                    weight: realWeight,
+                    totalWeight: realTotalWeight + realWeight,
+                  },
+                },
                 {
                   contract: "Voter",
                   event: "Abstained",
-                  logIndex: 1,
+                  logIndex: 3,
                   block: {
                     number: 123456,
                     timestamp: realTimestamp,
@@ -1529,110 +1002,53 @@ describe("Voter Events", () => {
         });
       });
 
-      it("should update leaf pool aggregator with total weight (absolute value)", async () => {
-        const raw = await indexer.Pool.get(
-          PoolId(leafChainId, leafPoolAddress),
+      it("sets the RootPool's weight to totalWeight and returns the veNFT's RootPoolVote to zero", async () => {
+        const rootPool = await indexer.RootPool.get(
+          RootPoolId(rootChainId, rootPoolAddress),
         );
-        const updatedPool = raw ? rehydrateTimestamps("Pool", raw) : undefined;
-
-        expect(updatedPool).toBeDefined();
-        // totalWeight is the absolute total veNFT staked in pool, replacing previous value
-        expect(updatedPool?.veNFTamountStaked).toBe(realTotalWeight);
-        expect(updatedPool?.lastUpdatedTimestamp).toEqual(
+        expect(rootPool?.veNFTamountStaked).toBe(realTotalWeight);
+        expect(rootPool?.lastUpdatedTimestamp).toEqual(
+          new Date(realTimestamp * 1000),
+        );
+        const vote = await indexer.RootPoolVote.get(
+          RootPoolVoteId(rootChainId, realTokenId, rootPoolAddress),
+        );
+        expect(vote?.veNFTamountStaked).toBe(0n);
+        expect(vote?.lastUpdatedTimestamp).toEqual(
           new Date(realTimestamp * 1000),
         );
       });
 
-      it("should decrease user stats veNFT amount staked (negative weight)", async () => {
-        const userStatsId = UserStatsPerPoolId(
-          leafChainId,
-          realVoterAddress,
-          leafPoolAddress,
-        );
-        const rawStats = await indexer.UserStatsPerPool.get(userStatsId);
-        const updatedUserStats = rawStats
-          ? rehydrateTimestamps("UserStatsPerPool", rawStats)
-          : undefined;
-        expect(updatedUserStats).toBeDefined();
-        // weight is subtracted (negative because it's a withdrawal)
-        const expectedStaked = initialUserStaked - realWeight;
-        expect(updatedUserStats?.veNFTamountStaked).toBe(expectedStaked);
-        expect(updatedUserStats?.lastActivityTimestamp).toEqual(
-          new Date(realTimestamp * 1000),
-        );
-      });
-
-      it("should zero out veNFT pool votes", async () => {
-        const veNFTPoolVoteId = VeNFTPoolVoteId(
-          leafChainId,
-          realTokenId,
-          leafPoolAddress,
-        );
-        const veNFTPoolVote = await indexer.VeNFTPoolVote.get(veNFTPoolVoteId);
-        expect(veNFTPoolVote).toBeDefined();
-        expect(veNFTPoolVote?.veNFTamountStaked).toBe(0n);
-      });
-
-      it("should key VeNFTPoolVote and UserStatsPerPool by leaf pool (real pool) not root pool", async () => {
-        const rootUserStatsId = UserStatsPerPoolId(
-          rootChainId,
-          realVoterAddress,
-          rootPoolAddress,
-        );
-        const rootVeNFTPoolVoteId = VeNFTPoolVoteId(
-          rootChainId,
-          realTokenId,
-          rootPoolAddress,
-        );
+      it("leaves the leaf pool and the leaf user as they were and writes no VeNFTPoolVote or root-keyed user", async () => {
         expect(
-          await indexer.UserStatsPerPool.get(rootUserStatsId),
-        ).toBeUndefined();
+          await indexer.Pool.get(PoolId(leafChainId, leafPoolAddress)),
+        ).toEqual(mockLeafPool);
+        expect(await indexer.UserStatsPerPool.getAll()).toEqual([
+          mockLeafUserStats,
+        ]);
+        expect(await indexer.VeNFTPoolVote.getAll()).toEqual([]);
         expect(
-          await indexer.VeNFTPoolVote.get(rootVeNFTPoolVoteId),
+          await indexer.UserStatsPerPool.get(
+            UserStatsPerPoolId(rootChainId, realVoterAddress, rootPoolAddress),
+          ),
         ).toBeUndefined();
-
-        const leafUserStatsId = UserStatsPerPoolId(
-          leafChainId,
-          realVoterAddress,
-          leafPoolAddress,
-        );
-        const leafVeNFTPoolVoteId = VeNFTPoolVoteId(
-          leafChainId,
-          realTokenId,
-          leafPoolAddress,
-        );
-        const leafUserStats =
-          await indexer.UserStatsPerPool.get(leafUserStatsId);
-        const leafVeNFTPoolVote =
-          await indexer.VeNFTPoolVote.get(leafVeNFTPoolVoteId);
-        expect(leafUserStats).toBeDefined();
-        expect(leafVeNFTPoolVote).toBeDefined();
-        expect(leafUserStats?.veNFTamountStaked).toBe(
-          initialUserStaked - realWeight,
-        );
-        expect(leafVeNFTPoolVote?.veNFTamountStaked).toBe(0n);
       });
     });
   });
 
-  describe("cross-chain vote transfer then abstain", () => {
-    it("reassigns the leaf user stake on transfer and returns it to zero on abstain", async () => {
-      const {
-        mockToken0Data,
-        mockToken1Data,
-        createMockPool,
-        createMockVeNFTState,
-      } = setupCommon();
+  // A veNFT that voted for a root pool changes hands, then abstains: the vote
+  // stays on the tokenId's RootPoolVote and no user row is written for either
+  // owner (before the flip both owners' leaf UserStatsPerPool rows moved).
+  describe("root pool vote, veNFT transfer, then abstain", () => {
+    it("keeps the vote on the tokenId's RootPoolVote and writes no user row", async () => {
+      const { createMockVeNFTState } = setupCommon();
 
-      const rootChainId = 10;
+      const rootChainId = 10 as const;
       const leafChainId = 252;
       const tokenId = 4911n;
       const voteWeight = 126886024262337895334200n;
       const rootPoolAddress = toChecksumAddress(
         "0xf1D64ffc40Dc0050584dEf9496c0f7C463ec93Bf",
-      );
-      const leafPoolAddress = toChecksumAddress(
-        "0xb43F6D14FeFA510F014cf90c8Ab110803bB28778",
       );
       const oldOwner = toChecksumAddress(
         "0xdaA12ca83de2FaB833fC28CE1300Ba6ddEe67204",
@@ -1640,59 +1056,26 @@ describe("Voter Events", () => {
       const newOwner = toChecksumAddress(
         "0x28ba242755de3034ac4bd63261e3579bDb37D599",
       );
+      const voteId = RootPoolVoteId(rootChainId, tokenId, rootPoolAddress);
 
-      const leafToken0Data: Token = {
-        ...mockToken0Data,
-        id: TokenId(leafChainId, mockToken0Data.address),
-        chainId: leafChainId,
-      };
-      const leafToken1Data: Token = {
-        ...mockToken1Data,
-        id: TokenId(leafChainId, mockToken1Data.address),
-        chainId: leafChainId,
-      };
+      const indexer = createTestIndexer();
+      indexer.VeNFTState.set(
+        createMockVeNFTState({
+          id: VeNFTId(rootChainId, tokenId),
+          chainId: rootChainId,
+          tokenId,
+          owner: oldOwner,
+        }),
+      );
 
-      const leafPool = createMockPool({
-        id: PoolId(leafChainId, leafPoolAddress),
-        chainId: leafChainId,
-        poolAddress: leafPoolAddress,
-        token0_id: leafToken0Data.id,
-        token1_id: leafToken1Data.id,
-        veNFTamountStaked: 0n,
-      });
-
-      const veNFTState = createMockVeNFTState({
-        id: VeNFTId(rootChainId, tokenId),
-        chainId: rootChainId,
-        tokenId,
-        owner: oldOwner,
-      });
-
-      const rootPoolLeafPool = {
-        id: RootPoolLeafPoolId(
-          rootChainId,
-          leafChainId,
-          rootPoolAddress,
-          leafPoolAddress,
-        ),
-        rootChainId,
-        rootPoolAddress,
-        leafChainId,
-        leafPoolAddress,
-      };
-
-      // indexer for intermediate state check (vote + transfer only)
-      const transferIndexer = createTestIndexer();
-      transferIndexer.Pool.set(leafPool);
-      transferIndexer.RootPool_LeafPool.set(rootPoolLeafPool);
-      transferIndexer.Token.set(leafToken0Data);
-      transferIndexer.Token.set(leafToken1Data);
-      transferIndexer.VeNFTState.set(veNFTState);
-
-      await transferIndexer.process({
+      await indexer.process({
         chains: {
-          [rootChainId as 10]: {
+          [rootChainId]: {
             simulate: [
+              rootPoolCreated(rootPoolAddress, leafChainId, {
+                number: 129471000,
+                timestamp: 1734540777,
+              }),
               {
                 contract: "Voter",
                 event: "Voted",
@@ -1733,72 +1116,18 @@ describe("Voter Events", () => {
         },
       });
 
-      const rawOldAfter = await transferIndexer.UserStatsPerPool.get(
-        UserStatsPerPoolId(leafChainId, oldOwner, leafPoolAddress),
+      expect(
+        (await indexer.VeNFTState.get(VeNFTId(rootChainId, tokenId)))?.owner,
+      ).toBe(newOwner);
+      expect((await indexer.RootPoolVote.get(voteId))?.veNFTamountStaked).toBe(
+        voteWeight,
       );
-      const rawNewAfter = await transferIndexer.UserStatsPerPool.get(
-        UserStatsPerPoolId(leafChainId, newOwner, leafPoolAddress),
-      );
-      const oldOwnerStatsAfterTransfer = rawOldAfter
-        ? rehydrateTimestamps("UserStatsPerPool", rawOldAfter)
-        : undefined;
-      const newOwnerStatsAfterTransfer = rawNewAfter
-        ? rehydrateTimestamps("UserStatsPerPool", rawNewAfter)
-        : undefined;
+      expect(await indexer.UserStatsPerPool.getAll()).toEqual([]);
 
-      expect(oldOwnerStatsAfterTransfer?.veNFTamountStaked).toBe(0n);
-      expect(newOwnerStatsAfterTransfer?.veNFTamountStaked).toBe(voteWeight);
-      expect(newOwnerStatsAfterTransfer?.firstActivityTimestamp).toEqual(
-        new Date(1734794861 * 1000),
-      );
-
-      // indexer for full run (vote + transfer + abstain)
-      const fullIndexer = createTestIndexer();
-      fullIndexer.Pool.set(leafPool);
-      fullIndexer.RootPool_LeafPool.set(rootPoolLeafPool);
-      fullIndexer.Token.set(leafToken0Data);
-      fullIndexer.Token.set(leafToken1Data);
-      fullIndexer.VeNFTState.set(veNFTState);
-
-      await fullIndexer.process({
+      await indexer.process({
         chains: {
-          [rootChainId as 10]: {
+          [rootChainId]: {
             simulate: [
-              {
-                contract: "Voter",
-                event: "Voted",
-                logIndex: 123,
-                block: {
-                  number: 129471197,
-                  timestamp: 1734541171,
-                  hash: "0xvote",
-                },
-                params: {
-                  voter: oldOwner,
-                  pool: rootPoolAddress,
-                  tokenId,
-                  weight: voteWeight,
-                  totalWeight: voteWeight,
-                },
-              },
-              {
-                contract: "VeNFT",
-                event: "Transfer",
-                logIndex: 8,
-                srcAddress: toChecksumAddress(
-                  "0xFAf8FD17D9840595845582fCB047DF13f006787d",
-                ),
-                block: {
-                  number: 129598042,
-                  timestamp: 1734794861,
-                  hash: "0xtransfer",
-                },
-                params: {
-                  from: oldOwner,
-                  to: newOwner,
-                  tokenId,
-                },
-              },
               {
                 contract: "Voter",
                 event: "Abstained",
@@ -1821,31 +1150,15 @@ describe("Voter Events", () => {
         },
       });
 
-      const rawFinalOld = await fullIndexer.UserStatsPerPool.get(
-        UserStatsPerPoolId(leafChainId, oldOwner, leafPoolAddress),
+      expect((await indexer.RootPoolVote.get(voteId))?.veNFTamountStaked).toBe(
+        0n,
       );
-      const rawFinalNew = await fullIndexer.UserStatsPerPool.get(
-        UserStatsPerPoolId(leafChainId, newOwner, leafPoolAddress),
-      );
-      const finalOldOwnerStats = rawFinalOld
-        ? rehydrateTimestamps("UserStatsPerPool", rawFinalOld)
-        : undefined;
-      const finalNewOwnerStats = rawFinalNew
-        ? rehydrateTimestamps("UserStatsPerPool", rawFinalNew)
-        : undefined;
-      const finalPoolVote = await fullIndexer.VeNFTPoolVote.get(
-        VeNFTPoolVoteId(leafChainId, tokenId, leafPoolAddress),
-      );
-
-      expect(finalOldOwnerStats?.veNFTamountStaked).toBe(0n);
-      expect(finalNewOwnerStats?.veNFTamountStaked).toBe(0n);
-      expect(finalNewOwnerStats?.firstActivityTimestamp).toEqual(
-        new Date(1734794861 * 1000),
-      );
-      expect(finalNewOwnerStats?.lastActivityTimestamp).toEqual(
-        new Date(1734795813 * 1000),
-      );
-      expect(finalPoolVote?.veNFTamountStaked).toBe(0n);
+      expect(
+        (await indexer.RootPool.get(RootPoolId(rootChainId, rootPoolAddress)))
+          ?.veNFTamountStaked,
+      ).toBe(0n);
+      expect(await indexer.UserStatsPerPool.getAll()).toEqual([]);
+      expect(await indexer.VeNFTPoolVote.getAll()).toEqual([]);
     });
   });
 
@@ -1932,7 +1245,7 @@ describe("Voter Events", () => {
     });
 
     describe("when pool entity does not exist (RootPool case)", () => {
-      it("should create RootGauge_RootPool for cross-chain DistributeReward resolution", async () => {
+      it("should create RootGauge_RootPool for the root gauge's DistributeReward", async () => {
         await indexer.process({
           chains: {
             [chainId]: {
@@ -2268,7 +1581,7 @@ describe("Voter Events", () => {
           lastUpdatedTimestamp: new Date(0),
         };
         const idx = createTestIndexer();
-        idx.Token.set(token as Token);
+        idx.Token.set(token as WithChain<Token>);
         await idx.process({
           chains: {
             [wlChainId]: {
@@ -2320,7 +1633,7 @@ describe("Voter Events", () => {
           lastUpdatedTimestamp: new Date(0),
           priceTrustOutcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
           priceTrustReason: PRICE_TRUST_REASON.NON_WL,
-        } as Token;
+        } as WithChain<Token>;
         const db = createTestIndexer();
         db.Token.set(existing);
 
@@ -2365,7 +1678,7 @@ describe("Voter Events", () => {
           lastUpdatedTimestamp: new Date(0),
           priceTrustOutcome: PRICE_TRUST_OUTCOME.TRUSTED,
           priceTrustReason: PRICE_TRUST_REASON.WL,
-        } as Token;
+        } as WithChain<Token>;
         const db = createTestIndexer();
         db.Token.set(existing);
 
@@ -2413,7 +1726,7 @@ describe("Voter Events", () => {
           lastUpdatedTimestamp: new Date(0),
           priceTrustOutcome: PRICE_TRUST_OUTCOME.TRUSTED,
           priceTrustReason: PRICE_TRUST_REASON.WL,
-        } as Token;
+        } as WithChain<Token>;
         const db = createTestIndexer();
         db.Token.set(existing);
 
@@ -2462,7 +1775,7 @@ describe("Voter Events", () => {
           lastUpdatedTimestamp: new Date(0),
           priceTrustOutcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
           priceTrustReason: PRICE_TRUST_REASON.NON_WL,
-        } as Token;
+        } as WithChain<Token>;
         const db = createTestIndexer();
         db.Token.set(existing);
 
@@ -2534,7 +1847,7 @@ describe("Voter Events", () => {
     };
 
     const rewardTokenAddress =
-      CHAIN_CONSTANTS[chainId].rewardToken(blockNumber);
+      getLegacyConstants(chainId).rewardToken(blockNumber);
 
     describe("when reward token and liquidity pool exist", () => {
       let indexer: ReturnType<typeof createTestIndexer>;
@@ -2542,35 +1855,25 @@ describe("Voter Events", () => {
 
       const { createMockPool } = setupCommon();
 
-      let expectations: {
-        totalEmissions: bigint;
-        totalEmissionsUSD: bigint;
-        getTokensDeposited: bigint;
-        getTokensDepositedUSD: bigint;
-      };
-
       beforeEach(async () => {
         const liquidityPool = createMockPool({
           id: PoolId(chainId, poolAddress),
           chainId: chainId,
-          totalEmissions: 0n,
+          gaugeAddress,
+          totalEmissions: 400n * 10n ** 18n,
           totalEmissionsUSD: 0n,
+          totalEmissionsRedistributed: 0n,
+          totalEmissionsForfeited: 0n,
+          totalGaugeRewardsClaimed: 300n * 10n ** 18n,
+          totalGaugeEarlyWithdrawPenalties: 50n * 10n ** 18n,
           totalVotesDeposited: 0n,
           totalVotesDepositedUSD: 0n,
           gaugeIsAlive: false, // DistributeReward does not set this; we assert it remains unchanged
         });
 
-        expectations = {
-          totalEmissions: 1000n * 10n ** 18n, // normalizedEmissionsAmount
-          totalEmissionsUSD: 2000n * 10n ** 18n, // normalizedEmissionsAmountUsd
-          getTokensDeposited: 500n * 10n ** 18n,
-          getTokensDepositedUSD: 1000n * 10n ** 18n,
-        };
-
         const { rewardToken, cleanup: cleanupFn } = setupDistributeRewardMocks(
           chainId,
           rewardTokenAddress,
-          { getTokensDepositedValue: expectations.getTokensDeposited },
         );
         cleanup = cleanupFn;
 
@@ -2600,6 +1903,15 @@ describe("Voter Events", () => {
         expect(updatedPool?.gaugeIsAlive).toBe(false);
       });
 
+      it("writes the gauge's event-derived reward-token balance to totalVotesDeposited, without RPC", async () => {
+        const updatedPool = await indexer.Pool.get(poolId);
+        // 400 emitted before + 1000 now - 300 claimed - 50 penalties = 1050 VELO
+        expect(updatedPool?.totalEmissions).toBe(1400n * 10n ** 18n);
+        expect(updatedPool?.totalVotesDeposited).toBe(1050n * 10n ** 18n);
+        // at $2
+        expect(updatedPool?.totalVotesDepositedUSD).toBe(2100n * 10n ** 18n);
+      });
+
       describe("when pool has gaugeIsAlive true", () => {
         let aliveIndexer: ReturnType<typeof createTestIndexer>;
         let originalChainConstantsAlive: (typeof CHAIN_CONSTANTS)[typeof chainId];
@@ -2615,7 +1927,7 @@ describe("Voter Events", () => {
             gaugeIsAlive: true,
           });
 
-          const rewardToken: Token = {
+          const rewardToken: WithChain<Token> = {
             id: TokenId(chainId, rewardTokenAddress),
             address: rewardTokenAddress,
             symbol: "VELO",
@@ -2625,30 +1937,17 @@ describe("Voter Events", () => {
             pricePerUSDNew: 2n * 10n ** 18n,
             isWhitelisted: true,
             lastUpdatedTimestamp: new Date(1000000 * 1000),
-          } as Token;
+          } as WithChain<Token>;
 
           vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(
             liquidityPool,
           );
 
-          vi.spyOn(
-            getTokensDeposited as unknown as EffectWithHandler<
-              {
-                rewardTokenAddress: string;
-                gaugeAddress: string;
-                blockNumber: number;
-                eventChainId: number;
-              },
-              bigint | undefined
-            >,
-            "handler",
-          ).mockImplementation(async () => 500n * 10n ** 18n);
-
           originalChainConstantsAlive = CHAIN_CONSTANTS[chainId];
-          CHAIN_CONSTANTS[chainId] = {
-            ...originalChainConstantsAlive,
-            rewardToken: vi.fn().mockReturnValue(rewardTokenAddress),
-          };
+          CHAIN_CONSTANTS[chainId] = withLegacyRewardToken(
+            originalChainConstantsAlive,
+            vi.fn().mockReturnValue(rewardTokenAddress),
+          );
 
           aliveIndexer = createTestIndexer();
           aliveIndexer.Token.set(rewardToken);
@@ -2678,10 +1977,10 @@ describe("Voter Events", () => {
       it("should return early when pool does not exist and no RootGauge_RootPool mapping", async () => {
         // Mock CHAIN_CONSTANTS rewardToken function
         originalChainConstantsForPoolTest = CHAIN_CONSTANTS[chainId];
-        CHAIN_CONSTANTS[chainId] = {
-          ...originalChainConstantsForPoolTest,
-          rewardToken: vi.fn().mockReturnValue(rewardTokenAddress),
-        };
+        CHAIN_CONSTANTS[chainId] = withLegacyRewardToken(
+          originalChainConstantsForPoolTest,
+          vi.fn().mockReturnValue(rewardTokenAddress),
+        );
 
         // Mock findPoolByGaugeAddress to return null (root gauge, no local pool)
         vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(null);
@@ -2705,78 +2004,64 @@ describe("Voter Events", () => {
       });
     });
 
-    describe("when root gauge and no RootPool_LeafPool (deferred)", () => {
+    // A root gauge (no local Pool has it): the distribution goes to its
+    // RootPool through RootGauge_RootPool, never to a leaf pool (ADR 0009,
+    // flow B). No RootPool_LeafPool is read.
+    describe("when the gauge is a root gauge (superchain root pool)", () => {
       const rootPoolAddress = poolAddress;
       const leafChainId = 252;
       const blockTimestamp = 1000000;
       const blockNumberForRoot = 128357870;
       const txHash =
         "0x1234567890123456789012345678901234567890123456789012345678901234";
-      const token0 = toChecksumAddress(
-        "0x1111111111111111111111111111111111111111",
-      );
-      const token1 = toChecksumAddress(
-        "0x2222222222222222222222222222222222222222",
-      );
-      const tickSpacing = 60n;
-      let originalChainConstantsDeferred: (typeof CHAIN_CONSTANTS)[typeof chainId];
+      let originalChainConstantsRoot: (typeof CHAIN_CONSTANTS)[typeof chainId];
 
-      it("should create RootGauge_RootPool and PendingDistribution when processEvents RootPoolCreated, GaugeCreated, DistributeReward with no leaf", async () => {
-        originalChainConstantsDeferred = CHAIN_CONSTANTS[chainId];
-        CHAIN_CONSTANTS[chainId] = {
-          ...originalChainConstantsDeferred,
-          rewardToken: vi.fn().mockReturnValue(rewardTokenAddress),
-        };
+      afterEach(() => {
+        if (originalChainConstantsRoot !== undefined) {
+          CHAIN_CONSTANTS[chainId] = originalChainConstantsRoot;
+        }
+      });
 
-        vi.spyOn(
-          getTokensDeposited as unknown as EffectWithHandler<
-            {
-              rewardTokenAddress: string;
-              gaugeAddress: string;
-              blockNumber: number;
-              eventChainId: number;
-            },
-            bigint | undefined
-          >,
-          "handler",
-        ).mockImplementation(async () => 500n * 10n ** 18n);
-
-        const rewardToken: Token = {
-          id: TokenId(chainId, rewardTokenAddress),
-          address: rewardTokenAddress,
-          symbol: "VELO",
-          name: "VELO",
-          chainId: chainId,
-          decimals: 18n,
-          pricePerUSDNew: 2n * 10n ** 18n,
-          isWhitelisted: true,
-          lastUpdatedTimestamp: new Date(blockTimestamp * 1000),
-        } as Token;
+      it("adds the distribution to the RootPool when processing RootPoolCreated, GaugeCreated, DistributeReward, and writes no Pool", async () => {
+        originalChainConstantsRoot = CHAIN_CONSTANTS[chainId];
+        CHAIN_CONSTANTS[chainId] = withLegacyRewardToken(
+          originalChainConstantsRoot,
+          vi.fn().mockReturnValue(rewardTokenAddress),
+        );
 
         const db = createTestIndexer();
-        db.Token.set(rewardToken);
+        db.Token.set(
+          createRewardToken(chainId, rewardTokenAddress, {
+            timestampSeconds: blockTimestamp,
+            // Priced at this hour: the refresh at the event keeps $2.
+            lastSuccessfulPriceTimestamp: new Date(blockTimestamp * 1000),
+          }),
+        );
+        // A leaf mapping for this root pool must not matter on the root side.
+        db.RootPool_LeafPool.set({
+          id: RootPoolLeafPoolId(
+            chainId,
+            leafChainId,
+            rootPoolAddress,
+            toChecksumAddress("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+          ),
+          chainId: leafChainId,
+          rootChainId: chainId,
+          rootPoolAddress,
+          leafChainId,
+          leafPoolAddress: toChecksumAddress(
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          ),
+        });
 
         await db.process({
           chains: {
             [chainId]: {
               simulate: [
-                {
-                  contract: "RootCLPoolFactory",
-                  event: "RootPoolCreated",
-                  logIndex: 1,
-                  block: {
-                    timestamp: blockTimestamp,
-                    number: blockNumberForRoot,
-                    hash: txHash,
-                  },
-                  params: {
-                    token0: token0 as `0x${string}`,
-                    token1: token1 as `0x${string}`,
-                    tickSpacing,
-                    chainid: BigInt(leafChainId),
-                    pool: rootPoolAddress,
-                  },
-                },
+                rootPoolCreated(rootPoolAddress, leafChainId, {
+                  number: blockNumberForRoot,
+                  timestamp: blockTimestamp,
+                }),
                 {
                   contract: "Voter",
                   event: "GaugeCreated",
@@ -2813,9 +2098,7 @@ describe("Voter Events", () => {
                   contract: "Voter",
                   event: "DistributeReward",
                   logIndex: 3,
-                  srcAddress: toChecksumAddress(
-                    "0x41C914ee0c7E1A5edCD0295623e6dC557B5aBf3C",
-                  ),
+                  srcAddress: voterAddress,
                   block: {
                     number: blockNumberForRoot,
                     timestamp: blockTimestamp,
@@ -2832,172 +2115,37 @@ describe("Voter Events", () => {
           await db.RootGauge_RootPool.get(
             RootGaugeRootPoolId(chainId, gaugeAddress),
           ),
-        ).toBeDefined();
+        ).toMatchObject({ rootGaugeAddress: gaugeAddress, rootPoolAddress });
 
-        const pendingDistId = PendingDistributionId(
-          chainId,
-          rootPoolAddress,
-          blockNumberForRoot,
-          3,
+        const rootPool = await db.RootPool.get(
+          RootPoolId(chainId, rootPoolAddress),
         );
-        const pendingDistribution =
-          await db.PendingDistribution.get(pendingDistId);
-        expect(pendingDistribution).toBeDefined();
-        expect(pendingDistribution?.gaugeAddress).toBe(gaugeAddress);
-        expect(pendingDistribution?.amount).toBe(1000n * 10n ** 18n);
-
-        expect(Array.from(await db.Pool.getAll())).toHaveLength(0);
-      });
-
-      afterEach(() => {
-        if (originalChainConstantsDeferred !== undefined) {
-          CHAIN_CONSTANTS[chainId] = originalChainConstantsDeferred;
-        }
-      });
-
-      it("should create PendingDistribution when root gauge has ambiguous RootPool_LeafPool mapping (length > 1)", async () => {
-        originalChainConstantsDeferred = CHAIN_CONSTANTS[chainId];
-        CHAIN_CONSTANTS[chainId] = {
-          ...originalChainConstantsDeferred,
-          rewardToken: vi.fn().mockReturnValue(rewardTokenAddress),
-        };
-
-        vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(null);
-
-        const rootPoolAddressForAmbiguous = poolAddress;
-        const leafChainId = 252;
-        const leafPoolAddressA = toChecksumAddress(
-          "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        );
-        const leafPoolAddressB = toChecksumAddress(
-          "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-        );
-        const blockNumberForRoot = 128357870;
-        const logIndex = 3;
-
-        const rewardToken: Token = {
-          id: TokenId(chainId, rewardTokenAddress),
-          address: rewardTokenAddress,
-          symbol: "VELO",
-          name: "VELO",
-          chainId: chainId,
-          decimals: 18n,
-          pricePerUSDNew: 2n * 10n ** 18n,
-          isWhitelisted: true,
-          lastUpdatedTimestamp: new Date(1000000 * 1000),
-        } as Token;
-
-        const rootGaugeRootPoolId = RootGaugeRootPoolId(chainId, gaugeAddress);
-        const rootPoolLeafPoolIdA = RootPoolLeafPoolId(
-          chainId,
-          leafChainId,
-          rootPoolAddressForAmbiguous,
-          leafPoolAddressA,
-        );
-        const rootPoolLeafPoolIdB = RootPoolLeafPoolId(
-          chainId,
-          leafChainId,
-          rootPoolAddressForAmbiguous,
-          leafPoolAddressB,
-        );
-
-        const db = createTestIndexer();
-        db.Token.set(rewardToken);
-        db.RootGauge_RootPool.set({
-          id: rootGaugeRootPoolId,
-          rootChainId: chainId,
-          rootGaugeAddress: gaugeAddress,
-          rootPoolAddress: rootPoolAddressForAmbiguous,
-        });
-        db.RootPool_LeafPool.set({
-          id: rootPoolLeafPoolIdA,
-          rootChainId: chainId,
-          rootPoolAddress: rootPoolAddressForAmbiguous,
-          leafChainId,
-          leafPoolAddress: leafPoolAddressA,
-        });
-        db.RootPool_LeafPool.set({
-          id: rootPoolLeafPoolIdB,
-          rootChainId: chainId,
-          rootPoolAddress: rootPoolAddressForAmbiguous,
-          leafChainId,
-          leafPoolAddress: leafPoolAddressB,
+        expect(rootPool).toMatchObject({
+          gaugeAddress,
+          gaugeIsAlive: true,
+          totalEmissions: 1000n * 10n ** 18n,
+          totalEmissionsUSD: 2000n * 10n ** 18n, // at $2
+          numberOfDistributions: 1n,
+          lastUpdatedTimestamp: new Date(blockTimestamp * 1000),
         });
 
-        await db.process({
-          chains: {
-            [chainId]: {
-              simulate: [
-                {
-                  contract: "Voter",
-                  event: "DistributeReward",
-                  logIndex,
-                  srcAddress: toChecksumAddress(
-                    "0x41C914ee0c7E1A5edCD0295623e6dC557B5aBf3C",
-                  ),
-                  block: {
-                    number: blockNumberForRoot,
-                    timestamp: 1000000,
-                    hash: "0xblockhash",
-                  },
-                  params: { gauge: gaugeAddress, amount: 1000n * 10n ** 18n },
-                },
-              ],
-            },
-          },
-        });
-
-        const pendingDistId = PendingDistributionId(
-          chainId,
-          rootPoolAddressForAmbiguous,
-          blockNumberForRoot,
-          logIndex,
-        );
-        const pendingDistribution =
-          await db.PendingDistribution.get(pendingDistId);
-        expect(pendingDistribution).toBeDefined();
-        expect(pendingDistribution?.gaugeAddress).toBe(gaugeAddress);
-        expect(pendingDistribution?.amount).toBe(1000n * 10n ** 18n);
-        expect(pendingDistribution?.rootPoolAddress).toBe(
-          rootPoolAddressForAmbiguous,
-        );
-        expect(pendingDistribution?.blockNumber).toBe(
-          BigInt(blockNumberForRoot),
-        );
-        expect(pendingDistribution?.logIndex).toBe(logIndex);
-
-        // Distribution was deferred; no pool should have been updated
-        expect(Array.from(await db.Pool.getAll())).toHaveLength(0);
+        expect(await db.Pool.getAll()).toEqual([]);
       });
     });
 
     describe("when rootPoolAddress is a known sink (issue #601)", () => {
-      it("drops DistributeReward silently without creating PendingDistribution", async () => {
-        // Seed a RootGauge_RootPool mapping whose rootPoolAddress is a
-        // known sink (OP). Known sinks are placeholder contracts with no
-        // real leaf pool; we must not accumulate orphan Pending* records.
+      it("ignores a DistributeReward whose RootGauge_RootPool leads to no RootPool", async () => {
+        // A RootGauge_RootPool whose rootPoolAddress is a known sink (OP): a
+        // placeholder contract with no RootPoolCreated, so no RootPool row.
         const sinkRootPoolAddress = toChecksumAddress(
           "0x333030A736B47D20346d82A473680658ac1C2b88",
         );
-        const blockNumberForSink = 128357870;
-        const logIndex = 3;
-
-        const rewardToken: Token = {
-          id: TokenId(chainId, rewardTokenAddress),
-          address: rewardTokenAddress,
-          symbol: "VELO",
-          name: "VELO",
-          chainId: chainId,
-          decimals: 18n,
-          pricePerUSDNew: 2n * 10n ** 18n,
-          isWhitelisted: true,
-          lastUpdatedTimestamp: new Date(1000000 * 1000),
-        } as Token;
 
         const db = createTestIndexer();
-        db.Token.set(rewardToken);
+        db.Token.set(createRewardToken(chainId, rewardTokenAddress));
         db.RootGauge_RootPool.set({
           id: RootGaugeRootPoolId(chainId, gaugeAddress),
+          chainId,
           rootChainId: chainId,
           rootGaugeAddress: gaugeAddress,
           rootPoolAddress: sinkRootPoolAddress,
@@ -3010,10 +2158,10 @@ describe("Voter Events", () => {
                 {
                   contract: "Voter",
                   event: "DistributeReward",
-                  logIndex,
+                  logIndex: 3,
                   srcAddress: voterAddress,
                   block: {
-                    number: blockNumberForSink,
+                    number: 128357870,
                     timestamp: 1000000,
                     hash: "0xblockhash",
                   },
@@ -3024,19 +2172,8 @@ describe("Voter Events", () => {
           },
         });
 
-        const pendingDistribution = await db.PendingDistribution.get(
-          PendingDistributionId(
-            chainId,
-            sinkRootPoolAddress,
-            blockNumberForSink,
-            logIndex,
-          ),
-        );
-        expect(pendingDistribution).toBeUndefined();
-        expect(Array.from(await db.PendingDistribution.getAll())).toHaveLength(
-          0,
-        );
-        expect(Array.from(await db.Pool.getAll())).toHaveLength(0);
+        expect(await db.RootPool.getAll()).toEqual([]);
+        expect(await db.Pool.getAll()).toEqual([]);
       });
     });
 
@@ -3053,10 +2190,10 @@ describe("Voter Events", () => {
 
         // Mock CHAIN_CONSTANTS rewardToken function
         originalChainConstantsForRewardTest = CHAIN_CONSTANTS[chainId];
-        CHAIN_CONSTANTS[chainId] = {
-          ...originalChainConstantsForRewardTest,
-          rewardToken: vi.fn().mockReturnValue(rewardTokenAddress),
-        };
+        CHAIN_CONSTANTS[chainId] = withLegacyRewardToken(
+          originalChainConstantsForRewardTest,
+          vi.fn().mockReturnValue(rewardTokenAddress),
+        );
 
         // Mock findPoolByGaugeAddress to return the pool
         vi.spyOn(PoolModule, "findPoolByGaugeAddress").mockResolvedValue(

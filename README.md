@@ -1,14 +1,20 @@
-# Velodrome V2 & Aerodrome multi-chain indexer
+# Velodrome V2, Aerodrome & Aero multi-chain indexer
 
 A multi-chain blockchain indexer for [Velodrome V2](https://velodrome.finance/)
 (Optimism) and [Aerodrome](https://aerodrome.finance/) (Base) and their
-superchain deployments. It ingests on-chain events for pools, gauges, voting,
+superchain deployments, and for **Aero** (MetaDEX), the merged deployment
+launched on 2026-10-21. It ingests on-chain events for pools, gauges, voting,
 veNFTs, concentrated-liquidity positions, automated liquidity management, pool
 launchers, and cross-chain swaps, and serves the derived state from a Postgres
-database.
+database. Legacy and Aero pools share one data model: `Pool.deployment`
+(`VELODROME` / `AERODROME` / `AERO`) tells them apart
+([ADR 0005](docs/adr/0005-one-data-model-for-legacy-and-aero-pools.md)). Aero
+gauges, staking, emissions, sAERO, allocations, allocator rewards, the Minter
+and the legacy-to-Aero migration are indexed into their own `Aero*` / `SAero*`
+entities ([ADR 0006](docs/adr/0006-aero-gauges-and-governance.md)).
 
 Built in TypeScript on the [Envio HyperIndex](https://docs.envio.dev/) platform
-(v3 alpha).
+(v3.17).
 
 > **Note:** This is an Envio HyperIndex project — **not** a TheGraph subgraph.
 
@@ -34,14 +40,18 @@ Built in TypeScript on the [Envio HyperIndex](https://docs.envio.dev/) platform
 
 Networks are defined in `config.yaml`:
 
-| Chain    | Chain ID | Chain     | Chain ID |
-| -------- | -------- | --------- | -------- |
-| Optimism | 10       | Lisk      | 1135     |
-| Base     | 8453     | Unichain  | 130      |
-| Celo     | 42220    | Fraxtal   | 252      |
-| Soneium  | 1868     | Metal     | 1750     |
-| Ink      | 57073    | Superseed | 5330     |
-| Mode     | 34443    | Swell     | 1923     |
+| Chain    | Chain ID | Deployments        | Chain           | Chain ID | Deployments |
+| -------- | -------- | ------------------ | --------------- | -------- | ----------- |
+| Optimism | 10       | Velodrome, Aero    | Lisk            | 1135     | Velodrome   |
+| Base     | 8453     | Aerodrome, Aero    | Unichain        | 130      | Velodrome   |
+| Celo     | 42220    | Velodrome          | Fraxtal         | 252      | Velodrome   |
+| Soneium  | 1868     | Velodrome          | Metal           | 1750     | Velodrome   |
+| Ink      | 57073    | Velodrome, Aero    | Superseed       | 5330     | Velodrome   |
+| Mode     | 34443    | Velodrome          | Swell           | 1923     | Velodrome   |
+| Ethereum | 1        | Aero               | Robinhood Chain | 4663     | Aero        |
+| Arbitrum | 42161    | Aero               | Arc             | 5042     | Aero (incl. the lite launch) |
+
+The Aero-only chains start at their first Aero contract's deploy block.
 
 ## Getting started
 
@@ -70,8 +80,90 @@ cp .env.example .env
 
 - `ENVIO_API_TOKEN` — Envio API token
 - `ENVIO_PG_MAX_CONNECTIONS` — Postgres connection cap (recommended for v3)
-- `ENVIO_<CHAIN>_RPC_URL` — one RPC URL per chain, used for on-chain reads that
-  fall outside HyperSync (e.g. `ENVIO_OPTIMISM_RPC_URL`, `ENVIO_BASE_RPC_URL`)
+- `ENVIO_CLICKHOUSE_*` — ClickHouse storage (see `.env.example`)
+- RPC endpoints, see below.
+
+#### RPC configuration
+
+On-chain reads that fall outside HyperSync (token metadata, gauge balances,
+swap fees, root-pool lookups, oracle prices) go through `src/Effects/`. Each
+chain's endpoints are resolved in one place, `src/Effects/RpcConfig.ts`:
+
+| Variable | Meaning |
+| --- | --- |
+| `ENVIO_DRPC_API_KEY` | dRPC key. When set, every chain's primary is `https://lb.drpc.live/<network>/<key>` (networks: optimism, base, celo, soneium, ink, mode, lisk, unichain, fraxtal, metall2, superseed, swell, ethereum, arbitrum, robinhood, arc). |
+| `ENVIO_<CHAIN>_RPC_URL` | Explicit primary for one chain; overrides the dRPC URL. `<CHAIN>` is one of `OPTIMISM BASE CELO SONEIUM INK MODE LISK UNICHAIN FRAXTAL METAL SUPERSEED SWELL ETHEREUM ARBITRUM ROBINHOOD ARC`. |
+| `ENVIO_<CHAIN>_FALLBACK_RPC_URL` | Second endpoint used when the primary fails for any reason other than a contract revert. Defaults to a public endpoint from another provider (Superseed has none); `none` disables it. |
+| `ENVIO_<CHAIN>_RPC_RPS` | Requests per second for that chain's primary (defaults: Base 40, Optimism 25, others 10). |
+| `ENVIO_DRPC_MAX_RPS` | Budget shared by all dRPC-key endpoints (default 80; dRPC pay-as-you-go accounts created after 2026-10-19 are limited to 100 RPS per account). |
+| `ENVIO_FALLBACK_RPC_RPS` | Requests per second for each fallback endpoint (default 5). |
+
+There is no silent public default for the primary: if neither
+`ENVIO_<CHAIN>_RPC_URL` nor `ENVIO_DRPC_API_KEY` is set, the indexer refuses to
+start and lists every missing variable. Check endpoints (chain id, archive
+`eth_call`s at several historical blocks, latency) with:
+
+```bash
+npx -y tsx@4.19.2 scripts/check-rpc.ts            # all chains, primary + fallback
+npx -y tsx@4.19.2 scripts/check-rpc.ts --chain 8453 --calls 20 --primary-only
+```
+
+Failures are retried with backoff and then sent to the fallback; when both
+fail, the effect returns a default that is never written to the effect cache,
+and the indexer logs `rpc.default_used` (error class, chain, operation) plus a
+per-chain `rpc.stats` line every minute. Alert on `default_transient`.
+
+#### RPC in the pricing path
+
+Prices come from indexed pools. One case reads the chain: a leaf token priced
+from a canonical source (leaf WETH, XVELO, xAERO) in an hour that the price
+seed does not cover and the source chain has not indexed yet, which happens in
+the last days of a backfill. The `getCanonicalSourceRpcPrice` effect then reads
+the source's pool at a final block (ADR `docs/adr/0010-canonical-source-rpc-price.md`).
+It is keyed by (source, hour), so the cost is about 10 calls per hour of that
+window for all chains together, and every answer is stored in the effect cache
+(`envio_effect_getCanonicalSourceRpcPrice`). Check it against live RPC with:
+
+```bash
+npx -y tsx@4.19.2 scripts/check-canonical-rpc-price.ts --hours 24
+```
+
+`PRICING_CANONICAL_RPC_EFFECT=false` turns it off.
+
+To carry these reads into a later resync of a fresh database, dump the effect
+cache of a synced deployment into the effect's seed file and commit it (Envio
+loads `.envio/cache/<effect>.tsv` when it initialises a database):
+
+```bash
+psql "$DATABASE_URL" -c "\\copy (SELECT id, output FROM \"envio_effect_getCanonicalSourceRpcPrice\" ORDER BY id) TO STDOUT WITH (FORMAT text, HEADER)" \
+  > .envio/cache/getCanonicalSourceRpcPrice.tsv
+```
+
+Rebuilding the price seed from the synced deployment
+(`scripts/build-canonical-price-seed.ts --clickhouse`) does the same job for
+those hours without the file: seed hours are never asked over RPC.
+
+#### Committed effect caches
+
+Envio loads every file under `.envio/cache/` into the matching effect cache
+when it initialises a fresh database (first `envio dev`/`envio start`, or a run
+with `-r`), so a resync does not repeat those RPC reads. Three are committed:
+
+- `<chainId>/getTokenMetadata.tsv`: name, symbol and decimals of ~35k tokens.
+  Compatible with the `getTokenMetadata` cache of Envio's Uniswap v4 indexer;
+  the first version was built with `scripts/build-token-metadata-cache.ts`.
+- `<chainId>/hasContractBytecode.tsv`: the bytecode check made once per new
+  token.
+- `getCanonicalSourceRpcPrice.tsv`: the canonical source prices read over RPC
+  (see above).
+
+The files are dumps of the effect tables of a synced database (one table per
+effect and chain, `envio_<chainId>_effect_<name>`, or `envio_effect_<name>` for
+a cross-chain effect), in the format of the `\copy` command above. The dump of
+2026-11-19 came from a sync with every chain except Optimism and Base at the
+head (Optimism at March 2026, Base at June 2025), so later tokens on those two
+chains are still read over RPC. When refreshing a file, keep its rows and
+append the new ones.
 
 ### Run
 
@@ -144,11 +236,13 @@ Top-level modules:
 - `Helpers.ts` — shared utilities (error handling, USD conversions,
   concentrated-liquidity position math via the Uniswap v3 SDK)
 - `Maths.ts` — fixed-point / BigInt math helpers
-- `PriceOracle.ts` — token price fetching with hourly refresh
-- `PriceOverrides.ts` — manual price pins and the token blacklist
+- `PriceOracle.ts` — hourly token price refresh from indexed pool state (no
+  RPC; see `docs/adr/0003-pool-derived-token-prices.md`), token creation and
+  metadata heal
+- `PriceOverrides.ts` — token blacklist and cross-chain canonical sources (ADR 0004)
 - `PriceTrust.ts` — price-trust gating used by USD valuation
-- `PoolPriceRatio.ts` — derives `token0Price` / `token1Price` from pool state
-- `ChainBlockTime.ts` — per-chain block-time helpers
+- `PoolPriceRatio.ts` — spot prices from pool state (CL `sqrtPriceX96`, V2
+  volatile reserve ratio, V2 stable sAMM curve)
 - `CustomTypes.ts` / `EntityTypes.ts` — shared TypeScript types
 
 Subdirectories:
@@ -162,6 +256,9 @@ Subdirectories:
   aggregator (TVL, volume, fees, votes, emissions); others cover
   `UserStatsPerPool`, `NonFungiblePosition`, `VeNFTState`, `VeNFTPoolVote`,
   `ALMLPWrapper`, `CLStakedLiquidity`, `OUSDTSwaps`
+- `Pricing/` — pool-derived pricing: tiers and thresholds
+  (`PricingConfig.ts`), candidate pools and deepest-pool selection
+  (`PoolRoute.ts`), throttle / carry / 7-day expiry (`PriceResolution.ts`)
 - `Snapshots/` — hourly snapshot creation for aggregated entities, with
   epoch-alignment logic in `Shared.ts`
 - `Effects/` — external calls (RPC/API) behind Envio's Effect API.
@@ -189,10 +286,22 @@ Subdirectories:
 - **Superswaps / Hyperlane** — cross-chain swap tracking
   (`VelodromeUniversalRouter`, `Mailbox`)
 - **Redistributor**
+- **Aero (MetaDEX)** — `AeroCLFactory`, `AeroStablePoolFactory`,
+  `AeroVolatilePoolFactory`, `AeroNFPM`, `DynamicSwapFeeHook`,
+  `V2CustomFeeModule`, `AeroTokenRegistry` (token list, a price-trust
+  signal); Aero pools use the shared `Pool` / `CLPool` contracts
+  and entities
+- **Aero gauges, emissions and governance** (`src/EventHandlers/Aero/`,
+  ADR 0006) — `AeroGaugeManager`, `AeroCLGaugeFactory`, `AeroV2GaugeFactory`,
+  the dynamic `AeroCLGauge` / `AeroV2Gauge` / `AeroVotingRewardsManager`,
+  `AeroLeafVoter` and `AeroUnstakedFeeModule` on every Aero chain;
+  `AeroVotingEscrow` (sAERO), `AeroVoter`, `AeroMinter`,
+  `AeroRootEmissionsHandler` and `AeroMigration` / `AeroMigrationEntrypoint`
+  on Base (`AeroMigration` also on Optimism)
 
 ## Data model
 
-The database schema is defined in [`schema.graphql`](schema.graphql) (39 entity
+The database schema is defined in [`schema.graphql`](schema.graphql) (75 entity
 types). The full, field-by-field reference — types, nullability, indexes, and
 descriptions for every field — is in
 **[`docs/schema.md`](docs/schema.md)**, which is generated from the schema by
@@ -237,6 +346,11 @@ the GraphQL API, the value-scaling rules, and example queries.
 - **Cross-chain superswaps (Hyperlane)** — oUSDT-bridged swaps and their
   dispatch/process correlation
   ([full list](docs/schema.md#cross-chain-superswaps-hyperlane))
+- **Aero gauges, staking & emissions** and **Aero governance** — Aero gauge
+  state, emission ledger, sAERO positions, root and leaf allocations, allocator
+  rewards, Minter and migration, with append-only event rows in ClickHouse
+  ([gauges](docs/schema.md#aero-gauges-staking--emissions),
+  [governance](docs/schema.md#aero-governance))
 - **Internal buffers & deferred state** — short-lived bookkeeping entities that
   correlate events across log indices/blocks; mostly deleted once consumed
   ([full list](docs/schema.md#internal-buffers--deferred-state))

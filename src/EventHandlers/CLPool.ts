@@ -1,17 +1,24 @@
 import { indexer } from "envio";
-import { applyPositionToEdges } from "../Aggregators/CLStakedLiquidity";
+import {
+  applyPositionToEdges,
+  deriveLiquidityInRange,
+} from "../Aggregators/CLStakedLiquidity";
 import { createOUSDTSwapEntity } from "../Aggregators/OUSDTSwaps";
 import { loadPoolData, updatePool } from "../Aggregators/Pool";
+import { loadPoolTickMap, setPoolTickMap } from "../Aggregators/PoolTickMap";
 import {
   loadOrCreateUserData,
+  preloadUserStatsPerPoolUpdate,
   updateUserStatsPerPool,
 } from "../Aggregators/UserStatsPerPool";
 import {
   CLPoolMintEventId,
   OUSDT_ADDRESS,
+  POOL_DEPLOYMENT,
   PoolId,
   TxCLPoolMintRegistryId,
 } from "../Constants";
+import { shouldSnapshot } from "../Snapshots/Index";
 import { processCLPoolBurn } from "./CLPool/CLPoolBurnLogic";
 import { processCLPoolCollectFees } from "./CLPool/CLPoolCollectFeesLogic";
 import { processCLPoolCollect } from "./CLPool/CLPoolCollectLogic";
@@ -19,6 +26,8 @@ import { attributeDirectCLLiquidityChange } from "./CLPool/CLPoolDirectLiquidity
 import { processCLPoolFlash } from "./CLPool/CLPoolFlashLogic";
 import { processCLPoolMint } from "./CLPool/CLPoolMintLogic";
 import { processCLPoolSwap } from "./CLPool/CLPoolSwapLogic";
+import { recordAeroNFPMMint } from "./NFPM/AeroNFPMLogic";
+import { stageNFPMCollectFees } from "./NFPM/NFPMCollectLogic";
 import { LiquidityChangeType } from "./NFPM/NFPMCommonLogic";
 import { resolveSwapInitiator } from "./SwapInitiatorSharedLogic";
 
@@ -59,6 +68,25 @@ indexer.onEvent(
 
     const { liquidityPoolAggregator, token0Instance, token1Instance } =
       poolData;
+    const timestamp = new Date(event.block.timestamp * 1000);
+
+    // A zero-amount burn is a "poke": the position owner refreshes its owed
+    // fees before a collect (about two thirds of all burns). It moves no
+    // liquidity and no tokens, so reserves, in-range liquidity, the tick map,
+    // the burned-principal tracker (a missing tracker reads as zero) and the
+    // owner's flows are all unchanged. The only things it could still update
+    // are the Pool's bookkeeping: lastUpdatedTimestamp, a TVL revaluation at
+    // refreshed token prices and, on the first event of a new hour, the hourly
+    // PoolSnapshot. Keep the snapshot cadence (run the normal path when the
+    // poke opens a new snapshot epoch) and skip the write otherwise.
+    if (
+      event.params.amount === 0n &&
+      event.params.amount0 === 0n &&
+      event.params.amount1 === 0n &&
+      !shouldSnapshot(liquidityPoolAggregator.lastSnapshotTimestamp, timestamp)
+    ) {
+      return;
+    }
 
     const result = await processCLPoolBurn(
       event,
@@ -69,21 +97,45 @@ indexer.onEvent(
     );
     // #803: maintain the total per-tick liquidityNet map on every Burn so the swap
     // path can integrate geometry over it. Burn removes liquidity → negative delta.
-    const burnEdges = applyPositionToEdges(
-      liquidityPoolAggregator.tickEdges,
-      liquidityPoolAggregator.tickEdgeNets,
-      event.params.tickLower,
-      event.params.tickUpper,
-      -event.params.amount,
-    );
-    if (burnEdges.rejected) {
-      context.log.error(
-        `[TICK_EDGE_DRIFT][CLPool.Burn] rejected=${burnEdges.rejected} pool=${event.srcAddress} chain=${event.chainId} tickLower=${event.params.tickLower} tickUpper=${event.params.tickUpper}`,
+    // The map lives on PoolTickMap and is written only when it changes.
+    if (event.params.amount !== 0n) {
+      const tickMap = await loadPoolTickMap(
+        liquidityPoolAggregator.id,
+        context,
       );
+      const burnEdges = applyPositionToEdges(
+        tickMap.tickEdges,
+        tickMap.tickEdgeNets,
+        event.params.tickLower,
+        event.params.tickUpper,
+        -event.params.amount,
+      );
+      if (burnEdges.rejected) {
+        context.log.error(
+          `[TICK_EDGE_DRIFT][CLPool.Burn] rejected=${burnEdges.rejected} pool=${event.srcAddress} chain=${event.chainId} tickLower=${event.params.tickLower} tickUpper=${event.params.tickUpper}`,
+        );
+      }
+      if (burnEdges.changed) {
+        setPoolTickMap(
+          tickMap,
+          { tickEdges: burnEdges.edges, tickEdgeNets: burnEdges.nets },
+          context,
+        );
+      }
+      // Re-derive the staked in-range liquidity alongside the total one this
+      // event moves. The swap path seeds its staked walk from the cached value
+      // whenever 0 < staked < liquidityInRange; re-deriving here keeps a value
+      // that updatePool once clamped to the old total (#891) from passing for
+      // a derived one after the total grows.
+      if (liquidityPoolAggregator.hasStakes) {
+        result.liquidityPoolDiff.stakedLiquidityInRange =
+          deriveLiquidityInRange(
+            liquidityPoolAggregator.tick ?? 0n,
+            tickMap.stakedTickEdges,
+            tickMap.stakedTickEdgeNets,
+          );
+      }
     }
-    result.liquidityPoolDiff.tickEdges = burnEdges.edges;
-    result.liquidityPoolDiff.tickEdgeNets = burnEdges.nets;
-    const timestamp = new Date(event.block.timestamp * 1000);
 
     await updatePool(
       result.liquidityPoolDiff,
@@ -103,6 +155,7 @@ indexer.onEvent(
       event.params.amount1,
       event.block.timestamp,
       LiquidityChangeType.REMOVE,
+      event.chainId,
     );
   },
 );
@@ -116,22 +169,13 @@ indexer.onEvent(
   { contract: "CLPool", event: "Collect" },
   async ({ event, context }) => {
     const timestamp = new Date(event.block.timestamp * 1000);
-    const [poolData, userData] = await Promise.all([
-      loadPoolData(
-        event.srcAddress,
-        event.chainId,
-        context,
-        event.block.number,
-        event.block.timestamp,
-      ),
-      loadOrCreateUserData(
-        event.params.owner, // Fees should be attributed to the owner, not the recipient
-        event.srcAddress,
-        event.chainId,
-        context,
-        timestamp,
-      ),
-    ]);
+    const poolData = await loadPoolData(
+      event.srcAddress,
+      event.chainId,
+      context,
+      event.block.number,
+      event.block.timestamp,
+    );
 
     if (!poolData) {
       return;
@@ -140,16 +184,44 @@ indexer.onEvent(
     const { liquidityPoolAggregator, token0Instance, token1Instance } =
       poolData;
 
+    // An NFPM position's `owner` here is the NFPM contract, which gets no
+    // UserStatsPerPool row. The fees isolated here are handed to the NFPM's
+    // Collect that follows in this tx (legacy NFPM or Aero NFPM), which knows
+    // the tokenId and so the owner (NFPMCollectLogic.ts).
+    const ownerIsNfpm =
+      event.params.owner === liquidityPoolAggregator.nfpmAddress;
+    const handToNfpmCollect = ownerIsNfpm;
+    const creditOwner = !ownerIsNfpm;
+
     // Process the collect event — isolates fees from burned principal
-    const result = await processCLPoolCollect(
-      event,
-      token0Instance,
-      token1Instance,
-      context,
-    );
+    const [result, userData] = await Promise.all([
+      processCLPoolCollect(event, token0Instance, token1Instance, context),
+      creditOwner
+        ? loadOrCreateUserData(
+            event.params.owner, // Fees should be attributed to the owner, not the recipient
+            event.srcAddress,
+            event.chainId,
+            context,
+            timestamp,
+          )
+        : undefined,
+    ]);
 
     const poolDiff = result.liquidityPoolDiff;
     const userDiff = result.userLiquidityDiff;
+
+    if (handToNfpmCollect) {
+      await stageNFPMCollectFees(
+        event.chainId,
+        event.transaction.hash,
+        event.params.owner,
+        event.srcAddress,
+        userDiff.incrementalTotalUnstakedFeesCollected0 ?? 0n,
+        userDiff.incrementalTotalUnstakedFeesCollected1 ?? 0n,
+        userDiff.incrementalTotalUnstakedFeesCollectedUSD ?? 0n,
+        context,
+      );
+    }
 
     // Update pool and user entities
     await Promise.all([
@@ -161,7 +233,18 @@ indexer.onEvent(
         event.chainId,
         event.block.number,
       ),
-      updateUserStatsPerPool(userDiff, userData, context, timestamp, poolData),
+      ...(userData
+        ? [
+            updateUserStatsPerPool(
+              userDiff,
+              userData,
+              context,
+              timestamp,
+              event.chainId,
+              poolData,
+            ),
+          ]
+        : []),
     ]);
   },
 );
@@ -222,7 +305,14 @@ indexer.onEvent(
         event.chainId,
         event.block.number,
       ),
-      updateUserStatsPerPool(userDiff, userData, context, timestamp, poolData),
+      updateUserStatsPerPool(
+        userDiff,
+        userData,
+        context,
+        timestamp,
+        event.chainId,
+        poolData,
+      ),
     ]);
   },
 );
@@ -280,6 +370,7 @@ indexer.onEvent(
               userData,
               context,
               timestamp,
+              event.chainId,
               poolData,
             ),
           ]
@@ -333,7 +424,6 @@ indexer.onEvent(
   async ({ event, context }) => {
     context.CLPoolPendingInitialize.set({
       id: PoolId(event.chainId, event.srcAddress),
-      chainId: event.chainId,
       poolAddress: event.srcAddress,
       sqrtPriceX96: event.params.sqrtPriceX96,
       tick: event.params.tick,
@@ -370,20 +460,45 @@ indexer.onEvent(
     );
     // #803: maintain the total per-tick liquidityNet map on every Mint so the swap
     // path can integrate geometry over it. Mint adds liquidity → positive delta.
-    const mintEdges = applyPositionToEdges(
-      liquidityPoolAggregator.tickEdges,
-      liquidityPoolAggregator.tickEdgeNets,
-      event.params.tickLower,
-      event.params.tickUpper,
-      event.params.amount,
-    );
-    if (mintEdges.rejected) {
-      context.log.error(
-        `[TICK_EDGE_DRIFT][CLPool.Mint] rejected=${mintEdges.rejected} pool=${event.srcAddress} chain=${event.chainId} tickLower=${event.params.tickLower} tickUpper=${event.params.tickUpper}`,
+    // The map lives on PoolTickMap and is written only when it changes.
+    if (event.params.amount !== 0n) {
+      const tickMap = await loadPoolTickMap(
+        liquidityPoolAggregator.id,
+        context,
       );
+      const mintEdges = applyPositionToEdges(
+        tickMap.tickEdges,
+        tickMap.tickEdgeNets,
+        event.params.tickLower,
+        event.params.tickUpper,
+        event.params.amount,
+      );
+      if (mintEdges.rejected) {
+        context.log.error(
+          `[TICK_EDGE_DRIFT][CLPool.Mint] rejected=${mintEdges.rejected} pool=${event.srcAddress} chain=${event.chainId} tickLower=${event.params.tickLower} tickUpper=${event.params.tickUpper}`,
+        );
+      }
+      if (mintEdges.changed) {
+        setPoolTickMap(
+          tickMap,
+          { tickEdges: mintEdges.edges, tickEdgeNets: mintEdges.nets },
+          context,
+        );
+      }
+      // Re-derive the staked in-range liquidity alongside the total one this
+      // event moves. The swap path seeds its staked walk from the cached value
+      // whenever 0 < staked < liquidityInRange; re-deriving here keeps a value
+      // that updatePool once clamped to the old total (#891) from passing for
+      // a derived one after the total grows.
+      if (liquidityPoolAggregator.hasStakes) {
+        result.liquidityPoolDiff.stakedLiquidityInRange =
+          deriveLiquidityInRange(
+            liquidityPoolAggregator.tick ?? 0n,
+            tickMap.stakedTickEdges,
+            tickMap.stakedTickEdgeNets,
+          );
+      }
     }
-    result.liquidityPoolDiff.tickEdges = mintEdges.edges;
-    result.liquidityPoolDiff.tickEdgeNets = mintEdges.nets;
     const timestamp = new Date(event.block.timestamp * 1000);
 
     await updatePool(
@@ -404,7 +519,26 @@ indexer.onEvent(
       event.params.amount1,
       event.block.timestamp,
       LiquidityChangeType.ADD,
+      event.chainId,
     );
+
+    // Aero pools: the Aero NFPM's IncreaseLiquidity carries the range, so only
+    // the pool needs handing over, keyed by the values both events carry
+    // (AeroNFPMLogic.ts). Direct (non-NFPM) mints were attributed above.
+    if (liquidityPoolAggregator.deployment === POOL_DEPLOYMENT.AERO) {
+      if (event.params.owner === liquidityPoolAggregator.nfpmAddress) {
+        await recordAeroNFPMMint(
+          event.chainId,
+          event.transaction.hash,
+          event.srcAddress,
+          event.params.owner,
+          event.params,
+          event.logIndex,
+          context,
+        );
+      }
+      return;
+    }
 
     // Store CLPool.Mint data for NFPM.Transfer (mint) to consume and attribute UserStatsPerPool to event.params.to
     const mintEventId = CLPoolMintEventId(
@@ -415,7 +549,6 @@ indexer.onEvent(
     );
     context.CLPoolMintEvent.set({
       id: mintEventId,
-      chainId: event.chainId,
       pool: event.srcAddress,
       owner: event.params.owner,
       tickLower: event.params.tickLower,
@@ -485,8 +618,9 @@ indexer.onEvent(
   async ({ event, context }) => {
     const timestamp = new Date(event.block.timestamp * 1000);
 
-    // Load pool data and user data concurrently for better performance
-    const [poolData, userData] = await Promise.all([
+    // Load pool data, user data and the tick maps concurrently. The tick maps
+    // are read-only here: a swap never changes them.
+    const [poolData, userData, tickMap] = await Promise.all([
       loadPoolData(
         event.srcAddress,
         event.chainId,
@@ -502,9 +636,33 @@ indexer.onEvent(
         context,
         timestamp,
       ),
+      loadPoolTickMap(PoolId(event.chainId, event.srcAddress), context),
     ]);
 
     if (!poolData) {
+      return;
+    }
+
+    const isOUSDTPool =
+      poolData.token0Instance.address === OUSDT_ADDRESS ||
+      poolData.token1Instance.address === OUSDT_ADDRESS;
+
+    if (context.isPreload) {
+      // Everything below is arithmetic on rows already loaded, plus two reads:
+      // the user's snapshot-time staked positions and the tx's oUSDT swap
+      // registry. Issue those and skip the arithmetic (preload writes are no-ops).
+      await Promise.all([
+        preloadUserStatsPerPoolUpdate(
+          userData,
+          timestamp,
+          context,
+          event.chainId,
+          poolData,
+        ),
+        isOUSDTPool
+          ? context.TxOUSDTSwapRegistry.get(event.transaction.hash)
+          : undefined,
+      ]);
       return;
     }
 
@@ -518,6 +676,7 @@ indexer.onEvent(
       token0Instance,
       token1Instance,
       context,
+      tickMap,
     );
 
     const poolDiff = result.liquidityPoolDiff;
@@ -533,22 +692,25 @@ indexer.onEvent(
         event.chainId,
         event.block.number,
       ),
-      updateUserStatsPerPool(userDiff, userData, context, timestamp, poolData),
+      updateUserStatsPerPool(
+        userDiff,
+        userData,
+        context,
+        timestamp,
+        event.chainId,
+        poolData,
+      ),
     ]);
 
     // Create OUSDTSwaps entity
-
-    if (
-      poolData.token0Instance.address === OUSDT_ADDRESS ||
-      poolData.token1Instance.address === OUSDT_ADDRESS
-    ) {
+    if (isOUSDTPool) {
       // Convert CLPool int256 amounts to In/Out format
       const amount0In = event.params.amount0 > 0n ? event.params.amount0 : 0n;
       const amount0Out = event.params.amount0 < 0n ? -event.params.amount0 : 0n;
       const amount1In = event.params.amount1 > 0n ? event.params.amount1 : 0n;
       const amount1Out = event.params.amount1 < 0n ? -event.params.amount1 : 0n;
 
-      createOUSDTSwapEntity(
+      await createOUSDTSwapEntity(
         event.transaction.hash,
         event.chainId,
         poolData.token0Instance,

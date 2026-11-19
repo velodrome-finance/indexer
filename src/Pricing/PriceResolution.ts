@@ -1,0 +1,244 @@
+import type { Token } from "envio";
+import {
+  PRICE_SOURCE,
+  type PriceSource,
+} from "../Snapshots/TokenPriceSnapshot";
+import {
+  COUNTERPARTY_FRESHNESS_MS,
+  ONE_USD,
+  PRICE_CARRY_WINDOW_MS,
+  PRICE_REFRESH_INTERVAL_MS,
+} from "./PricingConfig";
+
+/**
+ * Whether a counterparty's price is fresh enough to build a pool route on:
+ * its last success is at most {@link COUNTERPARTY_FRESHNESS_MS} before the
+ * block (a later success, as in a deferred replay, is fine). A counterparty
+ * that is only carrying an older price is not a base for a `pool` price; the
+ * token carries its own last price instead. Pinned counterparties are exempt
+ * at the call site.
+ *
+ * @param lastSuccessfulPriceTimestamp - The counterparty's last successful price time
+ * @param blockTimestampMs - Timestamp of the block being priced, in milliseconds
+ * @returns true when the counterparty may serve as a route's base
+ */
+export function isCounterpartyPriceFresh(
+  lastSuccessfulPriceTimestamp: Date | undefined,
+  blockTimestampMs: number,
+): boolean {
+  if (!lastSuccessfulPriceTimestamp) return false;
+  return (
+    blockTimestampMs - lastSuccessfulPriceTimestamp.getTime() <=
+    COUNTERPARTY_FRESHNESS_MS
+  );
+}
+
+/**
+ * What a refresh found for a token, before carry / expiry is applied.
+ *
+ * - `override`: operator blacklist (src/PriceOverrides.ts) → price 0
+ * - `pinned`: tier-0 token → exactly $1
+ * - `pool`: the deepest qualifying candidate was a local pool (`sourceId` = pool id)
+ * - `seed`: no local pool qualified, so the committed hourly seed gave the
+ *   canonical source's price for the block's hour (`sourceId` = source token id, `seedHourMs` = the hour used;
+ *   ADR 0008)
+ * - `snapshot`: as `seed`, but the seed had no hour, so the source's own
+ *   hourly snapshot was read from ClickHouse (`getCanonicalSourcePrice`,
+ *   ADR 0009 flow F; `seedHourMs` = the source hour used)
+ * - `rpc`: as `snapshot`, but the source chain had no snapshot for the hour
+ *   yet, so the source's own pool was read on its chain over RPC
+ *   (`getCanonicalSourceRpcPrice`, ADR 0010; `seedHourMs` = the time of the
+ *   source block read, `poolId` / `depthUSD` = the source chain's pool)
+ * - `none`: nothing qualified
+ */
+export type PriceResolution =
+  | { readonly kind: "override" }
+  | { readonly kind: "pinned" }
+  | {
+      readonly kind: "pool";
+      readonly priceUSD: bigint;
+      readonly sourceId: string;
+      readonly depthUSD: bigint;
+      /** 2 for a two-hop pool route (ADR 0007); absent = 1. */
+      readonly hops?: 1 | 2;
+      /** Two-hop only: the peer token the price went through. */
+      readonly viaTokenId?: string;
+      /** Two-hop only: the pool that priced the peer. */
+      readonly viaPoolId?: string;
+    }
+  | {
+      readonly kind: "seed" | "snapshot";
+      readonly priceUSD: bigint;
+      readonly sourceId: string;
+      /** Start of the source hour used, in milliseconds. */
+      readonly seedHourMs: number;
+    }
+  | {
+      readonly kind: "rpc";
+      readonly priceUSD: bigint;
+      readonly sourceId: string;
+      /** Timestamp of the source block read, in milliseconds. */
+      readonly seedHourMs: number;
+      /** The source chain's pool the price was read from (pool id). */
+      readonly poolId: string;
+      /** That pool's stablecoin-side depth at the block, USD 1e18-base. */
+      readonly depthUSD: bigint;
+    }
+  | { readonly kind: "none" };
+
+/** The token write and snapshot provenance a resolution produces. */
+export interface AppliedPrice {
+  /** The token with price, depth and clocks updated (not yet persisted). */
+  readonly token: Token;
+  /** Provenance tag for the TokenPriceSnapshot. */
+  readonly priceSource: PriceSource;
+  /** Pool the price came through (`pool`; `rpc`: the source chain's pool). */
+  readonly pricingPoolId?: string;
+  /** Canonical source token whose price was used (`seed` / `snapshot` / `rpc` resolutions). */
+  readonly pricingSourceTokenId?: string;
+  /** Depth of the winning candidate, USD 1e18-base (`pool`; `rpc`: the source pool's). */
+  readonly pricingDepthUSD?: bigint;
+  /** Route length: 1 for a direct pool, 2 for a two-hop pool route. */
+  readonly pricingHops?: number;
+  /** Two-hop only: the peer token the price went through. */
+  readonly pricingViaTokenId?: string;
+  /** Two-hop only: the pool that priced the peer. */
+  readonly pricingViaPoolId?: string;
+  /**
+   * `seed` / `snapshot`: the source hour whose price was used; `rpc`: the time
+   * of the source block read.
+   */
+  readonly pricingSeedHour?: Date;
+}
+
+/**
+ * Whether a token's price is due for a refresh: never refreshed, or the block
+ * falls in a later clock hour than the last refresh attempt. This is the only
+ * gate — there are no bypasses — so a token is refreshed, and snapshotted, at
+ * most once per clock hour. A block older than the last attempt (e.g. a
+ * deferred cross-chain replay) is never due.
+ *
+ * @param lastUpdatedTimestamp - The token's last refresh attempt, if any
+ * @param blockTimestampMs - Current block timestamp in milliseconds
+ * @returns true when the refresh should run
+ */
+export function isPriceRefreshDue(
+  lastUpdatedTimestamp: Date | undefined,
+  blockTimestampMs: number,
+): boolean {
+  if (!lastUpdatedTimestamp) return true;
+  return (
+    Math.floor(blockTimestampMs / PRICE_REFRESH_INTERVAL_MS) >
+    Math.floor(lastUpdatedTimestamp.getTime() / PRICE_REFRESH_INTERVAL_MS)
+  );
+}
+
+/**
+ * Applies a refresh's resolution to the token, enforcing the two-clock rule
+ * (#694):
+ *
+ * - `lastUpdatedTimestamp` advances on every refresh, whatever the outcome.
+ * - `lastSuccessfulPriceTimestamp` advances only on a successful price
+ *   (`pinned`, `pool`, `seed`, `snapshot`, `rpc`).
+ *
+ * `Token.pricingDepthUSD` records the depth behind the stored price: the
+ * winning pool candidate's depth, kept while a price is carried, cleared when
+ * the price is pinned, overridden or dropped.
+ *
+ * When nothing qualifies (`none`), the last price is carried while the last
+ * success is under {@link PRICE_CARRY_WINDOW_MS} old, so missing data never
+ * zeroes a good price; past the window it drops to 0 (`unpriced`) so a token
+ * whose liquidity has left stops inflating TVL. The window is the same for
+ * every tier. `override` zeroes the price without touching the success clock.
+ *
+ * Pure: no reads, no writes.
+ *
+ * @param token - The token being refreshed
+ * @param resolution - What the refresh found
+ * @param blockTimestampMs - Current block timestamp in milliseconds
+ * @returns The updated token plus snapshot provenance
+ */
+export function applyPriceResolution(
+  token: Token,
+  resolution: PriceResolution,
+  blockTimestampMs: number,
+): AppliedPrice {
+  const now = new Date(blockTimestampMs);
+  const success = (
+    priceUSD: bigint,
+    pricingDepthUSD: bigint | undefined,
+  ): Token => ({
+    ...token,
+    pricePerUSDNew: priceUSD,
+    pricingDepthUSD,
+    lastUpdatedTimestamp: now,
+    lastSuccessfulPriceTimestamp: now,
+  });
+
+  switch (resolution.kind) {
+    case "override":
+      return {
+        token: {
+          ...token,
+          pricePerUSDNew: 0n,
+          pricingDepthUSD: undefined,
+          lastUpdatedTimestamp: now,
+        },
+        priceSource: PRICE_SOURCE.OVERRIDE,
+      };
+    case "pinned":
+      return {
+        token: success(ONE_USD, undefined),
+        priceSource: PRICE_SOURCE.PINNED,
+      };
+    case "pool":
+      return {
+        token: success(resolution.priceUSD, resolution.depthUSD),
+        priceSource: PRICE_SOURCE.POOL,
+        pricingPoolId: resolution.sourceId,
+        pricingDepthUSD: resolution.depthUSD,
+        pricingHops: resolution.hops ?? 1,
+        pricingViaTokenId: resolution.viaTokenId,
+        pricingViaPoolId: resolution.viaPoolId,
+      };
+    case "seed":
+    case "snapshot":
+      // No depth: an hourly price, not a market this block saw.
+      return {
+        token: success(resolution.priceUSD, undefined),
+        priceSource:
+          resolution.kind === "seed"
+            ? PRICE_SOURCE.CANONICAL_SEED
+            : PRICE_SOURCE.CANONICAL_SNAPSHOT,
+        pricingSourceTokenId: resolution.sourceId,
+        pricingSeedHour: new Date(resolution.seedHourMs),
+      };
+    case "rpc":
+      // Token.pricingDepthUSD stays empty as for the seed: the depth is the
+      // source chain's, not a market on this chain. The snapshot records it.
+      return {
+        token: success(resolution.priceUSD, undefined),
+        priceSource: PRICE_SOURCE.CANONICAL_RPC,
+        pricingSourceTokenId: resolution.sourceId,
+        pricingSeedHour: new Date(resolution.seedHourMs),
+        pricingPoolId: resolution.poolId,
+        pricingDepthUSD: resolution.depthUSD,
+      };
+    case "none": {
+      const lastSuccess = token.lastSuccessfulPriceTimestamp;
+      const carry =
+        token.pricePerUSDNew > 0n &&
+        lastSuccess !== undefined &&
+        blockTimestampMs - lastSuccess.getTime() < PRICE_CARRY_WINDOW_MS;
+      return {
+        token: {
+          ...token,
+          pricePerUSDNew: carry ? token.pricePerUSDNew : 0n,
+          pricingDepthUSD: carry ? token.pricingDepthUSD : undefined,
+          lastUpdatedTimestamp: now,
+        },
+        priceSource: carry ? PRICE_SOURCE.CARRIED : PRICE_SOURCE.UNPRICED,
+      };
+    }
+  }
+}

@@ -1,0 +1,143 @@
+id	output
+["0x01Ea2E5bbFbA8aF74d9337fc2Af9c79c12Bc5e2A",57073]	{"name": "Pinky", "symbol": "PINK", "decimals": 18}
+["0x0200C29006150606B650577BBE7B6248F58470c1",57073]	{"name": "USD₮0", "symbol": "USD₮0", "decimals": 6}
+["0x03792f3C7841C901916cB76882Fb5a9E1902aB69",57073]	{"name": "INKACHU", "symbol": "POKE", "decimals": 18}
+["0x05cF7fD68D07bFE5157b19d899e2efdF3ab11C63",57073]	{"name": "BLOT", "symbol": "BLOT", "decimals": 18}
+["0x0606FC632ee812bA970af72F8489baAa443C4B98",57073]	{"name": "ANITA INK", "symbol": "ANITA", "decimals": 18}
+["0x09D8944cd15Ed1d4076248c116ADa6331245706E",57073]	{"name": "Dreadapuss", "symbol": "DPUSS", "decimals": 18}
+["0x09D9420332bff75522a45FcFf4855F82a0a3ff50",57073]	{"name": "Dinero OFT", "symbol": "DINERO", "decimals": 18}
+["0x0Bd1C10dCeADA114096Ee3DCfd07352fE057Ba92",57073]	{"name": "Liquink TEST - no value", "symbol": "TESTINK", "decimals": 18}
+["0x0F42D018e9E139bf5cBF306dD576DD756A2454cc",57073]	{"name": "MyTokenOnINK", "symbol": "MIT", "decimals": 18}
+["0x0c5E2D1C98cd265C751e02F8F3293bC5764F9111",57073]	{"name": "Shroomy", "symbol": "SHROOMY", "decimals": 18}
+["0x11476323D8DFCBAFac942588E2f38823d2Dd308e",57073]	{"name": "Ink Staked ETH", "symbol": "iETH", "decimals": 18}
+["0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",57073]	{"name": "OpenUSDT", "symbol": "oUSDT", "decimals": 6}
+["0x1421c89A82aDf9d9Da880aAC329c693b8e641dD7",57073]	{"name": "titi", "symbol": "TT", "decimals": 18}
+["0x145922E65CeAf0e4Cf6E37e3a0e5BB57D9E1Ff09",57073]	{"name": "Squidward", "symbol": "SQWARD", "decimals": 18}
+["0x1467d31ab00F986d0e0e764365d999972289CD03",57073]	{"name": "Constellation Network", "symbol": "DAG", "decimals": 8}
+["0x1514c65c751d16Bf253a9e82715771c5557e568b",57073]	{"name": "InkChain MemeHub", "symbol": "INKYME", "decimals": 18}
+["0x19EB460D4155e204b054dE78661f9Aa556b50874",57073]	{"name": "Octopus", "symbol": "OCTO", "decimals": 18}
+["0x1B184de5952d11fE3e821fc58E6ef73d545F733e",57073]	{"name": "Cypherpunk", "symbol": "CYPHER", "decimals": 18}
+["0x1B18889ca21a0De73a8541B12Ef2bCDD3d6A24EF",57073]	{"name": "Ink Brokers", "symbol": "INKBROKER", "decimals": 18}
+["0x1Df8fDECA4A45D3EBa0CFC528fEa32EeC6c6CA70",57073]	{"name": "Squidtardio", "symbol": "SQUIDTARDIO", "decimals": 8}
+["0x1a523AC6553d11F1d66b60CF351c94bD7c7283Db",57073]	{"name": "Liquink", "symbol": "LIQUINK", "decimals": 18}
+["0x20C69C12abf2B6F8D8ca33604DD25C700c7e70A5",57073]	{"name": "Cat Call Agent", "symbol": "CAT", "decimals": 18}
+["0x211Cc4DD073734dA055fbF44a2b4667d5E5fE5d2",57073]	{"name": "Staked USDe", "symbol": "sUSDe", "decimals": 18}
+["0x21C97338b1EA81A0b49930483C70d5B79ABcf041",57073]	{"name": "DickButt on INK", "symbol": "DBI", "decimals": 18}
+["0x23f63C65c474f2A5BF80ea845Ca496Da3689A2B9",57073]	{"name": "USD Coin", "symbol": "USDC", "decimals": 6}
+["0x2416092f143378750bb29b79eD961ab195CcEea5",57073]	{"name": "Renzo Restaked ETH", "symbol": "ezETH", "decimals": 18}
+["0x25Fdc675E6045f7279cbF0dAe98fF746d55fA273",57073]	{"name": "VAYLET", "symbol": "VAYLET", "decimals": 18}
+["0x2B35eF056728BaFFaC103e3b81cB029788006EF9",57073]	{"name": "Aave InkWhitelabel WETH", "symbol": "aInkWlWETH", "decimals": 18}
+["0x2D270e6886d130D724215A266106e6832161EAEd",57073]	{"name": "USDC", "symbol": "USDC", "decimals": 6}
+["0x2a1bce657F919ac3f9aB50b2584CFC77563A02Ec",57073]	{"name": "Andru Kollor", "symbol": "AK47", "decimals": 18}
+["0x2dC2b752F4C6dFfe2dbcf60b848B8357a8879A01",57073]	{"name": "The CthulhuWorm of Superchain", "symbol": "Worm", "decimals": 18}
+["0x2e3b82891d1B2b90655597110cCA9b6587607e0c",57073]	{"name": "Squidward", "symbol": "SQUID", "decimals": 18}
+["0x2fd4eD40B693b0351fe890E9570f111575d34425",57073]	{"name": "Inkborn Phantasm", "symbol": "INKB", "decimals": 18}
+["0x313B8237B5bbbe874fE7c5E6803D8bfed39bC4C1",57073]	{"name": "REDACTED", "symbol": "RDCTD", "decimals": 18}
+["0x32bCB803f696C99Eb263D60a05CAfD8689026575",57073]	{"name": "Krak Mask", "symbol": "KRAKMASK", "decimals": 18}
+["0x3366989DdeB025AFd27692c1Ed7b541178Afb794",57073]	{"name": "Nightmare", "symbol": "REM", "decimals": 18}
+["0x3379B82E2C225788e876b415B4F27CbB66EEC09B",57073]	{"name": "The Finker", "symbol": "FINK", "decimals": 18}
+["0x3B8bc1D36C30E293a912bE56807A3e5d94ebE76B",57073]	{"name": "MyToken", "symbol": "MTK", "decimals": 4}
+["0x3daEd354c307D9Bd4f6fA00fbCca4188b2C8B688",57073]	{"name": "Squidjak", "symbol": "SQJAK", "decimals": 18}
+["0x40E7C5857821852dEd2076ABB1B6D3A769dDe1bE",57073]	{"name": "Deep Spawn QNDS", "symbol": "PINK", "decimals": 18}
+["0x40aBd730Cc9dA34a8EE9823fEaBDBa35E50c4ac7",57073]	{"name": "Tydro Ink Points", "symbol": "TydroInkPoints", "decimals": 18}
+["0x4200000000000000000000000000000000000006",57073]	{"name": "Wrapped Ether", "symbol": "WETH", "decimals": 18}
+["0x43607B299bE59c010f9689Bc6744005B1ADe4A5F",57073]	{"name": "Profile Phantom", "symbol": "PHANT", "decimals": 18}
+["0x487EfE1C71712C45E493a9B5D60DDDF852DdD48c",57073]	{"name": "VIOLET", "symbol": "VIOLET", "decimals": 18}
+["0x4E7942a72DCFCc72Fa0872068B0DBA3921c1bB8A",57073]	{"name": "SuperChad", "symbol": "CHAD", "decimals": 18}
+["0x53EB0098d09B8d1008f382BbD2A5D4f649111710",57073]	{"name": "WATCH DOGS", "symbol": "WATCH", "decimals": 18}
+["0x5BCf6B008bf80b9296238546BaCE1797657B05d6",57073]	{"name": "Re Protocol reUSD", "symbol": "reUSD", "decimals": 18}
+["0x5C240EE56237b8F097bbfD194fD6eA4f1d5De634",57073]	{"name": "Rains USD", "symbol": "USDr", "decimals": 18}
+["0x5EB8E2dAecaF08029AdC76797aa0f4941a2F43B8",57073]	{"name": "Hallelujah", "symbol": "HLJH", "decimals": 18}
+["0x5F0A746F56A16e399548B2B2E6E1DBFA1f5c4dB4",57073]	{"name": "Kink Token", "symbol": "KINK", "decimals": 18}
+["0x5b6A57566137097fa07a57C2a4a4De8E38973a98",57073]	{"name": "Watt", "symbol": "WATT", "decimals": 18}
+["0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",57073]	{"name": "USDe", "symbol": "USDe", "decimals": 18}
+["0x62c99FAc20B33b5423fdf9226179e973A8353e36",57073]	{"name": "BERT", "symbol": "BERT", "decimals": 18}
+["0x657678F9165d96ee6D7540c28E781105fA8D2e27",57073]	{"name": "CATHULHU", "symbol": "CATHULHU", "decimals": 18}
+["0x67314f6a5732a308408969269618F38132777a45",57073]	{"name": "Squi", "symbol": "SQUI", "decimals": 18}
+["0x6Cfc4D189C2E7D7891c2E5934B7d3978bC70D1FE",57073]	{"name": "Dialectic ETH", "symbol": "DETH", "decimals": 18}
+["0x6a39fEeBf19314DaD2E99C7eca7108521401dce7",57073]	{"name": "test3", "symbol": "TEST3", "decimals": 18}
+["0x6d96cd0031d12DA7F71f28ee15eC5161D5Cd3DDd",57073]	{"name": "Xpert", "symbol": "XPR", "decimals": 18}
+["0x6e4Bf976Ae92F849f94068cDad5f87fE243448b3",57073]	{"name": "test4", "symbol": "TEST4", "decimals": 18}
+["0x731e5C9c65fC85638Ba2b1add936A89619092bCf",57073]	{"name": "Useless Shit", "symbol": "UST", "decimals": 18}
+["0x739ec5aF87446fA8F7540CB028421139495B4E2d",57073]	{"name": "Pepe Ink", "symbol": "PENK", "decimals": 18}
+["0x73E0C0d45E048D25Fc26Fa3159b0aA04BfA4Db98",57073]	{"name": "Kraken Wrapped Bitcoin", "symbol": "kBTC", "decimals": 8}
+["0x75e7A5316e44755FF4ad724ee45337D1Eef6895e",57073]	{"name": "Pearl", "symbol": "PRL", "decimals": 18}
+["0x767F1e9feDfF2BFA4f90a7EFFddfCCc2970530Ba",57073]	{"name": "INKO", "symbol": "INKO", "decimals": 18}
+["0x7b24dc414203dfb92d09375fBfdC7eBdA7C053FC",57073]	{"name": "USD My", "symbol": "UDS", "decimals": 18}
+["0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",57073]	{"name": "Superchain Velodrome", "symbol": "XVELO", "decimals": 18}
+["0x80Eede496655FB9047dd39d9f418d5483ED600df",57073]	{"name": "Frax USD", "symbol": "frxUSD", "decimals": 18}
+["0x8148DfC26eE049a9B83aB3e2ED8595de64A1511E",57073]	{"name": "DOG (INK)", "symbol": "DOG", "decimals": 18}
+["0x82892f3e490309985D94dB5398e56e94A03c127F",57073]	{"name": "Liquink", "symbol": "LIQUINK", "decimals": 18}
+["0x82ae03Bbe6EC576bBD7496CbD67917CC21Af097C",57073]	{"name": "Ika", "symbol": "IKA", "decimals": 18}
+["0x8551504De58b04fAE313b9BAA15791532A876044",57073]	{"name": "Grape The Ape", "symbol": "GRAPE", "decimals": 18}
+["0x896bde845201eC44867C61DB4CAAa50db5A84aEe",57073]	{"name": "martink", "symbol": "MARTINK", "decimals": 18}
+["0x8A76fe7fA6da27f85a626c5C53730B38D13603d7",57073]	{"name": "Syrup USDT", "symbol": "syrupUSDT", "decimals": 6}
+["0x8aD3c73F833d3F9A523aB01476625F269aEB7Cf0",57073]	{"name": "Tesla xStock", "symbol": "TSLAx", "decimals": 18}
+["0x8c372ED8F3F03ba4ecA7cd42AE689Df5e765c82C",57073]	{"name": "TestV", "symbol": "TESTV", "decimals": 18}
+["0x8e0f9350e294F49f8016EE250ff60448598cB8a1",57073]	{"name": "Gamercoin", "symbol": "GAMER", "decimals": 18}
+["0x90A2a4c76b5D8c0bc892A69EA28Aa775a8f2dD48",57073]	{"name": "SP500 xStock", "symbol": "SPYx", "decimals": 18}
+["0x91f0D0753a2943FD17492cff79A38E4a97dF0d51",57073]	{"name": "Mavrk x Velodrome Test", "symbol": "TEST", "decimals": 18}
+["0x95e7f4cDA55Afe83B031304fF2d5a396eFb81591",57073]	{"name": "Dialectic BTC", "symbol": "DBIT", "decimals": 18}
+["0x99cBF1Ff4527675Ed3301671105C9F7748fb8a04",57073]	{"name": "Aave InkWhitelabel USDT", "symbol": "aInkWlUSDT", "decimals": 6}
+["0x9EDfb162b725CF6d628D68af200cAe8b624111eD",57073]	{"name": "SUSDC", "symbol": "SUSDC", "decimals": 18}
+["0x9f0a74A92287E323Eb95c1cd9eCdBEb0e397cAe4",57073]	{"name": "rsETHWrapper", "symbol": "wrsETH", "decimals": 18}
+["0xA3D68b74bF0528fdD07263c60d6488749044914b",57073]	{"name": "Wrapped eETH", "symbol": "weETH", "decimals": 18}
+["0xAE44bAC3814ECc4F5AC3FeE16eb06BFF1B74fE82",57073]	{"name": "Pepe Ink", "symbol": "PENK", "decimals": 8}
+["0xB54830013CB7A524C5e7161246266C656359ab6a",57073]	{"name": "notsofast_iota", "symbol": "nsfi", "decimals": 18}
+["0xBE23B5574000f9676E34308b16aB100542B2Ff2e",57073]	{"name": "Inked Fartcoin", "symbol": "Fartcoin", "decimals": 18}
+["0xBbB71f183D440d6a40B6511ACf79AB6c5Eb111Dc",57073]	{"name": "Superchain Staked Ether", "symbol": "superETH", "decimals": 18}
+["0xCB5d3704A55c2395eff2de00366D2f826aE76632",57073]	{"name": "Test", "symbol": "TEST", "decimals": 18}
+["0xCED1368B4906393cFFcc65dcEDD12933470438d4",57073]	{"name": "Hxdg", "symbol": "HXDG", "decimals": 18}
+["0xCa5f2cCBD9C40b32657dF57c716De44237f80F05",57073]	{"name": "Kraken", "symbol": "Kraken", "decimals": 18}
+["0xCb95A3840c8eA5F0D4E78B67eC897Df84d17c5e6",57073]	{"name": "KRILL", "symbol": "KRILL", "decimals": 18}
+["0xCeA0f8ed85E4EB981406E84DDCA7062946093089",57073]	{"name": "Poseidon", "symbol": "PSD", "decimals": 18}
+["0xD642B49d10cc6e1BC1c6945725667c35e0875f22",57073]	{"name": "Purple", "symbol": "PURPLE", "decimals": 18}
+["0xD95B9A5Fa7C2708fD4FE0E07E59bDE1Ef35b194a",57073]	{"name": "Kraken Mascot", "symbol": "BEAST", "decimals": 18}
+["0xD9803F3A7F2b7Ce185daAaC94EFE00B30F0f9fab",57073]	{"name": "INKTOP", "symbol": "INKTOP", "decimals": 18}
+["0xE27D360F7b66C0357630B127505E7923246Dd458",57073]	{"name": "Khino", "symbol": "KINO", "decimals": 9}
+["0xE4Df3F5449b9e008b756E6a9c89ae2d6D4813e07",57073]	{"name": "Test Token", "symbol": "TEST", "decimals": 18}
+["0xE62b7ca28E8a78Fb50609424190AEbAa38b050a8",57073]	{"name": "PUG on INK", "symbol": "PUG", "decimals": 18}
+["0xE7E553Cd128F0011777323A0b44a7b96EA1CB540",57073]	{"name": "Wrapped SP500 xStock", "symbol": "wSPYx", "decimals": 18}
+["0xED51e37c46cbE59d49731ca4B403c63adF9cB3dF",57073]	{"name": "WindEnergy", "symbol": "WIND", "decimals": 18}
+["0xEF172EE53FbBE945AE2bd6CcfF93384ACf9CF19D",57073]	{"name": "Ink Cat", "symbol": "ICAT", "decimals": 18}
+["0xEd1FB7fb76392B38e50C68bBbEc71871785f2999",57073]	{"name": "Liquink", "symbol": "LIQUINK", "decimals": 18}
+["0xEe73d2f34D66f0f07aF6ab37b42713520E33119C",57073]	{"name": "MystInk", "symbol": "MYST", "decimals": 18}
+["0xF1815bd50389c46847f0Bda824eC8da914045D14",57073]	{"name": "Bridged USDC (Stargate)", "symbol": "USDC.e", "decimals": 6}
+["0xF3824c11E260f5948209B70a34Fec1F74459771B",57073]	{"name": "RUKA", "symbol": "RUKA", "decimals": 18}
+["0xF44b67Ba39c780C291e15f37961198eD1AE54D82",57073]	{"name": "MINER", "symbol": "MINER", "decimals": 18}
+["0xF50258D3c1dd88946C567920B986A12e65b50dAc",57073]	{"name": "XAUt0", "symbol": "XAUt0", "decimals": 6}
+["0xFC380ee3eD86F7bAe886e69A84e9DC37BF2145a5",57073]	{"name": "test3", "symbol": "TEST3", "decimals": 18}
+["0xa10d8aC477c04DA695ef3b11fb577BBcac654EBB",57073]	{"name": "Ultra Staked Ether", "symbol": "ultraETH", "decimals": 18}
+["0xa161132371C94299D215915D4Cbc3B629E2059Be",57073]	{"name": "brBTC", "symbol": "brBTC", "decimals": 8}
+["0xa2ff20F5da4211162CBa9Df8C6498233a0382085",57073]	{"name": "BLOT Face", "symbol": "FACE", "decimals": 18}
+["0xa8b36fc41d45E7395D48395b4d719F35c520b3b4",57073]	{"name": "SCRIP", "symbol": "SCRIP", "decimals": 18}
+["0xa8ddb5Cd96b5222AFe198316E9A57CAA642850D5",57073]	{"name": "Wrapped NVIDIA xStock", "symbol": "wNVDAx", "decimals": 18}
+["0xa95C8ff7Be2A1C898fe01B90Fdc9621E8ea5c9FC",57073]	{"name": "Dialectic USD", "symbol": "DUSD", "decimals": 18}
+["0xaB6AB1B7df70C7062356DC7417C2C8762Be34938",57073]	{"name": "MyToken", "symbol": "MTK", "decimals": 4}
+["0xaE4EFbc7736f963982aACb17EFA37fCBAb924cB3",57073]	{"name": "Solv BTC", "symbol": "SolvBTC", "decimals": 18}
+["0xafcc6AE807187A31E84138F3860D4CE27973e01b",57073]	{"name": "Superchain OP", "symbol": "XOP", "decimals": 18}
+["0xb04048d5A285A547EA115194519E84e2Fc431Cc3",57073]	{"name": "Tint", "symbol": "TINT", "decimals": 18}
+["0xb10626d8d72Eebb9fEa4D883f4C3aE99244cE0D4",57073]	{"name": "Architeuthis dux", "symbol": "ADUX", "decimals": 18}
+["0xb79E0BEAE82B23d83FBe3bfdDd10479182fA02BD",57073]	{"name": "Test", "symbol": "TEST", "decimals": 18}
+["0xb816F5951a2e568d6EAE351443c789C4F9Fb55A7",57073]	{"name": "Archival Ink", "symbol": "Arch", "decimals": 18}
+["0xbd935607bB055B572cA28C8259CC881e15fC09fd",57073]	{"name": "Inkborn Legends", "symbol": "BLOOM", "decimals": 18}
+["0xbf0cAfCbaaF0be8221Ae8d630500984eDC908861",57073]	{"name": "SquidSwap", "symbol": "SQUIDS", "decimals": 18}
+["0xd2c4D9140fFCe5ff85FE1FaA1bF5f7941e98ad38",57073]	{"name": "VeloTest", "symbol": "VTEST", "decimals": 18}
+["0xd4306991f8a5CEF2d2bCB3262224dEd11BD18baD",57073]	{"name": "Kink Token", "symbol": "KINK", "decimals": 18}
+["0xe3332D21b49d9347913cca2316FcC1b34fa16914",57073]	{"name": "INKTOP", "symbol": "INKTOP", "decimals": 18}
+["0xe343167631d89B6Ffc58B88d6b7fB0228795491D",57073]	{"name": "Global Dollar", "symbol": "USDG", "decimals": 6}
+["0xe8245188Db1EfC91aef32e7aA4cf346b9A5830Cf",57073]	{"name": "CF Large Cap Index", "symbol": "LCAP", "decimals": 18}
+["0xeC2d096221bF7f599D1b1581DD73eb6b245807Ee",57073]	{"name": "LIT", "symbol": "LIT", "decimals": 18}
+["0xeD386ec54305A30e88369127b3B4a0BaF1f2C2EC",57073]	{"name": "Moon Wolf", "symbol": "MWOLF", "decimals": 18}
+["0xf5FE7068B7b58B34b19De2880CC1Db72dd869022",57073]	{"name": "DogInk", "symbol": "DINK", "decimals": 18}
+["0xfc421aD3C883Bf9E7C4f42dE845C4e4405799e73",57073]	{"name": "Gho Token", "symbol": "GHO", "decimals": 18}
+["0xfd3C463f13f652F7a0D0d2FaA9d5950FfC579899",57073]	{"name": "Liquink", "symbol": "LIQUINK", "decimals": 18}
+["0x30987adF0B11dc698438a99BA04ec3a1AB2c7EaB",57073]	{"name": "Wrapped MicroStrategy xStock", "symbol": "wMSTRx", "decimals": 18}
+["0x4A2df09536F62341C9f946427D16414C04e21342",57073]	{"name": "Wrapped Palantir xStock", "symbol": "wPLTRx", "decimals": 18}
+["0x4C1AE29c159838fC1b224636E28E086EB69101f7",57073]	{"name": "Wrapped Nasdaq xStock", "symbol": "wQQQx", "decimals": 18}
+["0x7d87fD6A379714194a797c0bBB8B40c30D250856",57073]	{"name": "Wrapped Netflix xStock", "symbol": "wNFLXx", "decimals": 18}
+["0x8e2eeD8b8B5E13Ea7BF38e50d7821d2C57309072",57073]	{"name": "Wrapped SpaceX xStock", "symbol": "wSPCXx", "decimals": 18}
+["0x943BF64D566c32A2Bcd41AC92FB63C111cC9De8f",57073]	{"name": "Wrapped Apple xStock", "symbol": "wAAPLx", "decimals": 18}
+["0x9e148C5716b5aAdCFD3B71cEAE9EE7a9e22C29E2",57073]	{"name": "Aero", "symbol": "xAERO", "decimals": 18}
+["0xc3FdBe3A68EE5dE461D30415a8165cf9Aefe1171",57073]	{"name": "Wrapped Tesla xStock", "symbol": "wTSLAx", "decimals": 18}
+["0xc6639026a3a862cd4fcbae3f67cB2D25A2959d37",57073]	{"name": "Wrapped McDonald's xStock", "symbol": "wMCDx", "decimals": 18}

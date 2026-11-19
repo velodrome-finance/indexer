@@ -46,6 +46,7 @@ describe("PoolClaimLogic", () => {
           mockEvent.params.amount1,
           common.mockToken0Data,
           common.mockToken1Data,
+          mockEvent.chainId,
         );
 
         // Act
@@ -99,6 +100,7 @@ describe("PoolClaimLogic", () => {
           mockEvent.params.amount1,
           common.mockToken0Data,
           common.mockToken1Data,
+          mockEvent.chainId,
         );
 
         // Act
@@ -229,6 +231,7 @@ describe("PoolClaimLogic", () => {
           mockEvent.params.amount1,
           tokenWith6Decimals,
           tokenWith18Decimals,
+          mockEvent.chainId,
         );
 
         // Act
@@ -260,6 +263,7 @@ describe("PoolClaimLogic", () => {
           mockEvent.params.amount1,
           common.mockToken0Data,
           undefined,
+          mockEvent.chainId,
         );
 
         // Act

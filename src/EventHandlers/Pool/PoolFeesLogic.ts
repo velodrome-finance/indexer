@@ -17,15 +17,13 @@ export interface PoolFeesResult {
  * reports raw token units, so each leg is normalized here using its token's
  * decimals.
  *
- * USD fee aggregates are deliberately NOT written here. Per issue #797 they
- * are now derived in `processPoolSwap` from trusted volume × pool fee rate
- * (`volumeInUSD × currentFee / FEE_SCALE`), mirroring CL's path
- * (`CLPoolSwapLogic.calculateSwapFees`) and completing the #733 / regression
- * of #670 invariant `cumulative_fees ≤ cumulative_volume × fee_ratio`. The
- * Fees event only carries the input-side leg, so its old single-leg
- * `pickTrustedSwapVolumeUSD` valuation had no second leg to clamp against and
- * leaked any inflated/inconsistent input price straight into the USD
- * aggregate (1000/1000 `[FEE_VOLUME_DIVERGENCE]` warned pools on c9b8978 were V2).
+ * USD fee aggregates are deliberately NOT written here: the Fees event only
+ * carries the input-side leg, so a single-leg valuation has no second leg to
+ * check the price against and leaked inflated input prices straight into the
+ * USD aggregate (1000/1000 `[FEE_VOLUME_DIVERGENCE]` warned pools on c9b8978
+ * were V2, issue #797). The Fees handler hands these raw amounts to the
+ * swap's Swap event (V2SwapFeesInTx), where `processPoolSwap` values them
+ * with both legs available.
  *
  * @param event - V2 Pool Fees event
  * @param token0Instance - Token0 entity (decimals used for 1e18 normalization)

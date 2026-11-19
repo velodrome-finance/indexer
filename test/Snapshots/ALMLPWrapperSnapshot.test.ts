@@ -25,7 +25,11 @@ describe("ALMLPWrapperSnapshot", () => {
       const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 3;
       const wrapperAddress = getWrapperAddressFromId(entity.id);
 
-      const snapshot = createALMLPWrapperSnapshot(entity, timestamp);
+      const snapshot = createALMLPWrapperSnapshot(
+        entity,
+        timestamp,
+        entity.chainId,
+      );
 
       expect(snapshot.id).toBe(
         ALMLPWrapperSnapshotId(entity.chainId, wrapperAddress, expectedEpochMs),
@@ -35,9 +39,14 @@ describe("ALMLPWrapperSnapshot", () => {
 
     it("should copy entity fields into snapshot without persisting", () => {
       const entity = common.mockALMLPWrapperData;
-      const snapshot = createALMLPWrapperSnapshot(entity, baseTimestamp);
+      const snapshot = createALMLPWrapperSnapshot(
+        entity,
+        baseTimestamp,
+        entity.chainId,
+      );
 
-      expect(snapshot.chainId).toBe(entity.chainId);
+      // Per-chain mode: the chain lives in envio's own column, not on the row.
+      expect(snapshot).not.toHaveProperty("chainId");
       expect(snapshot.pool).toBe(entity.pool);
       expect(snapshot.token0).toBe(entity.token0);
       expect(snapshot.token1).toBe(entity.token1);
@@ -62,7 +71,7 @@ describe("ALMLPWrapperSnapshot", () => {
       expectedEpochMs,
     );
 
-    setALMLPWrapperSnapshot(entity, timestamp, context);
+    setALMLPWrapperSnapshot(entity, timestamp, context, entity.chainId);
 
     expect(context.ALM_LP_WrapperSnapshot.set).toHaveBeenCalledTimes(1);
     expect(context.ALM_LP_WrapperSnapshot.set).toHaveBeenCalledWith(
@@ -84,7 +93,12 @@ describe("ALMLPWrapperSnapshot", () => {
     const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 3;
     const wrapperAddress = getWrapperAddressFromId(entityWithoutHyphenInId.id);
 
-    setALMLPWrapperSnapshot(entityWithoutHyphenInId, baseTimestamp, context);
+    setALMLPWrapperSnapshot(
+      entityWithoutHyphenInId,
+      baseTimestamp,
+      context,
+      entityWithoutHyphenInId.chainId,
+    );
 
     expect(context.ALM_LP_WrapperSnapshot.set).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -107,7 +121,7 @@ describe("ALMLPWrapperSnapshot", () => {
     const expectedEpochMs = SNAPSHOT_INTERVAL_IN_MS * 3;
     const wrapperAddress = getWrapperAddressFromId(entity.id);
 
-    setALMLPWrapperSnapshot(entity, baseTimestamp, context);
+    setALMLPWrapperSnapshot(entity, baseTimestamp, context, entity.chainId);
 
     expect(context.ALM_LP_WrapperSnapshot.set).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -117,7 +131,6 @@ describe("ALMLPWrapperSnapshot", () => {
           expectedEpochMs,
         ),
         timestamp: new Date(expectedEpochMs),
-        chainId: entity.chainId,
         pool: entity.pool,
         token0: entity.token0,
         token1: entity.token1,

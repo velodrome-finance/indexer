@@ -51,6 +51,7 @@ describe("ALMLPWrapper Aggregator", () => {
           mockALMLPWrapperData,
           timestamp,
           mockContext as handlerContext,
+          mockALMLPWrapperData.chainId,
         );
 
         const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
@@ -64,7 +65,6 @@ describe("ALMLPWrapper Aggregator", () => {
 
       it("should preserve other fields", () => {
         expect(result.id).toBe(mockALMLPWrapperData.id);
-        expect(result.chainId).toBe(mockALMLPWrapperData.chainId);
         expect(result.pool).toBe(mockALMLPWrapperData.pool);
       });
 
@@ -87,6 +87,7 @@ describe("ALMLPWrapper Aggregator", () => {
           mockALMLPWrapperData,
           timestamp,
           mockContext as handlerContext,
+          mockALMLPWrapperData.chainId,
         );
 
         const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
@@ -114,6 +115,7 @@ describe("ALMLPWrapper Aggregator", () => {
           mockALMLPWrapperData,
           timestamp,
           mockContext as handlerContext,
+          mockALMLPWrapperData.chainId,
         );
 
         const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
@@ -133,6 +135,7 @@ describe("ALMLPWrapper Aggregator", () => {
           mockALMLPWrapperData,
           timestamp,
           mockContext as handlerContext,
+          mockALMLPWrapperData.chainId,
         );
 
         const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
@@ -160,6 +163,7 @@ describe("ALMLPWrapper Aggregator", () => {
           emptyWrapper,
           timestamp,
           mockContext as handlerContext,
+          mockALMLPWrapperData.chainId,
         );
 
         const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
@@ -189,6 +193,7 @@ describe("ALMLPWrapper Aggregator", () => {
           emptyWrapper,
           timestamp,
           mockContext as handlerContext,
+          mockALMLPWrapperData.chainId,
         );
 
         const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
@@ -218,6 +223,7 @@ describe("ALMLPWrapper Aggregator", () => {
           mockALMLPWrapperData,
           timestamp,
           mockContext as handlerContext,
+          mockALMLPWrapperData.chainId,
         );
 
         const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
@@ -238,6 +244,7 @@ describe("ALMLPWrapper Aggregator", () => {
           mockALMLPWrapperData,
           timestamp,
           mockContext as handlerContext,
+          mockALMLPWrapperData.chainId,
         );
 
         const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
@@ -260,6 +267,7 @@ describe("ALMLPWrapper Aggregator", () => {
           mockALMLPWrapperData,
           timestamp,
           mockContext as handlerContext,
+          mockALMLPWrapperData.chainId,
         );
 
         const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
@@ -283,6 +291,7 @@ describe("ALMLPWrapper Aggregator", () => {
           mockALMLPWrapperData,
           timestamp,
           mockContext as handlerContext,
+          mockALMLPWrapperData.chainId,
         );
 
         expect(
@@ -300,13 +309,13 @@ describe("ALMLPWrapper Aggregator", () => {
           mockALMLPWrapperData,
           timestamp,
           mockContext as handlerContext,
+          mockALMLPWrapperData.chainId,
         );
 
         const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
         const result = mockSet?.mock.calls[0]?.[0] as ALM_LP_Wrapper;
 
         expect(result.id).toBe(mockALMLPWrapperData.id);
-        expect(result.chainId).toBe(mockALMLPWrapperData.chainId);
         expect(result.pool).toBe(mockALMLPWrapperData.pool);
         expect(result.liquidity).not.toBe(mockALMLPWrapperData.liquidity);
         expect(result.lastUpdatedTimestamp).not.toBe(
@@ -332,6 +341,7 @@ describe("ALMLPWrapper Aggregator", () => {
           mockALMLPWrapperData,
           timestamp,
           mockContext as handlerContext,
+          mockALMLPWrapperData.chainId,
         );
 
         const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);
@@ -375,6 +385,7 @@ describe("ALMLPWrapper Aggregator", () => {
           mockALMLPWrapperData,
           timestamp,
           mockContext as handlerContext,
+          mockALMLPWrapperData.chainId,
         );
 
         const mockSet = vi.mocked(mockContext.ALM_LP_Wrapper?.set);

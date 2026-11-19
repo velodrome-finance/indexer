@@ -1,17 +1,17 @@
 import type { CLGaugeConfig, Token } from "envio";
 import {
+  POOL_DEPLOYMENT,
+  type PoolDeployment,
   PoolId,
   TEN_TO_THE_18_BI,
   TokenId,
-  isKnownSinkRootPool,
 } from "../Constants";
-import { getSwapFee, roundBlockToInterval } from "../Effects/Index";
 import { getRehydrated, getWhereRehydrated } from "../EntityTimestamps";
 import type { handlerContext } from "../EntityTypes";
 import type { Pool } from "../EntityTypes";
 import { calculateTotalUSD, generatePoolName } from "../Helpers";
-import { refreshTokenPrice } from "../PriceOracle";
-import { getPoolImpliedUSD, getTrustedUSD } from "../PriceTrust";
+import { isTokenRefreshNoop, refreshTokenPrice } from "../PriceOracle";
+import { getTrustedUSD } from "../PriceTrust";
 import {
   getSnapshotEpoch,
   setPoolSnapshot,
@@ -69,6 +69,7 @@ const NEG_STAKED_RESERVE_WARN_FLOOR_USD = 1_000n * TEN_TO_THE_18_BI;
  * @param tokenId - Pool's token entity ID for the field that overflowed
  *   (`token0_id` for stakedReserve0, `token1_id` for stakedReserve1).
  * @param context - Handler context for Token entity load and log emission.
+ * @param chainId - Chain of the event being handled (the pool's chain).
  * @returns Promise that resolves once the log line is emitted.
  */
 async function logNegStakedReserveGuard(
@@ -76,9 +77,10 @@ async function logNegStakedReserveGuard(
   overshoot: bigint,
   tokenId: string,
   context: handlerContext,
+  chainId: number,
 ): Promise<void> {
   const token = await getRehydrated(context.Token, "Token", tokenId);
-  const overshootUSD = getTrustedUSD(overshoot, token ?? undefined);
+  const overshootUSD = getTrustedUSD(overshoot, token ?? undefined, chainId);
   if (overshootUSD > NEG_STAKED_RESERVE_WARN_FLOOR_USD) {
     context.log.warn(msg);
   } else {
@@ -118,6 +120,9 @@ export interface PoolDiff {
   incrementalTotalStakedFeesCollected1: bigint;
   incrementalTotalStakedFeesCollectedUSD: bigint;
   incrementalNumberOfSwaps: bigint;
+  // CL swaps valued with the stored rate because the swap-derived fee was
+  // rejected (see src/Aggregators/CLSwapFee.ts).
+  incrementalNumberOfSwapFeeFallbacks: bigint;
   incrementalTotalEmissions: bigint;
   incrementalTotalEmissionsUSD: bigint;
   incrementalTotalEmissionsRedistributed: bigint;
@@ -132,6 +137,8 @@ export interface PoolDiff {
   incrementalNumberOfGaugeRewardClaims: bigint;
   incrementalTotalGaugeRewardsClaimedUSD: bigint;
   incrementalTotalGaugeRewardsClaimed: bigint;
+  incrementalTotalGaugeEarlyWithdrawPenalties: bigint;
+  incrementalTotalGaugeEarlyWithdrawPenaltiesUSD: bigint;
   incrementalCurrentLiquidityStaked: bigint;
   currentTotalLiquidityUSD: bigint;
   currentLiquidityStakedUSD: bigint;
@@ -158,30 +165,9 @@ export interface PoolDiff {
   incrementalStakedReserve0: bigint;
   incrementalStakedReserve1: bigint;
   hasStakes: boolean;
-  // Replace semantics (NOT incremental): producers — gauge deposit/withdraw,
-  // NFPM liquidity change — compute the full post-edit arrays from `current.
-  // stakedTickEdges` / `current.stakedTickEdgeNets` and pass them whole. The
-  // aggregator writes them verbatim; there is no merge/sum path for these
-  // fields the way `incrementalCurrentLiquidityStaked` & co. have. This is
-  // the same "last-writer-wins" style used for `tick`, `sqrtPriceX96`, etc.
-  //
-  // Why replace (not incremental): the array is a sorted, dedup'd, no-zero
-  // encoding of Uniswap v3's liquidityNet per tick. Splicing in a delta
-  // requires a binary-search locate that only makes sense against the current
-  // state — producers already do it in applyPositionToEdges, so the
-  // aggregator just takes the result.
-  //
-  // Typed `readonly bigint[]` so callers can pass the value straight from the
-  // `Pool` entity (whose array fields are readonly in
-  // envio.d.ts) without a copy.
-  stakedTickEdges: readonly bigint[];
-  stakedTickEdgeNets: readonly bigint[];
-  // Total-liquidity edge map (all positions). Same replace semantics as the
-  // staked pair above: CLPool Mint/Burn compute the full post-edit arrays via
-  // applyPositionToEdges and pass them whole. Drives the fee-free swap
-  // reserve delta (#803).
-  tickEdges: readonly bigint[];
-  tickEdgeNets: readonly bigint[];
+  // The per-tick liquidityNet maps (total and staked) live on the
+  // Postgres-only PoolTickMap entity (src/Aggregators/PoolTickMap.ts), written
+  // by their producers directly; they are not part of a Pool diff.
   totalVotesDeposited: bigint;
   totalVotesDepositedUSD: bigint;
   incrementalTotalBribeClaimedUSD: bigint;
@@ -205,108 +191,6 @@ export interface PoolData {
   liquidityPoolAggregator: Pool;
 }
 
-export enum LoadPoolDataOrRootCLPoolFailureReason {
-  MAPPING_NOT_FOUND = "MAPPING_NOT_FOUND",
-  MULTIPLE_MAPPINGS = "MULTIPLE_MAPPINGS",
-  LEAF_POOL_NOT_FOUND = "LEAF_POOL_NOT_FOUND",
-  SINK_ROOT_POOL = "SINK_ROOT_POOL",
-}
-
-export type LoadPoolDataOrRootCLPoolResult =
-  | { ok: true; poolData: PoolData }
-  | {
-      ok: false;
-      reason: LoadPoolDataOrRootCLPoolFailureReason.MAPPING_NOT_FOUND;
-    }
-  | {
-      ok: false;
-      reason: LoadPoolDataOrRootCLPoolFailureReason.MULTIPLE_MAPPINGS;
-    }
-  | {
-      ok: false;
-      reason: LoadPoolDataOrRootCLPoolFailureReason.LEAF_POOL_NOT_FOUND;
-    }
-  | {
-      ok: false;
-      reason: LoadPoolDataOrRootCLPoolFailureReason.SINK_ROOT_POOL;
-    };
-
-export function isMissingRootPoolMapping(
-  result: LoadPoolDataOrRootCLPoolResult,
-): result is {
-  ok: false;
-  reason: LoadPoolDataOrRootCLPoolFailureReason.MAPPING_NOT_FOUND;
-} {
-  return (
-    !result.ok &&
-    result.reason === LoadPoolDataOrRootCLPoolFailureReason.MAPPING_NOT_FOUND
-  );
-}
-
-/**
- * Update the dynamic fee pools data from the swap module.
- * @param liquidityPoolAggregator
- * @param context
- * @param blockNumber
- * @param eventChainId
- * @returns The updated liquidity pool aggregator, or the original if chain mismatch occurs
- */
-export async function updateDynamicFeePools(
-  liquidityPoolAggregator: Pool,
-  context: handlerContext,
-  eventChainId: number,
-  blockNumber: number,
-): Promise<Pool> {
-  const poolAddress = liquidityPoolAggregator.poolAddress;
-  const chainId = liquidityPoolAggregator.chainId;
-
-  if (chainId !== eventChainId) {
-    return liquidityPoolAggregator;
-  }
-
-  const factoryAddress = liquidityPoolAggregator.factoryAddress;
-  if (!factoryAddress || factoryAddress === "") {
-    context.log.warn(
-      `[updateDynamicFeePools] Pool ${poolAddress} on chain ${chainId} has no factoryAddress. No update to currentFee will be performed.`,
-    );
-    return liquidityPoolAggregator;
-  }
-
-  // Issue #749: round block to the hour boundary so the effect cache key is
-  // stable within an hour. Matches the pattern getTokenPrice uses
-  // (src/PriceOracle.ts) and lets preload dual-pass + re-index back-fills
-  // hit the cache instead of producing a fresh slot per raw block.
-  // Issue #759: clamp the rounded block up to the pool's deployment block so
-  // SwapFeeModule reads never land before pool bytecode exists (would revert).
-  // The `?? BigInt(blockNumber)` fallback covers legacy pools indexed before
-  // the createdBlockNumber field was added (non-genesis-reindex / hot-deploy windows);
-  // Number(undefined) would yield NaN and break the Math.max clamp.
-  const minBlock = Number(
-    liquidityPoolAggregator.createdBlockNumber ?? BigInt(blockNumber),
-  );
-  const currentFee = await context.effect(getSwapFee, {
-    poolAddress,
-    factoryAddress,
-    chainId,
-    blockNumber: roundBlockToInterval(blockNumber, chainId, minBlock),
-  });
-
-  if (currentFee === undefined) {
-    context.log.warn(
-      `[updateDynamicFeePools] Failed to fetch fee for pool ${poolAddress} on chain ${chainId}, skipping update`,
-    );
-    return liquidityPoolAggregator;
-  }
-
-  // Update the current fee in the pool entity
-  const updatedPool = {
-    ...liquidityPoolAggregator,
-    currentFee,
-  };
-
-  return updatedPool;
-}
-
 /**
  * Updates the state of a Pool with new data and manages snapshots.
  *
@@ -318,8 +202,12 @@ export async function updateDynamicFeePools(
  * @param current - The current state of the liquidity pool aggregator.
  * @param timestamp - The current timestamp when the update is applied.
  * @param context - The handler context used to store the updated state and snapshots.
- * @param eventChainId - The chain ID of the event that triggered the update.
- * @param blockNumber - The block number of the event that triggered the update.
+ * @param eventChainId - The chain ID of the event that triggered the update
+ *   (the pool's chain): keys the snapshot, selects the chain's price-trust
+ *   rules and is printed by the guard logs.
+ * @param _blockNumber - The block number of the event that triggered the update.
+ *   Unused since the per-hour CL fee RPC was removed; kept so callers are unchanged.
+ * @returns Promise that resolves once the Pool upsert (and any snapshot) is staged
  */
 export async function updatePool(
   diff: Partial<PoolDiff>,
@@ -327,76 +215,8 @@ export async function updatePool(
   timestamp: Date,
   context: handlerContext,
   eventChainId: number,
-  blockNumber: number,
+  _blockNumber: number,
 ) {
-  // Invariant check for the parallel-array pair (stakedTickEdges,
-  // stakedTickEdgeNets). Writers are supposed to compute both together via
-  // applyPositionToEdges (see src/Aggregators/CLStakedLiquidity.ts),
-  // but there's nothing in the type system that prevents a future caller
-  // from setting one and forgetting the other. Diverging lengths would
-  // silently desync the sparse map the swap path binary-searches, so log
-  // loudly under the [STAKED_TICK_DRIFT] tag and DROP both fields from the
-  // diff — preserving the prior consistent pair is safer than writing a
-  // mismatched one. Does not crash the indexer.
-  const edgesSet = diff.stakedTickEdges !== undefined;
-  const netsSet = diff.stakedTickEdgeNets !== undefined;
-  if (edgesSet !== netsSet) {
-    context.log.error(
-      `[STAKED_TICK_DRIFT][updatePool] stakedTickEdges and stakedTickEdgeNets must be updated together (parallel arrays) for pool ${current.poolAddress} on chain ${current.chainId}. Got edges=${edgesSet ? "set" : "unset"}, nets=${netsSet ? "set" : "unset"}. Dropping both from this update; aggregator retains the prior consistent pair.`,
-    );
-    diff.stakedTickEdges = undefined;
-    diff.stakedTickEdgeNets = undefined;
-    // Issue #719: writer-side derivation means diff.stakedLiquidityInRange was
-    // computed from the now-rejected edge pair. Drop it too so the clamp block
-    // below falls back to current.stakedLiquidityInRange, preserving consistency
-    // between the retained edges and the persisted counter.
-    diff.stakedLiquidityInRange = undefined;
-  } else if (
-    edgesSet &&
-    netsSet &&
-    // biome-ignore lint/style/noNonNullAssertion: edgesSet/netsSet narrow above
-    diff.stakedTickEdges!.length !== diff.stakedTickEdgeNets!.length
-  ) {
-    context.log.error(
-      // biome-ignore lint/style/noNonNullAssertion: edgesSet/netsSet narrow above
-      `[STAKED_TICK_DRIFT][updatePool] stakedTickEdges/stakedTickEdgeNets length mismatch for pool ${current.poolAddress} on chain ${current.chainId}: edges.length=${diff.stakedTickEdges!.length}, nets.length=${diff.stakedTickEdgeNets!.length}. Dropping both from this update; aggregator retains the prior consistent pair.`,
-    );
-    diff.stakedTickEdges = undefined;
-    diff.stakedTickEdgeNets = undefined;
-    // Issue #719: see comment above — keep counter aligned with retained edges.
-    diff.stakedLiquidityInRange = undefined;
-  }
-
-  // Same invariant check for the TOTAL-liquidity parallel pair (tickEdges,
-  // tickEdgeNets), added with #803. CLPool Mint/Burn always set both together
-  // via applyPositionToEdges, but — as with the staked pair above — nothing in
-  // the type system enforces that on a future caller. A presence/length
-  // mismatch would silently desync the sparse map the swap path binary-searches
-  // for the fee-free reserve geometry, so log under [TICK_EDGE_DRIFT] and drop
-  // both. Unlike the staked counter, `liquidityInRange` is NOT derived from this
-  // map (it comes straight from event.params.liquidity), so it is left untouched.
-  const totalEdgesSet = diff.tickEdges !== undefined;
-  const totalNetsSet = diff.tickEdgeNets !== undefined;
-  if (totalEdgesSet !== totalNetsSet) {
-    context.log.error(
-      `[TICK_EDGE_DRIFT][updatePool] tickEdges and tickEdgeNets must be updated together (parallel arrays) for pool ${current.poolAddress} on chain ${current.chainId}. Got edges=${totalEdgesSet ? "set" : "unset"}, nets=${totalNetsSet ? "set" : "unset"}. Dropping both from this update; aggregator retains the prior consistent pair.`,
-    );
-    diff.tickEdges = undefined;
-    diff.tickEdgeNets = undefined;
-  } else if (
-    totalEdgesSet &&
-    totalNetsSet &&
-    // biome-ignore lint/style/noNonNullAssertion: totalEdgesSet/totalNetsSet narrow above
-    diff.tickEdges!.length !== diff.tickEdgeNets!.length
-  ) {
-    context.log.error(
-      // biome-ignore lint/style/noNonNullAssertion: totalEdgesSet/totalNetsSet narrow above
-      `[TICK_EDGE_DRIFT][updatePool] tickEdges/tickEdgeNets length mismatch for pool ${current.poolAddress} on chain ${current.chainId}: edges.length=${diff.tickEdges!.length}, nets.length=${diff.tickEdgeNets!.length}. Dropping both from this update; aggregator retains the prior consistent pair.`,
-    );
-    diff.tickEdges = undefined;
-    diff.tickEdgeNets = undefined;
-  }
-
   // Clamp reserve0 / reserve1 to >= 0n at the accumulator path (issue #702).
   // Reserves are LP-deposited capital and must never go negative; a Burn
   // larger than the cumulative Mint we observed would otherwise drive the
@@ -409,7 +229,7 @@ export async function updatePool(
   const clampedReserve0 = reserve0Sum < 0n ? 0n : reserve0Sum;
   if (reserve0Sum < 0n) {
     context.log.warn(
-      `[NEG_RESERVE_GUARD][updatePool] field=reserve0 poolAddress=${current.poolAddress} chainId=${current.chainId} priorReserve=${current.reserve0} delta=${reserve0Delta} clampedTo=${clampedReserve0}`,
+      `[NEG_RESERVE_GUARD][updatePool] field=reserve0 poolAddress=${current.poolAddress} chainId=${eventChainId} priorReserve=${current.reserve0} delta=${reserve0Delta} clampedTo=${clampedReserve0}`,
     );
   }
   const reserve1Delta = diff.incrementalReserve1 ?? 0n;
@@ -417,7 +237,7 @@ export async function updatePool(
   const clampedReserve1 = reserve1Sum < 0n ? 0n : reserve1Sum;
   if (reserve1Sum < 0n) {
     context.log.warn(
-      `[NEG_RESERVE_GUARD][updatePool] field=reserve1 poolAddress=${current.poolAddress} chainId=${current.chainId} priorReserve=${current.reserve1} delta=${reserve1Delta} clampedTo=${clampedReserve1}`,
+      `[NEG_RESERVE_GUARD][updatePool] field=reserve1 poolAddress=${current.poolAddress} chainId=${eventChainId} priorReserve=${current.reserve1} delta=${reserve1Delta} clampedTo=${clampedReserve1}`,
     );
   }
 
@@ -433,7 +253,7 @@ export async function updatePool(
   const clampedTotalLiquidityUSD = tluReplacement < 0n ? 0n : tluReplacement;
   if (tluReplacement < 0n) {
     context.log.warn(
-      `[NEG_TLU_GUARD][updatePool] field=totalLiquidityUSD poolAddress=${current.poolAddress} chainId=${current.chainId} priorTLU=${current.totalLiquidityUSD} replacement=${tluReplacement} clampedTo=${clampedTotalLiquidityUSD}`,
+      `[NEG_TLU_GUARD][updatePool] field=totalLiquidityUSD poolAddress=${current.poolAddress} chainId=${eventChainId} priorTLU=${current.totalLiquidityUSD} replacement=${tluReplacement} clampedTo=${clampedTotalLiquidityUSD}`,
     );
   }
 
@@ -450,7 +270,7 @@ export async function updatePool(
     stakedLiqReplacement < 0n ? 0n : stakedLiqReplacement;
   if (stakedLiqReplacement < 0n) {
     context.log.warn(
-      `[NEG_STAKED_LIQ_GUARD][updatePool] field=stakedLiquidityInRange poolAddress=${current.poolAddress} chainId=${current.chainId} priorStakedLiqInRange=${current.stakedLiquidityInRange} replacement=${stakedLiqReplacement} clampedTo=${clampedStakedLiquidityInRange}`,
+      `[NEG_STAKED_LIQ_GUARD][updatePool] field=stakedLiquidityInRange poolAddress=${current.poolAddress} chainId=${eventChainId} priorStakedLiqInRange=${current.stakedLiquidityInRange} replacement=${stakedLiqReplacement} clampedTo=${clampedStakedLiquidityInRange}`,
     );
   }
 
@@ -478,7 +298,7 @@ export async function updatePool(
     liquidityInRangeReplacement < 0n ? 0n : liquidityInRangeReplacement;
   if (liquidityInRangeReplacement < 0n) {
     context.log.warn(
-      `[NEG_LIQ_IN_RANGE_GUARD][updatePool] field=liquidityInRange poolAddress=${current.poolAddress} chainId=${current.chainId} priorLiquidityInRange=${current.liquidityInRange} replacement=${liquidityInRangeReplacement} clampedTo=${finalLiquidityInRange}`,
+      `[NEG_LIQ_IN_RANGE_GUARD][updatePool] field=liquidityInRange poolAddress=${current.poolAddress} chainId=${eventChainId} priorLiquidityInRange=${current.liquidityInRange} replacement=${liquidityInRangeReplacement} clampedTo=${finalLiquidityInRange}`,
     );
   }
 
@@ -504,7 +324,7 @@ export async function updatePool(
     // briefly capped to 0n; log it at `info` so it doesn't flood the warn
     // channel. A genuine overshoot against a POPULATED (> 0n) total — the #891
     // Superseed case — stays at `warn` as a real-divergence tripwire.
-    const guardMsg = `[OVER_STAKED_LIQ_GUARD][updatePool] field=stakedLiquidityInRange poolAddress=${current.poolAddress} chainId=${current.chainId} priorStakedLiqInRange=${current.stakedLiquidityInRange} replacement=${clampedStakedLiquidityInRange} liquidityInRange=${finalLiquidityInRange} clampedTo=${finalStakedLiquidityInRange}`;
+    const guardMsg = `[OVER_STAKED_LIQ_GUARD][updatePool] field=stakedLiquidityInRange poolAddress=${current.poolAddress} chainId=${eventChainId} priorStakedLiqInRange=${current.stakedLiquidityInRange} replacement=${clampedStakedLiquidityInRange} liquidityInRange=${finalLiquidityInRange} clampedTo=${finalStakedLiquidityInRange}`;
     if (finalLiquidityInRange > 0n) {
       context.log.warn(guardMsg);
     } else {
@@ -531,10 +351,11 @@ export async function updatePool(
   const clampedStakedReserve0 = stakedReserve0Sum < 0n ? 0n : stakedReserve0Sum;
   if (stakedReserve0Sum < 0n) {
     await logNegStakedReserveGuard(
-      `[NEG_STAKED_RESERVE_GUARD][updatePool] field=stakedReserve0 poolAddress=${current.poolAddress} chainId=${current.chainId} priorStakedReserve=${current.stakedReserve0 ?? 0n} delta=${stakedReserve0Delta} clampedTo=${clampedStakedReserve0}`,
+      `[NEG_STAKED_RESERVE_GUARD][updatePool] field=stakedReserve0 poolAddress=${current.poolAddress} chainId=${eventChainId} priorStakedReserve=${current.stakedReserve0 ?? 0n} delta=${stakedReserve0Delta} clampedTo=${clampedStakedReserve0}`,
       -stakedReserve0Sum,
       current.token0_id,
       context,
+      eventChainId,
     );
   }
   const stakedReserve1Delta = diff.incrementalStakedReserve1 ?? 0n;
@@ -543,10 +364,11 @@ export async function updatePool(
   const clampedStakedReserve1 = stakedReserve1Sum < 0n ? 0n : stakedReserve1Sum;
   if (stakedReserve1Sum < 0n) {
     await logNegStakedReserveGuard(
-      `[NEG_STAKED_RESERVE_GUARD][updatePool] field=stakedReserve1 poolAddress=${current.poolAddress} chainId=${current.chainId} priorStakedReserve=${current.stakedReserve1 ?? 0n} delta=${stakedReserve1Delta} clampedTo=${clampedStakedReserve1}`,
+      `[NEG_STAKED_RESERVE_GUARD][updatePool] field=stakedReserve1 poolAddress=${current.poolAddress} chainId=${eventChainId} priorStakedReserve=${current.stakedReserve1 ?? 0n} delta=${stakedReserve1Delta} clampedTo=${clampedStakedReserve1}`,
       -stakedReserve1Sum,
       current.token1_id,
       context,
+      eventChainId,
     );
   }
 
@@ -565,10 +387,11 @@ export async function updatePool(
       : clampedStakedReserve0;
   if (clampedStakedReserve0 > clampedReserve0) {
     await logNegStakedReserveGuard(
-      `[OVER_STAKED_RESERVE_GUARD][updatePool] field=stakedReserve0 poolAddress=${current.poolAddress} chainId=${current.chainId} priorStakedReserve=${current.stakedReserve0 ?? 0n} delta=${stakedReserve0Delta} reserve=${clampedReserve0} clampedTo=${finalStakedReserve0}`,
+      `[OVER_STAKED_RESERVE_GUARD][updatePool] field=stakedReserve0 poolAddress=${current.poolAddress} chainId=${eventChainId} priorStakedReserve=${current.stakedReserve0 ?? 0n} delta=${stakedReserve0Delta} reserve=${clampedReserve0} clampedTo=${finalStakedReserve0}`,
       clampedStakedReserve0 - clampedReserve0,
       current.token0_id,
       context,
+      eventChainId,
     );
   }
   const finalStakedReserve1 =
@@ -577,10 +400,11 @@ export async function updatePool(
       : clampedStakedReserve1;
   if (clampedStakedReserve1 > clampedReserve1) {
     await logNegStakedReserveGuard(
-      `[OVER_STAKED_RESERVE_GUARD][updatePool] field=stakedReserve1 poolAddress=${current.poolAddress} chainId=${current.chainId} priorStakedReserve=${current.stakedReserve1 ?? 0n} delta=${stakedReserve1Delta} reserve=${clampedReserve1} clampedTo=${finalStakedReserve1}`,
+      `[OVER_STAKED_RESERVE_GUARD][updatePool] field=stakedReserve1 poolAddress=${current.poolAddress} chainId=${eventChainId} priorStakedReserve=${current.stakedReserve1 ?? 0n} delta=${stakedReserve1Delta} reserve=${clampedReserve1} clampedTo=${finalStakedReserve1}`,
       clampedStakedReserve1 - clampedReserve1,
       current.token1_id,
       context,
+      eventChainId,
     );
   }
 
@@ -625,6 +449,9 @@ export async function updatePool(
       current.totalStakedFeesCollectedUSD,
     numberOfSwaps:
       (diff.incrementalNumberOfSwaps ?? 0n) + current.numberOfSwaps,
+    numberOfSwapFeeFallbacks:
+      (diff.incrementalNumberOfSwapFeeFallbacks ?? 0n) +
+      (current.numberOfSwapFeeFallbacks ?? 0n),
     totalEmissions:
       (diff.incrementalTotalEmissions ?? 0n) + current.totalEmissions,
     totalEmissionsUSD:
@@ -667,6 +494,12 @@ export async function updatePool(
     totalGaugeRewardsClaimed:
       (diff.incrementalTotalGaugeRewardsClaimed ?? 0n) +
       current.totalGaugeRewardsClaimed,
+    totalGaugeEarlyWithdrawPenalties:
+      (diff.incrementalTotalGaugeEarlyWithdrawPenalties ?? 0n) +
+      current.totalGaugeEarlyWithdrawPenalties,
+    totalGaugeEarlyWithdrawPenaltiesUSD:
+      (diff.incrementalTotalGaugeEarlyWithdrawPenaltiesUSD ?? 0n) +
+      current.totalGaugeEarlyWithdrawPenaltiesUSD,
     currentLiquidityStaked:
       (diff.incrementalCurrentLiquidityStaked ?? 0n) +
       current.currentLiquidityStaked,
@@ -703,13 +536,6 @@ export async function updatePool(
     // Monotonic latch: once a pool has ever been staked, hasStakes stays true
     // even if the diff doesn't explicitly re-assert it.
     hasStakes: current.hasStakes || (diff.hasStakes ?? false),
-    // Replace semantics: if the diff provides a new edge list, use it directly.
-    // Producers compute the post-edit arrays from `current.stakedTickEdges`/
-    // `current.stakedTickEdgeNets` and must replace both together (parallel arrays).
-    stakedTickEdges: diff.stakedTickEdges ?? current.stakedTickEdges,
-    stakedTickEdgeNets: diff.stakedTickEdgeNets ?? current.stakedTickEdgeNets,
-    tickEdges: diff.tickEdges ?? current.tickEdges,
-    tickEdgeNets: diff.tickEdgeNets ?? current.tickEdgeNets,
     totalVotesDeposited:
       diff.totalVotesDeposited ?? current.totalVotesDeposited,
     totalVotesDepositedUSD:
@@ -748,20 +574,10 @@ export async function updatePool(
 
   // Snapshot only when we've entered a new epoch (hour); use epoch-aligned timestamp so we don't drift
   if (shouldSnapshot(current.lastSnapshotTimestamp, timestamp)) {
-    // Only update dynamic fees for CL pools (they use dynamic fee modules)
-    // Non-CL pools have their fees fixed at a certain constant level. It can change over time, but we fetch that change
-    // through events.
+    // CL currentFee is maintained by the Swap handler from each swap's own
+    // price move (src/Aggregators/CLSwapFee.ts); there is no per-hour RPC
+    // refresh any more, so a snapshot never changes a fee.
     if (updated.isCL) {
-      updated = {
-        ...updated,
-        ...(await updateDynamicFeePools(
-          updated,
-          context,
-          eventChainId,
-          blockNumber,
-        )),
-      };
-
       // Compute CL staked USD from running staked reserves — O(1) instead of O(N) position scan.
       // Issue #890 (residual of #857): currentLiquidityStaked and stakedReserve0/1
       // are independent accumulators, so a full unstake drives units to 0n while the
@@ -788,6 +604,7 @@ export async function updatePool(
             stakedReserve1 > 0n ? stakedReserve1 : 0n,
             token0Instance ?? undefined,
             token1Instance ?? undefined,
+            eventChainId,
           ),
         };
       }
@@ -837,7 +654,7 @@ export async function updatePool(
       };
     }
 
-    setPoolSnapshot(updated, timestamp, context);
+    setPoolSnapshot(updated, timestamp, context, eventChainId);
 
     // Soft invariant (issue #670): real swap fee tiers cap at ~1% of volume,
     // so totalFeesGeneratedUSD > 5% of totalVolumeUSD signals fee/volume
@@ -850,7 +667,7 @@ export async function updatePool(
       updated.totalFeesGeneratedUSD * 20n > updated.totalVolumeUSD
     ) {
       context.log.warn(
-        `[FEE_VOLUME_DIVERGENCE][updatePool] Pool ${current.poolAddress} on chain ${current.chainId} totalFeesGeneratedUSD (${updated.totalFeesGeneratedUSD}) exceeds 5% of totalVolumeUSD (${updated.totalVolumeUSD}). Real fee tiers cap at ~1%; this likely indicates a fee/volume USD-path divergence.`,
+        `[FEE_VOLUME_DIVERGENCE][updatePool] Pool ${current.poolAddress} on chain ${eventChainId} totalFeesGeneratedUSD (${updated.totalFeesGeneratedUSD}) exceeds 5% of totalVolumeUSD (${updated.totalVolumeUSD}). Real fee tiers cap at ~1%; this likely indicates a fee/volume USD-path divergence.`,
       );
     }
 
@@ -893,6 +710,10 @@ export async function updatePool(
  * @param context - The handler context
  * @param blockNumber - Optional block number for price refresh
  * @param blockTimestamp - Optional block timestamp for price refresh
+ * @param missingIsExpected - When true, a pool that does not exist is not
+ *   logged as an error (the caller handles it: a Voter event for a root pool
+ *   or a sink has no local Pool)
+ * @returns The pool with its two tokens, or null when any of them is missing
  */
 export async function loadPoolData(
   poolAddress: string,
@@ -900,6 +721,7 @@ export async function loadPoolData(
   context: handlerContext,
   blockNumber?: number,
   blockTimestamp?: number,
+  missingIsExpected = false,
 ): Promise<PoolData | null> {
   const poolId = PoolId(chainId, poolAddress);
   // Load liquidity pool aggregator and token instances efficiently
@@ -921,9 +743,11 @@ export async function loadPoolData(
 
   // Handle missing data errors
   if (!liquidityPoolAggregator) {
-    context.log.error(
-      `[loadPoolData] Pool ${poolId} not found on chain ${chainId}`,
-    );
+    if (!missingIsExpected) {
+      context.log.error(
+        `[loadPoolData] Pool ${poolId} not found on chain ${chainId}`,
+      );
+    }
     return null;
   }
 
@@ -934,25 +758,21 @@ export async function loadPoolData(
     return null;
   }
 
-  // Refresh token prices if block data is provided
-  // refreshTokenPrice will decide internally if refresh is needed and handles block rounding
+  // Refresh token prices if block data is provided. refreshTokenPrice applies
+  // the once-per-clock-hour throttle itself and prices each token from indexed
+  // pool state (no RPC; see docs/adr/0003-pool-derived-token-prices.md).
   let updatedToken0 = token0Instance;
   let updatedToken1 = token1Instance;
-  if (blockNumber !== undefined && blockTimestamp !== undefined) {
-    // Pool-implied ground-truth hints (#784/#785): each token's oracle read is
-    // cross-checked against the *other* leg's trusted USD price derived from
-    // pool state (sqrtPriceX96 / reserves via the stored token0Price /
-    // token1Price). Inert (0n) when the counterparty fails the trust gate, so
-    // pools without a trusted leg behave exactly as before.
-    const token0Hint = getPoolImpliedUSD(
-      liquidityPoolAggregator.token0Price,
-      token1Instance,
-    );
-    const token1Hint = getPoolImpliedUSD(
-      liquidityPoolAggregator.token1Price,
-      token0Instance,
-    );
-
+  if (
+    blockNumber !== undefined &&
+    blockTimestamp !== undefined &&
+    // Skip the async calls when both would return their input unchanged (the
+    // common case: most pool events land in an hour already refreshed).
+    !(
+      isTokenRefreshNoop(token0Instance, blockTimestamp, chainId) &&
+      isTokenRefreshNoop(token1Instance, blockTimestamp, chainId)
+    )
+  ) {
     // Wrap each refresh in a promise that catches errors individually
     const token0Refresh = refreshTokenPrice(
       token0Instance,
@@ -960,7 +780,6 @@ export async function loadPoolData(
       blockTimestamp,
       chainId,
       context,
-      token0Hint,
     ).catch((error) => {
       context.log.error(
         `[loadPoolData] Error refreshing token0 price for ${token0Instance.address} on chain ${chainId}: ${error}`,
@@ -974,7 +793,6 @@ export async function loadPoolData(
       blockTimestamp,
       chainId,
       context,
-      token1Hint,
     ).catch((error) => {
       context.log.error(
         `[loadPoolData] Error refreshing token1 price for ${token1Instance.address} on chain ${chainId}: ${error}`,
@@ -996,99 +814,19 @@ export async function loadPoolData(
 }
 
 /**
- * Attempts to load pool data, and if not found, checks if it's a RootCLPool
- * and loads the corresponding leaf pool data instead.
- *
- * @param poolAddress - The pool address to load
- * @param chainId - The chain ID
- * @param context - The handler context
- * @param blockNumber - Optional block number for price refresh
- * @param blockTimestamp - Optional block timestamp for price refresh
- * @returns Discriminated result: ok + poolData, or ok false with reason (MAPPING_NOT_FOUND, MULTIPLE_MAPPINGS, LEAF_POOL_NOT_FOUND)
- */
-export async function loadPoolDataOrRootCLPool(
-  poolAddress: string,
-  chainId: number,
-  context: handlerContext,
-  blockNumber?: number,
-  blockTimestamp?: number,
-): Promise<LoadPoolDataOrRootCLPoolResult> {
-  if (isKnownSinkRootPool(chainId, poolAddress)) {
-    return {
-      ok: false,
-      reason: LoadPoolDataOrRootCLPoolFailureReason.SINK_ROOT_POOL,
-    };
-  }
-
-  const rootPoolLeafPools =
-    (await context.RootPool_LeafPool.getWhere({
-      rootPoolAddress: { _eq: poolAddress },
-    })) ?? [];
-
-  if (rootPoolLeafPools.length === 0) {
-    const poolData = await loadPoolData(
-      poolAddress,
-      chainId,
-      context,
-      blockNumber,
-      blockTimestamp,
-    );
-
-    if (poolData) {
-      return { ok: true, poolData };
-    }
-
-    return {
-      ok: false,
-      reason: LoadPoolDataOrRootCLPoolFailureReason.MAPPING_NOT_FOUND,
-    };
-  }
-
-  if (rootPoolLeafPools.length !== 1) {
-    context.log.error(
-      `[loadPoolDataOrRootCLPool] Expected exactly one RootPool_LeafPool for pool ${poolAddress} on chain ${chainId}`,
-    );
-    return {
-      ok: false,
-      reason: LoadPoolDataOrRootCLPoolFailureReason.MULTIPLE_MAPPINGS,
-    };
-  }
-
-  const rootPoolLeafPool = rootPoolLeafPools[0];
-  const leafPoolAddress = rootPoolLeafPool.leafPoolAddress;
-  const leafChainId = rootPoolLeafPool.leafChainId;
-  // Don't pass blockNumber/blockTimestamp: they belong to the caller's chain
-  // and cannot be used for RPC queries on the leaf chain.
-  const leafPoolData = await loadPoolData(
-    leafPoolAddress,
-    leafChainId,
-    context,
-  );
-
-  if (!leafPoolData) {
-    context.log.error(
-      `[loadPoolDataOrRootCLPool] Leaf pool data not found for pool ${leafPoolAddress} on chain ${leafChainId}`,
-    );
-    return {
-      ok: false,
-      reason: LoadPoolDataOrRootCLPoolFailureReason.LEAF_POOL_NOT_FOUND,
-    };
-  }
-
-  return { ok: true, poolData: leafPoolData };
-}
-
-/**
- * Generic function to find a pool by any indexed address field
+ * Generic function to find a pool by any indexed address field.
+ * Entities are per-chain, so `getWhere` only returns the handler's own
+ * chain's pools: the first match is the pool.
  * @param address - The address to search for
- * @param chainId - The chain ID
+ * @param _chainId - The chain ID of the event. Unused since entities are
+ *   per-chain (no chain filter needed); kept so callers are unchanged.
  * @param context - The handler context
  * @param field - The field to search by
  * @returns The pool entity if found, null otherwise
  */
 export async function findPoolByField(
   address: string,
-  chainId: number,
+  _chainId: number,
   context: handlerContext,
   field: PoolAddressField,
 ): Promise<Pool | null> {
@@ -1096,10 +834,7 @@ export async function findPoolByField(
     [field]: { _eq: address },
   });
 
-  const matchingPool = (pools ?? []).find(
-    (pool: Pool) => pool.chainId === chainId,
-  );
-  return matchingPool ?? null;
+  return pools?.[0] ?? null;
 }
 
 /**
@@ -1123,13 +858,21 @@ export async function findPoolByGaugeAddress(
 }
 
 /**
- * Creates a new Pool entity with default values
+ * Creates a new Pool entity with default values.
+ *
+ * `deployment` decides the fields that only exist on legacy pools: an AERO
+ * pool gets no `rootPoolMatchingHash` (Aero has no Optimism root pools, so it
+ * must never match a RootPoolCreated). Callers creating AERO pools pass no
+ * `CLGaugeConfig` (that config belongs to the legacy CLGaugeFactory).
+ *
  * @param params - Parameters for creating the pool entity
  * @returns A new Pool entity
  */
 export function createPoolEntity(params: {
   poolAddress: string;
   chainId: number;
+  // Deployment that created the pool (POOL_DEPLOYMENT); see Pool.deployment.
+  deployment: PoolDeployment;
   isCL: boolean;
   isStable: boolean;
   token0Address: string;
@@ -1147,13 +890,13 @@ export function createPoolEntity(params: {
   baseFee: bigint;
   currentFee: bigint;
   // Block at which the pool was deployed (PoolCreated.event.block.number).
-  // Stamped once at creation and used by updateDynamicFeePools to clamp
-  // hour-rounded SwapFeeModule reads above the pool's bytecode boundary (#759).
+  // Stamped once at creation (#759).
   createdBlockNumber: bigint;
 }): Pool {
   const {
     poolAddress,
     chainId,
+    deployment,
     isCL,
     isStable,
     token0Address,
@@ -1173,7 +916,7 @@ export function createPoolEntity(params: {
   return {
     id: PoolId(chainId, poolAddress),
     poolAddress: poolAddress,
-    chainId: chainId,
+    deployment: deployment,
     isCL: isCL,
     name: generatePoolName(
       token0Symbol,
@@ -1205,6 +948,7 @@ export function createPoolEntity(params: {
     totalUnstakedFeesCollectedUSD: 0n,
     totalStakedFeesCollectedUSD: 0n,
     numberOfSwaps: 0n,
+    numberOfSwapFeeFallbacks: 0n,
     token0Price: 0n,
     token1Price: 0n,
     totalEmissions: 0n,
@@ -1228,10 +972,6 @@ export function createPoolEntity(params: {
     stakedReserve0: 0n,
     stakedReserve1: 0n,
     hasStakes: false,
-    stakedTickEdges: [],
-    stakedTickEdgeNets: [],
-    tickEdges: [],
-    tickEdgeNets: [],
     totalFlashLoanFees0: 0n,
     totalFlashLoanFees1: 0n,
     totalFlashLoanFeesUSD: 0n,
@@ -1243,6 +983,8 @@ export function createPoolEntity(params: {
     numberOfGaugeRewardClaims: 0n,
     totalGaugeRewardsClaimedUSD: 0n,
     totalGaugeRewardsClaimed: 0n,
+    totalGaugeEarlyWithdrawPenalties: 0n,
+    totalGaugeEarlyWithdrawPenaltiesUSD: 0n,
     currentLiquidityStaked: 0n,
     currentLiquidityStakedUSD: 0n,
     // Voting Reward fields
@@ -1276,6 +1018,9 @@ export function createPoolEntity(params: {
     currentFee: currentFee,
     // Unstaked Fee fields - populated by UnstakedFeeModule / CustomUnstakedFeeModule events.
     unstakedFee: undefined,
-    rootPoolMatchingHash: `${chainId}_${token0Address}_${token1Address}_${(tickSpacing ? BigInt(tickSpacing) : 0n).toString()}`,
+    rootPoolMatchingHash:
+      deployment === POOL_DEPLOYMENT.AERO
+        ? undefined
+        : `${chainId}_${token0Address}_${token1Address}_${(tickSpacing ? BigInt(tickSpacing) : 0n).toString()}`,
   };
 }

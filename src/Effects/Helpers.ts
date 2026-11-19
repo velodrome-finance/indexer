@@ -1,97 +1,262 @@
+import {
+  AbiDecodingDataSizeInvalidError,
+  AbiDecodingDataSizeTooSmallError,
+  AbiDecodingZeroDataError,
+  BaseError,
+  ContractFunctionRevertedError,
+  ContractFunctionZeroDataError,
+  HttpRequestError,
+  InvalidBytesBooleanError,
+  RpcRequestError,
+  TimeoutError,
+} from "viem";
+import { RpcConfigError } from "./RpcConfig";
+
 /**
- * Error types that can be detected from error messages
+ * Failure classes for RPC calls. Each class has a fixed policy, see
+ * {@link RPC_ERROR_POLICY}.
  */
 export enum ErrorType {
-  RATE_LIMIT = "RATE_LIMIT",
+  /** The EVM deterministically reverted, or the call returned no/short data
+   * (no contract at the address, function not implemented). Same input, same
+   * answer on any honest node: safe to cache a default. */
   CONTRACT_REVERT = "CONTRACT_REVERT",
-  NETWORK_ERROR = "NETWORK_ERROR",
-  METHOD_NOT_SUPPORTED = "METHOD_NOT_SUPPORTED",
+  /** The node does not hold state for the requested block (pruned node behind
+   * a load balancer, "missing trie node", "insufficient changesets", "header
+   * not found"). Another node or provider can answer. */
   HISTORICAL_STATE_NOT_AVAILABLE = "HISTORICAL_STATE_NOT_AVAILABLE",
+  /** HTTP 429 or JSON-RPC limit-exceeded codes. */
+  RATE_LIMIT = "RATE_LIMIT",
+  /** Request exceeded the transport timeout. */
+  TIMEOUT = "TIMEOUT",
+  /** HTTP 5xx or JSON-RPC internal error. */
+  SERVER_ERROR = "SERVER_ERROR",
+  /** Connection-level failure (DNS, reset, refused): no HTTP status. */
+  NETWORK_ERROR = "NETWORK_ERROR",
+  /** HTTP 401/402/403: bad key, exhausted quota or plan restriction. */
+  AUTH_OR_QUOTA = "AUTH_OR_QUOTA",
+  /** HTTP 404 or other non-retryable 4xx from the endpoint itself. */
+  ENDPOINT_ERROR = "ENDPOINT_ERROR",
+  /** JSON-RPC method not found / not supported by this endpoint. */
+  METHOD_NOT_SUPPORTED = "METHOD_NOT_SUPPORTED",
+  /** JSON-RPC parse/invalid-request/invalid-params errors. */
+  INVALID_REQUEST = "INVALID_REQUEST",
+  /** RPC URL missing or malformed in the environment. Fatal. */
+  CONFIGURATION = "CONFIGURATION",
+  /** Anything else. Treated as transient. */
   UNKNOWN = "UNKNOWN",
 }
 
-/**
- * Error keyword mappings for each error type. Order matters: the first match
- * wins (see {@link getErrorType}), so more specific buckets must come before
- * broader ones. In particular METHOD_NOT_SUPPORTED precedes
- * HISTORICAL_STATE_NOT_AVAILABLE so that phrasings like
- * `the method "eth_call" does not exist / is not available` classify as a
- * provider-side method outage rather than a historical-state issue -- the two
- * have different retry policies and fallback behaviour.
- */
-const ERROR_KEYWORDS: Record<ErrorType, string[]> = {
-  [ErrorType.METHOD_NOT_SUPPORTED]: [
-    "does not exist",
-    "method not found",
-    "method not supported",
-    "unsupported method",
-  ],
-  [ErrorType.HISTORICAL_STATE_NOT_AVAILABLE]: [
-    "historical state",
-    "historical state not available",
-    "state histories haven't been fully indexed",
-    "state histories",
-    "haven't been fully indexed",
-    "unknown state",
-    "first available state",
-  ],
-  [ErrorType.CONTRACT_REVERT]: ["reverted", "revert", "execution reverted"],
-  [ErrorType.RATE_LIMIT]: [
-    "rate limit",
-    "rate limit exceeded",
-    "requests per second",
-    "429",
-    "too many requests",
-  ],
-  [ErrorType.NETWORK_ERROR]: [
-    "network error",
-    "connection error",
-    "timeout",
-    "timed out",
-    "etimedout",
-    "econnreset",
-    "econnrefused",
-    "socket hang up",
-    "fetch failed",
-    "request timeout",
-    "connection timeout",
-    "read timeout",
-    "write timeout",
-    "timeout exceeded",
-    "aborted",
-    "network request failed",
-    "failed to fetch",
-    "connection closed",
-    "socket closed",
-    "premature close",
-    "temporary internal error. please retry",
-  ],
-  [ErrorType.UNKNOWN]: [],
+/** Retry / fallback / cache policy for one {@link ErrorType}. */
+export type RpcErrorPolicy = {
+  /** Retry on the same endpoint with backoff. */
+  retrySameEndpoint: boolean;
+  /** Try the chain's fallback endpoint once the primary gives up. */
+  tryFallback: boolean;
+  /** A default returned because of this class may be persisted in the effect cache. */
+  cacheableDefault: boolean;
+  /** Propagate instead of returning a default (configuration bugs). */
+  fatal: boolean;
+};
+
+const transient: RpcErrorPolicy = {
+  retrySameEndpoint: true,
+  tryFallback: true,
+  cacheableDefault: false,
+  fatal: false,
+};
+const endpointBroken: RpcErrorPolicy = {
+  retrySameEndpoint: false,
+  tryFallback: true,
+  cacheableDefault: false,
+  fatal: false,
+};
+
+/** Policy table. The only cacheable class is a deterministic revert. */
+export const RPC_ERROR_POLICY: Readonly<Record<ErrorType, RpcErrorPolicy>> = {
+  [ErrorType.CONTRACT_REVERT]: {
+    retrySameEndpoint: false,
+    tryFallback: false,
+    cacheableDefault: true,
+    fatal: false,
+  },
+  // The dRPC balancer mixes archive and pruned nodes: a retry on the same URL
+  // usually lands on an archive node, so retry before moving to the fallback.
+  [ErrorType.HISTORICAL_STATE_NOT_AVAILABLE]: transient,
+  [ErrorType.RATE_LIMIT]: transient,
+  [ErrorType.TIMEOUT]: transient,
+  [ErrorType.SERVER_ERROR]: transient,
+  [ErrorType.NETWORK_ERROR]: transient,
+  [ErrorType.UNKNOWN]: transient,
+  [ErrorType.AUTH_OR_QUOTA]: endpointBroken,
+  [ErrorType.ENDPOINT_ERROR]: endpointBroken,
+  [ErrorType.METHOD_NOT_SUPPORTED]: endpointBroken,
+  [ErrorType.INVALID_REQUEST]: endpointBroken,
+  [ErrorType.CONFIGURATION]: {
+    retrySameEndpoint: false,
+    tryFallback: false,
+    cacheableDefault: false,
+    fatal: true,
+  },
 };
 
 /**
- * Classifies an error for retry and logging. Matches message and stack against
- * {@link ERROR_KEYWORDS} to determine if it is rate limit, network, revert, etc.
+ * Provider messages meaning "this node lacks state for that block". Matched
+ * ONLY against the provider's own error text (`RpcRequestError.details`, or the
+ * `reason` viem copies from it into a data-less revert), never against the
+ * full message, stack, URL or request body, so calldata cannot trigger it.
+ * Structured codes cannot express this: geth/reth/erigon report it as -32000,
+ * -32603 or even as an execution-revert-shaped error with no revert data.
+ */
+const STATE_UNAVAILABLE_PATTERN =
+  /insufficient changesets|missing trie node|header not found|unknown block|block not found|historical state|state histor(y|ies)|state (is )?(not available|unavailable)|required historical state|first available state|old data not available|distance to target block exceeds|pruned/i;
+
+/** Provider text for a genuine EVM revert without revert data. */
+const EXECUTION_REVERTED_PATTERN = /^execution reverted\b/i;
+
+const RATE_LIMIT_CODES = new Set([429, -32005, -32029, -32090]);
+const METHOD_CODES = new Set([-32601, -32004, 4200]);
+const INVALID_REQUEST_CODES = new Set([-32700, -32600, -32602]);
+const AUTH_CODES = new Set([4100]);
+const EXECUTION_REVERTED_CODE = 3;
+
+/** Return data shorter/odder than the ABI says: deterministic for that contract. */
+const CURSOR_DECODE_ERRORS = new Set([
+  "PositionOutOfBoundsError",
+  "NegativeOffsetError",
+  "RecursiveReadLimitExceededError",
+]);
+
+const hasNumericCode = (e: unknown): e is { code: number } =>
+  typeof (e as { code?: unknown })?.code === "number";
+
+/** Deepest error in the `cause` chain matching `pred` (viem's walk returns the outermost). */
+function innermost(
+  error: unknown,
+  pred: (e: unknown) => boolean,
+): unknown | undefined {
+  let found: unknown;
+  let cur: unknown = error;
+  for (let depth = 0; cur && depth < 32; depth++) {
+    if (pred(cur)) found = cur;
+    cur = (cur as { cause?: unknown }).cause;
+  }
+  return found;
+}
+
+function classifyProviderText(text: string | undefined): ErrorType | null {
+  if (!text) return null;
+  if (STATE_UNAVAILABLE_PATTERN.test(text))
+    return ErrorType.HISTORICAL_STATE_NOT_AVAILABLE;
+  return null;
+}
+
+function classifyRevert(err: ContractFunctionRevertedError): ErrorType {
+  // Revert data (even "0x") means the EVM ran the call and reverted.
+  if (err.raw !== undefined) return ErrorType.CONTRACT_REVERT;
+  const byText = classifyProviderText(err.reason);
+  if (byText) return byText;
+  if (err.reason === undefined || EXECUTION_REVERTED_PATTERN.test(err.reason))
+    return ErrorType.CONTRACT_REVERT;
+  // viem turns any code-3/-32603 response into a "revert"; without revert data
+  // and with a non-revert reason it is a node-side failure, not the contract.
+  return ErrorType.UNKNOWN;
+}
+
+function classifyRpcCode(code: number, details: string | undefined): ErrorType {
+  const byText = classifyProviderText(details);
+  if (byText) return byText;
+  if (code === EXECUTION_REVERTED_CODE) return ErrorType.CONTRACT_REVERT;
+  if (code === -32000 && details && EXECUTION_REVERTED_PATTERN.test(details))
+    return ErrorType.CONTRACT_REVERT;
+  if (RATE_LIMIT_CODES.has(code)) return ErrorType.RATE_LIMIT;
+  if (METHOD_CODES.has(code)) return ErrorType.METHOD_NOT_SUPPORTED;
+  if (INVALID_REQUEST_CODES.has(code)) return ErrorType.INVALID_REQUEST;
+  if (AUTH_CODES.has(code)) return ErrorType.AUTH_OR_QUOTA;
+  if (code === -32603) return ErrorType.SERVER_ERROR;
+  return ErrorType.UNKNOWN;
+}
+
+function classifyHttpStatus(status: number | undefined): ErrorType {
+  if (status === undefined) return ErrorType.NETWORK_ERROR;
+  if (status === 429) return ErrorType.RATE_LIMIT;
+  if (status === 408) return ErrorType.TIMEOUT;
+  if (status === 401 || status === 402 || status === 403)
+    return ErrorType.AUTH_OR_QUOTA;
+  if (status >= 500) return ErrorType.SERVER_ERROR;
+  if (status >= 400) return ErrorType.ENDPOINT_ERROR;
+  return ErrorType.UNKNOWN;
+}
+
+/**
+ * Classifies a thrown value using viem's typed errors: `BaseError.walk` over
+ * the cause chain, `HttpRequestError.status`, JSON-RPC `code`, and the
+ * revert's raw data. Never inspects message or stack text, except the
+ * provider's own error string for state-unavailable responses (see
+ * {@link STATE_UNAVAILABLE_PATTERN}).
  *
- * @param error - The thrown value (Error or unknown) to classify.
- * @returns The {@link ErrorType} enum value; {@link ErrorType.UNKNOWN} if no match or falsy input.
+ * @param error - The thrown value.
+ * @returns The {@link ErrorType}; {@link ErrorType.UNKNOWN} (transient) when nothing matches.
  */
 export function getErrorType(error: unknown): ErrorType {
-  if (!error) return ErrorType.UNKNOWN;
+  if (error instanceof RpcConfigError) return ErrorType.CONFIGURATION;
+  if (!(error instanceof BaseError)) return ErrorType.UNKNOWN;
+  // viem wraps non-viem errors thrown by a transport in UnknownRpcError.
+  if (error.walk((e) => e instanceof RpcConfigError))
+    return ErrorType.CONFIGURATION;
 
-  const errorString = error instanceof Error ? error.message : String(error);
-  const errorStack = error instanceof Error ? error.stack : String(error);
-  const combinedText = `${errorString} ${errorStack}`.toLowerCase();
+  if (error.walk((e) => e instanceof TimeoutError)) return ErrorType.TIMEOUT;
 
-  for (const errorType of Object.keys(ERROR_KEYWORDS)) {
-    const keywords = ERROR_KEYWORDS[errorType as ErrorType];
-    if (
-      keywords.some((keyword) => combinedText.includes(keyword.toLowerCase()))
+  const revert = error.walk((e) => e instanceof ContractFunctionRevertedError);
+  if (revert) return classifyRevert(revert as ContractFunctionRevertedError);
+
+  if (
+    error.walk(
+      (e) =>
+        e instanceof ContractFunctionZeroDataError ||
+        e instanceof AbiDecodingZeroDataError ||
+        e instanceof AbiDecodingDataSizeTooSmallError ||
+        e instanceof AbiDecodingDataSizeInvalidError ||
+        e instanceof InvalidBytesBooleanError ||
+        // viem's cursor errors are not exported from the package root.
+        (e instanceof BaseError && CURSOR_DECODE_ERRORS.has(e.name)),
     )
-      return errorType as ErrorType;
+  ) {
+    return ErrorType.CONTRACT_REVERT;
   }
 
+  const httpErr = error.walk((e) => e instanceof HttpRequestError) as
+    | HttpRequestError
+    | undefined;
+  if (httpErr) return classifyHttpStatus(httpErr.status);
+
+  const rpcRequest = error.walk((e) => e instanceof RpcRequestError) as
+    | RpcRequestError
+    | undefined;
+  // Innermost code wins: viem wraps unrecognised codes in UnknownRpcError (-1).
+  const coded = innermost(error, hasNumericCode) as
+    | { code: number; details?: string; message?: string }
+    | undefined;
+  const code = rpcRequest?.code ?? coded?.code;
+  if (code !== undefined) {
+    // Provider text: RpcRequestError.details, or the raw JSON-RPC error object's
+    // message (custom/EIP-1193 transports), never a viem BaseError's formatted message.
+    const details =
+      rpcRequest?.details ??
+      (coded instanceof BaseError ? coded.details : coded?.message);
+    return classifyRpcCode(code, details);
+  }
   return ErrorType.UNKNOWN;
+}
+
+/**
+ * Returns the retry/fallback/cache policy for a thrown value.
+ *
+ * @param error - The thrown value.
+ * @returns The {@link RpcErrorPolicy} of its class.
+ */
+export function getErrorPolicy(error: unknown): RpcErrorPolicy {
+  return RPC_ERROR_POLICY[getErrorType(error)];
 }
 
 /**
@@ -105,69 +270,35 @@ export function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Builds a single Error with a readable message (context + details + original message) and preserved stack.
- * Used when logging or rethrowing so that both human-readable context and original stack are available.
+ * Short, single-line description of an RPC failure for logs: the viem short
+ * message plus the provider's details when present. Never includes the
+ * request body or URL (which may carry an API key).
  *
- * @param error - The original thrown value (Error or unknown); message is stringified.
- * @param context - Prefix for the message (e.g. "[getTokenDetails]" or "[rpcGateway.getTokenDetails]").
- * @param details - Key-value pairs appended as key=value, comma-separated, in the message.
- * @returns A new Error whose message is `${context} ${detailStr} - ${errorMessage}` and stack is copied from error if present.
+ * @param error - The thrown value.
+ * @returns A one-line summary, truncated to 300 characters.
  */
-export function createReadableError(
-  error: unknown,
-  context: string,
-  details: Record<string, string | number>,
-): Error {
-  const errorMessage = error instanceof Error ? error.message : String(error);
-  const detailStr = Object.entries(details)
-    .map(([key, value]) => `${key}=${value}`)
-    .join(", ");
-  const readableError = new Error(`${context} ${detailStr} - ${errorMessage}`);
-
-  if (error instanceof Error && error.stack) {
-    readableError.stack = error.stack;
-  }
-
-  return readableError;
-}
-
-/**
- * Standard error handler for effects that return fallback values
- * All effects should return fallback values to prevent indexer crashes.
- * Errors are always logged for debugging purposes.
- *
- * Log level is differentiated by error class (issue #692): a deterministic
- * `CONTRACT_REVERT` is logged at `warn` (expected when a token / pool is
- * non-standard at the queried block), while every other class — RPC outages,
- * rate limits, network errors — is logged at `error` so on-call gets paged
- * on real upstream incidents.
- *
- * @param error - The original error
- * @param context - Effect context with cache and log
- * @param effectName - Name of the effect (e.g., "getTokenDetails")
- * @param details - Key-value pairs for error message
- * @param fallbackValue - Value to return on error
- * @returns The fallback value
- */
-export function handleEffectErrorReturn<T>(
-  error: unknown,
-  context: {
-    cache?: boolean;
-    log: {
-      error: (msg: string, err: Error) => void;
-      warn: (msg: string) => void;
-    };
-  },
-  effectName: string,
-  details: Record<string, string | number>,
-  fallbackValue: T,
-): T {
-  context.cache = false;
-  const readableError = createReadableError(error, `[${effectName}]`, details);
-  if (getErrorType(error) === ErrorType.CONTRACT_REVERT) {
-    context.log.warn(readableError.message);
+export function describeRpcError(error: unknown): string {
+  let text: string;
+  if (error instanceof BaseError) {
+    const rpc = error.walk((e) => e instanceof RpcRequestError) as
+      | RpcRequestError
+      | undefined;
+    const http = error.walk((e) => e instanceof HttpRequestError) as
+      | HttpRequestError
+      | undefined;
+    const revert = error.walk(
+      (e) => e instanceof ContractFunctionRevertedError,
+    ) as ContractFunctionRevertedError | undefined;
+    const parts = [error.shortMessage];
+    if (revert?.reason) parts.push(`reason=${revert.reason}`);
+    if (rpc) parts.push(`code=${rpc.code} details=${rpc.details}`);
+    if (http) parts.push(`http=${http.status ?? "none"}`);
+    text = parts.join(" | ");
+  } else if (error instanceof Error) {
+    text = error.message;
   } else {
-    context.log.error(readableError.message, readableError);
+    text = String(error);
   }
-  return fallbackValue;
+  const oneLine = text.replace(/\s+/g, " ").trim();
+  return oneLine.length > 300 ? `${oneLine.slice(0, 297)}...` : oneLine;
 }

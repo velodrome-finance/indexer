@@ -43,7 +43,7 @@ export function processCLPoolMint(
     token1Instance,
     liquidityPoolAggregator.token0Price,
     liquidityPoolAggregator.token1Price,
-    liquidityPoolAggregator.chainId,
+    event.chainId,
   );
 
   const currentTick = liquidityPoolAggregator.tick;

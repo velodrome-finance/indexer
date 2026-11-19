@@ -1,5 +1,6 @@
 import { createTestIndexer } from "envio";
 import { toCanonicalFeeScale, toChecksumAddress } from "../../../src/Constants";
+import { DynamicFeeGlobalConfigId } from "../../../src/EventHandlers/SwapFeeModule/DynamicFeeGlobalConfigSharedLogic";
 import { setupCommon } from "../Pool/common";
 
 describe("CustomSwapFeeModule Events", () => {
@@ -48,9 +49,11 @@ describe("CustomSwapFeeModule Events", () => {
       });
 
       // Assert: Check that DynamicFeeGlobalConfig was created
-      const config = await indexer.DynamicFeeGlobalConfig.get(moduleAddress);
+      const config = await indexer.DynamicFeeGlobalConfig.get(
+        DynamicFeeGlobalConfigId(chainId, moduleAddress),
+      );
       expect(config).toBeDefined();
-      expect(config?.id).toBe(moduleAddress);
+      expect(config?.id).toBe(`${chainId}-${moduleAddress}`);
       expect(config?.chainId).toBe(chainId);
       expect(config?.secondsAgo).toBeUndefined();
     });
@@ -100,6 +103,48 @@ describe("CustomSwapFeeModule Events", () => {
       expect(updatedPool?.currentFee).toBe(
         toCanonicalFeeScale(fee, mockPool.isCL),
       );
+    });
+
+    it("keeps one DynamicFeeGlobalConfig row per chain for a module address shared across leaf chains", async () => {
+      // CustomSwapFeeModule 0x6812…C238 is deployed on Soneium, Ink, Unichain,
+      // Metal, Superseed and Swell.
+      const sharedModule = toChecksumAddress(
+        "0x6812eefC19deB79D5191b52f4B763260d9F3C238",
+      );
+      const soneiumPool = createMockPool({ chainId: 1868 });
+      const inkPool = createMockPool({ chainId: 57073 });
+      const setCustomFee = (pool: string) => ({
+        contract: "CustomSwapFeeModule" as const,
+        event: "SetCustomFee" as const,
+        srcAddress: sharedModule,
+        logIndex: 1,
+        block: {
+          timestamp: 1000000,
+          number: 123456,
+          hash: "0x1234567890123456789012345678901234567890123456789012345678901234",
+        },
+        params: { pool: pool as `0x${string}`, fee: 300n },
+      });
+      const indexer = createTestIndexer();
+      indexer.Pool.set(soneiumPool);
+      indexer.Pool.set(inkPool);
+
+      await indexer.process({
+        chains: { 1868: { simulate: [setCustomFee(soneiumPool.poolAddress)] } },
+      });
+      await indexer.process({
+        chains: { 57073: { simulate: [setCustomFee(inkPool.poolAddress)] } },
+      });
+
+      const soneium = await indexer.DynamicFeeGlobalConfig.get(
+        DynamicFeeGlobalConfigId(1868, sharedModule),
+      );
+      const ink = await indexer.DynamicFeeGlobalConfig.get(
+        DynamicFeeGlobalConfigId(57073, sharedModule),
+      );
+      expect(soneium?.chainId).toBe(1868);
+      expect(ink?.chainId).toBe(57073);
+      expect(await indexer.DynamicFeeGlobalConfig.getAll()).toHaveLength(2);
     });
   });
 });

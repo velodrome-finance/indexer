@@ -5,19 +5,14 @@ import {
   ALMLPWrapperTransferInTxId,
   CLPoolMintEventId,
   CLPositionPendingPrincipalId,
-  MailboxMessageId,
   NonFungiblePositionId,
   NonFungiblePositionSnapshotId,
   OUSDTSwapsId,
-  PendingDistributionId,
-  PendingRootPoolMappingId,
-  PendingVoteId,
   PoolId,
   PoolSnapshotId,
   PoolTransferInTxId,
   RootGaugeRootPoolId,
   RootPoolLeafPoolId,
-  SuperSwapId,
   TokenId,
   TokenIdByBlock,
   TxCLPoolMintRegistryId,
@@ -28,6 +23,10 @@ import {
   rootPoolMatchingHash,
   toChecksumAddress,
 } from "../src/Constants";
+import {
+  RootPoolId,
+  RootPoolVoteId,
+} from "../src/EventHandlers/Voter/RootPoolLogic";
 
 // Envio's `event.params.*` always supplies EIP-55 checksum-cased addresses.
 // These tests pin the contract: every *Id helper preserves the checksum
@@ -41,8 +40,6 @@ const POOL = toChecksumAddress("0x4d5300C67F4b59B67281Bb2d205795c29ad07ba6");
 const POOL_2 = toChecksumAddress("0xCc0bDDB707055e04e497aB22a59c2aF4391cd12F");
 const TX_HASH =
   "0xabcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
-const MSG_ID =
-  "0xdead0123456789abcdef0123456789abcdef0123456789abcdef0123456789be";
 const TOKEN_ID = 42n;
 const TICK_LOWER = -100n;
 const TICK_UPPER = 100n;
@@ -98,20 +95,14 @@ describe("ID helpers preserve EIP-55 checksum input (issue #633)", () => {
       expected: `${ROOT_CHAIN_ID}-${CHAIN_ID}-${POOL}-${POOL_2}`,
     },
     {
-      name: "PendingVoteId",
-      actual: () => PendingVoteId(CHAIN_ID, POOL, TOKEN_ID, TX_HASH, LOG_INDEX),
-      expected: `${CHAIN_ID}-${POOL}-${TOKEN_ID}-${TX_HASH}-${LOG_INDEX}`,
-    },
-    {
-      name: "PendingRootPoolMappingId",
-      actual: () => PendingRootPoolMappingId(ROOT_CHAIN_ID, POOL),
+      name: "RootPoolId",
+      actual: () => RootPoolId(ROOT_CHAIN_ID, POOL),
       expected: `${ROOT_CHAIN_ID}-${POOL}`,
     },
     {
-      name: "PendingDistributionId",
-      actual: () =>
-        PendingDistributionId(ROOT_CHAIN_ID, POOL, BLOCK_NUMBER, LOG_INDEX),
-      expected: `${ROOT_CHAIN_ID}-${POOL}-${BLOCK_NUMBER}-${LOG_INDEX}`,
+      name: "RootPoolVoteId",
+      actual: () => RootPoolVoteId(ROOT_CHAIN_ID, TOKEN_ID, POOL),
+      expected: `${ROOT_CHAIN_ID}-${TOKEN_ID}-${POOL}`,
     },
     {
       name: "RootGaugeRootPoolId",
@@ -167,20 +158,10 @@ describe("ID helpers preserve EIP-55 checksum input (issue #633)", () => {
       expected: `${CHAIN_ID}-${POOL}-${EPOCH_MS}`,
     },
     {
-      name: "MailboxMessageId",
-      actual: () => MailboxMessageId(TX_HASH, CHAIN_ID, MSG_ID),
-      expected: `${TX_HASH}-${CHAIN_ID}-${MSG_ID}`,
-    },
-    {
       name: "OUSDTSwapsId",
       actual: () =>
         OUSDTSwapsId(TX_HASH, CHAIN_ID, POOL, AMOUNT_IN, POOL_2, AMOUNT_OUT),
       expected: `${TX_HASH}-${CHAIN_ID}-${POOL}-${AMOUNT_IN}-${POOL_2}-${AMOUNT_OUT}`,
-    },
-    {
-      name: "SuperSwapId",
-      actual: () => SuperSwapId(MSG_ID),
-      expected: MSG_ID,
     },
     {
       name: "UserStatsPerPoolSnapshotId",

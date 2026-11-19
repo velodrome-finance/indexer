@@ -29,7 +29,13 @@ benchmarks/
 artifacts
 cache
 generated
-.envio
+# Envio codegen output and local state stay ignored; the effect-cache seed
+# (.envio/cache/<chainId>/<effect>.tsv and .envio/cache/<effect>.tsv) is
+# committed so a fresh database starts with token metadata, bytecode checks and
+# canonical RPC prices instead of repeating those RPC calls (README, "Committed
+# effect caches").
+.envio/*
+!.envio/cache/
 envio-env.d.ts
 logs
 *.bs.js

@@ -6,11 +6,12 @@ import { rehydrateTimestamps } from "../../../src/EntityTimestamps";
 import type { Pool as PoolEntity } from "../../../src/EntityTypes";
 import * as PriceOracle from "../../../src/PriceOracle";
 import { registerPool } from "../../registerDynamicContracts";
+import type { WithChain } from "../../testHelpers";
 import { type MockPool, setupCommon } from "./common";
 
 describe("Pool Claim Event", () => {
-  let mockToken0Data: Token;
-  let mockToken1Data: Token;
+  let mockToken0Data: WithChain<Token>;
+  let mockToken1Data: WithChain<Token>;
   let mockLiquidityPoolData: MockPool;
   let createMockPool: ReturnType<typeof setupCommon>["createMockPool"];
   let indexer: ReturnType<typeof createTestIndexer>;
@@ -71,8 +72,8 @@ describe("Pool Claim Event", () => {
 
       beforeEach(async () => {
         indexer.Pool.set(mockLiquidityPoolData);
-        indexer.Token.set(mockToken0Data as Token);
-        indexer.Token.set(mockToken1Data as Token);
+        indexer.Token.set(mockToken0Data);
+        indexer.Token.set(mockToken1Data);
 
         await indexer.process({
           chains: {
@@ -159,8 +160,8 @@ describe("Pool Claim Event", () => {
 
       beforeEach(async () => {
         indexer.Pool.set(mockLiquidityPoolData);
-        indexer.Token.set(mockToken0Data as Token);
-        indexer.Token.set(mockToken1Data as Token);
+        indexer.Token.set(mockToken0Data);
+        indexer.Token.set(mockToken1Data);
 
         await indexer.process({
           chains: {
@@ -230,8 +231,8 @@ describe("Pool Claim Event", () => {
     describe("edge cases", () => {
       it("should handle zero amounts", async () => {
         indexer.Pool.set(mockLiquidityPoolData);
-        indexer.Token.set(mockToken0Data as Token);
-        indexer.Token.set(mockToken1Data as Token);
+        indexer.Token.set(mockToken0Data);
+        indexer.Token.set(mockToken1Data);
 
         await indexer.process({
           chains: {
@@ -288,8 +289,8 @@ describe("Pool Claim Event", () => {
         });
 
         indexer.Pool.set(poolWithoutGauge);
-        indexer.Token.set(mockToken0Data as Token);
-        indexer.Token.set(mockToken1Data as Token);
+        indexer.Token.set(mockToken0Data);
+        indexer.Token.set(mockToken1Data);
 
         await indexer.process({
           chains: {

@@ -15,6 +15,7 @@ import {
   computeLiquidityDeltaFromAmounts,
   computeNonCLStakedUSD,
   concentratedLiquidityToUSD,
+  normalizeTokenAmountTo1e18,
   pickTrustedSwapVolumeUSD,
   runAsyncWithErrorLog,
   sortByBlockThenLogIndex,
@@ -127,6 +128,7 @@ describe("Helpers", () => {
         amount1,
         mockToken0Data,
         mockToken1Data,
+        mockToken0Data.chainId,
       );
       // 1 token0 * $1 + 2 token1 * $1 = $3, in 1e18-base
       expect(total).toBe(3n * 1000000000000000000n);
@@ -144,6 +146,7 @@ describe("Helpers", () => {
         amount1,
         token0NonWL,
         mockToken1Data,
+        mockToken0Data.chainId,
       );
       // Only token1 contributes: 2 * $1 = $2
       expect(total).toBe(2n * 1000000000000000000n);
@@ -161,6 +164,7 @@ describe("Helpers", () => {
         amount1,
         mockToken0Data,
         token1NonWL,
+        mockToken0Data.chainId,
       );
       // Only token0 contributes: 1 * $1 = $1
       expect(total).toBe(1n * 1000000000000000000n);
@@ -180,6 +184,7 @@ describe("Helpers", () => {
         2000000n,
         token0NonWL,
         token1NonWL,
+        mockToken0Data.chainId,
       );
       expect(total).toBe(0n);
     });
@@ -192,14 +197,15 @@ describe("Helpers", () => {
         ...mockToken0Data,
         id: TokenId(1135, ION_LISK),
         address: ION_LISK as `0x${string}`,
-        chainId: 1135,
         isWhitelisted: true,
       };
+      // The blacklist is keyed by the event's chain (Lisk), passed explicitly.
       const total = calculateTotalUSD(
         amount0,
         amount1,
         blacklistedToken0,
         mockToken1Data,
+        1135,
       );
       // token0 gated to 0 by BLACKLIST; only token1 contributes
       expect(total).toBe(2n * 1000000000000000000n);
@@ -211,6 +217,7 @@ describe("Helpers", () => {
         2000000n,
         undefined,
         mockToken1Data,
+        mockToken1Data.chainId,
       );
       // token0 undefined -> 0; only token1 contributes
       expect(total).toBe(2n * 1000000000000000000n);
@@ -222,6 +229,7 @@ describe("Helpers", () => {
         2000000n,
         undefined,
         undefined,
+        mockToken0Data.chainId,
       );
       expect(total).toBe(0n);
     });
@@ -279,7 +287,13 @@ describe("Helpers", () => {
       // LFI leg re-valued at implied $0.00006 → $60,000; USDC leg $4,000.
       expect(capped).toBe(64_000n * TEN_TO_THE_18_BI);
       // Sanity: the un-capped oracle path would have produced > $24B.
-      const uncapped = calculateTotalUSD(lfiReserve, usdcReserve, lfi, usdc);
+      const uncapped = calculateTotalUSD(
+        lfiReserve,
+        usdcReserve,
+        lfi,
+        usdc,
+        BASE,
+      );
       expect(uncapped > 24_000_000_000n * TEN_TO_THE_18_BI).toBe(true);
     });
 
@@ -305,7 +319,7 @@ describe("Helpers", () => {
       // USDe leg stays $1; total = $1 + $300,000 — identical to the un-capped sum.
       expect(capped).toBe(300_001n * TEN_TO_THE_18_BI);
       expect(capped).toBe(
-        calculateTotalUSD(usdeReserve, usdcReserve, usde, usdc),
+        calculateTotalUSD(usdeReserve, usdcReserve, usde, usdc, BASE),
       );
     });
 
@@ -346,7 +360,7 @@ describe("Helpers", () => {
       );
       // Floor blocks the cap; identical to the un-capped (poisoned) sum.
       expect(result).toBe(
-        calculateTotalUSD(lfiReserve, usdcReserve, lfi, usdc),
+        calculateTotalUSD(lfiReserve, usdcReserve, lfi, usdc, BASE),
       );
     });
 
@@ -369,7 +383,7 @@ describe("Helpers", () => {
       // 10× is not > 10×, so no cap: token leg = 1,000 × $10 = $10,000; USDC $4,000.
       expect(result).toBe(14_000n * TEN_TO_THE_18_BI);
       expect(result).toBe(
-        calculateTotalUSD(tokReserve, usdcReserve, tok, usdc),
+        calculateTotalUSD(tokReserve, usdcReserve, tok, usdc, BASE),
       );
     });
 
@@ -390,7 +404,7 @@ describe("Helpers", () => {
       );
       // No hard anchor → no cap; identical to the un-capped sum.
       expect(result).toBe(
-        calculateTotalUSD(lfiReserve, otherReserve, lfi, other),
+        calculateTotalUSD(lfiReserve, otherReserve, lfi, other, BASE),
       );
     });
   });
@@ -1063,6 +1077,7 @@ describe("Helpers", () => {
         amount1,
         mockToken0,
         mockToken1,
+        mockToken0.chainId,
       );
 
       const result = concentratedLiquidityToUSD(
@@ -1070,6 +1085,7 @@ describe("Helpers", () => {
         sqrtPriceX96,
         tickLower,
         tickUpper,
+        mockToken0.chainId,
         mockToken0,
         mockToken1,
       );
@@ -1087,6 +1103,7 @@ describe("Helpers", () => {
         sqrtPriceX96,
         -100n,
         100n,
+        mockToken0.chainId,
         undefined,
         undefined,
       );
@@ -1102,6 +1119,7 @@ describe("Helpers", () => {
         sqrtPriceX96,
         -100n,
         100n,
+        mockToken0.chainId,
         mockToken0,
         mockToken1,
       );
@@ -1141,6 +1159,7 @@ describe("Helpers", () => {
         amount1,
         mockToken0,
         mockToken1,
+        mockPool.chainId,
       );
 
       const result = computeNonCLStakedUSD(
@@ -1152,6 +1171,7 @@ describe("Helpers", () => {
           token1Instance: mockToken1,
         },
         mockContext,
+        mockPool.chainId,
       );
 
       expect(result).toBe(expectedUSD);
@@ -1176,6 +1196,7 @@ describe("Helpers", () => {
           token1Instance: mockToken1,
         },
         mockContext,
+        mockPool.chainId,
       );
 
       expect(result).toBe(0n);
@@ -1199,6 +1220,7 @@ describe("Helpers", () => {
           token1Instance: mockToken1,
         },
         mockContext,
+        mockPool.chainId,
       );
 
       expect(result).toBe(0n);
@@ -1222,6 +1244,7 @@ describe("Helpers", () => {
           token1Instance: mockToken1,
         },
         mockContext,
+        mockPool.chainId,
       );
 
       expect(result).toBe(0n);
@@ -1254,6 +1277,31 @@ describe("Helpers", () => {
       expect(pickTrustedSwapVolumeUSD(0n, 0n)).toBe(0n);
       expect(pickTrustedSwapVolumeUSD(undefined, undefined)).toBe(0n);
       expect(pickTrustedSwapVolumeUSD(undefined, 0n)).toBe(0n);
+    });
+  });
+
+  describe("normalizeTokenAmountTo1e18", () => {
+    it("scales 6-, 8- and 18-decimal amounts to 1e18", () => {
+      expect(normalizeTokenAmountTo1e18(5n * 10n ** 6n, 6)).toBe(
+        5n * TEN_TO_THE_18_BI,
+      );
+      expect(normalizeTokenAmountTo1e18(5n * 10n ** 8n, 8)).toBe(
+        5n * TEN_TO_THE_18_BI,
+      );
+      expect(normalizeTokenAmountTo1e18(5n * TEN_TO_THE_18_BI, 18)).toBe(
+        5n * TEN_TO_THE_18_BI,
+      );
+    });
+
+    it("treats a 0-decimal amount as whole units (previously left unscaled, i.e. read as 18 decimals)", () => {
+      expect(normalizeTokenAmountTo1e18(5n, 0)).toBe(5n * TEN_TO_THE_18_BI);
+    });
+
+    it("stays exact above 22 decimals", () => {
+      // 10 ** 24 as a JS number is not exactly 1e24.
+      expect(normalizeTokenAmountTo1e18(7n * 10n ** 24n, 24)).toBe(
+        7n * TEN_TO_THE_18_BI,
+      );
     });
   });
 });

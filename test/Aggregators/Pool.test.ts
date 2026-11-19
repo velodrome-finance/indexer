@@ -1,25 +1,19 @@
 import type { Token } from "envio";
-import {
-  loadPoolData,
-  loadPoolDataOrRootCLPool,
-  updateDynamicFeePools,
-  updatePool,
-} from "../../src/Aggregators/Pool";
+import { loadPoolData, updatePool } from "../../src/Aggregators/Pool";
 import {
   type CHAIN_CONSTANTS,
   PoolId,
   PoolSnapshotId,
-  RootPoolLeafPoolId,
   TEN_TO_THE_18_BI,
   toChecksumAddress,
 } from "../../src/Constants";
 import { getSwapFee } from "../../src/Effects/SwapFee";
-import { roundBlockToInterval } from "../../src/Effects/Token";
 import type { Pool, handlerContext } from "../../src/EntityTypes";
 import * as PriceOracle from "../../src/PriceOracle";
 import { setPoolSnapshot } from "../../src/Snapshots/PoolSnapshot";
 import { getSnapshotEpoch } from "../../src/Snapshots/Shared";
 import { setupCommon } from "../EventHandlers/Pool/common";
+import type { WithChain } from "../testHelpers";
 
 // Type for the readContract method
 type ReadContractMethod =
@@ -27,7 +21,7 @@ type ReadContractMethod =
 
 describe("Pool Functions", () => {
   let mockContext: Partial<handlerContext>;
-  let liquidityPoolAggregator: Partial<Pool>;
+  let liquidityPoolAggregator: Partial<WithChain<Pool>>;
   let timestamp: Date;
   const blockNumber = 131536921;
   const { createMockPool } = setupCommon();
@@ -61,6 +55,14 @@ describe("Pool Functions", () => {
       TokenPriceSnapshot: {
         set: vi.fn(),
         get: vi.fn(),
+        getOrThrow: vi.fn(),
+        getOrCreate: vi.fn(),
+        deleteUnsafe: vi.fn(),
+        getWhere: vi.fn().mockResolvedValue([]),
+      },
+      TokenPricingPools: {
+        set: vi.fn(),
+        get: vi.fn().mockResolvedValue(undefined),
         getOrThrow: vi.fn(),
         getOrCreate: vi.fn(),
         deleteUnsafe: vi.fn(),
@@ -149,220 +151,13 @@ describe("Pool Functions", () => {
     vi.restoreAllMocks();
   });
 
-  describe("updateDynamicFeePools", () => {
-    it("should update the pool with current dynamic fee", async () => {
-      const updatedPool = await updateDynamicFeePools(
-        liquidityPoolAggregator as Pool,
-        mockContext as handlerContext,
-        10,
-        blockNumber,
-      );
-
-      // Verify that the pool was updated with the current fee
-      expect(updatedPool.currentFee).toBe(1900n); // From the mocked effect
-    });
-
-    it("should skip update when pool has no factoryAddress", async () => {
-      const poolNoFactory = {
-        ...liquidityPoolAggregator,
-        factoryAddress: "",
-      } as Pool;
-
-      const updatedPool = await updateDynamicFeePools(
-        poolNoFactory,
-        mockContext as handlerContext,
-        10,
-        blockNumber,
-      );
-
-      expect(updatedPool).toBe(poolNoFactory);
-      expect(vi.mocked(mockContext.log?.warn)).toHaveBeenCalledWith(
-        expect.stringContaining("no factoryAddress"),
-      );
-      expect(mockContext.effect).not.toHaveBeenCalled();
-    });
-
-    it("should handle effect errors gracefully", async () => {
-      // Mock effect to return undefined (error case)
-      expect(mockContext.effect).toBeDefined();
-      vi
-        // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
-        .mocked(mockContext.effect!)
-        .mockResolvedValue(undefined);
-
-      // Should complete without throwing and skip update
-      await updateDynamicFeePools(
-        liquidityPoolAggregator as Pool,
-        mockContext as handlerContext,
-        10,
-        blockNumber,
-      );
-
-      // Should log a warning
-      expect(vi.mocked(mockContext.log?.warn)).toHaveBeenCalled();
-
-      // Verify that the effect was called with the hour-rounded blockNumber
-      // (issue #749: cache key must be stable within an hour for L1/preload reuse)
-      // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
-      const effectMock = vi.mocked(mockContext.effect!);
-      expect(effectMock).toHaveBeenCalledWith(getSwapFee, {
-        poolAddress: liquidityPoolAggregator.poolAddress,
-        factoryAddress: toChecksumAddress(
-          "0x548118C7E0B865C2CfA94D15EC86B666468ac758",
-        ),
-        chainId: liquidityPoolAggregator.chainId,
-        blockNumber: roundBlockToInterval(
-          blockNumber,
-          // biome-ignore lint/style/noNonNullAssertion: chainId is set in beforeEach
-          liquidityPoolAggregator.chainId!,
-        ),
-      });
-    });
-
-    // Regression test for issue #749: getSwapFee's effect cache key must be
-    // hour-stable so preload dual-pass and re-index back-fills hit the cache
-    // instead of producing a new slot per raw block.
-    it("should pass an hour-rounded blockNumber so cache key is stable within the hour", async () => {
-      const blocksPerHour = 1800; // 2s blocks on Optimism (chainId 10)
-      const firstBlockInHour =
-        Math.floor(blockNumber / blocksPerHour) * blocksPerHour;
-      const lastBlockInHour = firstBlockInHour + blocksPerHour - 1;
-
-      await updateDynamicFeePools(
-        liquidityPoolAggregator as Pool,
-        mockContext as handlerContext,
-        10,
-        firstBlockInHour,
-      );
-      await updateDynamicFeePools(
-        liquidityPoolAggregator as Pool,
-        mockContext as handlerContext,
-        10,
-        lastBlockInHour,
-      );
-
-      // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
-      const effectMock = vi.mocked(mockContext.effect!);
-      const swapFeeCalls = effectMock.mock.calls.filter(
-        (call) => call[0] === getSwapFee,
-      );
-      expect(swapFeeCalls).toHaveLength(2);
-      const [firstCall, secondCall] = swapFeeCalls;
-      // biome-ignore lint/style/noNonNullAssertion: filtered for length 2 above
-      const firstInput = firstCall![1] as { blockNumber: number };
-      // biome-ignore lint/style/noNonNullAssertion: filtered for length 2 above
-      const secondInput = secondCall![1] as { blockNumber: number };
-      expect(firstInput.blockNumber).toBe(firstBlockInHour);
-      expect(secondInput.blockNumber).toBe(firstBlockInHour);
-    });
-
-    it("should skip dynamic fee updates when event chain doesn’t match pool chain", async () => {
-      expect(mockContext.effect).toBeDefined();
-      const fallbackEffect = (async () =>
-        undefined) as unknown as typeof mockContext.effect;
-      const effectMock = vi.mocked(mockContext.effect ?? fallbackEffect);
-
-      const updatedPool = await updateDynamicFeePools(
-        liquidityPoolAggregator as Pool,
-        mockContext as handlerContext,
-        8453,
-        blockNumber,
-      );
-
-      expect(updatedPool).toBe(liquidityPoolAggregator);
-      expect(effectMock).not.toHaveBeenCalled();
-    });
-
-    // Regression test for issue #759: rounding-before-deploy revert.
-    // For a pool whose deployment block falls inside an hour but after the
-    // hour's start, the legacy code would query getSwapFee at the (earlier)
-    // rounded boundary where pool bytecode is empty and the call reverts.
-    // The fix clamps the rounded block up to the pool's createdBlockNumber.
-    it("clamps the queried blockNumber up to createdBlockNumber to avoid pre-deploy reverts", async () => {
-      // Swell (chainId 1923 → 2s blocks → 1800/hour). Pool deployed at 3920396,
-      // hour boundary is 3918600 — before deployment. The mock throws if
-      // getSwapFee is invoked at a block earlier than createdBlockNumber.
-      expect(mockContext.effect).toBeDefined();
-      // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
-      const effectMock = vi.mocked(mockContext.effect!);
-      const createdBlockNumber = 3920396n;
-      effectMock.mockImplementation(async (effectFn, input) => {
-        if (effectFn === getSwapFee) {
-          const { blockNumber: queriedBlock } = input as {
-            blockNumber: number;
-          };
-          if (BigInt(queriedBlock) < createdBlockNumber) {
-            throw new Error(
-              `getSwapFee queried at ${queriedBlock}, before pool deployment ${createdBlockNumber}`,
-            );
-          }
-          return 100n;
-        }
-        return {};
-      });
-
-      const pool = {
-        ...liquidityPoolAggregator,
-        chainId: 1923,
-        createdBlockNumber,
-      } as Pool;
-
-      const updatedPool = await updateDynamicFeePools(
-        pool,
-        mockContext as handlerContext,
-        1923,
-        Number(createdBlockNumber),
-      );
-
-      expect(updatedPool.currentFee).toBe(100n);
-      const swapFeeCall = effectMock.mock.calls.find(
-        (call) => call[0] === getSwapFee,
-      );
-      expect(swapFeeCall).toBeDefined();
-      // biome-ignore lint/style/noNonNullAssertion: existence verified above
-      const input = swapFeeCall![1] as { blockNumber: number };
-      expect(input.blockNumber).toBe(Number(createdBlockNumber));
-    });
-
-    // Defensive fallback (#759 AC): legacy pools indexed before the
-    // createdBlockNumber schema field existed will read it back as undefined.
-    // `Number(undefined)` is NaN — without the `?? BigInt(blockNumber)` fallback,
-    // `Math.max(rounded, NaN)` returns NaN and crashes the SwapFeeModule call.
-    it("falls back to the event blockNumber when createdBlockNumber is undefined (legacy pool)", async () => {
-      const legacyPool = {
-        ...liquidityPoolAggregator,
-        chainId: 10,
-        createdBlockNumber: undefined,
-      } as unknown as Pool;
-
-      await updateDynamicFeePools(
-        legacyPool,
-        mockContext as handlerContext,
-        10,
-        blockNumber,
-      );
-
-      // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
-      const effectMock = vi.mocked(mockContext.effect!);
-      const swapFeeCall = effectMock.mock.calls.find(
-        (call) => call[0] === getSwapFee,
-      );
-      expect(swapFeeCall).toBeDefined();
-      // biome-ignore lint/style/noNonNullAssertion: existence verified above
-      const input = swapFeeCall![1] as { blockNumber: number };
-      // With fallback minBlock = blockNumber, the clamp restores the event block
-      // (rounded 131536800 would be less than the fallback 131536921).
-      expect(Number.isNaN(input.blockNumber)).toBe(false);
-      expect(input.blockNumber).toBe(blockNumber);
-    });
-  });
-
   describe("Snapshot Creation", () => {
     beforeEach(() => {
       setPoolSnapshot(
         liquidityPoolAggregator as Pool,
         timestamp,
         mockContext as handlerContext,
+        (liquidityPoolAggregator as WithChain<Pool>).chainId,
       );
     });
 
@@ -539,14 +334,10 @@ describe("Pool Functions", () => {
       await updatePool(
         {
           hasStakes: undefined,
-          stakedTickEdges: [],
-          stakedTickEdgeNets: [],
         },
         {
           ...(liquidityPoolAggregator as Pool),
           hasStakes: true,
-          stakedTickEdges: [100n, 200n],
-          stakedTickEdgeNets: [500n, -500n],
         },
         timestamp,
         mockContext as handlerContext,
@@ -561,104 +352,6 @@ describe("Pool Functions", () => {
       const setCalls = vi.mocked(poolStore.set).mock.calls;
       const updated = setCalls.at(-1)?.[0] as Pool;
       expect(updated.hasStakes).toBe(true);
-      // Edge arrays should still be replaced (empty) since the diff provides them.
-      expect(updated.stakedTickEdges).toEqual([]);
-      expect(updated.stakedTickEdgeNets).toEqual([]);
-    });
-
-    // Issue #803: the TOTAL-liquidity parallel pair (tickEdges, tickEdgeNets)
-    // gets the same lockstep guard the staked pair has. A presence- or
-    // length-mismatched diff would silently desync the map the swap path
-    // binary-searches for the fee-free reserve geometry, so updatePool drops
-    // both edge fields, logs [TICK_EDGE_DRIFT], and retains the prior pair.
-    // Unlike the staked guard, liquidityInRange is NOT dropped (it comes from
-    // event.params.liquidity, not from this map).
-    it("drops tickEdges/tickEdgeNets together on a presence mismatch (#803)", async () => {
-      await updatePool(
-        {
-          tickEdges: [100n, 200n, 300n],
-          // tickEdgeNets intentionally omitted — half-written diff
-        },
-        {
-          ...(liquidityPoolAggregator as Pool),
-          tickEdges: [100n, 200n],
-          tickEdgeNets: [500n, -500n],
-        },
-        timestamp,
-        mockContext as handlerContext,
-        10,
-        blockNumber,
-      );
-
-      const poolStore = mockContext.Pool;
-      if (!poolStore) {
-        throw new Error("test setup: Pool store must exist");
-      }
-      const updated = vi.mocked(poolStore.set).mock.calls.at(-1)?.[0] as Pool;
-      // Prior consistent pair retained, not the half-written diff.
-      expect(updated.tickEdges).toEqual([100n, 200n]);
-      expect(updated.tickEdgeNets).toEqual([500n, -500n]);
-      expect(vi.mocked(mockContext.log?.error)).toHaveBeenCalledWith(
-        expect.stringContaining("[TICK_EDGE_DRIFT]"),
-      );
-    });
-
-    it("drops tickEdges/tickEdgeNets together on a length mismatch (#803)", async () => {
-      await updatePool(
-        {
-          tickEdges: [100n, 200n, 300n],
-          tickEdgeNets: [500n, -500n], // length 2 ≠ 3
-        },
-        {
-          ...(liquidityPoolAggregator as Pool),
-          tickEdges: [100n, 200n],
-          tickEdgeNets: [500n, -500n],
-        },
-        timestamp,
-        mockContext as handlerContext,
-        10,
-        blockNumber,
-      );
-
-      const poolStore = mockContext.Pool;
-      if (!poolStore) {
-        throw new Error("test setup: Pool store must exist");
-      }
-      const updated = vi.mocked(poolStore.set).mock.calls.at(-1)?.[0] as Pool;
-      expect(updated.tickEdges).toEqual([100n, 200n]);
-      expect(updated.tickEdgeNets).toEqual([500n, -500n]);
-      expect(vi.mocked(mockContext.log?.error)).toHaveBeenCalledWith(
-        expect.stringContaining("[TICK_EDGE_DRIFT]"),
-      );
-    });
-
-    it("writes a consistent tickEdges/tickEdgeNets pair through unchanged (#803)", async () => {
-      await updatePool(
-        {
-          tickEdges: [100n, 200n, 300n],
-          tickEdgeNets: [500n, -200n, -300n],
-        },
-        {
-          ...(liquidityPoolAggregator as Pool),
-          tickEdges: [100n, 200n],
-          tickEdgeNets: [500n, -500n],
-        },
-        timestamp,
-        mockContext as handlerContext,
-        10,
-        blockNumber,
-      );
-
-      const poolStore = mockContext.Pool;
-      if (!poolStore) {
-        throw new Error("test setup: Pool store must exist");
-      }
-      const updated = vi.mocked(poolStore.set).mock.calls.at(-1)?.[0] as Pool;
-      expect(updated.tickEdges).toEqual([100n, 200n, 300n]);
-      expect(updated.tickEdgeNets).toEqual([500n, -200n, -300n]);
-      expect(vi.mocked(mockContext.log?.error)).not.toHaveBeenCalledWith(
-        expect.stringContaining("[TICK_EDGE_DRIFT]"),
-      );
     });
 
     // Regression test for issue #771: stakedReserve0/stakedReserve1 are
@@ -723,10 +416,11 @@ describe("Pool Functions", () => {
         name: "Mock Token",
         decimals,
         pricePerUSDNew,
-        chainId: 8453,
         isWhitelisted: true,
+        isListedOnAero: undefined,
         lastUpdatedTimestamp: new Date(),
         lastSuccessfulPriceTimestamp: new Date(),
+        pricingDepthUSD: undefined,
         priceTrustOutcome: "TRUSTED",
         priceTrustReason: "WL",
       });
@@ -778,9 +472,7 @@ describe("Pool Functions", () => {
         expect(msg).toContain("priorStakedReserve=50");
         expect(msg).toContain("delta=-100");
         expect(msg).toContain("clampedTo=0");
-        expect(msg).toContain(
-          `chainId=${(liquidityPoolAggregator as Pool).chainId}`,
-        );
+        expect(msg).toContain("chainId=8453");
         expect(msg).toContain(
           `poolAddress=${(liquidityPoolAggregator as Pool).poolAddress}`,
         );
@@ -959,9 +651,7 @@ describe("Pool Functions", () => {
         expect(msg).toContain("clampedTo=0");
         // Message content unchanged from pre-#802 (poolAddress / chainId /
         // priorStakedReserve / delta / clampedTo).
-        expect(msg).toContain(
-          `chainId=${(liquidityPoolAggregator as Pool).chainId}`,
-        );
+        expect(msg).toContain("chainId=8453");
         expect(msg).toContain(`delta=${grossDelta}`);
       });
 
@@ -1199,12 +889,9 @@ describe("Pool Functions", () => {
         expect(msg).toContain("priorReserve=50");
         expect(msg).toContain("delta=-100");
         expect(msg).toContain("clampedTo=0");
-        // chainId in the log is the pool entity's chainId, not the eventChainId
-        // parameter — those agree in practice (a reserve diff comes from the
-        // pool's own chain) and the pool's chainId is what Hasura consumers query.
-        expect(msg).toContain(
-          `chainId=${(liquidityPoolAggregator as Pool).chainId}`,
-        );
+        // chainId in the log is the eventChainId parameter: per-chain entities
+        // carry no chainId field (ADR 0009), and the handler only sees its chain.
+        expect(msg).toContain("chainId=8453");
       });
 
       it("clamps reserve1 to 0n and logs guard when delta would drive it negative", async () => {
@@ -1450,9 +1137,7 @@ describe("Pool Functions", () => {
         expect(msg).toContain("priorStakedLiqInRange=100");
         expect(msg).toContain("replacement=-250");
         expect(msg).toContain("clampedTo=0");
-        expect(msg).toContain(
-          `chainId=${(liquidityPoolAggregator as Pool).chainId}`,
-        );
+        expect(msg).toContain("chainId=8453");
         expect(msg).toContain(
           `poolAddress=${(liquidityPoolAggregator as Pool).poolAddress}`,
         );
@@ -1573,9 +1258,7 @@ describe("Pool Functions", () => {
         expect(msg).toContain(
           `poolAddress=${(liquidityPoolAggregator as Pool).poolAddress}`,
         );
-        expect(msg).toContain(
-          `chainId=${(liquidityPoolAggregator as Pool).chainId}`,
-        );
+        expect(msg).toContain("chainId=5330");
       });
 
       it("clamps against the CARRIED liquidityInRange when the diff omits it (not a stale prior)", async () => {
@@ -1746,9 +1429,7 @@ describe("Pool Functions", () => {
         expect(msg).toContain(
           `poolAddress=${(liquidityPoolAggregator as Pool).poolAddress}`,
         );
-        expect(msg).toContain(
-          `chainId=${(liquidityPoolAggregator as Pool).chainId}`,
-        );
+        expect(msg).toContain("chainId=5330");
       });
 
       it("does not clamp or log when liquidityInRange stays non-negative", async () => {
@@ -1843,14 +1524,14 @@ describe("Pool Functions", () => {
       const snapshot = mockSet?.mock.calls[0]?.[0];
       expect(snapshot).toBeDefined();
 
-      // For non-CL pools, updateDynamicFeePools should NOT be called
+      // For non-CL pools, no fee RPC is made
       const effectCalls = effectSpy.mock.calls.filter(
         (call) => call[0] === getSwapFee,
       );
       expect(effectCalls.length).toBe(0);
     });
 
-    it("should call updateDynamicFeePools for CL pools when creating snapshot", async () => {
+    it("should make no RPC (getSwapFee) call for CL pools when creating snapshot", async () => {
       // Set up a CL pool (liquidityPoolAggregator has factoryAddress set in beforeEach)
       const oldTimestamp = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2 hours ago
       const currentTimestamp = new Date();
@@ -1881,11 +1562,10 @@ describe("Pool Functions", () => {
       const snapshot = mockSet?.mock.calls[0]?.[0];
       expect(snapshot).toBeDefined();
 
-      // For CL pools, updateDynamicFeePools should be called
-      const effectCalls = effectSpy.mock.calls.filter(
-        (call) => call[0] === getSwapFee,
-      );
-      expect(effectCalls.length).toBe(1);
+      // CL currentFee is derived per swap; the snapshot boundary makes no
+      // effect call at all (the per-hour getSwapFee refresh was removed).
+      expect(effectSpy).not.toHaveBeenCalled();
+      expect(snapshot?.currentFee).toBe(clPoolWithOldSnapshot.currentFee);
     });
 
     it("should recompute CL staked USD at snapshot time when staked liquidity > 0", async () => {
@@ -1930,7 +1610,6 @@ describe("Pool Functions", () => {
         ),
         symbol: "TK0",
         name: "Token0",
-        chainId: 10,
         decimals: 18n,
         pricePerUSDNew: 1000000000000000000n,
         lastUpdatedTimestamp: currentTimestamp,
@@ -1943,7 +1622,6 @@ describe("Pool Functions", () => {
         ),
         symbol: "TK1",
         name: "Token1",
-        chainId: 10,
         decimals: 18n,
         pricePerUSDNew: 1000000000000000000n,
         lastUpdatedTimestamp: currentTimestamp,
@@ -2216,7 +1894,6 @@ describe("Pool Functions", () => {
         ),
         symbol: "TOKEN0",
         name: "Token 0",
-        chainId: 10,
         decimals: 18n,
         pricePerUSDNew: 1000000n, // $1.00
         lastUpdatedTimestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
@@ -2230,7 +1907,6 @@ describe("Pool Functions", () => {
         ),
         symbol: "TOKEN1",
         name: "Token 1",
-        chainId: 10,
         decimals: 18n,
         pricePerUSDNew: 2000000n, // $2.00
         lastUpdatedTimestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
@@ -2273,59 +1949,47 @@ describe("Pool Functions", () => {
       expect(mockTokenSet).not.toHaveBeenCalled();
     });
 
-    it("should refresh token prices when block data is provided and prices are stale", async () => {
+    it("should refresh stale token prices from pool state, once each, without RPC", async () => {
       const blockNumber = 1000000;
       const blockTimestamp = Math.floor(Date.now() / 1000); // Current time
-      const newPrice0 = 1500000n; // $1.50
-      const newPrice1 = 2500000n; // $2.50
-
-      // Mock effect to return new prices and token details
-      expect(mockContext.effect).toBeDefined();
-      vi
-        // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
-        .mocked(mockContext.effect!)
-        // biome-ignore lint/suspicious/noExplicitAny: effect mock implementation needs flexible types
-        .mockImplementation(async (effectFn: any, input: any) => {
-          if (effectFn.name === "getTokenPrice") {
-            if (
-              input.tokenAddress.toLowerCase() === token0.address.toLowerCase()
-            ) {
-              return {
-                pricePerUSDNew: newPrice0,
-              };
-            }
-            if (
-              input.tokenAddress.toLowerCase() === token1.address.toLowerCase()
-            ) {
-              return {
-                pricePerUSDNew: newPrice1,
-              };
-            }
-          }
-          if (effectFn.name === "getTokenDetails") {
-            if (
-              input.contractAddress.toLowerCase() ===
-              token0.address.toLowerCase()
-            ) {
-              return {
-                name: token0.name,
-                symbol: token0.symbol,
-                decimals: Number(token0.decimals),
-              };
-            }
-            if (
-              input.contractAddress.toLowerCase() ===
-              token1.address.toLowerCase()
-            ) {
-              return {
-                name: token1.name,
-                symbol: token1.symbol,
-                decimals: Number(token1.decimals),
-              };
-            }
-          }
-          return {};
-        });
+      const tokenWethAddress = toChecksumAddress(
+        "0x4200000000000000000000000000000000000006",
+      );
+      const usdcAddress = toChecksumAddress(
+        "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+      );
+      // token0 = USDC (tier 0, pinned), token1 = WETH priced through this pool.
+      token0 = {
+        ...token0,
+        id: `10-${usdcAddress}`,
+        address: usdcAddress,
+        decimals: 6n,
+        pricePerUSDNew: 0n,
+      };
+      token1 = {
+        ...token1,
+        id: `10-${tokenWethAddress}`,
+        address: tokenWethAddress,
+      };
+      const pool = {
+        ...liquidityPoolAggregator,
+        token0_id: token0.id,
+        token1_id: token1.id,
+        isCL: false,
+        isStable: false,
+        reserve0: 2_500_000n * 10n ** 6n,
+        reserve1: 1_000n * 10n ** 18n,
+      } as unknown as Pool;
+      vi.mocked(mockContext.Pool?.get)?.mockResolvedValue(pool);
+      vi.mocked(mockContext.Token?.get)?.mockImplementation((id: string) =>
+        Promise.resolve(
+          id === token0.id ? token0 : id === token1.id ? token1 : undefined,
+        ),
+      );
+      vi.mocked(mockContext.TokenPricingPools?.get)?.mockImplementation(
+        async (id: string) =>
+          id === token1.id ? { id, pools: [pool.id] } : undefined,
+      );
 
       const result = await loadPoolData(
         poolAddress,
@@ -2336,18 +2000,24 @@ describe("Pool Functions", () => {
       );
 
       expect(result).not.toBeNull();
-      expect(result?.token0Instance.pricePerUSDNew).toBe(newPrice0);
-      expect(result?.token1Instance.pricePerUSDNew).toBe(newPrice1);
+      expect(result?.token0Instance.pricePerUSDNew).toBe(10n ** 18n); // $1 pin
+      expect(result?.token1Instance.pricePerUSDNew).toBe(2_500n * 10n ** 18n);
       expect(result?.token0Instance.lastUpdatedTimestamp).toBeInstanceOf(Date);
       expect(result?.token1Instance.lastUpdatedTimestamp).toBeInstanceOf(Date);
 
-      // Token.set should be called for both tokens
-      const mockTokenSet = vi.mocked(mockContext.Token?.set);
-      expect(mockTokenSet).toHaveBeenCalledTimes(2);
+      // No RPC: the oracle effect is never called.
+      const effectNames = vi
+        .mocked(mockContext.effect)
+        ?.mock.calls.map((c) => (c[0] as { name?: string }).name);
+      expect(effectNames).not.toContain("getTokenPrice");
 
-      // TokenPriceSnapshot.set should be called for both tokens
-      const mockSnapshotSet = vi.mocked(mockContext.TokenPriceSnapshot?.set);
-      expect(mockSnapshotSet).toHaveBeenCalledTimes(2);
+      // At most one snapshot per token per hour. (This static Token.get mock
+      // never reflects writes, so USDC is ticked again as WETH's counterparty;
+      // both writes share the hour's snapshot id.)
+      const snapshotIds = vi
+        .mocked(mockContext.TokenPriceSnapshot?.set)
+        ?.mock.calls.map((c) => (c[0] as { id: string }).id);
+      expect(new Set(snapshotIds).size).toBe(2);
     });
 
     it("should not refresh token prices when they are recent (less than 1 hour)", async () => {
@@ -2406,122 +2076,40 @@ describe("Pool Functions", () => {
         return Promise.resolve(undefined);
       });
 
-      const blockNumber = 1000000;
-      const blockTimestamp = Math.floor(now.getTime() / 1000);
-      const newPrice0 = 1000000n; // $1.00
-
-      // Mock effect to return new price and token details
-      expect(mockContext.effect).toBeDefined();
-      vi
-        // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
-        .mocked(mockContext.effect!)
-        // biome-ignore lint/suspicious/noExplicitAny: effect mock implementation needs flexible types
-        .mockImplementation(async (effectFn: any, input: any) => {
-          if (effectFn.name === "getTokenPrice") {
-            if (
-              input.tokenAddress.toLowerCase() === token0.address.toLowerCase()
-            ) {
-              return {
-                pricePerUSDNew: newPrice0,
-              };
-            }
-            if (
-              input.tokenAddress.toLowerCase() === token1.address.toLowerCase()
-            ) {
-              return {
-                pricePerUSDNew: token1.pricePerUSDNew,
-              };
-            }
-          }
-          if (effectFn.name === "getTokenDetails") {
-            if (
-              input.contractAddress.toLowerCase() ===
-              token0.address.toLowerCase()
-            ) {
-              return {
-                name: token0.name,
-                symbol: token0.symbol,
-                decimals: Number(token0.decimals),
-              };
-            }
-            if (
-              input.contractAddress.toLowerCase() ===
-              token1.address.toLowerCase()
-            ) {
-              return {
-                name: token1.name,
-                symbol: token1.symbol,
-                decimals: Number(token1.decimals),
-              };
-            }
-          }
-          return {};
-        });
-
       const result = await loadPoolData(
         poolAddress,
         chainId,
         mockContext as handlerContext,
-        blockNumber,
-        blockTimestamp,
+        1000000,
+        Math.floor(now.getTime() / 1000),
       );
 
       expect(result).not.toBeNull();
-      // token0 was $0 + stale → refresh fires
-      expect(result?.token0Instance.pricePerUSDNew).toBe(newPrice0);
+      // token0 was stale → one refresh tick (its pricing pools are looked up)
+      expect(mockContext.TokenPricingPools?.get).toHaveBeenCalledWith("token0");
+      expect(result?.token0Instance.lastUpdatedTimestamp).toEqual(now);
       // token1 has a recent timestamp → throttled
-      expect(result?.token1Instance.pricePerUSDNew).toBe(token1.pricePerUSDNew);
+      expect(mockContext.TokenPricingPools?.get).not.toHaveBeenCalledWith(
+        "token1",
+      );
+      expect(result?.token1Instance).toBe(token1);
 
       const mockTokenSet = vi.mocked(mockContext.Token?.set);
       expect(mockTokenSet).toHaveBeenCalledTimes(1);
     });
 
-    it("should handle price refresh errors gracefully", async () => {
+    it("should carry prices and log when a pricing read fails", async () => {
       const blockNumber = 1000000;
       const blockTimestamp = Math.floor(Date.now() / 1000);
-
-      // Mock effect to throw error for token0, return price for token1
-      expect(mockContext.effect).toBeDefined();
-      // biome-ignore lint/style/noNonNullAssertion: effect is verified to be defined above
-      const effectMock = vi.mocked(mockContext.effect!);
-      // biome-ignore lint/suspicious/noExplicitAny: effect mock implementation needs flexible types
-      effectMock.mockImplementation(async (effectFn: any, input: any) => {
-        if (effectFn.name === "getTokenPrice") {
-          if (
-            input.tokenAddress.toLowerCase() === token0.address.toLowerCase()
-          ) {
-            throw new Error("Price fetch failed");
-          }
-          if (
-            input.tokenAddress.toLowerCase() === token1.address.toLowerCase()
-          ) {
-            return {
-              pricePerUSDNew: 3000000n,
-            };
-          }
-        }
-        if (effectFn.name === "getTokenDetails") {
-          if (
-            input.contractAddress.toLowerCase() === token0.address.toLowerCase()
-          ) {
-            return {
-              name: token0.name,
-              symbol: token0.symbol,
-              decimals: Number(token0.decimals),
-            };
-          }
-          if (
-            input.contractAddress.toLowerCase() === token1.address.toLowerCase()
-          ) {
-            return {
-              name: token1.name,
-              symbol: token1.symbol,
-              decimals: Number(token1.decimals),
-            };
-          }
-        }
-        return {};
-      });
+      const lastSuccess = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      token0 = { ...token0, lastSuccessfulPriceTimestamp: lastSuccess };
+      token1 = { ...token1, lastSuccessfulPriceTimestamp: lastSuccess };
+      vi.mocked(mockContext.TokenPricingPools?.get)?.mockImplementation(
+        async (id: string) => {
+          if (id === "token0") throw new Error("pricing read failed");
+          return undefined;
+        },
+      );
 
       const result = await loadPoolData(
         poolAddress,
@@ -2532,14 +2120,14 @@ describe("Pool Functions", () => {
       );
 
       expect(result).not.toBeNull();
-      // token0 should remain unchanged (error handled)
+      // Neither token has a qualifying pool, so both carry their last price
+      // (last success 2h ago, inside the 7-day window).
       expect(result?.token0Instance.pricePerUSDNew).toBe(token0.pricePerUSDNew);
-      // token1 should be refreshed successfully
-      expect(result?.token1Instance.pricePerUSDNew).toBe(3000000n);
-
-      // Error should be logged
+      expect(result?.token1Instance.pricePerUSDNew).toBe(token1.pricePerUSDNew);
       const mockErrorLog = vi.mocked(mockContext.log?.error);
-      expect(mockErrorLog).toHaveBeenCalled();
+      expect(mockErrorLog).toHaveBeenCalledWith(
+        expect.stringContaining("pricing read failed"),
+      );
     });
 
     it("should return original token0 and log error when token0 price refresh rejects", async () => {
@@ -2621,415 +2209,6 @@ describe("Pool Functions", () => {
       expect(result).toBeNull();
       const mockErrorLog = vi.mocked(mockContext.log?.error);
       expect(mockErrorLog).toHaveBeenCalled();
-    });
-  });
-
-  describe("loadPoolDataOrRootCLPool", () => {
-    let token0: Token;
-    let token1: Token;
-    const rootPoolAddress = toChecksumAddress(
-      "0x1111111111111111111111111111111111111111",
-    );
-    const leafPoolAddress = toChecksumAddress(
-      "0x2222222222222222222222222222222222222222",
-    );
-    const chainId = 10;
-    const rootPoolId = PoolId(chainId, rootPoolAddress);
-
-    beforeEach(() => {
-      token0 = {
-        id: "token0",
-        address: toChecksumAddress(
-          "0x3333333333333333333333333333333333333333",
-        ),
-        symbol: "TOKEN0",
-        name: "Token 0",
-        chainId: 10,
-        decimals: 18n,
-        pricePerUSDNew: 1000000n,
-        lastUpdatedTimestamp: new Date(),
-        isWhitelisted: false,
-      } as Token;
-
-      token1 = {
-        id: "token1",
-        address: toChecksumAddress(
-          "0x4444444444444444444444444444444444444444",
-        ),
-        symbol: "TOKEN1",
-        name: "Token 1",
-        chainId: 10,
-        decimals: 18n,
-        pricePerUSDNew: 2000000n,
-        lastUpdatedTimestamp: new Date(),
-        isWhitelisted: false,
-      } as Token;
-    });
-
-    it("should return pool data directly when pool exists", async () => {
-      const rootPool = createMockPool({
-        id: rootPoolId,
-        chainId: chainId,
-        token0_id: "token0",
-        token1_id: "token1",
-        token0_address: token0.address,
-        token1_address: token1.address,
-      });
-
-      const mockLiquidityPoolGet = vi.mocked(mockContext.Pool?.get);
-      mockLiquidityPoolGet?.mockImplementation((address: string) => {
-        if (address === rootPoolId) return Promise.resolve(rootPool);
-        return Promise.resolve(undefined);
-      });
-
-      const mockTokenGet = vi.mocked(mockContext.Token?.get);
-      mockTokenGet?.mockImplementation((id: string) => {
-        if (id === "token0") return Promise.resolve(token0);
-        if (id === "token1") return Promise.resolve(token1);
-        return Promise.resolve(undefined);
-      });
-
-      const result = await loadPoolDataOrRootCLPool(
-        rootPoolAddress,
-        chainId,
-        mockContext as handlerContext,
-      );
-
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.poolData.liquidityPoolAggregator.id).toBe(rootPoolId);
-        expect(result.poolData.token0Instance).toBe(token0);
-        expect(result.poolData.token1Instance).toBe(token1);
-      }
-
-      // RootPool_LeafPool lookup runs first, then we fallback to direct pool load when no mapping exists
-      const mockRootPoolLeafPoolGetWhere = vi.mocked(
-        mockContext.RootPool_LeafPool?.getWhere,
-      );
-      expect(mockRootPoolLeafPoolGetWhere).toHaveBeenCalledTimes(1);
-      expect(mockRootPoolLeafPoolGetWhere).toHaveBeenCalledWith({
-        rootPoolAddress: { _eq: rootPoolAddress },
-      });
-    });
-
-    it("should load leaf pool data when root pool is not found but RootPool_LeafPool exists", async () => {
-      const leafChainId = 252;
-      const leafPoolId = PoolId(leafChainId, leafPoolAddress);
-      const leafPool = createMockPool({
-        id: leafPoolId,
-        chainId: leafChainId,
-        token0_id: "token0",
-        token1_id: "token1",
-        token0_address: token0.address,
-        token1_address: token1.address,
-      });
-
-      const rootPoolLeafPool = {
-        id: RootPoolLeafPoolId(
-          chainId,
-          leafChainId,
-          rootPoolAddress,
-          leafPoolAddress,
-        ),
-        rootChainId: chainId,
-        rootPoolAddress: rootPoolAddress,
-        leafChainId: leafChainId,
-        leafPoolAddress: leafPoolAddress,
-      };
-
-      const mockLiquidityPoolGet = vi.mocked(mockContext.Pool?.get);
-      mockLiquidityPoolGet?.mockImplementation((address: string) => {
-        if (address === rootPoolId) return Promise.resolve(undefined);
-        if (address === leafPoolId) return Promise.resolve(leafPool);
-        return Promise.resolve(undefined);
-      });
-
-      const mockTokenGet = vi.mocked(mockContext.Token?.get);
-      mockTokenGet?.mockImplementation((id: string) => {
-        if (id === "token0") return Promise.resolve(token0);
-        if (id === "token1") return Promise.resolve(token1);
-        return Promise.resolve(undefined);
-      });
-
-      const mockRootPoolLeafPoolGetWhere = vi.mocked(
-        mockContext.RootPool_LeafPool?.getWhere,
-      );
-      mockRootPoolLeafPoolGetWhere?.mockResolvedValue([rootPoolLeafPool]);
-
-      const mockErrorLog = vi.mocked(mockContext.log?.error);
-
-      const result = await loadPoolDataOrRootCLPool(
-        rootPoolAddress,
-        chainId,
-        mockContext as handlerContext,
-      );
-
-      expect(result.ok).toBe(true);
-      if (result.ok) {
-        expect(result.poolData.liquidityPoolAggregator.id).toBe(leafPoolId);
-        expect(result.poolData.liquidityPoolAggregator.chainId).toBe(
-          leafChainId,
-        );
-        expect(result.poolData.token0Instance).toBe(token0);
-        expect(result.poolData.token1Instance).toBe(token1);
-      }
-      expect(mockRootPoolLeafPoolGetWhere).toHaveBeenCalled();
-
-      const lookedUpPoolIds = mockLiquidityPoolGet?.mock.calls.map(
-        (call) => call[0],
-      );
-      expect(lookedUpPoolIds).toContain(leafPoolId);
-      expect(lookedUpPoolIds).not.toContain(rootPoolId);
-
-      const errorMessages = mockErrorLog?.mock.calls.map((call) => call[0]);
-      expect(
-        errorMessages?.some(
-          (msg) =>
-            typeof msg === "string" &&
-            msg.includes(`Pool ${rootPoolId} not found`),
-        ),
-      ).toBe(false);
-    });
-
-    it("should not forward blockNumber/blockTimestamp to leaf chain loadPoolData (cross-chain fix)", async () => {
-      const leafChainId = 252;
-      const leafPoolId = PoolId(leafChainId, leafPoolAddress);
-      const leafPool = createMockPool({
-        id: leafPoolId,
-        chainId: leafChainId,
-        token0_id: "token0",
-        token1_id: "token1",
-        token0_address: token0.address,
-        token1_address: token1.address,
-      });
-
-      const rootPoolLeafPool = {
-        id: RootPoolLeafPoolId(
-          chainId,
-          leafChainId,
-          rootPoolAddress,
-          leafPoolAddress,
-        ),
-        rootChainId: chainId,
-        rootPoolAddress: rootPoolAddress,
-        leafChainId: leafChainId,
-        leafPoolAddress: leafPoolAddress,
-      };
-
-      const mockLiquidityPoolGet = vi.mocked(mockContext.Pool?.get);
-      mockLiquidityPoolGet?.mockImplementation((address: string) => {
-        if (address === leafPoolId) return Promise.resolve(leafPool);
-        return Promise.resolve(undefined);
-      });
-
-      const mockTokenGet = vi.mocked(mockContext.Token?.get);
-      mockTokenGet?.mockImplementation((id: string) => {
-        if (id === "token0") return Promise.resolve(token0);
-        if (id === "token1") return Promise.resolve(token1);
-        return Promise.resolve(undefined);
-      });
-
-      const mockRootPoolLeafPoolGetWhere = vi.mocked(
-        mockContext.RootPool_LeafPool?.getWhere,
-      );
-      mockRootPoolLeafPoolGetWhere?.mockResolvedValue([rootPoolLeafPool]);
-
-      // Call WITH block params — they should NOT be forwarded to the leaf chain path
-      const rootBlockNumber = 135229421; // OP block
-      const rootBlockTimestamp = 1710000000;
-      const result = await loadPoolDataOrRootCLPool(
-        rootPoolAddress,
-        chainId,
-        mockContext as handlerContext,
-        rootBlockNumber,
-        rootBlockTimestamp,
-      );
-
-      expect(result.ok).toBe(true);
-
-      // The leaf chain loadPoolData call should NOT include blockNumber/blockTimestamp
-      // because they belong to the root chain and would cause "Unknown block" errors
-      // on the leaf chain's RPC.
-      const lpaCalls = mockLiquidityPoolGet?.mock.calls ?? [];
-      // loadPoolData for leaf pool should have been called — verify via LPA.get
-      expect(lpaCalls.some((call) => call[0] === leafPoolId)).toBe(true);
-    });
-
-    it("should return MAPPING_NOT_FOUND when root pool not found and no RootPool_LeafPool exists", async () => {
-      const mockLiquidityPoolGet = vi.mocked(mockContext.Pool?.get);
-      mockLiquidityPoolGet?.mockResolvedValue(undefined);
-
-      const mockRootPoolLeafPoolGetWhere = vi.mocked(
-        mockContext.RootPool_LeafPool?.getWhere,
-      );
-      mockRootPoolLeafPoolGetWhere?.mockResolvedValue([]);
-      const mockErrorLog = vi.mocked(mockContext.log?.error);
-
-      const result = await loadPoolDataOrRootCLPool(
-        rootPoolAddress,
-        chainId,
-        mockContext as handlerContext,
-      );
-
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.reason).toBe("MAPPING_NOT_FOUND");
-      }
-
-      expect(mockRootPoolLeafPoolGetWhere).toHaveBeenCalledWith({
-        rootPoolAddress: { _eq: rootPoolAddress },
-      });
-      expect(mockLiquidityPoolGet).toHaveBeenCalledWith(rootPoolId);
-
-      const errorMessages = mockErrorLog?.mock.calls.map((call) => call[0]);
-      expect(
-        errorMessages?.some(
-          (msg) =>
-            typeof msg === "string" &&
-            msg.includes(`Pool ${rootPoolId} not found on chain ${chainId}`),
-        ),
-      ).toBe(true);
-    });
-
-    it("should return null when multiple RootPool_LeafPool entries exist", async () => {
-      const rootPoolLeafPool1 = {
-        id: RootPoolLeafPoolId(
-          chainId,
-          chainId,
-          rootPoolAddress,
-          leafPoolAddress,
-        ),
-        rootChainId: chainId,
-        rootPoolAddress: rootPoolAddress,
-        leafChainId: chainId,
-        leafPoolAddress: leafPoolAddress,
-      };
-
-      const rootPoolLeafPool2 = {
-        id: RootPoolLeafPoolId(
-          chainId,
-          chainId,
-          rootPoolAddress,
-          toChecksumAddress("0x5555555555555555555555555555555555555555"),
-        ),
-        rootChainId: chainId,
-        rootPoolAddress: rootPoolAddress,
-        leafChainId: chainId,
-        leafPoolAddress: toChecksumAddress(
-          "0x5555555555555555555555555555555555555555",
-        ),
-      };
-
-      const mockLiquidityPoolGet = vi.mocked(mockContext.Pool?.get);
-      mockLiquidityPoolGet?.mockResolvedValue(undefined);
-
-      const mockRootPoolLeafPoolGetWhere = vi.mocked(
-        mockContext.RootPool_LeafPool?.getWhere,
-      );
-      mockRootPoolLeafPoolGetWhere?.mockResolvedValue([
-        rootPoolLeafPool1,
-        rootPoolLeafPool2,
-      ]);
-
-      const mockErrorLog = vi.mocked(mockContext.log?.error);
-
-      const result = await loadPoolDataOrRootCLPool(
-        rootPoolAddress,
-        chainId,
-        mockContext as handlerContext,
-      );
-
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.reason).toBe("MULTIPLE_MAPPINGS");
-      }
-      expect(mockErrorLog).toHaveBeenCalled();
-      // Check if any error call contains the expected message
-      const errorMessages = mockErrorLog?.mock.calls.map((call) => call[0]);
-      expect(
-        errorMessages?.some(
-          (msg) =>
-            typeof msg === "string" &&
-            msg.includes("Expected exactly one RootPool_LeafPool"),
-        ),
-      ).toBe(true);
-    });
-
-    it("should return LEAF_POOL_NOT_FOUND when leaf pool is not found", async () => {
-      const leafChainId = 252;
-      const rootPoolLeafPool = {
-        id: RootPoolLeafPoolId(
-          chainId,
-          leafChainId,
-          rootPoolAddress,
-          leafPoolAddress,
-        ),
-        rootChainId: chainId,
-        rootPoolAddress: rootPoolAddress,
-        leafChainId: leafChainId,
-        leafPoolAddress: leafPoolAddress,
-      };
-
-      const mockLiquidityPoolGet = vi.mocked(mockContext.Pool?.get);
-      mockLiquidityPoolGet?.mockResolvedValue(undefined);
-
-      const mockRootPoolLeafPoolGetWhere = vi.mocked(
-        mockContext.RootPool_LeafPool?.getWhere,
-      );
-      mockRootPoolLeafPoolGetWhere?.mockResolvedValue([rootPoolLeafPool]);
-
-      const mockErrorLog = vi.mocked(mockContext.log?.error);
-
-      const result = await loadPoolDataOrRootCLPool(
-        rootPoolAddress,
-        chainId,
-        mockContext as handlerContext,
-      );
-
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.reason).toBe("LEAF_POOL_NOT_FOUND");
-      }
-      expect(mockErrorLog).toHaveBeenCalled();
-      // Check if any error call contains the expected message
-      const errorMessages = mockErrorLog?.mock.calls.map((call) => call[0]);
-      expect(
-        errorMessages?.some(
-          (msg) =>
-            typeof msg === "string" && msg.includes("Leaf pool data not found"),
-        ),
-      ).toBe(true);
-    });
-
-    it("short-circuits silently with SINK_ROOT_POOL for a known-sink address", async () => {
-      // Known sink per src/Constants.ts KNOWN_SINK_ROOT_POOLS (OP).
-      const sinkRootPoolAddress = toChecksumAddress(
-        "0x333030A736B47D20346d82A473680658ac1C2b88",
-      );
-      const sinkChainId = 10;
-
-      const mockRootPoolLeafPoolGetWhere = vi.mocked(
-        mockContext.RootPool_LeafPool?.getWhere,
-      );
-      const mockLiquidityPoolGet = vi.mocked(mockContext.Pool?.get);
-      const mockErrorLog = vi.mocked(mockContext.log?.error);
-      const mockWarnLog = vi.mocked(mockContext.log?.warn);
-
-      const result = await loadPoolDataOrRootCLPool(
-        sinkRootPoolAddress,
-        sinkChainId,
-        mockContext as handlerContext,
-      );
-
-      expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.reason).toBe("SINK_ROOT_POOL");
-      }
-      // No DB reads and no log output for known sinks.
-      expect(mockRootPoolLeafPoolGetWhere).not.toHaveBeenCalled();
-      expect(mockLiquidityPoolGet).not.toHaveBeenCalled();
-      expect(mockErrorLog).not.toHaveBeenCalled();
-      expect(mockWarnLog).not.toHaveBeenCalled();
     });
   });
 });

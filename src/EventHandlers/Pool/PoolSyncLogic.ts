@@ -2,7 +2,11 @@ import type { EvmEvent, Token } from "envio";
 import type { PoolDiff } from "../../Aggregators/Pool";
 import type { Pool } from "../../EntityTypes";
 import { calculateLiquidityUSD } from "../../Helpers";
-import { deriveV2PriceRatios, pickPriceRatios } from "../../PoolPriceRatio";
+import {
+  deriveV2PriceRatios,
+  deriveV2StablePriceRatios,
+  pickPriceRatios,
+} from "../../PoolPriceRatio";
 
 export interface PoolSyncResult {
   liquidityPoolDiff: Partial<PoolDiff>;
@@ -28,11 +32,16 @@ export function processPoolSync(
   // the synced reserves — NOT from token oracle prices. This keeps the ratio
   // oracle-independent so a mispriced token (e.g. a non-WL scam token) can no
   // longer inflate it without bound (#783). pickPriceRatios falls back to the
-  // last-known ratio per leg when decimals are unavailable or reserves are zero.
+  // last-known ratios when decimals are unavailable or a reserve is zero.
   // Computed before the reserve branches so the #892 TVL cap below can use it.
+  // Stable (sAMM) pools trade on x³y + xy³, not x·y, so their marginal price is
+  // the curve slope rather than the reserve ratio (ADR 0003).
+  const deriveRatios = liquidityPoolAggregator.isStable
+    ? deriveV2StablePriceRatios
+    : deriveV2PriceRatios;
   const priceRatios = pickPriceRatios(
     token0Instance && token1Instance
-      ? deriveV2PriceRatios(
+      ? deriveRatios(
           event.params.reserve0,
           event.params.reserve1,
           token0Instance.decimals,
@@ -75,7 +84,7 @@ export function processPoolSync(
       token1Instance,
       priceRatios.token0Price,
       priceRatios.token1Price,
-      liquidityPoolAggregator.chainId,
+      event.chainId,
     );
   }
 

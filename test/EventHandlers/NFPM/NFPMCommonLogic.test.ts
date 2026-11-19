@@ -23,6 +23,7 @@ import {
   calculatePositionAmountsFromLiquidity,
   calculateTotalUSD,
 } from "../../../src/Helpers";
+import type { WithChain } from "../../testHelpers";
 import { defaultNfpmAddress, setupCommon } from "../Pool/common";
 
 vi.mock("../../../src/Aggregators/CLStakedLiquidity");
@@ -44,7 +45,7 @@ describe("NFPMCommonLogic", () => {
     "0x00cd0AbB6c2964F7Dfb5169dD94A9F004C35F459",
   );
 
-  const mockPosition: NonFungiblePosition = {
+  const mockPosition: WithChain<NonFungiblePosition> = {
     id: NonFungiblePositionId(chainId, nfpmAddressA, tokenId),
     chainId: chainId,
     tokenId: tokenId,
@@ -64,16 +65,10 @@ describe("NFPMCommonLogic", () => {
     isStakedInGauge: false,
   };
 
-  const mockPositionDifferentChain: NonFungiblePosition = {
-    ...mockPosition,
-    id: NonFungiblePositionId(8453, nfpmAddressA, tokenId),
-    chainId: 8453, // Different chain
-  };
-
   // Same chain (chainId=10) and same tokenId as mockPosition, but different NFPM and pool.
   // Reproduces the intra-chain multi-NFPM collision: Optimism has two NFPM contracts,
   // each with its own tokenId counter, so tokenId 540 can exist on both.
-  const mockPositionSameTokenDifferentNfpm: NonFungiblePosition = {
+  const mockPositionSameTokenDifferentNfpm: WithChain<NonFungiblePosition> = {
     ...mockPosition,
     id: NonFungiblePositionId(chainId, nfpmAddressB, tokenId),
     pool: poolAddressB,
@@ -83,9 +78,9 @@ describe("NFPMCommonLogic", () => {
   let mockContext: handlerContext;
 
   beforeEach(() => {
+    // Per-chain mode: getWhere only ever returns the handler's own chain.
     const storedPositions: NonFungiblePosition[] = [
       mockPosition,
-      mockPositionDifferentChain,
       mockPositionSameTokenDifferentNfpm,
     ];
 
@@ -98,6 +93,10 @@ describe("NFPMCommonLogic", () => {
       });
 
     mockContext = {
+      PoolTickMap: {
+        get: vi.fn().mockResolvedValue(undefined),
+        set: vi.fn(),
+      },
       NonFungiblePosition: {
         get: vi.fn(),
         set: vi.fn(),
@@ -165,9 +164,7 @@ describe("NFPMCommonLogic", () => {
     const mockPoolData: PoolData = {
       token0Instance: mockToken0Data,
       token1Instance: mockToken1Data,
-      liquidityPoolAggregator: {
-        chainId,
-      } as PoolData["liquidityPoolAggregator"],
+      liquidityPoolAggregator: {} as PoolData["liquidityPoolAggregator"],
     };
 
     beforeEach(() => {
@@ -188,6 +185,7 @@ describe("NFPMCommonLogic", () => {
         amount1,
         blockTimestamp,
         LiquidityChangeType.ADD,
+        chainId,
       );
 
       expect(calculateTotalUSD).toHaveBeenCalledWith(
@@ -195,6 +193,7 @@ describe("NFPMCommonLogic", () => {
         amount1,
         mockToken0Data,
         mockToken1Data,
+        chainId,
       );
       const expectedTimestamp = new Date(blockTimestamp * 1000);
       expect(loadOrCreateUserData).toHaveBeenCalledWith(
@@ -224,12 +223,14 @@ describe("NFPMCommonLogic", () => {
         amount1,
         blockTimestamp,
         LiquidityChangeType.REMOVE,
+        chainId,
       );
       expect(calculateTotalUSD).toHaveBeenCalledWith(
         amount0,
         amount1,
         mockToken0Data,
         mockToken1Data,
+        chainId,
       );
       const expectedTimestamp = new Date(blockTimestamp * 1000);
       expect(loadOrCreateUserData).toHaveBeenCalledWith(
@@ -301,6 +302,7 @@ describe("NFPMCommonLogic", () => {
       vi.mocked(applyPositionToEdges).mockReturnValue({
         edges: [-200n, 200n],
         nets: [5000n, -5000n],
+        changed: true,
       });
     });
 
@@ -317,13 +319,46 @@ describe("NFPMCommonLogic", () => {
         blockNumber,
       );
 
+      // The staked map is read from PoolTickMap (empty here: none stored yet)
+      // and the changed map is written back there, not onto the Pool diff.
+      expect(mockContext.PoolTickMap.get).toHaveBeenCalledWith(
+        poolData.liquidityPoolAggregator.id,
+      );
       expect(applyPositionToEdges).toHaveBeenCalledWith(
-        poolData.liquidityPoolAggregator.stakedTickEdges,
-        poolData.liquidityPoolAggregator.stakedTickEdgeNets,
+        [],
+        [],
         stakedPosition.tickLower,
         stakedPosition.tickUpper,
         5000n,
       );
+      expect(mockContext.PoolTickMap.set).toHaveBeenCalledWith({
+        id: poolData.liquidityPoolAggregator.id,
+        tickEdges: [],
+        tickEdgeNets: [],
+        stakedTickEdges: [-200n, 200n],
+        stakedTickEdgeNets: [5000n, -5000n],
+      });
+    });
+
+    it("should not write the tick map when the staked map is unchanged", async () => {
+      vi.mocked(deriveLiquidityInRange).mockReturnValue(0n);
+      vi.mocked(applyPositionToEdges).mockReturnValue({
+        edges: [],
+        nets: [],
+        changed: false,
+      });
+
+      await updateStakedPositionLiquidity(
+        stakedPosition,
+        poolData,
+        0n,
+        mockContext,
+        timestamp,
+        chainId,
+        blockNumber,
+      );
+
+      expect(mockContext.PoolTickMap.set).not.toHaveBeenCalled();
     });
 
     it("should derive stakedLiquidityInRange from updated edges at the current tick", async () => {
@@ -365,8 +400,6 @@ describe("NFPMCommonLogic", () => {
           stakedLiquidityInRange: 6000n, // pinned by the derive mock
           incrementalStakedReserve0: 100n, // direction=+1 * 100
           incrementalStakedReserve1: 200n, // direction=+1 * 200
-          stakedTickEdges: [-200n, 200n],
-          stakedTickEdgeNets: [5000n, -5000n],
           hasStakes: true, // belt-and-suspenders: NFPM path also flips the latch when edges are non-empty
         },
         poolData.liquidityPoolAggregator,
@@ -451,8 +484,6 @@ describe("NFPMCommonLogic", () => {
           stakedLiquidityInRange: -2000n, // pinned by the derive mock (clamped at the aggregator)
           incrementalStakedReserve0: -100n, // direction=-1 * 100
           incrementalStakedReserve1: -200n, // direction=-1 * 200
-          stakedTickEdges: [-200n, 200n],
-          stakedTickEdgeNets: [5000n, -5000n],
           hasStakes: true,
         },
         poolData.liquidityPoolAggregator,
@@ -491,8 +522,6 @@ describe("NFPMCommonLogic", () => {
           stakedLiquidityInRange: 0n, // derived, not undefined
           incrementalStakedReserve0: 100n,
           incrementalStakedReserve1: 200n,
-          stakedTickEdges: [-200n, 200n],
-          stakedTickEdgeNets: [5000n, -5000n],
           hasStakes: true,
         },
         poolData.liquidityPoolAggregator,
@@ -536,8 +565,6 @@ describe("NFPMCommonLogic", () => {
       expect(updatePool).toHaveBeenCalledWith(
         {
           incrementalCurrentLiquidityStaked: 5000n, // #780: mirrored on sqrt=0 path too
-          stakedTickEdges: [-200n, 200n],
-          stakedTickEdgeNets: [5000n, -5000n],
           stakedLiquidityInRange: 42n, // derived even on sqrt=0 path (issue #719)
           hasStakes: true,
         },

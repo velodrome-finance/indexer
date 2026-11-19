@@ -43,13 +43,12 @@ export interface VotingRewardClaimRewardsResult {
  * {@link createTokenEntity}, which runs the bytecode gate (#677) to filter
  * EOA / non-contract addresses and stages `context.Token.set` with the
  * price-trust gate applied — `isWhitelisted` defaults to `false` (#815) rather
- * than being hardcoded `true`, and `pricePerUSDNew` is persisted as `0n`. That
- * `0n` + untrusted state is what makes {@link getTrustedUSD} contribute `0n` for
- * a first-seen reward token — NOT a guarded oracle read. The bootstrap
- * `refreshTokenPrice` below is throttled (createTokenEntity just stamped
- * `lastUpdatedTimestamp` to this block, so `shouldRefresh` is false), so it
- * makes no oracle call here; `FIRST_FETCH_CAP` + the spike guard first engage on
- * a later (≥1h) claim, which owns the first actual priced read.
+ * than being hardcoded `true`, and `pricePerUSDNew` is persisted as `0n` (a
+ * tier-0 stablecoin is born at its $1 pin instead). That untrusted state is what
+ * makes {@link getTrustedUSD} contribute `0n` for a first-seen reward token. The
+ * bootstrap `refreshTokenPrice` below is throttled (createTokenEntity just
+ * stamped `lastUpdatedTimestamp` to this block's hour), so the first
+ * pool-derived price is computed on a claim in a later clock hour.
  *
  * When `createTokenEntity` rejects the reward address (no deployed bytecode,
  * returns `null`), zero-valued diffs are returned so the pool/user entities
@@ -80,8 +79,7 @@ export async function processVotingRewardClaimRewards(
     // (#815, not a hardcoded `true`), and `pricePerUSDNew: 0n`. That `0n` +
     // untrusted state is what zeros getTrustedUSD on first sight; the
     // refreshTokenPrice call below is throttled (createTokenEntity just stamped
-    // this block), so it makes NO oracle call here — FIRST_FETCH_CAP + the spike
-    // guard first engage on a later (≥1h) claim.
+    // this block's hour), so pricing first runs on a claim in a later hour.
     const created = await createTokenEntity(
       data.reward,
       data.chainId,
@@ -119,7 +117,11 @@ export async function processVotingRewardClaimRewards(
   );
 
   // Convert reward amount to USD
-  const rewardAmountUSD = getTrustedUSD(data.amount, updatedRewardToken);
+  const rewardAmountUSD = getTrustedUSD(
+    data.amount,
+    updatedRewardToken,
+    data.chainId,
+  );
 
   // Determine if this is a bribe or fee reward
   const isBribe = field === PoolAddressField.BRIBE_VOTING_REWARD_ADDRESS;

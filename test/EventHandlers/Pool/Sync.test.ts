@@ -6,12 +6,12 @@ import {
   toChecksumAddress,
 } from "../../../src/Constants";
 import { registerPool } from "../../registerDynamicContracts";
-import { setupPool } from "../../testHelpers";
+import { type WithChain, setupPool } from "../../testHelpers";
 import { setupCommon } from "./common";
 
 describe("Pool Sync Event", () => {
-  let mockToken0Data: Token;
-  let mockToken1Data: Token;
+  let mockToken0Data: WithChain<Token>;
+  let mockToken1Data: WithChain<Token>;
   let mockLiquidityPoolData: ReturnType<
     typeof setupCommon
   >["mockLiquidityPoolData"];

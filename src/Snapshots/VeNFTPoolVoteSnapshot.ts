@@ -18,9 +18,10 @@ import {
 /**
  * Creates an epoch-aligned snapshot of VeNFTPoolVote (no persistence).
  * @param entity - VeNFTPoolVote to snapshot
- * @param veNFTState - Parent VeNFTState for chain/token identity
+ * @param veNFTState - Parent VeNFTState for token identity
  * @param veNFTStateSnapshot - Parent VeNFTStateSnapshot for linkage
  * @param timestamp - Timestamp used to compute snapshot epoch
+ * @param chainId - Chain of the event being handled (the veNFT's chain)
  * @returns Epoch-aligned VeNFTPoolVoteSnapshot
  */
 export function createVeNFTPoolVoteSnapshot(
@@ -28,17 +29,17 @@ export function createVeNFTPoolVoteSnapshot(
   veNFTState: VeNFTState,
   veNFTStateSnapshot: VeNFTStateSnapshot,
   timestamp: Date,
+  chainId: number,
 ): VeNFTPoolVoteSnapshot {
   const epoch = getSnapshotEpoch(timestamp);
 
   return {
     id: VeNFTPoolVoteSnapshotId(
-      veNFTState.chainId,
+      chainId,
       veNFTState.tokenId,
       entity.poolAddress,
       epoch.getTime(),
     ),
-    chainId: veNFTState.chainId,
     tokenId: veNFTState.tokenId,
     poolAddress: entity.poolAddress,
     veNFTamountStaked: entity.veNFTamountStaked,
@@ -51,10 +52,11 @@ export function createVeNFTPoolVoteSnapshot(
 /**
  * Creates and persists an epoch-aligned snapshot of VeNFTPoolVote.
  * @param entity - VeNFTPoolVote to snapshot
- * @param veNFTState - Parent VeNFTState for chain/token identity
+ * @param veNFTState - Parent VeNFTState for token identity
  * @param veNFTStateSnapshot - Parent VeNFTStateSnapshot for linkage
  * @param timestamp - Timestamp used to compute snapshot epoch
  * @param context - Handler context
+ * @param chainId - Chain of the event being handled (the veNFT's chain)
  * @returns void
  */
 export function setVeNFTPoolVoteSnapshot(
@@ -63,6 +65,7 @@ export function setVeNFTPoolVoteSnapshot(
   veNFTStateSnapshot: VeNFTStateSnapshot,
   timestamp: Date,
   context: handlerContext,
+  chainId: number,
 ): void {
   const snapshotForPersist: SnapshotForPersist = {
     type: SnapshotType.VeNFTPoolVote,
@@ -71,6 +74,7 @@ export function setVeNFTPoolVoteSnapshot(
       veNFTState,
       veNFTStateSnapshot,
       timestamp,
+      chainId,
     ),
   };
   persistSnapshot(snapshotForPersist, context);

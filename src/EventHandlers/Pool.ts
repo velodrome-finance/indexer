@@ -1,12 +1,14 @@
-import { indexer } from "envio";
+import { type EvmEvent, indexer } from "envio";
 
 import { createOUSDTSwapEntity } from "../Aggregators/OUSDTSwaps";
 import { loadPoolData, updatePool } from "../Aggregators/Pool";
 import {
   loadOrCreateUserData,
+  preloadUserStatsPerPoolUpdate,
   updateUserStatsPerPool,
 } from "../Aggregators/UserStatsPerPool";
-import { OUSDT_ADDRESS } from "../Constants";
+import { OUSDT_ADDRESS, V2SwapFeesInTxId } from "../Constants";
+import type { handlerContext } from "../EntityTypes";
 import {
   processPoolLiquidityEvent,
   processPoolMintWithRecipient,
@@ -150,6 +152,37 @@ indexer.onEvent(
       return;
     }
 
+    // Hand the swap's fee to its Swap event (emitted after this one in the
+    // same tx), which values it with both legs (V2SwapFeesInTx).
+    const pendingFeeId = V2SwapFeesInTxId(
+      event.chainId,
+      event.transaction.hash,
+      event.srcAddress,
+    );
+
+    if (context.isPreload) {
+      // The rest is arithmetic on rows already loaded plus the user's
+      // snapshot-time reads; issue those and skip the arithmetic.
+      await Promise.all([
+        preloadUserStatsPerPoolUpdate(
+          userData,
+          timestamp,
+          context,
+          event.chainId,
+          poolData,
+        ),
+        context.V2SwapFeesInTx.get(pendingFeeId),
+      ]);
+      return;
+    }
+
+    const pendingFee = await context.V2SwapFeesInTx.get(pendingFeeId);
+    context.V2SwapFeesInTx.set({
+      id: pendingFeeId,
+      fee0: (pendingFee?.fee0 ?? 0n) + event.params.amount0,
+      fee1: (pendingFee?.fee1 ?? 0n) + event.params.amount1,
+    });
+
     const { liquidityPoolAggregator, token0Instance, token1Instance } =
       poolData;
 
@@ -176,6 +209,7 @@ indexer.onEvent(
             userData,
             context,
             timestamp,
+            event.chainId,
             poolData,
           )
         : Promise.resolve(),
@@ -214,6 +248,40 @@ indexer.onEvent(
 
     const { liquidityPoolAggregator, token0Instance, token1Instance } =
       poolData;
+    const isOUSDTPool =
+      token0Instance.address === OUSDT_ADDRESS ||
+      token1Instance.address === OUSDT_ADDRESS;
+
+    // The fee this swap paid, from the Fees events it emitted just before.
+    const pendingFeeId = V2SwapFeesInTxId(
+      event.chainId,
+      event.transaction.hash,
+      event.srcAddress,
+    );
+
+    if (context.isPreload) {
+      // The rest is arithmetic on rows already loaded plus three reads: the
+      // user's snapshot-time staked positions, the swap's pending fee and the
+      // tx's oUSDT swap registry. Issue those and skip the arithmetic.
+      await Promise.all([
+        preloadUserStatsPerPoolUpdate(
+          userData,
+          timestamp,
+          context,
+          event.chainId,
+          poolData,
+        ),
+        context.V2SwapFeesInTx.get(pendingFeeId),
+        isOUSDTPool
+          ? context.TxOUSDTSwapRegistry.get(event.transaction.hash)
+          : undefined,
+      ]);
+      return;
+    }
+
+    // No row: the swap emitted no Fees event, i.e. it paid no fee.
+    const pendingFee = await context.V2SwapFeesInTx.get(pendingFeeId);
+    if (pendingFee) context.V2SwapFeesInTx.deleteUnsafe(pendingFeeId);
 
     // Process swap event
     const result = processPoolSwap(
@@ -221,6 +289,7 @@ indexer.onEvent(
       liquidityPoolAggregator,
       token0Instance,
       token1Instance,
+      { fee0: pendingFee?.fee0 ?? 0n, fee1: pendingFee?.fee1 ?? 0n },
     );
 
     const { liquidityPoolDiff, userSwapDiff } = result;
@@ -240,16 +309,14 @@ indexer.onEvent(
         userData,
         context,
         timestamp,
+        event.chainId,
         poolData,
       ),
     ]);
 
     // Create OUSDTSwaps entity only if oUSDT is involved
-    if (
-      token0Instance.address === OUSDT_ADDRESS ||
-      token1Instance.address === OUSDT_ADDRESS
-    ) {
-      createOUSDTSwapEntity(
+    if (isOUSDTPool) {
+      await createOUSDTSwapEntity(
         event.transaction.hash,
         event.chainId,
         token0Instance,
@@ -280,6 +347,12 @@ indexer.onEvent(
       event.block.timestamp,
     );
     if (!poolData) {
+      return;
+    }
+
+    // The rest is arithmetic on rows already loaded (updatePool only re-reads
+    // this pool's tokens), so the preload pass has nothing left to batch.
+    if (context.isPreload) {
       return;
     }
 
@@ -341,59 +414,84 @@ indexer.onEvent(
   },
 );
 
+/**
+ * Credits a V2 fee claim to the pool and to the account whose fees were claimed.
+ *
+ * @param event - Legacy Claim or Aero ClaimWithAccount
+ * @param claimant - Whose fees were claimed (legacy `sender`, Aero `account`)
+ * @param context - Handler context
+ * @returns Promise that resolves once the pool and user updates are staged
+ */
+async function handlePoolClaim(
+  event: EvmEvent<"Pool", "Claim"> | EvmEvent<"Pool", "ClaimWithAccount">,
+  claimant: string,
+  context: handlerContext,
+): Promise<void> {
+  const [poolData, userData] = await Promise.all([
+    loadPoolData(
+      event.srcAddress,
+      event.chainId,
+      context,
+      event.block.number,
+      event.block.timestamp,
+    ),
+    loadOrCreateUserData(
+      claimant,
+      event.srcAddress,
+      event.chainId,
+      context,
+      new Date(event.block.timestamp * 1000),
+    ),
+  ]);
+
+  if (!poolData) {
+    return;
+  }
+
+  const { liquidityPoolAggregator, token0Instance, token1Instance } = poolData;
+
+  const result = processPoolClaim(
+    event,
+    claimant,
+    liquidityPoolAggregator.gaugeAddress ?? "",
+    token0Instance,
+    token1Instance,
+  );
+
+  const timestamp = result.poolDiff.lastUpdatedTimestamp as Date;
+
+  await Promise.all([
+    updatePool(
+      result.poolDiff,
+      liquidityPoolAggregator,
+      timestamp,
+      context,
+      event.chainId,
+      event.block.number,
+    ),
+    updateUserStatsPerPool(
+      result.userDiff,
+      userData,
+      context,
+      timestamp,
+      event.chainId,
+      poolData,
+    ),
+  ]);
+}
+
+// Aero V2 pools: Claim(caller, account, recipient, …). The fees belong to
+// `account` (an operator may claim on its behalf), so credit the account.
+indexer.onEvent(
+  { contract: "Pool", event: "ClaimWithAccount" },
+  async ({ event, context }) => {
+    await handlePoolClaim(event, event.params.account, context);
+  },
+);
+
 indexer.onEvent(
   { contract: "Pool", event: "Claim" },
   async ({ event, context }) => {
-    const [poolData, userData] = await Promise.all([
-      loadPoolData(
-        event.srcAddress,
-        event.chainId,
-        context,
-        event.block.number,
-        event.block.timestamp,
-      ),
-      loadOrCreateUserData(
-        event.params.sender,
-        event.srcAddress,
-        event.chainId,
-        context,
-        new Date(event.block.timestamp * 1000),
-      ),
-    ]);
-
-    if (!poolData) {
-      return;
-    }
-
-    const { liquidityPoolAggregator, token0Instance, token1Instance } =
-      poolData;
-
-    const result = processPoolClaim(
-      event,
-      event.params.sender,
-      liquidityPoolAggregator.gaugeAddress ?? "",
-      token0Instance,
-      token1Instance,
-    );
-
-    const timestamp = result.poolDiff.lastUpdatedTimestamp as Date;
-
-    await Promise.all([
-      updatePool(
-        result.poolDiff,
-        liquidityPoolAggregator,
-        timestamp,
-        context,
-        event.chainId,
-        event.block.number,
-      ),
-      updateUserStatsPerPool(
-        result.userDiff,
-        userData,
-        context,
-        timestamp,
-        poolData,
-      ),
-    ]);
+    await handlePoolClaim(event, event.params.sender, context);
   },
 );

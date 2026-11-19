@@ -1,5 +1,12 @@
-import { toChecksumAddress } from "../src/Constants";
-import { getRebindTarget, isBlacklistedToken } from "../src/PriceOverrides";
+import { CHAIN_CONSTANTS, TokenId, toChecksumAddress } from "../src/Constants";
+import {
+  getCanonicalSource,
+  getCanonicalSourcePools,
+  isBlacklistedToken,
+  listCanonicalSourcePools,
+  listCanonicalSources,
+} from "../src/PriceOverrides";
+import { PRICING_TIER, getPricingTier } from "../src/Pricing/PricingConfig";
 
 describe("PriceOverrides", () => {
   describe("isBlacklistedToken", () => {
@@ -84,49 +91,30 @@ describe("PriceOverrides", () => {
       },
     );
 
-    // Issue #786: whitelisted tokens whose oracle route froze at a wrong-high
-    // but small per-token constant (invisible to the >$10^28 sweep). Blacklist
-    // is the immediate stopgap that trust-gates them out of USD aggregates.
-    it("returns true for PEPE on Base (frozen route, issue #786)", () => {
-      expect(
-        isBlacklistedToken(
-          8453,
-          toChecksumAddress("0x52b492a33E447Cdb854c7FC19F1e57E8BfA1777D"),
-        ),
-      ).toBe(true);
-    });
-
-    it("returns true for wOptiDoge on Optimism (frozen route, issue #786)", () => {
-      expect(
-        isBlacklistedToken(
-          10,
-          toChecksumAddress("0xC26921B5b9ee80773774d36C84328ccb22c3a819"),
-        ),
-      ).toBe(true);
-    });
-
-    it("scopes #786 entries by chainId (PEPE/Base not blacklisted on Optimism)", () => {
-      expect(
-        isBlacklistedToken(
-          10,
-          toChecksumAddress("0x52b492a33E447Cdb854c7FC19F1e57E8BfA1777D"),
-        ),
-      ).toBe(false);
-    });
-
-    // Issue #901: 0x940A319B… (symbol DEUS, 874M supply) is a SEPARATE real token
-    // from canonical DEUS Finance — same symbol, anchor frozen at ~$0.528 vs
-    // ~$0.0229 pool-implied (#786 frozen-anchor class, not a worthless spoof).
-    // Blacklist forces its price to 0 so the inflated VIRTUAL/DEUS TVL routes
-    // through the counterparty leg.
-    it("returns true for the frozen-anchor DEUS token on Base (issue #901)", () => {
-      expect(
-        isBlacklistedToken(
-          8453,
-          toChecksumAddress("0x940A319B75861014A220D9c6c144d108552B089B"),
-        ),
-      ).toBe(true);
-    });
+    // Issues #786 and #901: three real, whitelisted tokens were blacklisted as
+    // a stopgap for an oracle route frozen at a wrong constant. With prices
+    // derived from pools (ADR 0003) there is no anchor to freeze, so the
+    // entries are gone and the tokens are priced like any other.
+    it.each([
+      [8453, "0x52b492a33E447Cdb854c7FC19F1e57E8BfA1777D", "PEPE on Base"],
+      [
+        10,
+        "0xC26921B5b9ee80773774d36C84328ccb22c3a819",
+        "wOptiDoge on Optimism",
+      ],
+      [
+        8453,
+        "0x940A319B75861014A220D9c6c144d108552B089B",
+        "DEUS-symbol token on Base",
+      ],
+    ] as const)(
+      "no longer blacklists %s %s (%s)",
+      (chainId, address, _label) => {
+        expect(isBlacklistedToken(chainId, toChecksumAddress(address))).toBe(
+          false,
+        );
+      },
+    );
 
     it("does not blacklist the canonical AERO on Base", () => {
       expect(
@@ -147,7 +135,7 @@ describe("PriceOverrides", () => {
     });
   });
 
-  describe("getRebindTarget", () => {
+  describe("getCanonicalSource (ADR 0004)", () => {
     const VELO_OP = toChecksumAddress(
       "0x9560e827aF36c94D2Ac33a39bCE1Fe78631088Db",
     );
@@ -163,25 +151,92 @@ describe("PriceOverrides", () => {
     const WETH_OP_STACK = toChecksumAddress(
       "0x4200000000000000000000000000000000000006",
     );
-    it("rebinds rsETH/Swell to wrsETH/Base", () => {
-      expect(getRebindTarget(1923, RSETH_SWELL)).toEqual({
+    it("binds rsETH/Swell to wrsETH/Base", () => {
+      expect(getCanonicalSource(1923, RSETH_SWELL)).toEqual({
         chainId: 8453,
         address: WRSETH_BASE,
       });
     });
 
-    it("rebinds WETH/Metal to WETH/Optimism (issue #892)", () => {
-      expect(getRebindTarget(1750, WETH_OP_STACK)).toEqual({
+    it("binds WETH/Metal to WETH/Optimism (issue #892)", () => {
+      expect(getCanonicalSource(1750, WETH_OP_STACK)).toEqual({
         chainId: 10,
         address: WETH_OP_STACK,
       });
     });
 
-    it("does not rebind WETH on other OP-stack chains (Base, source Optimism)", () => {
-      // The #892 rebind targets Metal only; the same WETH address on Base must
-      // keep its local price, and Optimism is the source (not a target).
-      expect(getRebindTarget(8453, WETH_OP_STACK)).toBeUndefined();
-      expect(getRebindTarget(10, WETH_OP_STACK)).toBeUndefined();
+    it.each([
+      [1135, "Lisk"],
+      [34443, "Mode"],
+      [1868, "Soneium"],
+      [130, "Unichain"],
+      [57073, "Ink"],
+      [1750, "Metal"],
+      [1923, "Swell"],
+      [5330, "Superseed"],
+    ])("binds WETH on chainId=%i (%s) to WETH/Optimism", (chainId) => {
+      expect(getCanonicalSource(chainId, WETH_OP_STACK)).toEqual({
+        chainId: 10,
+        address: WETH_OP_STACK,
+      });
+    });
+
+    it("binds Celo's native-bridge WETH (its `weth` constant) to WETH/Optimism", () => {
+      expect(getCanonicalSource(42220, CHAIN_CONSTANTS[42220].weth)).toEqual({
+        chainId: 10,
+        address: WETH_OP_STACK,
+      });
+    });
+
+    it("binds Fraxtal's frxETH (its `weth` constant) to WETH/Optimism", () => {
+      expect(CHAIN_CONSTANTS[252].weth).toBe(
+        "0xFC00000000000000000000000000000000000006",
+      );
+      expect(getCanonicalSource(252, CHAIN_CONSTANTS[252].weth)).toEqual({
+        chainId: 10,
+        address: WETH_OP_STACK,
+      });
+    });
+
+    it("leaves out Base (own deep market) and Optimism (the source)", () => {
+      expect(getCanonicalSource(8453, WETH_OP_STACK)).toBeUndefined();
+      expect(getCanonicalSource(10, WETH_OP_STACK)).toBeUndefined();
+    });
+
+    it("covers the `weth` constant of every chain except Optimism and Base", () => {
+      for (const [chainId, constants] of Object.entries(CHAIN_CONSTANTS)) {
+        const expected = [10, 8453].includes(Number(chainId))
+          ? undefined
+          : { chainId: 10, address: WETH_OP_STACK };
+        expect({
+          chainId,
+          source: getCanonicalSource(Number(chainId), constants.weth),
+        }).toEqual({ chainId, source: expected });
+      }
+    });
+
+    it("never uses a pinned (tier-0) token as source or target", () => {
+      for (const { source, target } of listCanonicalSources()) {
+        expect(getPricingTier(source.chainId, source.address)).not.toBe(
+          PRICING_TIER.PINNED,
+        );
+        expect(getPricingTier(target.chainId, target.address)).not.toBe(
+          PRICING_TIER.PINNED,
+        );
+      }
+    });
+
+    it("never chains: no source is itself a target, and no token is its own source", () => {
+      const pairs = listCanonicalSources();
+      const targetIds = new Set(
+        pairs.map(({ target }) => TokenId(target.chainId, target.address)),
+      );
+      for (const { source, target } of pairs) {
+        expect(targetIds.has(TokenId(source.chainId, source.address))).toBe(
+          false,
+        );
+        expect(source.chainId).not.toBe(target.chainId);
+      }
     });
 
     it.each([
@@ -195,29 +250,98 @@ describe("PriceOverrides", () => {
       [130, "Unichain"],
       [57073, "Ink"],
       [5330, "Superseed"],
-    ])("rebinds XVELO on chainId=%i (%s) to VELO/Optimism", (chainId) => {
-      expect(getRebindTarget(chainId, XVELO)).toEqual({
+    ])("binds XVELO on chainId=%i (%s) to VELO/Optimism", (chainId) => {
+      expect(getCanonicalSource(chainId, XVELO)).toEqual({
         chainId: 10,
         address: VELO_OP,
       });
     });
 
-    it("returns undefined for tokens without a rebind", () => {
+    it("returns undefined for tokens without a canonical source", () => {
       expect(
-        getRebindTarget(
+        getCanonicalSource(
           10,
           toChecksumAddress("0x4200000000000000000000000000000000000006"),
         ),
       ).toBeUndefined();
     });
 
-    it("returns undefined for chains without any rebinds", () => {
+    it("returns undefined for XVELO's address on Base (not a superchain)", () => {
       expect(
-        getRebindTarget(
+        getCanonicalSource(
           8453,
           toChecksumAddress("0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81"),
         ),
       ).toBeUndefined();
+    });
+  });
+
+  describe("canonical source pools (ADR 0010)", () => {
+    const sourceIds = new Set(
+      listCanonicalSources().map(({ source }) =>
+        TokenId(source.chainId, source.address),
+      ),
+    );
+
+    it("covers WETH and VELO on Optimism and AERO on Base", () => {
+      expect(
+        listCanonicalSourcePools()
+          .map(({ sourceTokenId }) => sourceTokenId)
+          .sort(),
+      ).toEqual(
+        [
+          TokenId(10, "0x4200000000000000000000000000000000000006"),
+          TokenId(
+            10,
+            toChecksumAddress("0x9560e827aF36c94D2Ac33a39bCE1Fe78631088Db"),
+          ),
+          TokenId(
+            8453,
+            toChecksumAddress("0x3f5bF3EdAc59d650D8fDf9657a71F2f904A3a4Ee"),
+          ),
+        ].sort(),
+      );
+    });
+
+    it("every entry is a canonical source, and each pool pairs it with a token pinned on that chain", () => {
+      for (const { sourceTokenId, pools } of listCanonicalSourcePools()) {
+        expect(sourceIds.has(sourceTokenId)).toBe(true);
+        expect(pools.length).toBeGreaterThan(0);
+        const chainId = Number(sourceTokenId.split("-")[0]);
+        const sourceAddress = sourceTokenId.split("-")[1];
+        for (const pool of pools) {
+          const sides = [pool.token0, pool.token1];
+          const source = sides.filter((t) => t.address === sourceAddress);
+          const quote = sides.filter((t) => t.address !== sourceAddress);
+          expect({ pool: pool.address, sides: source.length }).toEqual({
+            pool: pool.address,
+            sides: 1,
+          });
+          expect(getPricingTier(chainId, quote[0].address)).toBe(
+            PRICING_TIER.PINNED,
+          );
+          // Addresses are stored checksummed, token0 < token1 as on chain.
+          for (const address of [
+            pool.address,
+            ...sides.map((t) => t.address),
+          ]) {
+            expect(address).toBe(toChecksumAddress(address));
+          }
+          expect(
+            pool.token0.address.toLowerCase() <
+              pool.token1.address.toLowerCase(),
+          ).toBe(true);
+        }
+        expect(new Set(pools.map((p) => p.address)).size).toBe(pools.length);
+      }
+    });
+
+    it("a source without pools gets an empty list", () => {
+      expect(
+        getCanonicalSourcePools(
+          TokenId(1, "0x4200000000000000000000000000000000000006"),
+        ),
+      ).toEqual([]);
     });
   });
 });

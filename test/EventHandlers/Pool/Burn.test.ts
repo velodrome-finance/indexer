@@ -1,5 +1,10 @@
 import { createTestIndexer } from "envio";
-import { toChecksumAddress } from "../../../src/Constants";
+import {
+  TxPoolTransferRegistryId,
+  UserStatsPerPoolId,
+  ZERO_ADDRESS,
+  toChecksumAddress,
+} from "../../../src/Constants";
 import { registerPool } from "../../registerDynamicContracts";
 import { setupCommon } from "./common";
 
@@ -79,6 +84,173 @@ describe("Pool Burn Event", () => {
     expect(updatedAggregator?.reserve1).toBe(
       commonData.mockLiquidityPoolData.reserve1,
     );
+  });
+
+  // The log layout of a real router removal on Metal (tx 0x4c6ea1db…e322,
+  // block 36976697, pool 0xfffb9b75…f36): the router pulls the holder's LP
+  // straight into the pool (transferFrom holder -> pool), the pool burns its
+  // own balance (Transfer pool -> 0), pays out, Syncs and emits
+  // Burn(sender = router, to = holder). The removal belongs to the holder, not
+  // to the pool (upstream #911).
+  describe.each([
+    ["legacy", "VELODROME"],
+    ["Aero", "AERO"],
+  ] as const)("router removal on a %s V2 pool", (_label, deployment) => {
+    const chainId = 10 as const;
+    const txHash =
+      "0x4c6ea1db59c87ebd2f67fb938d4bf4ad1f526bc7b7ea93d20c08fc67a253e322";
+    const block = {
+      timestamp: 1_700_000_000,
+      number: 36976697,
+      hash: "0x9999999999999999999999999999999999999999999999999999999999999999",
+    };
+    const holder = toChecksumAddress(
+      "0xda23e642f9e100cf58581a0189e128d39a5b3997",
+    );
+    const router = toChecksumAddress(
+      "0x3a63171dd9bebf4d07bc782fecc7eb0b890c2a45",
+    );
+    const lp = 51859612028073801645n;
+    const amount0 = 158254563456284470n;
+    const amount1 = 17002388268259501818525n;
+
+    /** Simulated logs of one removal; `burnTo` is Burn's `to` (the payee). */
+    const removal = (
+      pool: string,
+      lpSender: string,
+      burnTo: string,
+      firstLog = 0,
+      hash = txHash,
+    ) => [
+      {
+        contract: "Pool" as const,
+        event: "Transfer" as const,
+        srcAddress: pool as `0x${string}`,
+        logIndex: firstLog,
+        block,
+        transaction: { hash },
+        params: { from: lpSender, to: pool, value: lp },
+      },
+      {
+        contract: "Pool" as const,
+        event: "Transfer" as const,
+        srcAddress: pool as `0x${string}`,
+        logIndex: firstLog + 1,
+        block,
+        transaction: { hash },
+        params: { from: pool, to: ZERO_ADDRESS, value: lp },
+      },
+      {
+        contract: "Pool" as const,
+        event: "Burn" as const,
+        srcAddress: pool as `0x${string}`,
+        logIndex: firstLog + 5,
+        block,
+        transaction: { hash },
+        params: { sender: router, to: burnTo, amount0, amount1 },
+      },
+    ];
+
+    beforeEach(() => {
+      indexer.Pool.set({
+        ...commonData.mockLiquidityPoolData,
+        deployment,
+        totalLPTokenSupply: 10n * lp,
+      });
+      indexer.UserStatsPerPool.set({
+        ...commonData.createMockUserStatsPerPool({
+          userAddress: holder,
+          poolAddress: commonData.mockLiquidityPoolData.poolAddress,
+          chainId,
+        }),
+        lpBalance: lp,
+      });
+    });
+
+    const removed = async (user: string) => {
+      const row = await indexer.UserStatsPerPool.get(
+        UserStatsPerPoolId(
+          chainId,
+          user,
+          commonData.mockLiquidityPoolData.poolAddress,
+        ),
+      );
+      return [
+        row?.totalLiquidityRemovedToken0 ?? 0n,
+        row?.totalLiquidityRemovedToken1 ?? 0n,
+      ];
+    };
+
+    it("credits the LP holder that sent the LP into the pool, not the pool", async () => {
+      const pool = commonData.mockLiquidityPoolData.poolAddress;
+      await indexer.process({
+        chains: { [chainId]: { simulate: removal(pool, holder, holder) } },
+      });
+
+      expect(await removed(holder)).toEqual([amount0, amount1]);
+      expect(await removed(pool)).toEqual([0n, 0n]);
+      expect(await removed(router)).toEqual([0n, 0n]);
+    });
+
+    it("credits the LP sender even when the tokens are paid to someone else", async () => {
+      const pool = commonData.mockLiquidityPoolData.poolAddress;
+      const payee = toChecksumAddress(
+        "0x5555555555555555555555555555555555555555",
+      );
+      await indexer.process({
+        chains: { [chainId]: { simulate: removal(pool, holder, payee) } },
+      });
+
+      expect(await removed(holder)).toEqual([amount0, amount1]);
+      expect(await removed(payee)).toEqual([0n, 0n]);
+    });
+
+    it("falls back to Burn's `to` when no LP entered the pool in the tx", async () => {
+      // LP sent to the pool in an earlier tx, burned by a later call: the
+      // pool's own burn Transfer is the only LP log of the burning tx.
+      const pool = commonData.mockLiquidityPoolData.poolAddress;
+      const [, burnTransfer, burn] = removal(pool, holder, holder);
+      await indexer.process({
+        chains: { [chainId]: { simulate: [burnTransfer, burn] } },
+      });
+
+      expect(await removed(holder)).toEqual([amount0, amount1]);
+      expect(await removed(pool)).toEqual([0n, 0n]);
+    });
+
+    it("two removals in one tx each credit their own LP sender and leave no staging rows", async () => {
+      const pool = commonData.mockLiquidityPoolData.poolAddress;
+      const second = toChecksumAddress(
+        "0x6666666666666666666666666666666666666666",
+      );
+      indexer.UserStatsPerPool.set({
+        ...commonData.createMockUserStatsPerPool({
+          userAddress: second,
+          poolAddress: pool,
+          chainId,
+        }),
+        lpBalance: lp,
+      });
+      await indexer.process({
+        chains: {
+          [chainId]: {
+            simulate: [
+              ...removal(pool, holder, holder, 0),
+              ...removal(pool, second, second, 10),
+            ],
+          },
+        },
+      });
+
+      expect(await removed(holder)).toEqual([amount0, amount1]);
+      expect(await removed(second)).toEqual([amount0, amount1]);
+      expect(await removed(pool)).toEqual([0n, 0n]);
+      expect(
+        await indexer.TxPoolTransferRegistry.get(
+          TxPoolTransferRegistryId(chainId, txHash, pool),
+        ),
+      ).toBeUndefined();
+    });
   });
 
   describe("when pool data cannot be loaded", () => {

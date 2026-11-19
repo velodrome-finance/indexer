@@ -8,13 +8,13 @@ import {
   getGateDecision,
   getGateDecisionFromSignals,
   getHardAnchorUnitUSD,
-  getPoolImpliedUSD,
   getTrustedUSD,
   isConnectorToken,
   isHardAnchor,
   isTrusted,
 } from "../src/PriceTrust";
 import PriceConnectors from "../src/constants/price_connectors.json";
+import type { WithChain } from "./testHelpers";
 
 // Real anchor + non-anchor addresses on Base (chainId 8453) used by the #892
 // hard-anchor helpers. USDC is the chain's `destinationToken` (excluded from the
@@ -99,9 +99,15 @@ const CONNECTOR_CHAIN_IDS: Record<string, number> = {
   celo: 42220,
   superseed: 5330,
   swellchain: 1923,
+  ethereum: 1,
+  arbitrum: 42161,
+  robinhood: 4663,
+  arc: 5042,
 };
 
-function makeToken(overrides: Partial<Token> = {}): Token {
+function makeToken(
+  overrides: Partial<WithChain<Token>> = {},
+): WithChain<Token> {
   const chainId = overrides.chainId ?? 10;
   const address = overrides.address ?? WETH_OP;
   const isWhitelisted = overrides.isWhitelisted ?? true;
@@ -119,8 +125,10 @@ function makeToken(overrides: Partial<Token> = {}): Token {
     decimals: 18n,
     pricePerUSDNew: 1n * TEN_TO_THE_18_BI,
     isWhitelisted,
+    isListedOnAero: undefined,
     lastUpdatedTimestamp: new Date(),
     lastSuccessfulPriceTimestamp: new Date(),
+    pricingDepthUSD: undefined,
     priceTrustOutcome: decision.outcome,
     priceTrustReason: decision.reason,
     ...overrides,
@@ -174,7 +182,7 @@ describe("PriceTrust", () => {
 
   describe("isTrusted", () => {
     it("returns true for WL + not-BL", () => {
-      expect(isTrusted(makeToken({ isWhitelisted: true }))).toBe(true);
+      expect(isTrusted(makeToken({ isWhitelisted: true }), 10)).toBe(true);
     });
 
     it("returns false for WL + BL (operator override beats protocol whitelist)", () => {
@@ -183,12 +191,12 @@ describe("PriceTrust", () => {
         address: ION_LISK,
         isWhitelisted: true,
       });
-      expect(isTrusted(token)).toBe(false);
+      expect(isTrusted(token, token.chainId)).toBe(false);
     });
 
     it("returns false for non-WL + not-BL (not a connector)", () => {
       expect(
-        isTrusted(makeToken({ isWhitelisted: false, address: SNX_OP })),
+        isTrusted(makeToken({ isWhitelisted: false, address: SNX_OP }), 10),
       ).toBe(false);
     });
 
@@ -198,11 +206,11 @@ describe("PriceTrust", () => {
         address: MANATEE_OP,
         isWhitelisted: false,
       });
-      expect(isTrusted(token)).toBe(false);
+      expect(isTrusted(token, token.chainId)).toBe(false);
     });
 
     it("returns false for undefined token", () => {
-      expect(isTrusted(undefined)).toBe(false);
+      expect(isTrusted(undefined, 10)).toBe(false);
     });
 
     it("returns true for a non-whitelisted connector token (#898)", () => {
@@ -212,19 +220,19 @@ describe("PriceTrust", () => {
         address: WETH_SUPERCHAIN,
         isWhitelisted: false,
       });
-      expect(isTrusted(token)).toBe(true);
+      expect(isTrusted(token, token.chainId)).toBe(true);
     });
 
     it("returns false for a non-whitelisted, non-connector token", () => {
       expect(
-        isTrusted(makeToken({ isWhitelisted: false, address: SNX_OP })),
+        isTrusted(makeToken({ isWhitelisted: false, address: SNX_OP }), 10),
       ).toBe(false);
     });
   });
 
   describe("getGateDecision", () => {
     it("returns trusted=true and reason='WL' for WL + not-BL", () => {
-      expect(getGateDecision(makeToken())).toEqual({
+      expect(getGateDecision(makeToken(), 10)).toEqual({
         trusted: true,
         outcome: PRICE_TRUST_OUTCOME.TRUSTED,
         reason: PRICE_TRUST_REASON.WL,
@@ -237,7 +245,7 @@ describe("PriceTrust", () => {
         address: ION_LISK,
         isWhitelisted: true,
       });
-      expect(getGateDecision(token)).toEqual({
+      expect(getGateDecision(token, token.chainId)).toEqual({
         trusted: false,
         outcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
         reason: PRICE_TRUST_REASON.BLACKLISTED,
@@ -246,7 +254,10 @@ describe("PriceTrust", () => {
 
     it("returns trusted=false and reason='NON_WL' for non-WL (not blacklisted, not a connector)", () => {
       expect(
-        getGateDecision(makeToken({ isWhitelisted: false, address: SNX_OP })),
+        getGateDecision(
+          makeToken({ isWhitelisted: false, address: SNX_OP }),
+          10,
+        ),
       ).toEqual({
         trusted: false,
         outcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
@@ -260,7 +271,7 @@ describe("PriceTrust", () => {
         address: MANATEE_OP,
         isWhitelisted: false,
       });
-      expect(getGateDecision(token)).toEqual({
+      expect(getGateDecision(token, token.chainId)).toEqual({
         trusted: false,
         outcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
         reason: PRICE_TRUST_REASON.NON_WL,
@@ -268,7 +279,7 @@ describe("PriceTrust", () => {
     });
 
     it("returns trusted=false and reason='NON_WL' for undefined token", () => {
-      expect(getGateDecision(undefined)).toEqual({
+      expect(getGateDecision(undefined, 10)).toEqual({
         trusted: false,
         outcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
         reason: PRICE_TRUST_REASON.NON_WL,
@@ -291,7 +302,7 @@ describe("PriceTrust", () => {
         priceTrustReason: PRICE_TRUST_REASON.NON_WL,
       });
 
-      const decision = getGateDecision(stuck, context);
+      const decision = getGateDecision(stuck, stuck.chainId, context);
 
       expect(decision).toEqual({
         trusted: true,
@@ -315,7 +326,7 @@ describe("PriceTrust", () => {
         priceTrustReason: PRICE_TRUST_REASON.WL,
       });
 
-      const decision = getGateDecision(stale, context);
+      const decision = getGateDecision(stale, stale.chainId, context);
 
       expect(decision).toEqual({
         trusted: false,
@@ -335,7 +346,7 @@ describe("PriceTrust", () => {
       // makeToken() derives stored fields from signals, so this is consistent.
       const consistent = makeToken({ isWhitelisted: true });
 
-      const decision = getGateDecision(consistent, context);
+      const decision = getGateDecision(consistent, consistent.chainId, context);
 
       expect(decision.trusted).toBe(true);
       expect(decision.outcome).toBe(PRICE_TRUST_OUTCOME.TRUSTED);
@@ -354,7 +365,11 @@ describe("PriceTrust", () => {
         priceTrustReason: PRICE_TRUST_REASON.WL,
       });
 
-      const decision = getGateDecision(blacklisted, context);
+      const decision = getGateDecision(
+        blacklisted,
+        blacklisted.chainId,
+        context,
+      );
 
       expect(decision).toEqual({
         trusted: false,
@@ -372,15 +387,15 @@ describe("PriceTrust", () => {
     it("does not write when called without a context (pure-read mode)", () => {
       // Stuck token but no context provided — heal must not throw and must not
       // attempt any persistence path. Behaviour matches the legacy
-      // single-argument call shape that aggregator unit tests still use.
+      // context-less call shape that aggregator unit tests still use.
       const stuck = makeToken({
         isWhitelisted: true,
         priceTrustOutcome: PRICE_TRUST_OUTCOME.UNTRUSTED,
         priceTrustReason: PRICE_TRUST_REASON.NON_WL,
       });
 
-      expect(() => getGateDecision(stuck)).not.toThrow();
-      const decision = getGateDecision(stuck);
+      expect(() => getGateDecision(stuck, stuck.chainId)).not.toThrow();
+      const decision = getGateDecision(stuck, stuck.chainId);
       expect(decision.trusted).toBe(true);
       expect(decision.outcome).toBe(PRICE_TRUST_OUTCOME.TRUSTED);
       expect(decision.reason).toBe(PRICE_TRUST_REASON.WL);
@@ -393,7 +408,7 @@ describe("PriceTrust", () => {
         decimals: 18n,
         pricePerUSDNew: 1n * TEN_TO_THE_18_BI,
       });
-      expect(getTrustedUSD(2n * TEN_TO_THE_18_BI, token)).toBe(
+      expect(getTrustedUSD(2n * TEN_TO_THE_18_BI, token, token.chainId)).toBe(
         2n * TEN_TO_THE_18_BI,
       );
     });
@@ -404,7 +419,9 @@ describe("PriceTrust", () => {
         pricePerUSDNew: 1n * TEN_TO_THE_18_BI,
       });
       const oneUnit = 1_000_000n;
-      expect(getTrustedUSD(oneUnit, token)).toBe(1n * TEN_TO_THE_18_BI);
+      expect(getTrustedUSD(oneUnit, token, token.chainId)).toBe(
+        1n * TEN_TO_THE_18_BI,
+      );
     });
 
     it("scales with pricePerUSDNew (1 WETH at $2000 → 2000e18)", () => {
@@ -412,7 +429,7 @@ describe("PriceTrust", () => {
         decimals: 18n,
         pricePerUSDNew: 2000n * TEN_TO_THE_18_BI,
       });
-      expect(getTrustedUSD(1n * TEN_TO_THE_18_BI, token)).toBe(
+      expect(getTrustedUSD(1n * TEN_TO_THE_18_BI, token, token.chainId)).toBe(
         2000n * TEN_TO_THE_18_BI,
       );
     });
@@ -423,7 +440,9 @@ describe("PriceTrust", () => {
         address: SNX_OP,
         pricePerUSDNew: 1n * TEN_TO_THE_18_BI,
       });
-      expect(getTrustedUSD(2n * TEN_TO_THE_18_BI, token)).toBe(0n);
+      expect(getTrustedUSD(2n * TEN_TO_THE_18_BI, token, token.chainId)).toBe(
+        0n,
+      );
     });
 
     it("returns amount × price for a non-whitelisted connector token (#898)", () => {
@@ -436,7 +455,7 @@ describe("PriceTrust", () => {
         decimals: 18n,
         pricePerUSDNew: 1500n * TEN_TO_THE_18_BI,
       });
-      expect(getTrustedUSD(2n * TEN_TO_THE_18_BI, token)).toBe(
+      expect(getTrustedUSD(2n * TEN_TO_THE_18_BI, token, token.chainId)).toBe(
         3000n * TEN_TO_THE_18_BI,
       );
     });
@@ -448,49 +467,17 @@ describe("PriceTrust", () => {
         isWhitelisted: true,
         pricePerUSDNew: 5n * TEN_TO_THE_18_BI,
       });
-      expect(getTrustedUSD(100n * TEN_TO_THE_18_BI, token)).toBe(0n);
-    });
-
-    it("returns 0n for a zero amount on a trusted token", () => {
-      expect(getTrustedUSD(0n, makeToken())).toBe(0n);
-    });
-
-    it("returns 0n for an undefined token", () => {
-      expect(getTrustedUSD(2n * TEN_TO_THE_18_BI, undefined)).toBe(0n);
-    });
-  });
-
-  describe("getPoolImpliedUSD", () => {
-    it("scales the pool price ratio by the counterparty's trusted USD price", () => {
-      // token0 worth 0.00005 of token1; token1 (WETH) priced $2000.
-      // implied token0 USD = 0.00005 * 2000 = $0.10.
-      const ratio1e18 = 50_000_000_000_000n; // 0.00005 * 1e18
-      const counterparty = makeToken({
-        isWhitelisted: true,
-        pricePerUSDNew: 2000n * TEN_TO_THE_18_BI,
-      });
-      expect(getPoolImpliedUSD(ratio1e18, counterparty)).toBe(
-        100_000_000_000_000_000n, // $0.10 * 1e18
+      expect(getTrustedUSD(100n * TEN_TO_THE_18_BI, token, token.chainId)).toBe(
+        0n,
       );
     });
 
-    it("returns 0n when the counterparty is untrusted (no ground truth)", () => {
-      const ratio1e18 = 50_000_000_000_000n;
-      const untrusted = makeToken({
-        isWhitelisted: false,
-        address: SNX_OP,
-        pricePerUSDNew: 2000n * TEN_TO_THE_18_BI,
-      });
-      expect(getPoolImpliedUSD(ratio1e18, untrusted)).toBe(0n);
+    it("returns 0n for a zero amount on a trusted token", () => {
+      expect(getTrustedUSD(0n, makeToken(), 10)).toBe(0n);
     });
 
-    it("returns 0n for a zero ratio or undefined counterparty", () => {
-      const trusted = makeToken({
-        isWhitelisted: true,
-        pricePerUSDNew: 2000n * TEN_TO_THE_18_BI,
-      });
-      expect(getPoolImpliedUSD(0n, trusted)).toBe(0n);
-      expect(getPoolImpliedUSD(50_000_000_000_000n, undefined)).toBe(0n);
+    it("returns 0n for an undefined token", () => {
+      expect(getTrustedUSD(2n * TEN_TO_THE_18_BI, undefined, 10)).toBe(0n);
     });
   });
 

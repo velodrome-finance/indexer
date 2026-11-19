@@ -20,6 +20,7 @@ export function processCLPoolCollectFees(
     event.params.amount1,
     token0Instance,
     token1Instance,
+    event.chainId,
   );
 
   // TVL definition: reserves track LP-deposited capital only (see the geometry

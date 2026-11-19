@@ -14,22 +14,23 @@ import {
  * Creates an epoch-aligned snapshot of NonFungiblePosition (no persistence).
  * @param entity - NonFungiblePosition to snapshot
  * @param timestamp - Timestamp used to compute snapshot epoch
+ * @param chainId - Chain of the event being handled (the entity's chain)
  * @returns Epoch-aligned NonFungiblePositionSnapshot
  */
 export function createNonFungiblePositionSnapshot(
   entity: NonFungiblePosition,
   timestamp: Date,
+  chainId: number,
 ): NonFungiblePositionSnapshot {
   const epoch = getSnapshotEpoch(timestamp);
   const snapshotId = NonFungiblePositionSnapshotId(
-    entity.chainId,
+    chainId,
     entity.nfpmAddress,
     entity.tokenId,
     epoch.getTime(),
   );
   return {
     id: snapshotId,
-    chainId: entity.chainId,
     tokenId: entity.tokenId,
     nfpmAddress: entity.nfpmAddress,
     owner: entity.owner,
@@ -52,16 +53,18 @@ export function createNonFungiblePositionSnapshot(
  * @param entity - NonFungiblePosition to snapshot
  * @param timestamp - Timestamp used to compute snapshot epoch
  * @param context - Handler context
+ * @param chainId - Chain of the event being handled (the entity's chain)
  * @returns void
  */
 export function setNonFungiblePositionSnapshot(
   entity: NonFungiblePosition,
   timestamp: Date,
   context: handlerContext,
+  chainId: number,
 ): void {
   const snapshotForPersist: SnapshotForPersist = {
     type: SnapshotType.NonFungiblePosition,
-    snapshot: createNonFungiblePositionSnapshot(entity, timestamp),
+    snapshot: createNonFungiblePositionSnapshot(entity, timestamp, chainId),
   };
   persistSnapshot(snapshotForPersist, context);
 }

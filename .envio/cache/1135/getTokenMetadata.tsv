@@ -1,0 +1,39 @@
+id	output
+["0x0214Ad7592Ad028a27E10820271Af018C6fACb8C",1135]	{"name": "Testies04", "symbol": "TST04", "decimals": 18}
+["0x03B8dc577B89A94B86EAA32249f86B1Bf792959f",1135]	{"name": "NTEST", "symbol": "NTEST", "decimals": 6}
+["0x03C7054BCB39f7b2e5B2c7AcB37583e32D70Cfa3",1135]	{"name": "Wrapped BTC", "symbol": "WBTC", "decimals": 8}
+["0x05D032ac25d322df992303dCa074EE7392C117b9",1135]	{"name": "Tether USD", "symbol": "USDT", "decimals": 6}
+["0x0A19c92c60C9264A74349a47E2a9f464E08caFC5",1135]	{"name": "HELLO1", "symbol": "WRLD1", "decimals": 18}
+["0x0bf4a86BA09fb1BF45b10D49F10953F6bc8E8A3c",1135]	{"name": "RGB", "symbol": "RGB", "decimals": 18}
+["0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189",1135]	{"name": "OpenUSDT", "symbol": "oUSDT", "decimals": 6}
+["0x16933B7c84D273751e90C79CC2d515335f7244d6",1135]	{"name": "Square", "symbol": "SQUARE", "decimals": 18}
+["0x18Bc5bcC660cf2B9cE3cd51a404aFe1a0cBD3C22",1135]	{"name": "IDRX", "symbol": "IDRX", "decimals": 2}
+["0x1912BD97Ad01CAe554dccc73C4C24a751dfEe66F",1135]	{"name": "Ultimate Snake ULO", "symbol": "ULO", "decimals": 18}
+["0x1C12540bE2A65aA298e02696180815eAf57f7F98",1135]	{"name": "SYGX", "symbol": "SYGX", "decimals": 18}
+["0x1b10E2270780858923cdBbC9B5423e29fffD1A44",1135]	{"name": "Lisk wstETH Vault", "symbol": "lskETH", "decimals": 18}
+["0x2A0FA5d670DEb472c1a72977b75Ba53D1E6FAB72",1135]	{"name": "L USD Coin", "symbol": "LUSD", "decimals": 18}
+["0x3f608A49a3ab475dA7fBb167C1Be6b7a45cD7013",1135]	{"name": "Ionic", "symbol": "ION", "decimals": 18}
+["0x4200000000000000000000000000000000000006",1135]	{"name": "Wrapped Ether", "symbol": "WETH", "decimals": 18}
+["0x42Ad91C284dBfdc910e1B62AC014E9Be158719cE",1135]	{"name": "AAAA", "symbol": "AAAA", "decimals": 18}
+["0x43F2376D5D03553aE72F4A8093bbe9de4336EB08",1135]	{"name": "Stargate USD₮0 (Bridged)", "symbol": "USD₮0", "decimals": 6}
+["0x48896F4c06994859D7DE32b63BeA1f55CE2fA229",1135]	{"name": "Nuzo Reward Token", "symbol": "NRT", "decimals": 6}
+["0x4900900a850153eA6eB7d172362A37354Ad04828",1135]	{"name": "USDN", "symbol": "USDN", "decimals": 6}
+["0x6a58DEE314d8C112Ba3c629F27e59074d4083ddb",1135]	{"name": "foxy", "symbol": "foxy", "decimals": 18}
+["0x76D8de471F54aAA87784119c60Df1bbFc852C415",1135]	{"name": "Wrapped liquid staked Ether 2.0", "symbol": "wstETH", "decimals": 18}
+["0x7B7047C49eAf68B8514A20624773ca620e2CD4a3",1135]	{"name": "L ZAR Coin", "symbol": "LZAR", "decimals": 18}
+["0x7a0c1828B29765e2b11aD95ceab23c6e3B3BA055",1135]	{"name": "HELLO1", "symbol": "WRLD1", "decimals": 18}
+["0x7f9AdFbd38b669F03d1d11000Bc76b9AaEA28A81",1135]	{"name": "Superchain Velodrome", "symbol": "XVELO", "decimals": 18}
+["0x8cf94b5A37b1835D634b7a3e6b1EE02Ce7F0CD30",1135]	{"name": "Lisk LSK Vault", "symbol": "rsLSK", "decimals": 18}
+["0x9BFA177621119e64CecbEabE184ab9993E2ef727",1135]	{"name": "Merlin BTC", "symbol": "M-BTC", "decimals": 18}
+["0xC16E03Dd2BfEe1D4aa0628B852bd0bdf48522DaC",1135]	{"name": "lisk", "symbol": "lsk", "decimals": 18}
+["0xF242275d3a6527d877f2c927a82D9b057609cc71",1135]	{"name": "Bridged USDC (Lisk)", "symbol": "USDC.e", "decimals": 6}
+["0xF50FFf154E63E510e494929E9eab1E9C5047429E",1135]	{"name": "ENSC", "symbol": "ENSC", "decimals": 18}
+["0xFA6019644377EBd5208e6F7ffDF2d61bA39BCe1b",1135]	{"name": "AAAA", "symbol": "AAAA", "decimals": 18}
+["0xa67E8B2E43B70D98E1896D3f9d563f3ABdB8Adcd",1135]	{"name": "Lisk rsmBTC Vault", "symbol": "rsM-BTC", "decimals": 18}
+["0xac485391EB2d7D88253a7F1eF18C37f4242D1A24",1135]	{"name": "Lisk", "symbol": "LSK", "decimals": 18}
+["0xafcc6AE807187A31E84138F3860D4CE27973e01b",1135]	{"name": "Superchain OP", "symbol": "XOP", "decimals": 18}
+["0xc6e30FEc711fa72B7eafB0c1632D2De0e1Bc3392",1135]	{"name": "Test LISK", "symbol": "TSK", "decimals": 18}
+["0xdF92bA28D17329a7284A5eC230967768D4cb7A89",1135]	{"name": "Faet Token", "symbol": "FAET", "decimals": 18}
+["0xe12cEFaAD61e551691BFa5cDA36e5dE051778C65",1135]	{"name": "Bridged EURC (Lisk)", "symbol": "EURC.e", "decimals": 6}
+["0x18470019bF0E94611f15852F7e93cf5D65BC34CA",1135]	{"name": "unknown", "symbol": "UNKNOWN", "decimals": 18}
+["0xDfc7C877a950e49D2610114102175A06C2e3167a",1135]	{"name": "unknown", "symbol": "UNKNOWN", "decimals": 18}

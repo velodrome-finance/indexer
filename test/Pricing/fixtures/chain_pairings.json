@@ -1,0 +1,974 @@
+{
+  "1": {
+    "poolsDiscovered": 109,
+    "swapsCounted": true,
+    "wethPairs": {
+      "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599": {
+        "pools": 1,
+        "swaps": 23547
+      },
+      "0x6b175474e89094c44da98b954eedeac495271d0f": {
+        "pools": 1,
+        "swaps": 1676
+      },
+      "0x9e148c5716b5aadcfd3b71ceae9ee7a9e22c29e2": {
+        "pools": 1,
+        "swaps": 4
+      },
+      "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": {
+        "pools": 2,
+        "swaps": 68317
+      },
+      "0xdac17f958d2ee523a2206206994597c13d831ec7": {
+        "pools": 1,
+        "swaps": 40099
+      }
+    },
+    "tokenPools": {
+      "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599": {
+        "pools": 9,
+        "swaps": 54785
+      },
+      "0x4c9edd5852cd905f086c759e8383e09bff1e68b3": {
+        "pools": 2,
+        "swaps": 3516
+      },
+      "0x6b175474e89094c44da98b954eedeac495271d0f": {
+        "pools": 4,
+        "swaps": 1680
+      },
+      "0x9e148c5716b5aadcfd3b71ceae9ee7a9e22c29e2": {
+        "pools": 3,
+        "swaps": 242
+      },
+      "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": {
+        "pools": 30,
+        "swaps": 100716
+      },
+      "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2": {
+        "pools": 41,
+        "swaps": 152378
+      },
+      "0xdac17f958d2ee523a2206206994597c13d831ec7": {
+        "pools": 11,
+        "swaps": 93900
+      },
+      "0xdc035d45d973e3ec169d2276ddab16f1e407384f": {
+        "pools": 3,
+        "swaps": 470
+      },
+      "0xe343167631d89b6ffc58b88d6b7fb0228795491d": {
+        "pools": 2,
+        "swaps": 1874
+      }
+    }
+  },
+  "10": {
+    "poolsDiscovered": 1728,
+    "swapsCounted": false,
+    "wethPairs": {
+      "0x01bff41798a0bcf287b996046ca68b395dbc1071": {
+        "pools": 4,
+        "swaps": null
+      },
+      "0x0b2c639c533813f4aa9d7837caf62653d097ff85": {
+        "pools": 8,
+        "swaps": null
+      },
+      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
+        "pools": 2,
+        "swaps": null
+      },
+      "0x1f32b1c2345538c0c6f582fcb022739c4a194ebb": {
+        "pools": 9,
+        "swaps": null
+      },
+      "0x2e3d870790dc77a83dd1d18184acc7439a53f475": {
+        "pools": 1,
+        "swaps": null
+      },
+      "0x4200000000000000000000000000000000000042": {
+        "pools": 9,
+        "swaps": null
+      },
+      "0x68f180fcce6836688e9084f035309e29bf0a2095": {
+        "pools": 6,
+        "swaps": null
+      },
+      "0x6c84a8f1c29108f47a79964b5fe888d4f4d0de40": {
+        "pools": 4,
+        "swaps": null
+      },
+      "0x7f5c764cbc14f9669b88837ca1490cca17c31607": {
+        "pools": 4,
+        "swaps": null
+      },
+      "0x8c6f28f2f1a3c87f0f938b96d27520d9751ec8d9": {
+        "pools": 2,
+        "swaps": null
+      },
+      "0x94b008aa00579c1307b0ef2c499ad98a8ce58e58": {
+        "pools": 6,
+        "swaps": null
+      },
+      "0x9560e827af36c94d2ac33a39bce1fe78631088db": {
+        "pools": 6,
+        "swaps": null
+      },
+      "0x9bcef72be871e61ed4fbbc7630889bee758eb81d": {
+        "pools": 3,
+        "swaps": null
+      },
+      "0xbdeaea5205d16f34cb40038052d91235d87b4c54": {
+        "pools": 1,
+        "swaps": null
+      },
+      "0xc40f949f8a4e094d1b49a23ea9241d289b7b2819": {
+        "pools": 3,
+        "swaps": null
+      },
+      "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1": {
+        "pools": 4,
+        "swaps": null
+      }
+    },
+    "tokenPools": {
+      "0x01bff41798a0bcf287b996046ca68b395dbc1071": {
+        "pools": 22,
+        "swaps": null
+      },
+      "0x0b2c639c533813f4aa9d7837caf62653d097ff85": {
+        "pools": 215,
+        "swaps": null
+      },
+      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
+        "pools": 12,
+        "swaps": null
+      },
+      "0x1f32b1c2345538c0c6f582fcb022739c4a194ebb": {
+        "pools": 65,
+        "swaps": null
+      },
+      "0x2e3d870790dc77a83dd1d18184acc7439a53f475": {
+        "pools": 22,
+        "swaps": null
+      },
+      "0x4200000000000000000000000000000000000006": {
+        "pools": 542,
+        "swaps": null
+      },
+      "0x4200000000000000000000000000000000000042": {
+        "pools": 154,
+        "swaps": null
+      },
+      "0x68f180fcce6836688e9084f035309e29bf0a2095": {
+        "pools": 44,
+        "swaps": null
+      },
+      "0x6c84a8f1c29108f47a79964b5fe888d4f4d0de40": {
+        "pools": 23,
+        "swaps": null
+      },
+      "0x7f5c764cbc14f9669b88837ca1490cca17c31607": {
+        "pools": 129,
+        "swaps": null
+      },
+      "0x8c6f28f2f1a3c87f0f938b96d27520d9751ec8d9": {
+        "pools": 48,
+        "swaps": null
+      },
+      "0x94b008aa00579c1307b0ef2c499ad98a8ce58e58": {
+        "pools": 104,
+        "swaps": null
+      },
+      "0x9560e827af36c94d2ac33a39bce1fe78631088db": {
+        "pools": 150,
+        "swaps": null
+      },
+      "0x9bcef72be871e61ed4fbbc7630889bee758eb81d": {
+        "pools": 14,
+        "swaps": null
+      },
+      "0xbdeaea5205d16f34cb40038052d91235d87b4c54": {
+        "pools": 9,
+        "swaps": null
+      },
+      "0xc40f949f8a4e094d1b49a23ea9241d289b7b2819": {
+        "pools": 50,
+        "swaps": null
+      },
+      "0xda10009cbd5d07dd0cecc66161fc93d7c9000da1": {
+        "pools": 62,
+        "swaps": null
+      }
+    }
+  },
+  "130": {
+    "poolsDiscovered": 32,
+    "swapsCounted": false,
+    "wethPairs": {
+      "0x078d782b760474a361dda0af3839290b0ef57ad6": {
+        "pools": 2,
+        "swaps": null
+      },
+      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
+        "pools": 2,
+        "swaps": null
+      },
+      "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
+        "pools": 2,
+        "swaps": null
+      },
+      "0x9151434b16b9763660705744891fa906f660ecc5": {
+        "pools": 2,
+        "swaps": null
+      }
+    },
+    "tokenPools": {
+      "0x078d782b760474a361dda0af3839290b0ef57ad6": {
+        "pools": 9,
+        "swaps": null
+      },
+      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
+        "pools": 5,
+        "swaps": null
+      },
+      "0x4200000000000000000000000000000000000006": {
+        "pools": 17,
+        "swaps": null
+      },
+      "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
+        "pools": 3,
+        "swaps": null
+      },
+      "0x9151434b16b9763660705744891fa906f660ecc5": {
+        "pools": 8,
+        "swaps": null
+      }
+    }
+  },
+  "252": {
+    "poolsDiscovered": 71,
+    "swapsCounted": true,
+    "wethPairs": {
+      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
+        "pools": 1,
+        "swaps": 349055
+      },
+      "0xdcc0f2d8f90fde85b10ac1c8ab57dc0ae946a543": {
+        "pools": 1,
+        "swaps": 2277
+      },
+      "0xfc00000000000000000000000000000000000001": {
+        "pools": 2,
+        "swaps": 1099302
+      },
+      "0xfc00000000000000000000000000000000000005": {
+        "pools": 1,
+        "swaps": 95351
+      }
+    },
+    "tokenPools": {
+      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
+        "pools": 2,
+        "swaps": 802472
+      },
+      "0x211cc4dd073734da055fbf44a2b4667d5e5fe5d2": {
+        "pools": 1,
+        "swaps": 51294
+      },
+      "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34": {
+        "pools": 1,
+        "swaps": 13181
+      },
+      "0xdcc0f2d8f90fde85b10ac1c8ab57dc0ae946a543": {
+        "pools": 3,
+        "swaps": 16486
+      },
+      "0xfc00000000000000000000000000000000000001": {
+        "pools": 23,
+        "swaps": 1871315
+      },
+      "0xfc00000000000000000000000000000000000005": {
+        "pools": 9,
+        "swaps": 254364
+      },
+      "0xfc00000000000000000000000000000000000006": {
+        "pools": 17,
+        "swaps": 2859144
+      }
+    }
+  },
+  "1135": {
+    "poolsDiscovered": 81,
+    "swapsCounted": true,
+    "wethPairs": {
+      "0x05d032ac25d322df992303dca074ee7392c117b9": {
+        "pools": 3,
+        "swaps": 1360753
+      },
+      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
+        "pools": 1,
+        "swaps": 155450
+      },
+      "0x43f2376d5d03553ae72f4a8093bbe9de4336eb08": {
+        "pools": 2,
+        "swaps": 257843
+      },
+      "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
+        "pools": 2,
+        "swaps": 74761
+      },
+      "0xac485391eb2d7d88253a7f1ef18c37f4242d1a24": {
+        "pools": 3,
+        "swaps": 1646043
+      },
+      "0xf242275d3a6527d877f2c927a82d9b057609cc71": {
+        "pools": 2,
+        "swaps": 248514
+      }
+    },
+    "tokenPools": {
+      "0x05d032ac25d322df992303dca074ee7392c117b9": {
+        "pools": 22,
+        "swaps": 2588134
+      },
+      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
+        "pools": 5,
+        "swaps": 243423
+      },
+      "0x4200000000000000000000000000000000000006": {
+        "pools": 29,
+        "swaps": 3892148
+      },
+      "0x43f2376d5d03553ae72f4a8093bbe9de4336eb08": {
+        "pools": 11,
+        "swaps": 477006
+      },
+      "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
+        "pools": 6,
+        "swaps": 94642
+      },
+      "0xac485391eb2d7d88253a7f1ef18c37f4242d1a24": {
+        "pools": 15,
+        "swaps": 1891693
+      },
+      "0xf242275d3a6527d877f2c927a82d9b057609cc71": {
+        "pools": 15,
+        "swaps": 1385143
+      }
+    }
+  },
+  "1750": {
+    "poolsDiscovered": 18,
+    "swapsCounted": true,
+    "wethPairs": {
+      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
+        "pools": 2,
+        "swaps": 47453
+      },
+      "0x51e85d70944256710cb141847f1a04f568c1db0e": {
+        "pools": 2,
+        "swaps": 57852
+      },
+      "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
+        "pools": 2,
+        "swaps": 5776
+      },
+      "0xb91cfcca485c6e40e3bc622f9bfa02a8acdeebab": {
+        "pools": 2,
+        "swaps": 508
+      },
+      "0xbcfc435d8f276585f6431fc1b9ee9a850b5c00a9": {
+        "pools": 2,
+        "swaps": 15292
+      }
+    },
+    "tokenPools": {
+      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
+        "pools": 4,
+        "swaps": 57462
+      },
+      "0x4200000000000000000000000000000000000006": {
+        "pools": 11,
+        "swaps": 126881
+      },
+      "0x51e85d70944256710cb141847f1a04f568c1db0e": {
+        "pools": 7,
+        "swaps": 76812
+      },
+      "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
+        "pools": 3,
+        "swaps": 5831
+      },
+      "0xb91cfcca485c6e40e3bc622f9bfa02a8acdeebab": {
+        "pools": 3,
+        "swaps": 533
+      },
+      "0xbcfc435d8f276585f6431fc1b9ee9a850b5c00a9": {
+        "pools": 7,
+        "swaps": 24323
+      }
+    }
+  },
+  "1868": {
+    "poolsDiscovered": 136,
+    "swapsCounted": true,
+    "wethPairs": {
+      "0x102d758f688a4c1c5a80b116bd945d4455460282": {
+        "pools": 2,
+        "swaps": 1341246
+      },
+      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
+        "pools": 2,
+        "swaps": 396048
+      },
+      "0x3a337a6ada9d885b6ad95ec48f9b75f197b5ae35": {
+        "pools": 2,
+        "swaps": 978026
+      },
+      "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
+        "pools": 2,
+        "swaps": 147215
+      },
+      "0xba9986d2381edf1da03b0b9c1f8b00dc4aacc369": {
+        "pools": 5,
+        "swaps": 8813964
+      }
+    },
+    "tokenPools": {
+      "0x102d758f688a4c1c5a80b116bd945d4455460282": {
+        "pools": 14,
+        "swaps": 3616923
+      },
+      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
+        "pools": 10,
+        "swaps": 803977
+      },
+      "0x3a337a6ada9d885b6ad95ec48f9b75f197b5ae35": {
+        "pools": 15,
+        "swaps": 12767619
+      },
+      "0x4200000000000000000000000000000000000006": {
+        "pools": 47,
+        "swaps": 15398337
+      },
+      "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
+        "pools": 14,
+        "swaps": 214598
+      },
+      "0xba9986d2381edf1da03b0b9c1f8b00dc4aacc369": {
+        "pools": 32,
+        "swaps": 24216228
+      }
+    }
+  },
+  "1923": {
+    "poolsDiscovered": 52,
+    "swapsCounted": false,
+    "wethPairs": {
+      "0x0000baa0b1678229863c0a941c1056b83a1955f5": {
+        "pools": 2,
+        "swaps": null
+      },
+      "0x102d758f688a4c1c5a80b116bd945d4455460282": {
+        "pools": 1,
+        "swaps": null
+      },
+      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
+        "pools": 1,
+        "swaps": null
+      },
+      "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34": {
+        "pools": 2,
+        "swaps": null
+      },
+      "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
+        "pools": 1,
+        "swaps": null
+      }
+    },
+    "tokenPools": {
+      "0x0000baa0b1678229863c0a941c1056b83a1955f5": {
+        "pools": 24,
+        "swaps": null
+      },
+      "0x102d758f688a4c1c5a80b116bd945d4455460282": {
+        "pools": 4,
+        "swaps": null
+      },
+      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
+        "pools": 2,
+        "swaps": null
+      },
+      "0x4200000000000000000000000000000000000006": {
+        "pools": 17,
+        "swaps": null
+      },
+      "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34": {
+        "pools": 13,
+        "swaps": null
+      },
+      "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
+        "pools": 1,
+        "swaps": null
+      },
+      "0x9ab96a4668456896d45c301bc3a15cee76aa7b8d": {
+        "pools": 8,
+        "swaps": null
+      }
+    }
+  },
+  "4663": {
+    "poolsDiscovered": 102,
+    "swapsCounted": true,
+    "wethPairs": {
+      "0x5fc5360d0400a0fd4f2af552add042d716f1d168": {
+        "pools": 2,
+        "swaps": 945359
+      }
+    },
+    "tokenPools": {
+      "0x0bd7d308f8e1639fab988df18a8011f41eacad73": {
+        "pools": 32,
+        "swaps": 1114943
+      },
+      "0x5fc5360d0400a0fd4f2af552add042d716f1d168": {
+        "pools": 58,
+        "swaps": 1258305
+      },
+      "0x9e148c5716b5aadcfd3b71ceae9ee7a9e22c29e2": {
+        "pools": 5,
+        "swaps": 3899
+      }
+    }
+  },
+  "5042": {
+    "poolsDiscovered": 50,
+    "swapsCounted": true,
+    "wethPairs": {
+      "0x171a4217b86a807a64eb94757db6849fb4bdbaa0": {
+        "pools": 2,
+        "swaps": 77349
+      },
+      "0x3600000000000000000000000000000000000000": {
+        "pools": 2,
+        "swaps": 229394
+      }
+    },
+    "tokenPools": {
+      "0x128cc466b61f542da60c70e3aa11c10e19b84edb": {
+        "pools": 4,
+        "swaps": 306743
+      },
+      "0x171a4217b86a807a64eb94757db6849fb4bdbaa0": {
+        "pools": 4,
+        "swaps": 262058
+      },
+      "0x20077cc0d5e385a0fe9c91bbc7dc744f51559307": {
+        "pools": 1,
+        "swaps": 489
+      },
+      "0x3600000000000000000000000000000000000000": {
+        "pools": 45,
+        "swaps": 469627
+      }
+    }
+  },
+  "5330": {
+    "poolsDiscovered": 27,
+    "swapsCounted": false,
+    "wethPairs": {
+      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
+        "pools": 1,
+        "swaps": null
+      },
+      "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
+        "pools": 2,
+        "swaps": null
+      },
+      "0xc316c8252b5f2176d0135ebb0999e99296998f2e": {
+        "pools": 2,
+        "swaps": null
+      }
+    },
+    "tokenPools": {
+      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
+        "pools": 4,
+        "swaps": null
+      },
+      "0x4200000000000000000000000000000000000006": {
+        "pools": 16,
+        "swaps": null
+      },
+      "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
+        "pools": 4,
+        "swaps": null
+      },
+      "0xc316c8252b5f2176d0135ebb0999e99296998f2e": {
+        "pools": 10,
+        "swaps": null
+      }
+    }
+  },
+  "8453": {
+    "poolsDiscovered": 42596,
+    "swapsCounted": false,
+    "wethPairs": {
+      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
+        "pools": 2,
+        "swaps": null
+      },
+      "0x2ae3f1ec7f1f5012cfeab0185bfc7aa3cf0dec22": {
+        "pools": 9,
+        "swaps": null
+      },
+      "0x3f5bf3edac59d650d8fdf9657a71f2f904a3a4ee": {
+        "pools": 2,
+        "swaps": null
+      },
+      "0x4621b7a9c75199271f773ebd9a499dbd165c3191": {
+        "pools": 1,
+        "swaps": null
+      },
+      "0x50c5725949a6f0c72e6c4a641f24049a917db0cb": {
+        "pools": 2,
+        "swaps": null
+      },
+      "0x60a3e35cc302bfa44cb288bc5a4f316fdb1adb42": {
+        "pools": 7,
+        "swaps": null
+      },
+      "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913": {
+        "pools": 18,
+        "swaps": null
+      },
+      "0x940181a94a35a4569e4529a3cdfb74e38fd98631": {
+        "pools": 5,
+        "swaps": null
+      },
+      "0xc1cba3fcea344f92d9239c08c0568f6f2f0ee452": {
+        "pools": 8,
+        "swaps": null
+      },
+      "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf": {
+        "pools": 13,
+        "swaps": null
+      },
+      "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca": {
+        "pools": 5,
+        "swaps": null
+      },
+      "0xfde4c96c8593536e31f229ea8f37b2ada2699bb2": {
+        "pools": 6,
+        "swaps": null
+      }
+    },
+    "tokenPools": {
+      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
+        "pools": 14,
+        "swaps": null
+      },
+      "0x2ae3f1ec7f1f5012cfeab0185bfc7aa3cf0dec22": {
+        "pools": 97,
+        "swaps": null
+      },
+      "0x3f5bf3edac59d650d8fdf9657a71f2f904a3a4ee": {
+        "pools": 44,
+        "swaps": null
+      },
+      "0x4200000000000000000000000000000000000006": {
+        "pools": 26193,
+        "swaps": null
+      },
+      "0x4621b7a9c75199271f773ebd9a499dbd165c3191": {
+        "pools": 47,
+        "swaps": null
+      },
+      "0x50c5725949a6f0c72e6c4a641f24049a917db0cb": {
+        "pools": 253,
+        "swaps": null
+      },
+      "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34": {
+        "pools": 9,
+        "swaps": null
+      },
+      "0x60a3e35cc302bfa44cb288bc5a4f316fdb1adb42": {
+        "pools": 83,
+        "swaps": null
+      },
+      "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913": {
+        "pools": 5101,
+        "swaps": null
+      },
+      "0x940181a94a35a4569e4529a3cdfb74e38fd98631": {
+        "pools": 783,
+        "swaps": null
+      },
+      "0xc1cba3fcea344f92d9239c08c0568f6f2f0ee452": {
+        "pools": 69,
+        "swaps": null
+      },
+      "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf": {
+        "pools": 733,
+        "swaps": null
+      },
+      "0xd9aaec86b65d86f6a7b5b1b0c42ffa531710b6ca": {
+        "pools": 199,
+        "swaps": null
+      },
+      "0xfde4c96c8593536e31f229ea8f37b2ada2699bb2": {
+        "pools": 237,
+        "swaps": null
+      }
+    }
+  },
+  "34443": {
+    "poolsDiscovered": 161,
+    "swapsCounted": true,
+    "wethPairs": {
+      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
+        "pools": 1,
+        "swaps": 365269
+      },
+      "0xd988097fb8612cc24eec14542bc03424c656005f": {
+        "pools": 3,
+        "swaps": 2197129
+      },
+      "0xdfc7c877a950e49d2610114102175a06c2e3167a": {
+        "pools": 3,
+        "swaps": 829691
+      },
+      "0xf0f161fda2712db8b566946122a5af183995e2ed": {
+        "pools": 2,
+        "swaps": 9592
+      }
+    },
+    "tokenPools": {
+      "0x102d758f688a4c1c5a80b116bd945d4455460282": {
+        "pools": 1,
+        "swaps": 115
+      },
+      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
+        "pools": 2,
+        "swaps": 714287
+      },
+      "0x4200000000000000000000000000000000000006": {
+        "pools": 57,
+        "swaps": 3658737
+      },
+      "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34": {
+        "pools": 1,
+        "swaps": 1400
+      },
+      "0xd988097fb8612cc24eec14542bc03424c656005f": {
+        "pools": 25,
+        "swaps": 3394639
+      },
+      "0xdfc7c877a950e49d2610114102175a06c2e3167a": {
+        "pools": 38,
+        "swaps": 1179706
+      },
+      "0xf0f161fda2712db8b566946122a5af183995e2ed": {
+        "pools": 9,
+        "swaps": 636002
+      }
+    }
+  },
+  "42161": {
+    "poolsDiscovered": 67,
+    "swapsCounted": true,
+    "wethPairs": {
+      "0x004b506865409877c9fa29bfb1eba929984b9bbc": {
+        "pools": 1,
+        "swaps": 47387
+      },
+      "0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f": {
+        "pools": 1,
+        "swaps": 50472
+      },
+      "0x436a085b2751cb87db270ffa66f8d698f87bec82": {
+        "pools": 2,
+        "swaps": 136
+      },
+      "0x912ce59144191c1204e64559fe8253a0e49e6548": {
+        "pools": 1,
+        "swaps": 115866
+      },
+      "0xaf88d065e77c8cc2239327c5edb3a432268e5831": {
+        "pools": 1,
+        "swaps": 77296
+      },
+      "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9": {
+        "pools": 1,
+        "swaps": 531
+      }
+    },
+    "tokenPools": {
+      "0x004b506865409877c9fa29bfb1eba929984b9bbc": {
+        "pools": 24,
+        "swaps": 133062
+      },
+      "0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f": {
+        "pools": 5,
+        "swaps": 121466
+      },
+      "0x436a085b2751cb87db270ffa66f8d698f87bec82": {
+        "pools": 6,
+        "swaps": 844
+      },
+      "0x82af49447d8a07e3bd95bd0d56f35241523fbab1": {
+        "pools": 21,
+        "swaps": 296190
+      },
+      "0x912ce59144191c1204e64559fe8253a0e49e6548": {
+        "pools": 4,
+        "swaps": 129331
+      },
+      "0xaf88d065e77c8cc2239327c5edb3a432268e5831": {
+        "pools": 13,
+        "swaps": 178899
+      },
+      "0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9": {
+        "pools": 5,
+        "swaps": 25501
+      },
+      "0xff970a61a04b1ca14834a43f5de4533ebddb5cc8": {
+        "pools": 1,
+        "swaps": 268
+      }
+    }
+  },
+  "42220": {
+    "poolsDiscovered": 28,
+    "swapsCounted": true,
+    "wethPairs": {
+      "0x471ece3750da237f93b8e339c536989b8978a438": {
+        "pools": 2,
+        "swaps": 682096
+      },
+      "0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e": {
+        "pools": 1,
+        "swaps": 1599286
+      },
+      "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
+        "pools": 1,
+        "swaps": 2760
+      },
+      "0xceba9300f2b948710d2653dd7b07f33a8b32118c": {
+        "pools": 1,
+        "swaps": 37
+      }
+    },
+    "tokenPools": {
+      "0x471ece3750da237f93b8e339c536989b8978a438": {
+        "pools": 11,
+        "swaps": 6893233
+      },
+      "0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e": {
+        "pools": 8,
+        "swaps": 6471239
+      },
+      "0x765de816845861e75a25fca122bb6898b8b1282a": {
+        "pools": 6,
+        "swaps": 1428871
+      },
+      "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
+        "pools": 3,
+        "swaps": 56814
+      },
+      "0xceba9300f2b948710d2653dd7b07f33a8b32118c": {
+        "pools": 6,
+        "swaps": 3216158
+      },
+      "0xd221812de1bd094f35587ee8e174b07b6167d9af": {
+        "pools": 8,
+        "swaps": 2286927
+      },
+      "0xef4229c8c3250c675f21bcefa42f58efbff6002a": {
+        "pools": 1,
+        "swaps": 0
+      }
+    }
+  },
+  "57073": {
+    "poolsDiscovered": 258,
+    "swapsCounted": false,
+    "wethPairs": {
+      "0x0200c29006150606b650577bbe7b6248f58470c1": {
+        "pools": 5,
+        "swaps": null
+      },
+      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
+        "pools": 1,
+        "swaps": null
+      },
+      "0x2d270e6886d130d724215a266106e6832161eaed": {
+        "pools": 4,
+        "swaps": null
+      },
+      "0x73e0c0d45e048d25fc26fa3159b0aa04bfa4db98": {
+        "pools": 3,
+        "swaps": null
+      },
+      "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
+        "pools": 3,
+        "swaps": null
+      },
+      "0x9e148c5716b5aadcfd3b71ceae9ee7a9e22c29e2": {
+        "pools": 1,
+        "swaps": null
+      },
+      "0xe343167631d89b6ffc58b88d6b7fb0228795491d": {
+        "pools": 1,
+        "swaps": null
+      },
+      "0xf1815bd50389c46847f0bda824ec8da914045d14": {
+        "pools": 6,
+        "swaps": null
+      }
+    },
+    "tokenPools": {
+      "0x0200c29006150606b650577bbe7b6248f58470c1": {
+        "pools": 51,
+        "swaps": null
+      },
+      "0x1217bfe6c773eec6cc4a38b5dc45b92292b6e189": {
+        "pools": 8,
+        "swaps": null
+      },
+      "0x2d270e6886d130d724215a266106e6832161eaed": {
+        "pools": 31,
+        "swaps": null
+      },
+      "0x4200000000000000000000000000000000000006": {
+        "pools": 127,
+        "swaps": null
+      },
+      "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34": {
+        "pools": 2,
+        "swaps": null
+      },
+      "0x73e0c0d45e048d25fc26fa3159b0aa04bfa4db98": {
+        "pools": 23,
+        "swaps": null
+      },
+      "0x7f9adfbd38b669f03d1d11000bc76b9aaea28a81": {
+        "pools": 13,
+        "swaps": null
+      },
+      "0x9e148c5716b5aadcfd3b71ceae9ee7a9e22c29e2": {
+        "pools": 3,
+        "swaps": null
+      },
+      "0xe343167631d89b6ffc58b88d6b7fb0228795491d": {
+        "pools": 16,
+        "swaps": null
+      },
+      "0xf1815bd50389c46847f0bda824ec8da914045d14": {
+        "pools": 22,
+        "swaps": null
+      }
+    }
+  }
+}

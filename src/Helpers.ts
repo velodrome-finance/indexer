@@ -12,8 +12,8 @@ import { multiplyBase1e18 } from "./Maths";
 import { getHardAnchorUnitUSD, getTrustedUSD } from "./PriceTrust";
 
 // Directional TVL cap (issue #892). A pool leg is re-valued at its pool-implied
-// price only when its oracle price exceeds that implied price by more than this
-// ratio. Reuses the 10× band of the #668 price-spike guard.
+// price only when its stored price exceeds that implied price by more than this
+// ratio.
 const TVL_CAP_RATIO = 10n;
 
 // Minimum anchor-leg reserve USD (1e18-base) for the directional cap to engage.
@@ -72,18 +72,43 @@ export async function runAsyncWithErrorLog(
   }
 }
 
-// Helper function to normalize token amounts to 1e18
+/**
+ * Rescales a raw token amount to 18 decimals: `amount · 10^18 / 10^decimals`.
+ *
+ * Valid for every decimals value, including 0 (a 0-decimal token's raw amount
+ * is whole units, so it is multiplied up by 1e18) and values above 18 (scaled
+ * down, truncating). The power is computed in bigint so it stays exact for
+ * decimals above 22, where `10 ** decimals` as a JS number is no longer exact.
+ *
+ * @param amount - Raw amount in the token's native decimal base
+ * @param tokenDecimals - The token's decimals
+ * @returns The amount in 1e18-base
+ */
 export const normalizeTokenAmountTo1e18 = (
   amount: bigint,
   tokenDecimals: number,
 ): bigint => {
-  if (tokenDecimals !== 0) {
-    return (amount * TEN_TO_THE_18_BI) / BigInt(10 ** tokenDecimals);
-  }
-  return amount;
+  // Hot path (several calls per swap): most tokens have 18 decimals, and the
+  // power of ten comes from a table instead of a bigint exponentiation per call.
+  if (tokenDecimals === 18) return amount;
+  const divisor = POW10_BI[tokenDecimals] ?? 10n ** BigInt(tokenDecimals);
+  return (amount * TEN_TO_THE_18_BI) / divisor;
 };
 
-// Helper function to calculate USD value from token amount, decimals, and price
+/** 10^0 … 10^77 as bigints (every power that fits a uint256). */
+const POW10_BI: readonly bigint[] = Array.from(
+  { length: 78 },
+  (_, exponent) => 10n ** BigInt(exponent),
+);
+
+/**
+ * USD value of a raw token amount at a 1e18-scaled USD price.
+ *
+ * @param amount - Raw amount in the token's native decimal base
+ * @param tokenDecimals - The token's decimals
+ * @param pricePerUSDNew - USD per whole token, 1e18-scaled
+ * @returns USD value in 1e18-base
+ */
 export function calculateTokenAmountUSD(
   amount: bigint,
   tokenDecimals: number,
@@ -148,8 +173,8 @@ export function generatePoolName(
 
 /**
  * Sorts items by blockchain event order: block number ascending, then log index ascending.
- * Use when replaying deferred events (e.g. PendingVote, PendingDistribution) so they are
- * applied in the same order they occurred on-chain.
+ * Use when replaying buffered events so they are applied in the same order they
+ * occurred on-chain.
  * @param items - Array to sort (not mutated; returns a new sorted array)
  * @param getBlockNumber - Extracts block number from each item
  * @param getLogIndex - Optional. Extracts log index from each item; defaults to 0 when omitted
@@ -185,6 +210,7 @@ export function sortByBlockThenLogIndex<T>(
  * @param amount1 - Token1 amount (raw, in token1's decimal base)
  * @param token0 - Token0 instance; undefined or untrusted contributes 0n
  * @param token1 - Token1 instance; undefined or untrusted contributes 0n
+ * @param chainId - Chain of the event being handled (the tokens' chain)
  * @returns Total USD (1e18-base), summing only trusted legs
  */
 export function calculateTotalUSD(
@@ -192,23 +218,27 @@ export function calculateTotalUSD(
   amount1: bigint,
   token0: Token | undefined,
   token1: Token | undefined,
+  chainId: number,
 ): bigint {
-  return getTrustedUSD(amount0, token0) + getTrustedUSD(amount1, token1);
+  return (
+    getTrustedUSD(amount0, token0, chainId) +
+    getTrustedUSD(amount1, token1, chainId)
+  );
 }
 
 /**
  * One leg of {@link calculateLiquidityUSD}: token T's trusted USD value, capped
  * to its pool-implied value when its hard-anchor counterparty C shows that T's
- * oracle price is more than {@link TVL_CAP_RATIO}× too high (issue #892).
+ * stored price is more than {@link TVL_CAP_RATIO}× too high (issue #892).
  *
  * Returns the untouched {@link getTrustedUSD} value unless ALL of:
  *  - T is trusted and contributes a positive USD leg (untrusted ⇒ already 0n),
  *  - the pool ratio for T-in-C is positive,
- *  - C is a hard anchor we can value (stablecoin = $1, WETH = oracle price),
+ *  - C is a hard anchor we can value (stablecoin = $1, WETH = stored price),
  *  - C's reserve is worth ≥ `$1,000` (thin-pool guard),
- *  - and T's oracle price exceeds the pool-implied price by > 10×.
+ *  - and T's stored price exceeds this pool's implied price by > 10×.
  * When they hold, T is re-valued at the pool-implied price. The cap is
- * downward-only by construction (it fires on oracle ≫ implied), so it can only
+ * downward-only by construction (it fires on stored ≫ implied), so it can only
  * deflate an inflated leg toward the liquid pool's truth, never inflate a
  * correct one.
  *
@@ -229,12 +259,12 @@ function cappedLegUSD(
   ratioTinC: bigint,
   chainId: number,
 ): bigint {
-  const trustedUSD = getTrustedUSD(amountT, tokenT);
+  const trustedUSD = getTrustedUSD(amountT, tokenT, chainId);
   // Nothing to cap: untrusted / zero leg, no priced T, or no usable pool ratio.
   if (trustedUSD <= 0n || !tokenT || ratioTinC <= 0n) return trustedUSD;
 
   // The counterparty must be a hard anchor we can value ($1 pin for stablecoins,
-  // oracle price for WETH; 0n ⇒ not an anchor or unpriced WETH).
+  // stored price for WETH; 0n ⇒ not an anchor or unpriced WETH).
   const anchorUnitUSD = getHardAnchorUnitUSD(chainId, tokenC);
   if (anchorUnitUSD <= 0n || !tokenC) return trustedUSD;
 
@@ -251,7 +281,7 @@ function cappedLegUSD(
   const impliedPriceT = multiplyBase1e18(ratioTinC, anchorUnitUSD);
   if (impliedPriceT <= 0n) return trustedUSD;
 
-  // Directional, downward-only: only cap when the oracle is > 10× the implied.
+  // Directional, downward-only: only cap when the stored price is > 10× the implied.
   if (tokenT.pricePerUSDNew > impliedPriceT * TVL_CAP_RATIO) {
     return calculateTokenAmountUSD(
       amountT,
@@ -268,17 +298,19 @@ function cappedLegUSD(
  *
  * Identical to {@link calculateTotalUSD} (each leg routed through the
  * {@link getTrustedUSD} trust gate) EXCEPT that a leg whose counterparty is a
- * stablecoin / WETH hard anchor (see `isHardAnchor`) and whose oracle price
- * exceeds the pool-implied price by more than 10× is re-valued at the implied
- * price. This catches a persistently poisoned but whitelisted oracle — e.g.
- * LFI/USDC on Base reading ~$23 against a pool implying ~$0.00006, inflating
- * one pool's TVL to ~$26B — that the global spike / re-anchor guards
- * (#668/#784/#785) cannot heal because the bad value is stable, not a spike.
+ * stablecoin / WETH hard anchor (see `isHardAnchor`) and whose stored price
+ * exceeds this pool's implied price by more than 10× is re-valued at the
+ * implied price. Introduced against a persistently poisoned whitelisted oracle
+ * read (LFI/USDC on Base at ~$23 vs a pool implying ~$0.00006, ~$26B of phantom
+ * TVL). With pool-derived prices (ADR 0003) a token's stored price already
+ * comes from its deepest qualifying pool, so the cap now only fires when THIS
+ * pool disagrees 10× with that deeper pool — it bounds the TVL a thin,
+ * off-market pool can claim for its token leg.
  *
  * Safety properties:
- *  - **Directional & downward-only** — the cap fires only on `oracle ≫ implied`,
+ *  - **Directional & downward-only** — the cap fires only on `stored ≫ implied`,
  *    so it can only LOWER a leg toward the liquid pool's truth, never raise it.
- *    A drained-pool ratio that blows up HIGH (oracle ≪ implied — e.g. a $1
+ *    A drained-pool ratio that blows up HIGH (stored ≪ implied — e.g. a $1
  *    stablecoin whose edge pool implies $254K) does not trigger it, so it is
  *    regression-safe.
  *  - **Anchor-gated, liquidity-floored** — only against a stablecoin / WETH
@@ -407,6 +439,7 @@ export function calculatePositionAmountsFromLiquidity(
  * @param sqrtPriceX96 - Current pool sqrt(price) Q64.96
  * @param tickLower - Range lower tick
  * @param tickUpper - Range upper tick
+ * @param chainId - Chain of the event being handled (the pool's chain)
  * @param token0Instance - Token0 for USD pricing (optional)
  * @param token1Instance - Token1 for USD pricing (optional)
  * @returns USD value in 1e18 units, or 0n on error / missing tokens
@@ -416,6 +449,7 @@ export function concentratedLiquidityToUSD(
   sqrtPriceX96: bigint,
   tickLower: bigint,
   tickUpper: bigint,
+  chainId: number,
   token0Instance?: Token,
   token1Instance?: Token,
 ): bigint {
@@ -426,7 +460,13 @@ export function concentratedLiquidityToUSD(
       tickLower,
       tickUpper,
     );
-    return calculateTotalUSD(amount0, amount1, token0Instance, token1Instance);
+    return calculateTotalUSD(
+      amount0,
+      amount1,
+      token0Instance,
+      token1Instance,
+      chainId,
+    );
   } catch {
     return 0n;
   }
@@ -440,6 +480,7 @@ export function concentratedLiquidityToUSD(
  * @param poolEntity - Non-CL pool entity with reserve0, reserve1, totalLPTokenSupply
  * @param poolData - Token instances for USD pricing
  * @param _context - Handler context (unused; for API consistency)
+ * @param chainId - Chain of the event being handled (the pool's chain)
  * @returns USD value in 1e18 units, or 0n if stake ≤ 0 or totalSupply missing/zero
  */
 export function computeNonCLStakedUSD(
@@ -451,6 +492,7 @@ export function computeNonCLStakedUSD(
     token1Instance?: Token;
   },
   _context: handlerContext,
+  chainId: number,
 ): bigint {
   if (stakeAmount <= 0n) {
     return 0n;
@@ -464,7 +506,13 @@ export function computeNonCLStakedUSD(
   }
   const amount0 = (stakeAmount * reserve0) / totalSupply;
   const amount1 = (stakeAmount * reserve1) / totalSupply;
-  return calculateTotalUSD(amount0, amount1, token0Instance, token1Instance);
+  return calculateTotalUSD(
+    amount0,
+    amount1,
+    token0Instance,
+    token1Instance,
+    chainId,
+  );
 }
 
 /**
