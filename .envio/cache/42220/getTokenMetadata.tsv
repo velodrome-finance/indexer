@@ -13,3 +13,4 @@ id	output
 ["0xcebA9300f2b948710d2653dD7B07f33A8B32118C",42220]	{"name": "USDC", "symbol": "USDC", "decimals": 6}
 ["0xef4229c8c3250C675F21BCefa42f58EfbfF6002a",42220]	{"name": "USD Coin", "symbol": "USDC", "decimals": 6}
 ["0xfC8dA7Cc54dAE3376308b8c39758f5EB5D06E0dF",42220]	{"name": "TESTCelo", "symbol": "TECELO", "decimals": 18}
+["0xa6438B910Fd62D07D85B1BAe4B6BfbedCf04d479",42220]	{"name": "unknown", "symbol": "UNKNOWN", "decimals": 18}

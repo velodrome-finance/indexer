@@ -132,3 +132,12 @@ id	output
 ["0xf5FE7068B7b58B34b19De2880CC1Db72dd869022",57073]	{"name": "DogInk", "symbol": "DINK", "decimals": 18}
 ["0xfc421aD3C883Bf9E7C4f42dE845C4e4405799e73",57073]	{"name": "Gho Token", "symbol": "GHO", "decimals": 18}
 ["0xfd3C463f13f652F7a0D0d2FaA9d5950FfC579899",57073]	{"name": "Liquink", "symbol": "LIQUINK", "decimals": 18}
+["0x30987adF0B11dc698438a99BA04ec3a1AB2c7EaB",57073]	{"name": "Wrapped MicroStrategy xStock", "symbol": "wMSTRx", "decimals": 18}
+["0x4A2df09536F62341C9f946427D16414C04e21342",57073]	{"name": "Wrapped Palantir xStock", "symbol": "wPLTRx", "decimals": 18}
+["0x4C1AE29c159838fC1b224636E28E086EB69101f7",57073]	{"name": "Wrapped Nasdaq xStock", "symbol": "wQQQx", "decimals": 18}
+["0x7d87fD6A379714194a797c0bBB8B40c30D250856",57073]	{"name": "Wrapped Netflix xStock", "symbol": "wNFLXx", "decimals": 18}
+["0x8e2eeD8b8B5E13Ea7BF38e50d7821d2C57309072",57073]	{"name": "Wrapped SpaceX xStock", "symbol": "wSPCXx", "decimals": 18}
+["0x943BF64D566c32A2Bcd41AC92FB63C111cC9De8f",57073]	{"name": "Wrapped Apple xStock", "symbol": "wAAPLx", "decimals": 18}
+["0x9e148C5716b5aAdCFD3B71cEAE9EE7a9e22C29E2",57073]	{"name": "Aero", "symbol": "xAERO", "decimals": 18}
+["0xc3FdBe3A68EE5dE461D30415a8165cf9Aefe1171",57073]	{"name": "Wrapped Tesla xStock", "symbol": "wTSLAx", "decimals": 18}
+["0xc6639026a3a862cd4fcbae3f67cB2D25A2959d37",57073]	{"name": "Wrapped McDonald's xStock", "symbol": "wMCDx", "decimals": 18}

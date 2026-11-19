@@ -1,0 +1,49 @@
+id	output
+["0x004B506865409877C9fA29bfb1ebA929984B9bbC",42161]	{"name": "Global Dollar", "symbol": "USDG", "decimals": 6}
+["0x0A1a1A107E45b7Ced86833863f482BC5f4ed82EF",42161]	{"name": "USDai", "symbol": "USDai", "decimals": 18}
+["0x0a85b6EBe3C150A1979a65656E304033D62b1E12",42161]	{"name": "NVIDIA (Reality Tokenized)", "symbol": "rNVDA", "decimals": 18}
+["0x0B2b2B2076d95dda7817e785989fE353fe955ef9",42161]	{"name": "Staked USDai", "symbol": "sUSDai", "decimals": 18}
+["0x0C1c1C109FE34733fca54b82d7B46B75CFb71F6e",42161]	{"name": "Chip", "symbol": "CHIP", "decimals": 18}
+["0x0c880f6761F1af8d9Aa9C466984b80DAb9a8c9e8",42161]	{"name": "Pendle", "symbol": "PENDLE", "decimals": 18}
+["0x11cDb42B0EB46D95f990BeDD4695A6e3fA034978",42161]	{"name": "Curve DAO Token", "symbol": "CRV", "decimals": 18}
+["0x11e969e9B3f89cB16D686a03Cd8508C9fC0361AF",42161]	{"name": "Axelar Wrapped LAVA", "symbol": "LAVA", "decimals": 6}
+["0x13Ad51ed4F1B7e9Dc168d8a00cB3f4dDD85EfA60",42161]	{"name": "Lido DAO Token", "symbol": "LDO", "decimals": 18}
+["0x25118290e6A5f4139381D072181157035864099d",42161]	{"name": "RAIN", "symbol": "RAIN", "decimals": 18}
+["0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",42161]	{"name": "Wrapped BTC", "symbol": "WBTC", "decimals": 8}
+["0x35751007a407ca6FEFfE80b3cB397736D2cf4dbe",42161]	{"name": "Wrapped eETH", "symbol": "weETH", "decimals": 18}
+["0x3b8db18e69d6686Ad9371A423aFe3Dd1065C94f1",42161]	{"name": "Espresso", "symbol": "ESP", "decimals": 18}
+["0x3e76BB02286BFeAA89DD35f11253f2CbCE634F91",42161]	{"name": "Pleasing Gold", "symbol": "PGOLD", "decimals": 18}
+["0x40461291347e1eCbb09499F3371D3f17f10d7159",42161]	{"name": "XAUt0", "symbol": "XAUt0", "decimals": 6}
+["0x42D5691bC13c41E2e24A45018EE7609d97b2e7C7",42161]	{"name": "Sanko Gold", "symbol": "GOLD", "decimals": 18}
+["0x436a085B2751cB87db270FFa66f8d698F87bEC82",42161]	{"name": "Aero", "symbol": "xAERO", "decimals": 18}
+["0x46850aD61C2B7d64d08c9C754F45254596696984",42161]	{"name": "PayPal USD", "symbol": "PYUSD", "decimals": 6}
+["0x485cb1ED5662a911EbA7f8547EB9E253cF43b8aE",42161]	{"name": "Robinhood (Reality Tokenized)", "symbol": "rHOOD", "decimals": 18}
+["0x5181b7Dd097B42d7787ee78Efab86f43D4E12f44",42161]	{"name": "SpaceX (Reality Tokenized)", "symbol": "rSPCX", "decimals": 18}
+["0x548Cc634A64301A346F174071A90efa93daE4EB3",42161]	{"name": "Micron Technology (Reality Tokenized)", "symbol": "rMU", "decimals": 18}
+["0x5979D7b546E38E414F7E9822514be443A4800529",42161]	{"name": "Wrapped liquid staked Ether 2.0", "symbol": "wstETH", "decimals": 18}
+["0x5d3a1Ff2b6BAb83b63cd9AD0787074081a52ef34",42161]	{"name": "USDe", "symbol": "USDe", "decimals": 18}
+["0x6760E0064Eee21c89C21F6C00b752E37CB1cD6De",42161]	{"name": "Invesco QQQ (Reality Tokenized)", "symbol": "rQQQ", "decimals": 18}
+["0x6985884C4392D348587B19cb9eAAf157F13271cd",42161]	{"name": "LayerZero", "symbol": "ZRO", "decimals": 18}
+["0x6c84a8f1c29108F47a79964b5Fe888D4f4D0dE40",42161]	{"name": "Arbitrum tBTC v2", "symbol": "tBTC", "decimals": 18}
+["0x6fBBbD8bFB1cd3986B1D05e7861a0f62F87DB74b",42161]	{"name": "Vision", "symbol": "VSN", "decimals": 18}
+["0x7189fb5B6504bbfF6a852B13B7B82a3c118fDc27",42161]	{"name": "ether.fi governance token", "symbol": "ETHFI", "decimals": 18}
+["0x7dfF72693f6A4149b17e7C6314655f6A9F7c8B33",42161]	{"name": "Gho Token", "symbol": "GHO", "decimals": 18}
+["0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",42161]	{"name": "Wrapped Ether", "symbol": "WETH", "decimals": 18}
+["0x861A85a78C371bc0A02675bbe00a4cbC0826b421",42161]	{"name": "Circle (Reality Tokenized)", "symbol": "rCRCL", "decimals": 18}
+["0x8B0E6f19Ee57089F7649A455D89D7bC6314D04e8",42161]	{"name": "DMT", "symbol": "DMT", "decimals": 18}
+["0x8c61758C719780D62d17470ec94362433bdFD8D5",42161]	{"name": "SK hynix (Reality Tokenized)", "symbol": "rSKHY", "decimals": 18}
+["0x912CE59144191C1204E64559FE8253a0e49E6548",42161]	{"name": "Arbitrum", "symbol": "ARB", "decimals": 18}
+["0x9a0fda21276F245b89d2B7f1120F42e4466b1cb5",42161]	{"name": "SPDR S&P 500 ETF (Reality Tokenized)", "symbol": "rSPY", "decimals": 18}
+["0xaBa5e0C80e9f58E391214689fB342049C0d31892",42161]	{"name": "Apple (Reality Tokenized)", "symbol": "rAAPL", "decimals": 18}
+["0xaf88d065e77c8cC2239327C5EDb3A432268e5831",42161]	{"name": "USD Coin", "symbol": "USDC", "decimals": 6}
+["0xba5DdD1f9d7F570dc94a51479a000E3BCE967196",42161]	{"name": "Aave Token", "symbol": "AAVE", "decimals": 18}
+["0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf",42161]	{"name": "Coinbase Wrapped BTC", "symbol": "cbBTC", "decimals": 8}
+["0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",42161]	{"name": "Dai Stablecoin", "symbol": "DAI", "decimals": 18}
+["0xEC70Dcb4A1EFa46b8F2D97C310C9c4790ba5ffA8",42161]	{"name": "Rocket Pool ETH", "symbol": "rETH", "decimals": 18}
+["0xf912911C9c8D5131929c758e66e6dc54e65cF3ba",42161]	{"name": "Tesla (Reality Tokenized)", "symbol": "rTSLA", "decimals": 18}
+["0xf97f4df75117a78c1A5a0DBb814Af92458539FB4",42161]	{"name": "ChainLink Token", "symbol": "LINK", "decimals": 18}
+["0xFa7F8980b0f1E64A2062791cc3b0871572f1F7f0",42161]	{"name": "Uniswap", "symbol": "UNI", "decimals": 18}
+["0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a",42161]	{"name": "GMX", "symbol": "GMX", "decimals": 18}
+["0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",42161]	{"name": "USD₮0", "symbol": "USD₮0", "decimals": 6}
+["0xfEb4DfC8C4Cf7Ed305bb08065D08eC6ee6728429",42161]	{"name": "Paxos Gold", "symbol": "PAXG", "decimals": 18}
+["0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",42161]	{"name": "USD Coin (Arb1)", "symbol": "USDC", "decimals": 6}

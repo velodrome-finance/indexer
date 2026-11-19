@@ -34283,3 +34283,7 @@ id	output
 ["0xffcbF84650cE02DaFE96926B37a0ac5E34932fa5",8453]	{"name": "XEN Crypto", "symbol": "cbXEN", "decimals": 18}
 ["0xffe7528Ea5EC482F1Fa05a7366017F731BfCa1D9",8453]	{"name": "JesseBengal", "symbol": "JBNG", "decimals": 18}
 ["0xffffFFffFFFfF5781f1C86706062f7977b62e9D8",8453]	{"name": "fcoin", "symbol": "F", "decimals": 18}
+["0x027a9d301FB747cd972CFB29A63f3BDA551DFc5c",8453]	{"name": "unknown", "symbol": "UNKNOWN", "decimals": 18}
+["0x5DaCD8EE17c81c0D565641F868d3464cE4A06568",8453]	{"name": "unknown", "symbol": "UNKNOWN", "decimals": 18}
+["0x92A062bB26A0Cbc704BF7dcD4C833d4e1beeb83d",8453]	{"name": "unknown", "symbol": "UNKNOWN", "decimals": 18}
+["0xBd0bD2F620bD3C2d03fEfCA45Ea0aBe281965528",8453]	{"name": "unknown", "symbol": "UNKNOWN", "decimals": 18}

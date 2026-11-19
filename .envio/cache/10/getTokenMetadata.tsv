@@ -620,3 +620,5 @@ id	output
 ["0xfe5B10F053871e66a319a57a16CF4e709f51367F",10]	{"name": "OVERPOWERED", "symbol": "OVERPOWERED", "decimals": 18}
 ["0xff91beF76464C647B9ac12A9c6A719A93c9D12F2",10]	{"name": "nikolayus", "symbol": "nikoniko", "decimals": 18}
 ["0xff992408a0eCc367C7cf011Fd338c5Cb28C82550",10]	{"name": "TETHER", "symbol": "TETHER", "decimals": 18}
+["0x0F30716960F0618983Ac42bE2982FfEC181AF265",10]	{"name": "unknown", "symbol": "UNKNOWN", "decimals": 18}
+["0x3544773551EB240C2d8B499A62CAb994E7BB2662",10]	{"name": "unknown", "symbol": "UNKNOWN", "decimals": 18}

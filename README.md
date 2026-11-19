@@ -143,14 +143,27 @@ Rebuilding the price seed from the synced deployment
 (`scripts/build-canonical-price-seed.ts --clickhouse`) does the same job for
 those hours without the file: seed hours are never asked over RPC.
 
-#### Token metadata seed cache
+#### Committed effect caches
 
-`.envio/cache/<chainId>/getTokenMetadata.tsv` is committed. Envio loads it into
-the `getTokenMetadata` effect cache when it initialises a fresh database
-(first `envio dev`/`envio start`, or a run with `-r`), so a resync does not
-re-read ~35k tokens over RPC. It is compatible with the `getTokenMetadata`
-cache of Envio's Uniswap v4 indexer. Rebuild it with
-`scripts/build-token-metadata-cache.ts`.
+Envio loads every file under `.envio/cache/` into the matching effect cache
+when it initialises a fresh database (first `envio dev`/`envio start`, or a run
+with `-r`), so a resync does not repeat those RPC reads. Three are committed:
+
+- `<chainId>/getTokenMetadata.tsv`: name, symbol and decimals of ~35k tokens.
+  Compatible with the `getTokenMetadata` cache of Envio's Uniswap v4 indexer;
+  the first version was built with `scripts/build-token-metadata-cache.ts`.
+- `<chainId>/hasContractBytecode.tsv`: the bytecode check made once per new
+  token.
+- `getCanonicalSourceRpcPrice.tsv`: the canonical source prices read over RPC
+  (see above).
+
+The files are dumps of the effect tables of a synced database (one table per
+effect and chain, `envio_<chainId>_effect_<name>`, or `envio_effect_<name>` for
+a cross-chain effect), in the format of the `\copy` command above. The dump of
+2026-11-19 came from a sync with every chain except Optimism and Base at the
+head (Optimism at March 2026, Base at June 2025), so later tokens on those two
+chains are still read over RPC. When refreshing a file, keep its rows and
+append the new ones.
 
 ### Run
 

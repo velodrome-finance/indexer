@@ -35,3 +35,5 @@ id	output
 ["0xc6e30FEc711fa72B7eafB0c1632D2De0e1Bc3392",1135]	{"name": "Test LISK", "symbol": "TSK", "decimals": 18}
 ["0xdF92bA28D17329a7284A5eC230967768D4cb7A89",1135]	{"name": "Faet Token", "symbol": "FAET", "decimals": 18}
 ["0xe12cEFaAD61e551691BFa5cDA36e5dE051778C65",1135]	{"name": "Bridged EURC (Lisk)", "symbol": "EURC.e", "decimals": 6}
+["0x18470019bF0E94611f15852F7e93cf5D65BC34CA",1135]	{"name": "unknown", "symbol": "UNKNOWN", "decimals": 18}
+["0xDfc7C877a950e49D2610114102175A06C2e3167a",1135]	{"name": "unknown", "symbol": "UNKNOWN", "decimals": 18}
